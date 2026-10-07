@@ -14,13 +14,14 @@
   "use strict";
 
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin joyce-ui.
-  var PAGES = ["home", "chat", "settings", "workspace", "skills", "chatbots", "conversations", "files",
-               "terminal", "coding", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-               "packs", "logs", "account", "usage", "pet", "share"];
+  var PAGES = ["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace",
+               "camnang", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
+               "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account",
+               "staff", "usage", "pet", "share"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
   // trong plugin joyce-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
   // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
-  var GROUPS = ["bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
+  var GROUPS = ["tong_quan", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
   var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
   // Phạm vi cuộn. Cùng danh sách với SCROLL_TARGETS trong server/ui_targets.py. `top`/`bottom` để
   // TRANG NÀY tự chọn (xem khungCuonTrang): người nói "cuộn xuống" muốn cuộn thứ họ đang nhìn, mà chỉ

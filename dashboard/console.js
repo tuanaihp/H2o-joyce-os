@@ -24,6 +24,11 @@
   // dashboard/icons.manifest.json rồi chạy python tools/gen_icons.py.
   const VIEW_ICON = {
     today: "sun",
+    // Nhóm Tổng quan (Command Center, 0.65.46 / 1.0.1): bốn trang con mới cạnh Hôm nay.
+    command: "trending-up",
+    departments: "layers",
+    calendar: "calendar",
+    reports: "file-text",
     home: "hexagon",
     chat: "droplet",
     settings: "settings",
@@ -69,6 +74,7 @@
   // Icon cho TẦNG 1 (nhãn nhóm) - chỉ dùng ở header nhóm rail.
   const GICON = {
     "Hôm nay": ic("sun"),
+    "Tổng quan": ic("chart-column"),
     "Bộ não": ic("brain"),
     // Giữ "file-code" như trước khi có mục Coding. 0.63.1 từng đổi sang "wrench" để nhường
     // icon cho mục con, nhưng 0.63.4 mục con đã sang "code-xml" nên không còn trùng nữa, mà
@@ -98,7 +104,8 @@
   // Nhãn rail lấy từ TỪ ĐIỂN (thư mục dashboard/i18n) chứ không viết cứng. `t()` suy biến về
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
-    "today", "home", "chat", "settings", "workspace", "camnang", "skills", "chatbots", "conversations", "files",
+    "command", "today", "departments", "calendar", "reports",
+    "home", "chat", "settings", "workspace", "camnang", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "projects", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -127,7 +134,9 @@
     // "Bộ não" và đứng đầu nhóm, vì đó là hai trang được mở nhiều nhất.
     // Nhóm đầu tiên chỉ chứa trang Hôm nay - bàn làm việc tổng quan, entry point
     // mở app (gói Workstation: Joyce = Experience Layer gom cảnh báo từ mọi nguồn).
-    { id: "hom_nay", get label() { return t("nav.group.hom_nay"); },    icon: GICON["Hôm nay"],  ids: ["today"] },
+    // Spec V1.4 mục 53 (chủ duyệt 07/10): nhóm Hôm nay thành nhóm TỔNG QUAN, Hôm nay là trang con
+    // thứ hai sau Bảng điều hành. Bốn trang con mới do dashboard/overview.js vẽ (chỉ đọc).
+    { id: "tong_quan", get label() { return t("nav.group.tong_quan"); }, icon: GICON["Tổng quan"], ids: ["command", "today", "departments", "calendar", "reports"] },
     { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["home", "chat", "files", "learn"] },
     // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
     // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
@@ -162,7 +171,9 @@
   // quản trị (server vẫn chặn 403 các thao tác đó - đây chỉ để không bày nút bấm vô ích).
   // Còn lại: Hôm nay, Bộ não (đồ thị, trò chuyện, tệp tin, tự học), Trợ lý, Hội thoại,
   // Kỹ năng, Việc, và trang Nhân viên (thẻ của chính họ).
-  const RAIL_AN_NHAN_VIEN = new Set(["terminal", "coding", "projects", "plugins", "selfimprove",
+  // Tổng quan (trừ Hôm nay) là mặt quản trị toàn hệ thống: server trả 403 cho nhân viên.
+  const RAIL_AN_NHAN_VIEN = new Set(["command", "departments", "calendar", "reports",
+    "terminal", "coding", "projects", "plugins", "selfimprove",
     "mcp", "packs", "channels", "models", "settings", "share", "account"]);
   // typeof: rail còn được dựng trong môi trường không có window (test chạy console.js trong vm).
   const _laNhanVien = () => typeof window !== "undefined" && !!(window.__h2oStaff || window.__h2oStaffNav);
@@ -210,7 +221,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["today", "home", "chat", "settings", "workspace", "camnang", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace", "camnang", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -573,6 +584,12 @@
     if (id === "chatbots") return renderChatbots(el);
     if (id === "conversations") return renderConversations(el);
     if (id === "learn")    return renderLearn(el);
+    // Nhóm Tổng quan: bốn trang con do overview.js vẽ (cùng kiểu uỷ quyền như camnang.js).
+    if (["command", "departments", "calendar", "reports"].includes(id)) {
+      if (window.JoyceOverview) return window.JoyceOverview.render(el, id);
+      el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "overview.js" }));
+      return;
+    }
     if (id === "today") {
       if (!_wsV1) { el.innerHTML = placeholder("today"); return; }
       return renderToday(el);

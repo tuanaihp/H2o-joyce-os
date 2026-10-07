@@ -16768,6 +16768,7 @@ async def h2o_projects_check(ten: str = Form("")):
 # h2o_projects, connect_health) - không tạo nguồn dữ liệu mới.
 # ============================================================
 import joyce_today
+import joyce_overview   # nhóm Tổng quan: Bảng điều hành, Phòng ban, Lịch, Báo cáo (chỉ đọc)
 
 
 def _brain_names_today() -> list:
@@ -16885,7 +16886,7 @@ async def _v1_cmd_today(name: str, brain: str):
     return None
 
 
-joyce_today.register(app, joyce_today.TodayDeps(
+_today_deps = joyce_today.TodayDeps(
     board_view=tasks_feature.board_view,
     brain_names=_brain_names_today,
     reminders_load=reminders_feature._load,
@@ -16930,6 +16931,64 @@ joyce_today.register(app, joyce_today.TodayDeps(
     # Integration Center: list_connections/list_bots đã là bản redacted (không secrets).
     conns_list=mcp_store.list_connections,
     bots_list=lambda: chatbot_store.list_bots(),
+)
+joyce_today.register(app, _today_deps)
+
+
+# ---- Nhóm TỔNG QUAN (Command Center, spec V1.4 mục 53) ----------------------------------
+# Lớp đọc thuần trên CÙNG bộ nguồn của trang Hôm nay (_today_deps) + sổ phòng ban + chỉ mục mức
+# dùng. Không store mới. Các hàm _h2o_phong_view/_dem_file_trong khai báo ở khối NHÂN VIÊN bên
+# dưới, nên mọi dep là lambda: giải tên lúc gọi, không phải lúc đăng ký.
+def _overview_brain_paths() -> list:
+    """Đường dẫn TUYỆT ĐỐI mọi brain (BRAINS_DIR/* + brain mặc định). Không dùng tên trần như
+    _brain_names_today: _brain_root("Ten Phong") không phải thư mục nên rơi về brain mặc định,
+    và nhắc hẹn của brain phòng ban sẽ không bao giờ được đọc."""
+    out, seen = [], set()
+    cands = []
+    try:
+        cands += [p for p in Path(BRAINS_DIR).iterdir() if p.is_dir() and not p.name.startswith(".")]
+    except Exception:
+        pass
+    try:
+        cands.append(_default_brain_dir())
+    except Exception:
+        pass
+    for p in cands:
+        try:
+            k = str(p.resolve())
+        except OSError:
+            k = str(p)
+        if k.lower() not in seen and os.path.isdir(k):
+            seen.add(k.lower())
+            out.append(k)
+    return out
+
+
+def _overview_vault_counts(brain: str) -> dict:
+    root = Path(_brain_root(brain))
+    try:
+        facts = len(list((_brain_memory_dir(brain) / "facts").glob("*.md")))
+    except Exception:
+        facts = 0
+    return {"sources": _dem_file_trong(root, "sources"), "wiki": _dem_file_trong(root, "wiki"),
+            "facts": facts}
+
+
+def _overview_skills_count(brain: str) -> int:
+    d = Path(_brain_root(brain)) / "skills"
+    try:
+        return sum(1 for x in d.iterdir() if x.is_dir() and (x / "SKILL.md").is_file())
+    except Exception:
+        return 0
+
+
+joyce_overview.register(app, joyce_overview.OverviewDeps(
+    today=_today_deps,
+    phong_view=lambda: _h2o_phong_view(),
+    brain_paths=_overview_brain_paths,
+    usage_today=lambda: (usage_index.summary("today") or {}).get("kpi") or {},
+    vault_counts=_overview_vault_counts,
+    skills_count=_overview_skills_count,
 ))
 
 

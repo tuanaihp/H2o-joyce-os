@@ -18,14 +18,22 @@ import unicodedata
 # Trang hợp lệ = RAIL_ITEMS trong dashboard/console.js và PAGES trong dashboard/ui-actions.js.
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
-    "home", "chat", "settings", "workspace", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "pet", "share",
+    "command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace",
+    "camnang", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
+    "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account",
+    "staff", "usage", "pet", "share",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
 # khoá ở đây KHÔNG DẤU. Nhãn tiếng Việt đang hiện trên thanh bên phải có mặt trong bảng này.
 ALIASES = {
+    # Nhóm Tổng quan (spec V1.4 mục 53).
+    "tong quan": "command", "bang dieu hanh": "command", "command center": "command",
+    "dashboard": "command", "overview": "command", "hom nay": "today", "today": "today",
+    "phong ban": "departments", "suc khoe phong ban": "departments",
+    "lich": "calendar", "lich va ke hoach": "calendar", "ke hoach": "calendar", "calendar": "calendar",
+    "bao cao": "reports", "trung tam bao cao": "reports", "reports": "reports",
+    "cam nang": "camnang", "du an": "projects", "nhan vien": "staff",
     "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban", "task": "kanban", "tasks": "kanban",
     "tep": "files", "tep tin": "files", "file": "files", "thu muc": "files", "brain": "files",
     "cai dat": "settings", "setting": "settings", "thiet lap": "settings",
@@ -74,12 +82,14 @@ ALIASES = {
 # Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
 # dashboard/ui-actions.js. Mở NHÓM khác mở TRANG: người dùng hay muốn bung phần đang gập để
 # nhìn xem trong đó có gì, chứ chưa chọn trang nào.
-GROUPS = ("bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
+GROUPS = ("tong_quan", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
 
 GROUP_ALIASES = {
     # Nhóm "Trợ lý" đã bỏ ở 0.58.0 (gộp vào Bộ não); giữ bí danh cũ trỏ sang Bộ não để
     # câu lệnh bằng lời quen tay không chết.
     "tro ly": "bo_nao", "assistant": "bo_nao",
+    # Nhóm Tổng quan (spec V1.4): "hôm nay" trước là tên nhóm, nay là trang con của nhóm này.
+    "tong quan": "tong_quan", "overview": "tong_quan", "hom nay": "tong_quan",
     "bo nao": "bo_nao", "second brain": "bo_nao", "brain": "bo_nao",
     "code": "code", "lap trinh": "code",
     "nang luc": "nang_luc", "kha nang": "nang_luc", "capability": "nang_luc",

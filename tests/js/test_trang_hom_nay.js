@@ -34,11 +34,13 @@ const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); 
 // ============================================================
 check("VIEW_ICON có today", /VIEW_ICON\s*=\s*\{[^}]*today:\s*"sun"/s.test(CON));
 check("RAIL_ITEMS chứa 'today'", /RAIL_ITEMS\s*=\s*\[[^\]]*"today"/s.test(CON));
-check("RAIL_GROUPS có nhóm hom_nay trỏ today",
-  /id:\s*"hom_nay"[\s\S]*?ids:\s*\[\s*"today"\s*\]/.test(CON));
-check("nhóm hom_nay đứng ĐẦU (entry point)",
-  CON.indexOf('id: "hom_nay"') < CON.indexOf('id: "bo_nao"'));
-check("VIEW_META có today", /VIEW_META\s*=\s*Object\.fromEntries\(\[\s*"today"/.test(CON));
+// Spec V1.4 mục 53 (chủ duyệt 07/10): nhóm Hôm nay thành nhóm TỔNG QUAN, Hôm nay là trang con
+// thứ hai, ngay sau Bảng điều hành. Trang Hôm nay giữ nguyên logic cũ.
+check("RAIL_GROUPS có nhóm tong_quan chứa today ngay sau command",
+  /id:\s*"tong_quan"[\s\S]*?ids:\s*\[\s*"command",\s*"today"/.test(CON));
+check("nhóm tong_quan đứng ĐẦU (entry point)",
+  CON.indexOf('id: "tong_quan"') > 0 && CON.indexOf('id: "tong_quan"') < CON.indexOf('id: "bo_nao"'));
+check("VIEW_META có today", /VIEW_META\s*=\s*Object\.fromEntries\(\[[^\]]*"today"/.test(CON));
 check("dispatch renderPage -> renderToday", /id === "today"\)[\s\S]*?return renderToday\(el\)/.test(CON));
 check("có hàm renderToday", /async function renderToday\(el\)/.test(CON));
 
@@ -52,8 +54,8 @@ check("có hàm renderToday", /async function renderToday\(el\)/.test(CON));
   const g = railCtx.groups.find(x => x.items.some(i => i.id === "today"));
   assert.ok(g, "nhóm chứa today không tồn tại");
   // deepEqual trên mảng cross-realm (vm context) luôn fail - so từng phần tử.
-  assert.equal(g.items.length, 1);
-  assert.equal(g.items[0].id, "today");
+  assert.equal(g.items.length, 5);
+  assert.equal(g.items[1].id, "today");
 }
 
 // ============================================================
@@ -99,7 +101,7 @@ check("brief LLM fetch lười /brief-ai", /brief-ai\?brain=/.test(CON) && /tdBr
 // ============================================================
 // 5. i18n: đủ key cả hai ngôn ngữ, không key trần trên rail
 // ============================================================
-for (const k of ["nav.group.hom_nay", "page.today.label", "page.today.title",
+for (const k of ["nav.group.tong_quan", "page.today.label", "page.today.title",
                  "today.p_pulse", "today.p_apps", "today.brief" === "today.brief" ? "today.p_priority" : "",
                  "kanban.approve_strip", "kanban.act_reject",
                  "cmdk.placeholder", "cmdk.empty", "cmdk.cmd_new_task"]) {
@@ -107,7 +109,7 @@ for (const k of ["nav.group.hom_nay", "page.today.label", "page.today.title",
   check(`vi.json có ${k}`, typeof VI[k] === "string" && VI[k].length > 0);
   check(`en.json có ${k}`, typeof EN[k] === "string" && EN[k].length > 0);
 }
-check("nhãn VI 'Hôm nay'", VI["nav.group.hom_nay"] === "Hôm nay");
+check("nhãn VI 'Tổng quan'", VI["nav.group.tong_quan"] === "Tổng quan" && VI["page.today.label"] === "Hôm nay");
 check("dải VI 'Chờ duyệt'", VI["kanban.approve_strip"] === "Chờ duyệt");
 
 console.log();
