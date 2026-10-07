@@ -107,11 +107,12 @@ const s1 = vo.shown;
 pump(10);
 const s2 = r.storm().volcano.shown;
 check("sông chảy dài ra dần từ chân núi (không hiện tức thì)", s1 < s2, s1 + " -> " + s2 + " đoạn");
-check("nét chảy (nét đứt chạy dọc) = dung nham đang chảy không dừng", /c\.lineDashOffset = -t \* 26 \* sz;/.test(PLANET));
+// 1.0.2: sông chảy chậm, có thanh tốc độ - chi tiết ở test_song_dung_nham.js
+check("mảng vỏ nguội trôi theo đồng hồ chảy (theo tốc độ) = dung nham đang chảy không dừng", /c\.lineDashOffset = P_CRUST \* -ft \* sz;/.test(PLANET));
 check("magma dâng từ lõi Trái Đất lên chân núi", /ống magma: từ mép lõi/.test(PLANET) && /volc\.magma\.push/.test(PLANET));
 check("dung nham sủi NHẸ ở miệng núi (giọt nhảy thấp, rơi lại)", /vh: 0\.5 \+ Math\.random\(\) \* 0\.6/.test(PLANET) && /b\.vh -= 2\.2 \* dt/.test(PLANET));
 check("bỏ kiểu bắn tung toé ở bốn miệng + khe nứt rải khắp vỏ", !/VENTS/.test(PLANET) && !/float fis=pow/.test(PLANET));
-check("sông gần núi rực, xa thì nguội và nhỏ lại", /function lavaStyle\(c, LP, f, k, sz, t\)/.test(PLANET) && /\(1 - 0\.55 \* f\)/.test(PLANET));
+check("sông gần núi rực, xa thì nguội và nhỏ lại", /var f = \(rv\.start \+ mid\) \/ maxL/.test(PLANET) && /\(1 - 0\.3 \* f\)/.test(PLANET));
 P.setLook({}, { replace: true });
 pump(5);   // hiệu ứng tắt mờ dần (~3 giây), không tắt phụt
 check("tắt phun trào -> không còn núi lửa", r.storm().volcano === null);
@@ -119,7 +120,7 @@ check("tắt phun trào -> không còn núi lửa", r.storm().volcano === null);
 // ---- 3. Vòi rồng thấp tới đáy mây + màu ----
 P.setLook({ tornado: true }, { replace: true });
 const hts = [];
-pump(40, (i) => { if (i % 10 === 0) { const t = r.storm().tornado; if (t && t.ht) hts.push(t.ht); } });
+pump(90, (i) => { if (i % 10 === 0) { const t = r.storm().tornado; if (t && t.ht) hts.push(t.ht); } });   // 90 giây: nhiễu chậm, đo ngắn thì dao động
 check("vòi rồng thấp: cao tối đa ~0,23 bán kính (mặt đất tới đáy mây)", hts.length > 10 && Math.max(...hts) <= 0.24, Math.max(...hts).toFixed(3));
 check("vẫn lúc cao lúc thấp", Math.max(...hts) - Math.min(...hts) > 0.02);
 check("đỉnh vòi nhập vào khối mây giông mẹ", /khối mây giông MẸ phủ đỉnh vòi/.test(PLANET));

@@ -3909,7 +3909,7 @@
   "look.clear": "Clear",
   "look.core_glow": "Core glow",
   "look.fx_eruption": "Lava eruption",
-  "look.fx_eruption_d": "A volcano erupts from the core, lava rivers flow around the Earth",
+  "look.fx_eruption_d": "Slow lava rivers flow around the Earth, burning and smoking as they go",
   "look.other": "Other",
   "look.fx_orbits": "Data orbit rings",
   "look.fx_orbits_d": "The three glowing rings and data particles around the planet",
@@ -4113,5 +4113,8 @@
   "ov.rq_dept": "Report department health: which have blocked work, which lack data or a brain. End with 1 to 3 actions.",
   "ov.rq_social": "Report this week's Facebook Pages from real data: followers, engagement, top posts, drafts awaiting approval. Compare with last week if possible.",
   "ov.rq_knowledge": "Knowledge report: newly loaded files, new wiki pages, learning proposals awaiting review in the open brain.",
-  "ov.rq_usage": "AI usage report for the last 7 days: tokens, calls, cost per engine, and saving tips."
+  "ov.rq_usage": "AI usage report for the last 7 days: tokens, calls, cost per engine, and saving tips.",
+  "look.lava_speed": "Lava flow speed",
+  "look.slow": "Slow",
+  "look.fast": "Fast"
 }

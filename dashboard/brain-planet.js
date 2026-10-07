@@ -537,6 +537,7 @@
     surface: [0.4, 1.8, 1], atmo: [0, 2, 1],
     clouds: [0, 1, 0.3], cloudDark: [0, 1, 0],
     coreVis: [0, 2, 1], coreGlow: [0, 2, 1],
+    lavaSpeed: [0.2, 3, 1],   // tốc độ chảy của sông dung nham (1 = chậm, ~1,5 phút một dòng)
   };
   var LOOK_COLOR = { sunColor: "#ffd46b", seaColor: "#064cff", rimColor: "#00e7ff" };
   var LOOK_BOOL = { rain: false, lightning: false, wind: false, tornado: false, eruption: false, orbits: true };
@@ -1951,7 +1952,8 @@
     // Lõi sôi + cột magma trong lõi vẫn do shader lo (uCo.z).
     // ---------------------------------------------------------------------------
     var VOLC_G = geoVec(-6.1, 105.4);
-    var volc = { rivers: null, age: 0, bub: [], smoke: [], magma: [] };
+    // front: đầu dòng (bước), flowT: đồng hồ trôi vỏ nguội (theo tốc độ), plume: hạt khói, acc: tích luỹ sinh khói.
+    var volc = { rivers: null, front: 0, flowT: 0, bub: [], smoke: [], magma: [], plume: [], acc: [], acc2: [] };
     function rotAround(h, axis, a) {   // xoay h (vuông góc axis) quanh axis
       var x = cross3(axis, h), ca = Math.cos(a), sa = Math.sin(a);
       return [h[0] * ca + x[0] * sa, h[1] * ca + x[1] * sa, h[2] * ca + x[2] * sa];
@@ -1981,54 +1983,180 @@
       }
       return out;
     }
-    // Ba nét: quầng nóng rộng, thân dung nham, vệt chảy (nét đứt chạy dọc). Màu theo độ nguội:
-    // [r, g, b] lúc nóng (gần miệng núi) -> lúc nguội (xa).
-    var LAVA_PASS = [[3.2, 1.2, [255, 90, 20], [120, 25, 8], 0.3, false], [1.3, 0.5, [255, 160, 60], [150, 38, 12], 0.9, false],
-                     [0.7, 0.3, [255, 240, 170], [230, 120, 50], 0.9, true]];
-    function lavaStyle(c, LP, f, k, sz, t) {   // f = 0 sát núi .. 1 cuối sông
-      var cr = Math.round(LP[2][0] + (LP[3][0] - LP[2][0]) * f), cg = Math.round(LP[2][1] + (LP[3][1] - LP[2][1]) * f), cb = Math.round(LP[2][2] + (LP[3][2] - LP[2][2]) * f);
-      var al = LP[4] * k * (LP[5] ? Math.max(0, 1 - f * 1.3) : 1 - 0.45 * f);
-      c.setLineDash(LP[5] ? [3 * sz, 9 * sz] : []);
-      c.lineDashOffset = -t * 26 * sz;
-      c.strokeStyle = "rgba(" + cr + "," + cg + "," + cb + "," + al.toFixed(3) + ")";
-    }
-    function drawRivers(c, k, t) {
+    // ---------------------------------------------------------------------------
+    // SÔNG DUNG NHAM (1.0.2, chủ yêu cầu: chạy chậm từ từ, lan to rộng như dòng sông, chảy tới đâu
+    // đốt cháy toả khói mù mịt tới đó, có chỉnh tốc độ). Mỗi dòng có một ĐẦU DÒNG (`volc.front`,
+    // đơn vị bước 0,028 rad) tiến LAVA_RATE bước/giây x look.lavaSpeed - mặc định ~1,5 phút một dòng.
+    // Bề rộng tính theo radian trên mặt cầu (phóng to là sông to); ngay đầu dòng hẹp, phía sau lan
+    // rộng dần (`spread`) - đúng kiểu dung nham bò tới rồi tràn ra hai bên. Lớp vẽ: đất cháy sẫm
+    // rộng gấp 2,6 -> quầng nóng -> thân dung nham (nóng gần núi, nguội đỏ sẫm ở xa) -> mảng vỏ nguội
+    // trôi chậm -> lõi sáng; đầu dòng rực vàng trắng. Khói + lửa: drawLavaSmoke.
+    // ---------------------------------------------------------------------------
+    var LAVA_RATE = 1.6;              // bước/giây ở tốc độ 1 (0,045 rad/giây)
+    var LAVA_HALF = 0.024;            // nửa bề rộng sông chính (rad); nhánh x0,6
+    var LAVA_SPREAD = 14;             // số bước sau đầu dòng thì sông lan đủ rộng
+    var P_CRUST = 5;                  // vỏ nguội trôi P_CRUST px/giây x tốc độ
+    function lavaSeg(rv) { return Math.min(rv.pts.length, volc.front - rv.start); }   // số bước đã chảy (thực)
+    function drawRivers(c, k) {
       if (!volc.rivers) volc.rivers = buildRivers();
-      var R = geo.R, sz = clamp(R / 150, 0.8, 3), maxL = 0;
+      var R = geo.R, maxL = 0, ft = volc.flowT, sz = clamp(R / 150, 0.8, 3);
       volc.rivers.forEach(function (r) { maxL = Math.max(maxL, r.start + r.pts.length); });
-      for (var pass = 0; pass < LAVA_PASS.length; pass++) {
-        var LP = LAVA_PASS[pass];
-        for (var i = 0; i < volc.rivers.length; i++) {
-          var rv = volc.rivers[i], n = Math.min(rv.pts.length, Math.floor(volc.age * 14 - rv.start));
-          if (n < 2) continue;
-          var scrP = rv.pts.slice(0, n).map(function (g) {
-            var v = toView(Gm, g);
-            return v[2] < 0.03 ? null : [geo.cx + v[0] * R * 1.002, geo.cy - v[1] * R * 1.002];
-          });
-          for (var c0 = 0; c0 < n - 1; c0 += 10) {     // từng đoạn 10 bước: bề rộng + màu theo khoảng cách
-            var f = (rv.start + c0) / maxL;
-            lavaStyle(c, LP, f, k, sz, t);
-            c.lineWidth = (LP[0] * rv.w + LP[1]) * sz * (1 - 0.55 * f);
-            c.beginPath();
-            var pen = false;
-            for (var j2 = c0; j2 <= Math.min(n - 1, c0 + 10); j2++) {
-              var q = scrP[j2];
-              if (!q) { pen = false; continue; }
-              if (pen) c.lineTo(q[0], q[1]); else { c.moveTo(q[0], q[1]); pen = true; }
-            }
-            c.stroke();
-          }
+      // Hai kiểu lớp:
+      //  - lớp BÁN TRONG SUỐT (đất cháy, quầng nóng, mảng vỏ nguội) vẽ MỘT nét liền cho cả dòng:
+      //    vẽ từng đoạn thì chỗ nối chồng alpha lên nhau thành chuỗi hạt tròn đều.
+      //  - lớp ĐẶC (thân dung nham, lõi sáng) vẽ từng đoạn 3 bước để bề rộng lan dần và màu nguội
+      //    dần theo khoảng cách; đặc nên chỗ nối không lộ.
+      volc.rivers.forEach(function (rv) {
+        var n = lavaSeg(rv);
+        if (n < 1) return;
+        var nf = Math.floor(n), pts = [];
+        for (var j = 0; j <= Math.min(nf, rv.pts.length - 1); j++) pts.push(rv.pts[j]);
+        if (nf < rv.pts.length - 1) {    // đầu dòng nằm GIỮA hai bước: nội suy để tiến mượt, không giật
+          var a = rv.pts[nf], b = rv.pts[nf + 1], fr = n - nf;
+          pts.push(norm3([a[0] + (b[0] - a[0]) * fr, a[1] + (b[1] - a[1]) * fr, a[2] + (b[2] - a[2]) * fr]));
         }
-      }
+        var sc = pts.map(function (g) {
+          var v = toView(Gm, g);
+          return v[2] < 0.03 ? null : [geo.cx + v[0] * R * 1.002, geo.cy - v[1] * R * 1.002, v[2]];
+        });
+        var last = pts.length - 1, fMid = (rv.start + last / 2) / maxL;
+        var full = 2 * LAVA_HALF * rv.w * R * (1 - 0.3 * fMid);      // bề rộng đã lan đủ
+        var path = function (c0, c1) {
+          c.beginPath();
+          var pen = false;
+          for (var q = c0; q <= c1; q++) {
+            var s0 = sc[q];
+            if (!s0) { pen = false; continue; }
+            if (pen) c.lineTo(s0[0], s0[1]); else { c.moveTo(s0[0], s0[1]); pen = true; }
+          }
+        };
+        var tail = Math.max(0, last - 5);                            // nét liền dừng trước đầu dòng hẹp
+        // 1. đất cháy sẫm hai bên  2. quầng nóng
+        [[2.7, "rgba(30,15,10,", 0.6], [1.8, "rgba(255,92,24,", 0.3]].forEach(function (L) {
+          if (tail < 1) return;
+          c.setLineDash([]);
+          c.strokeStyle = L[1] + (L[2] * k).toFixed(3) + ")";
+          c.lineWidth = Math.max(L[0] * 2.2, full * L[0]);
+          path(0, tail); c.stroke();
+        });
+        // 3. thân + 4. lõi sáng: từng đoạn, lan rộng dần sau đầu dòng, đầu dòng rực vàng trắng
+        [[1, [255, 132, 36], [150, 36, 12]], [0.42, [255, 226, 140], [235, 104, 36]]].forEach(function (L) {
+          for (var c0 = 0; c0 < last; c0 += 3) {
+            var c1 = Math.min(last, c0 + 3), mid = (c0 + c1) / 2;
+            var f = (rv.start + mid) / maxL, behind = n - mid;
+            var spread = 0.35 + 0.65 * smooth(0, LAVA_SPREAD, behind);
+            var hot = 1 - smooth(0, 6, behind);
+            var col = [0, 1, 2].map(function (q) {
+              var x = L[1][q] + (L[2][q] - L[1][q]) * f;
+              return Math.round(x + ([255, 245, 200][q] - x) * hot * 0.6);
+            });
+            c.setLineDash([]);
+            c.strokeStyle = "rgba(" + col.join(",") + "," + k.toFixed(3) + ")";
+            c.lineWidth = Math.max(L[0] * 2.2, 2 * LAVA_HALF * rv.w * R * L[0] * spread * (1 - 0.3 * f));
+            path(c0, c1); c.stroke();
+          }
+        });
+        // 5. mảng vỏ nguội sẫm trôi chậm theo dòng, đè lên lõi sáng (nhịp không đều cho tự nhiên)
+        if (tail >= 1) {
+          c.lineCap = "butt";
+          c.setLineDash([3 * sz, 9 * sz, 6 * sz, 14 * sz, 2 * sz, 7 * sz, 9 * sz, 11 * sz]);
+          c.lineDashOffset = P_CRUST * -ft * sz;
+          c.strokeStyle = "rgba(60,22,10," + (0.5 * k).toFixed(3) + ")";
+          c.lineWidth = Math.max(1.2, full * 0.42);
+          path(0, tail); c.stroke();
+          // 6. vệt sáng mảnh chảy nhanh hơn vỏ nguội trong lòng sông = dòng chảy đang sống
+          c.setLineDash([1.5 * sz, 13 * sz, 1 * sz, 21 * sz]);
+          c.lineDashOffset = P_CRUST * -ft * sz * 2.6;
+          c.strokeStyle = "rgba(255,246,205," + (0.75 * k).toFixed(3) + ")";
+          c.lineWidth = Math.max(0.8, full * 0.12);
+          path(0, tail); c.stroke();
+          c.lineCap = "round";
+        }
+      });
       c.setLineDash([]);
     }
+
+    // KHÓI + LỬA theo dòng dung nham: đầu dòng đang chảy (lửa bập bùng + khói đen cuồn cuộn), dải
+    // vừa chảy qua phía sau (khói âm ỉ + đốm than), dòng đã chảy hết (khói lác đác). Khói neo toạ độ
+    // địa lý, bốc lên theo "phía trên trời" của điểm đó, trôi ngang theo gió, nở to, nhạt dần từ đen
+    // sang xám. Lửa vẽ thủ tục mỗi khung (không cần nhớ hạt).
+    function drawLavaSmoke(c, k, dt, now) {
+      if (!volc.rivers) return;
+      var R = geo.R, cap = profile === "high" ? 420 : profile === "balanced" ? 240 : 90;
+      var spd = 0.6 + 0.4 * Math.min(2, look.lavaSpeed);
+      var push = function (g, big) {
+        if (volc.plume.length >= cap) return;
+        volc.plume.push({ g: g, age: 0, life: (big ? 6 : 4.5) + Math.random() * 3.5, r0: (big ? 1.2 : 0.8) * (0.8 + Math.random() * 0.6),
+                          dx: (Math.random() - 0.5) * 0.6, sp: 0.8 + Math.random() * 0.5 });
+      };
+      var t = simT;
+      volc.rivers.forEach(function (rv, ri) {
+        var n = lavaSeg(rv);
+        if (n < 1) return;
+        var flowing = n < rv.pts.length - 0.5;
+        var at = function (s) { return rv.pts[clamp(Math.floor(s), 0, rv.pts.length - 1)]; };
+        if (dt && k > 0.3) {
+          if (flowing) {
+            // đầu dòng: khói dày, tỉ lệ với tốc độ chảy
+            var rate = 9 * spd * rv.w;
+            volc.acc[ri] = (volc.acc[ri] || 0) + dt * rate;
+            while (volc.acc[ri] >= 1) { volc.acc[ri] -= 1; push(offsetGeo(at(n), gauss() * 0.012, gauss() * 0.012), true); }
+            // dải vừa cháy qua phía sau
+            volc.acc2[ri] = (volc.acc2[ri] || 0) + dt * 10 * spd * rv.w;   // dải vừa cháy qua: khói âm ỉ dày
+            while (volc.acc2[ri] >= 1) { volc.acc2[ri] -= 1; push(at(n - 2 - Math.random() * 40), false); }
+          } else if (Math.random() < dt * 0.8 * rv.w) {
+            push(at(Math.random() * rv.pts.length), false);
+          }
+        }
+        if (!flowing) return;
+        // lửa ở đầu dòng + đốm than phía sau
+        var g0 = at(n), v0 = toView(Gm, g0);
+        if (v0[2] < 0.05) return;
+        var vis = k * smooth(0.05, 0.3, v0[2]), up = upOf(v0), rot = Math.atan2(up[0], -up[1]);
+        for (var f = 0; f < 5; f++) {
+          var gf = f === 0 ? g0 : at(n - 1 - f * 2.2), vf = toView(Gm, gf);
+          if (vf[2] < 0.05) continue;
+          var fl = 0.65 + 0.35 * Math.sin(t * (9 + f * 2.3) + f * 1.7 + ri);
+          var hgt = Math.max(4, R * 0.04 * rv.w * fl * (f === 0 ? 1.4 : 1 - f * 0.12));
+          var fx0 = geo.cx + vf[0] * R + up[0] * hgt * 0.45, fy0 = geo.cy - vf[1] * R + up[1] * hgt * 0.45;
+          softEllipse(c, fx0, fy0, hgt * 0.42, hgt, rot, [255, 140, 30], 0.55 * vis * fl);
+          softEllipse(c, fx0 - up[0] * hgt * 0.2, fy0 - up[1] * hgt * 0.2, hgt * 0.22, hgt * 0.5, rot, [255, 236, 170], 0.8 * vis * fl);
+        }
+        c.fillStyle = "rgba(255,170,60," + (0.7 * vis).toFixed(3) + ")";
+        for (var e = 0; e < 8; e++) {
+          var ge = at(n - 4 - e * 3), ve = toView(Gm, ge);
+          if (ve[2] < 0.05 || Math.sin(t * 3 + e * 7.1 + ri) < 0.2) continue;
+          var ex = geo.cx + ve[0] * R + Math.sin(e * 12.9 + ri) * R * 0.012, ey = geo.cy - ve[1] * R + Math.cos(e * 7.3 + ri) * R * 0.008;
+          c.beginPath(); c.arc(ex, ey, Math.max(0.8, R * 0.0035), 0, 6.2832); c.fill();
+        }
+      });
+      // khói (vẽ sau lửa để đầu dòng mờ mịt trong khói)
+      var wind = 0.35 + fx.wind;
+      volc.plume = volc.plume.filter(function (p) {
+        if (dt) p.age += dt;
+        var q = p.age / p.life;
+        if (q >= 1) return false;
+        var v = toView(Gm, p.g);
+        if (v[2] < 0.03) return true;
+        var up = upOf(v), rise = R * 0.03 * p.sp * p.age, side = R * 0.012 * wind * p.age * (1 + p.dx);
+        var x = geo.cx + v[0] * R + up[0] * rise - up[1] * side, y = geo.cy - v[1] * R + up[1] * rise + up[0] * side;
+        var r = R * (0.014 + 0.02 * p.age) * p.r0;
+        var gr = Math.round(28 + 90 * q);
+        var a = 0.7 * Math.pow(1 - q, 1.1) * smooth(0, 0.1, q) * k * smooth(0.03, 0.25, v[2]);
+        softEllipse(c, x, y, r, r * 0.82, Math.atan2(up[0], -up[1]), [gr, gr - 4, gr - 2], a);
+        return true;
+      });
+    }
+    // Dòng dung nham chảy xuống SƯỜN núi: [bề rộng px, màu, nét đứt?, alpha]
+    var SLOPE_PASS = [[5, "rgba(255,90,20,", 0, 0.3], [2.2, "rgba(255,160,60,", 0, 0.9], [1, "rgba(255,240,170,", 1, 0.9]];
     function drawEruption(c, now, dt) {
       var k = fx.eruption;
-      if (k < 0.01) { volc.age = 0; volc.bub.length = 0; volc.magma.length = 0; volc.smoke.length = 0; return; }
-      if (dt) volc.age += dt;
+      if (k < 0.01) { volc.front = 0; volc.flowT = 0; volc.bub.length = 0; volc.magma.length = 0; volc.smoke.length = 0; volc.plume.length = 0; volc.acc = []; volc.acc2 = []; return; }
+      if (dt) { volc.front += dt * LAVA_RATE * look.lavaSpeed; volc.flowT += dt * look.lavaSpeed; }
       var t = simT, R = geo.R, sz = clamp(R / 150, 0.8, 3);
       c.save(); c.lineCap = "round"; c.lineJoin = "round";
-      drawRivers(c, k, t);
+      drawRivers(c, k);
+      drawLavaSmoke(c, k, dt, now);
       var v = toView(Gm, VOLC_G), vis = k * smooth(0.0, 0.25, v[2]);
       if (vis < 0.01) { c.restore(); return; }
       var bx = geo.cx + v[0] * R, by = geo.cy - v[1] * R, up = upOf(v), px = -up[1], py = up[0], rot = Math.atan2(py, px);
@@ -2073,9 +2201,10 @@
       for (var f = 0; f < 4; f++) {
         var s0 = -0.1 + f * 0.065, e0 = [-0.75, -0.3, 0.32, 0.8][f];
         var A0 = P2(s0, 0.92), C0 = P2((s0 + e0) * 0.5 + 0.12 * Math.sin(f * 2.1), 0.45), E0 = P2(e0, 0.02);
-        for (var li = 0; li < LAVA_PASS.length; li++) {
-          var LP = LAVA_PASS[li];
-          lavaStyle(c, LP, 0, vis, sz, t); c.lineWidth = (LP[0] * 0.7 + LP[1]) * sz;
+        for (var li = 0; li < SLOPE_PASS.length; li++) {
+          var LP = SLOPE_PASS[li];
+          c.setLineDash(LP[2] ? [2.5 * sz, 6 * sz] : []); c.lineDashOffset = LP[2] ? -volc.flowT * 18 * sz : 0;
+          c.strokeStyle = LP[1] + (LP[3] * vis).toFixed(3) + ")"; c.lineWidth = LP[0] * sz;
           c.beginPath(); c.moveTo(A0[0], A0[1]); c.quadraticCurveTo(C0[0], C0[1], E0[0], E0[1]); c.stroke();
         }
       }
@@ -2864,7 +2993,10 @@
                wind: streaks.filter(function (q) { return q.gh; }).map(function (q) { return { g: q.gh.slice(), a: q.a, b: q.b }; }),
                volcano: fx.eruption > 0.01 && volc.rivers ? { g: VOLC_G.slice(), rivers: volc.rivers.length,
                  longest: Math.max.apply(null, volc.rivers.map(function (r) { return r.pts.length; })) * 0.028,
-                 shown: volc.rivers.reduce(function (a, r) { return a + clamp(Math.floor(volc.age * 14 - r.start), 0, r.pts.length); }, 0) } : null };
+                 shown: volc.rivers.reduce(function (a, r) { return a + clamp(Math.floor(volc.front - r.start), 0, r.pts.length); }, 0),
+                 front: volc.front, plume: volc.plume.map(function (p) { return p.g.slice(); }),
+                 tips: volc.rivers.filter(function (r) { return volc.front - r.start > 0 && volc.front - r.start < r.pts.length; })
+                   .map(function (r) { return r.pts[Math.floor(volc.front - r.start)].slice(); }) } : null };
     };
     return R;
   }

@@ -3909,7 +3909,7 @@
   "look.clear": "Rõ",
   "look.core_glow": "Ánh sáng lõi",
   "look.fx_eruption": "Dung nham phun trào",
-  "look.fx_eruption_d": "Núi lửa phun từ lõi, sông dung nham chảy quanh Trái Đất",
+  "look.fx_eruption_d": "Sông dung nham chảy chậm quanh Trái Đất, cháy tới đâu khói mù tới đó",
   "look.other": "Khác",
   "look.fx_orbits": "Vành quỹ đạo dữ liệu",
   "look.fx_orbits_d": "Ba vành sáng và hạt dữ liệu quanh tinh cầu",
@@ -4113,5 +4113,8 @@
   "ov.rq_dept": "Báo cáo sức khoẻ các phòng ban: phòng nào có việc kẹt, phòng nào chưa có dữ liệu hoặc chưa có brain. Kết thúc bằng 1 đến 3 việc nên làm.",
   "ov.rq_social": "Báo cáo Fanpage tuần này từ số liệu thật: follower, tương tác, bài nổi bật, nháp chờ duyệt. So với tuần trước nếu có.",
   "ov.rq_knowledge": "Báo cáo tri thức: tài liệu mới nạp, trang wiki mới chưng cất, đề xuất học đang chờ duyệt trong brain đang mở.",
-  "ov.rq_usage": "Báo cáo mức dùng AI 7 ngày qua: token, lượt gọi, chi phí theo bộ não, và gợi ý tiết kiệm."
+  "ov.rq_usage": "Báo cáo mức dùng AI 7 ngày qua: token, lượt gọi, chi phí theo bộ não, và gợi ý tiết kiệm.",
+  "look.lava_speed": "Tốc độ dòng dung nham",
+  "look.slow": "Chậm",
+  "look.fast": "Nhanh"
 }

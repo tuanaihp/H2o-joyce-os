@@ -4703,6 +4703,7 @@ _PLANET_SO = {
     "surface": (0.4, 1.8), "atmo": (0, 2),
     "clouds": (0, 1), "cloudDark": (0, 1),
     "coreVis": (0, 2), "coreGlow": (0, 2),
+    "lavaSpeed": (0.2, 3),
 }
 _PLANET_MAU = ("sunColor", "seaColor", "rimColor")
 _PLANET_BAT = ("rain", "lightning", "wind", "tornado", "eruption", "orbits")

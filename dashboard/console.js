@@ -8148,7 +8148,8 @@
         ${the("sparkles", "look.core", "look.core_desc",
           truot("coreVis", "look.core_vis", "look.dim", "look.clear") +
           truot("coreGlow", "look.core_glow", "look.weak", "look.strong") +
-          `<div class="look-fxs">${congTac("eruption", "zap", "look.fx_eruption", "look.fx_eruption_d")}</div>`)}
+          `<div class="look-fxs">${congTac("eruption", "zap", "look.fx_eruption", "look.fx_eruption_d")}</div>` +
+          truot("lavaSpeed", "look.lava_speed", "look.slow", "look.fast"))}
         ${the("layers", "look.other", "",
           `<div class="look-fxs">${congTac("orbits", "circle", "look.fx_orbits", "look.fx_orbits_d")}</div>`)}
       </div>

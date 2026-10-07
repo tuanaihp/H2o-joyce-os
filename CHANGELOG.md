@@ -1,5 +1,11 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.2] - 2026-10-07
+### Cải thiện
+- **Sông dung nham chảy chậm và lan rộng như dòng sông thật**: đầu dòng bò tới từ từ (khoảng 1,5 phút một dòng), phía sau tràn rộng ra, hai bên là dải đất cháy sẫm, mặt dung nham có mảng vỏ nguội trôi chậm.
+- **Chảy tới đâu cháy tới đó**: lửa bập bùng ở đầu dòng, khói đen cuồn cuộn bốc lên và trôi theo gió dọc đường dung nham vừa chảy qua, có đốm than âm ỉ phía sau.
+- **Thanh Tốc độ dòng dung nham** trong Cài đặt → Giao diện Joyce → Quả tinh cầu (thẻ Lõi tinh cầu), từ 0,2 lần tới 3 lần.
+
 ## [1.0.1] - 2026-10-07
 ### Thêm mới
 - **Nhóm Tổng quan** đứng đầu thanh bên, gồm 5 trang: **Bảng điều hành**, Hôm nay, **Phòng ban**, **Lịch & kế hoạch**, **Báo cáo**. Hôm nay giữ nguyên, chỉ chuyển vào nhóm này.
