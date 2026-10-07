@@ -1,0 +1,36 @@
+# ============================================================================
+# Joyce OS - BUILD TỪ SOURCE (thay vì pull image GHCR).
+#   docker compose -f docker-compose.build.yml up -d --build
+# Dùng khi: tự host registry riêng, fork sửa code, hoặc test image trước khi đẩy.
+# ============================================================================
+services:
+  joyce:
+    build:
+      context: .
+      args:
+        CLAUDE_CLI_VERSION: ${CLAUDE_CLI_VERSION:-latest}
+    image: ${JOYCE_IMAGE:-h2o-joyce-os:latest}
+    container_name: ${JOYCE_NAME:-joyce}          # đổi trong .env khi chạy nhiều bản trên một máy
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${JOYCE_HOST_PORT:-7777}:7777"
+    volumes:
+      - joyce-data:/data
+      - joyce-brains:/brains      # đổi sang  ./brains:/brains  nếu muốn git-backup (chown -R 10001 ./brains)
+      - claude-auth:/home/joyce/.claude
+      - codex-auth:/home/joyce/.codex
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('JOYCE_PORT','7777')+'/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+
+volumes:
+  joyce-data:
+  joyce-brains:
+  claude-auth:
+  codex-auth:

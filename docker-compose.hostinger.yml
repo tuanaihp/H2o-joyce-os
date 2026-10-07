@@ -1,0 +1,155 @@
+# ============================================================================
+# Joyce OS - HOSTINGER VPS (Docker Manager). Tên miền + HTTPS qua Traefik có sẵn của Hostinger.
+#
+# File này LUÔN deploy được:
+#   - Chưa đặt DOMAIN_NAME  -> chạy tạm, vào bằng nút Open / http://<ip>:7777 (chưa có HTTPS).
+#   - Đặt DOMAIN_NAME       -> Traefik của Hostinger tự cấp HTTPS cho tên miền đó.
+#
+# CÁCH DÙNG:
+#   1) Docker Manager > Compose > URL > dán:
+#      nội dung file docker-compose.hostinger.yml này (đi kèm sẵn trong repo cài đặt)
+#   2) Ô Environment chỉ còn 4 trường hữu ích:
+#        DOMAIN_NAME, JOYCE_ADMIN_USER, JOYCE_ADMIN_PASSWORD, JOYCE_AUTO_UPDATE.
+#      (JOYCE_AUTO_UPDATE=true thì Joyce TỰ cập nhật mỗi ngày, khỏi bấm nút. Bỏ trống thì
+#       cập nhật bằng nút "Cập nhật ngay" trong app - xem service watchtower ở dưới.)
+#      (Thêm 2 trường CHỈ CẦN KHI cài bản Joyce THỨ HAI trở đi trên cùng VPS - xem cuối file:
+#        JOYCE_NAME, JOYCE_HOST_PORT. Cài bản đầu thì bỏ trống cả hai.)
+#      Đặt DOMAIN_NAME để có HTTPS:
+#        - Link miễn phí (KHÔNG cần mua tên miền):  DOMAIN_NAME=joyce.<hostname-vps>.hstgr.cloud
+#          (hostname xem ở hPanel > VPS, vd: DOMAIN_NAME=joyce.srv1782015.hstgr.cloud)
+#        - Hoặc tên miền riêng:  DOMAIN_NAME=tenmien.com  (trỏ DNS A về IP VPS trước).
+#   3) Deploy > đợi 1-3 phút Traefik cấp SSL > mở  https://<DOMAIN_NAME>.
+#
+# KHÔNG tìm thấy ô Environment? Bấm Manage > sửa .yaml, đổi thẳng dòng Host(...) thành tên miền:
+#      Host(`joyce.srv1782015.hstgr.cloud`)   (thay bằng hostname VPS của bạn).
+#
+# GHI CHÚ:
+#   - Mấu chốt: KHÔNG khai báo networks - Traefik của Hostinger tự thấy container qua nhãn.
+#   - Cập nhật bản mới: bấm "Cập nhật ngay" ngay trong app (trang Cập nhật). Nút đó cần
+#     container watchtower đi kèm bên dưới; nó không lên được thì vẫn Redeploy như cũ.
+#   - VPS KHÔNG phải Hostinger: bỏ file này, dùng docker-compose.yml + docker-compose.https.yml (Caddy).
+#   - Image GHCR phải để PUBLIC (GitHub > Packages > joyce-os > Package settings > Public).
+# ============================================================================
+services:
+  joyce:
+    # Bản H2o joyce OS: đẩy image tự build lên registry RIÊNG của H2O rồi đặt JOYCE_IMAGE
+    # trong ô Environment (vd ghcr.io/h2o-team/joyce-os:latest). Mặc định trỏ image local
+    # h2o-joyce-os - build bằng:  docker compose -f docker-compose.build.yml build
+    image: ${JOYCE_IMAGE:-h2o-joyce-os:latest}
+    # Tên container + tên router/service Traefik đều lấy từ JOYCE_NAME. Bỏ trống = "joyce" như cũ.
+    # Cài bản THỨ HAI trên cùng VPS thì đặt tên khác (vd joyce-shop), nếu không Docker báo tên đã
+    # dùng và Traefik có hai router trùng tên nên chỉ lái được về một bản.
+    container_name: ${JOYCE_NAME:-joyce}
+    restart: unless-stopped
+    pull_policy: always
+    # Gắn target Hostinger bên trong lệnh chạy để KHÔNG biến nó thành một trường rác
+    # trong ô Environment của Docker Manager.
+    command: ["sh", "-c", "JOYCE_DEPLOY_TARGET=hostinger exec python -m uvicorn main:app --app-dir server --host 0.0.0.0 --port 7777"]
+    environment:
+      # Chỉ giữ các trường người cài thực sự cần. Cổng/đường dẫn/state/brain đã có
+      # mặc định đúng trong Docker image, không cần hiện thành một loạt ô kỹ thuật.
+      DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
+      JOYCE_ADMIN_USER: ${JOYCE_ADMIN_USER:-admin}
+      JOYCE_ADMIN_PASSWORD: ${JOYCE_ADMIN_PASSWORD:-}
+      # Chung một token với service watchtower bên dưới -> nút "Cập nhật ngay" gọi được nó.
+      # ĐÓNG CỨNG chứ không lấy từ biến, có lý do: mỗi `${...}` trong file này đẻ thêm một ô
+      # trong form Environment của Docker Manager, mà token này không ai cần đổi - cổng 8080 của
+      # Watchtower không publish ra ngoài, chỉ container trong cùng stack gọi tới được.
+      # Muốn token riêng thì dùng docker-compose.yml (bản VPS), nó nhận biến WATCHTOWER_TOKEN.
+      WATCHTOWER_TOKEN: joyce-update
+    ports:
+      # Đường vào dự phòng (nút Open / http://<ip>:7777). Bản thứ hai PHẢI đổi cổng này
+      # (JOYCE_HOST_PORT=7778) vì một cổng máy chủ chỉ một container giữ được.
+      - "${JOYCE_HOST_PORT:-7777}:7777"
+    labels:
+      # Guide (Documentation / Quick start) trong Docker Manager - tài liệu nội bộ H2O,
+      # không trỏ ra repo ngoài.
+      - org.opencontainers.image.documentation=docs/README.md
+      - org.opencontainers.image.source=H2O Joyce OS (bản phân phối nội bộ)
+      - com.hostinger.documentation=docs/README.md
+      - com.hostinger.quickstart=QUICKSTART.md
+      # Router/service mang TÊN CỦA BẢN (JOYCE_NAME) chứ không đóng cứng "joyce": Traefik đặt tên
+      # router theo phạm vi toàn máy, hai bản cùng tên router là bản sau đè bản trước và một
+      # trong hai tên miền chết. Bỏ trống JOYCE_NAME thì vẫn ra "joyce" y như trước.
+      # Host = ${DOMAIN_NAME}; chưa đặt thì mặc định "localhost" (deploy vẫn chạy, chỉ chưa có domain/HTTPS).
+      - traefik.enable=true
+      - traefik.http.routers.${JOYCE_NAME:-joyce}.rule=Host(`${DOMAIN_NAME:-localhost}`)
+      - traefik.http.routers.${JOYCE_NAME:-joyce}.entrypoints=websecure
+      - traefik.http.routers.${JOYCE_NAME:-joyce}.tls.certresolver=letsencrypt
+      - traefik.http.routers.${JOYCE_NAME:-joyce}.service=${JOYCE_NAME:-joyce}
+      - traefik.http.services.${JOYCE_NAME:-joyce}.loadbalancer.server.port=7777
+    volumes:
+      - joyce-data:/data
+      - joyce-brains:/brains
+      - claude-auth:/home/joyce/.claude
+      - codex-auth:/home/joyce/.codex
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('JOYCE_PORT','7777')+'/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+
+  # ------------------------------------------------------------------------
+  # Cập nhật 1-CLICK từ trong app (nút "Cập nhật ngay" ở trang Cập nhật). CÓ SẴN từ 0.55.56.
+  #
+  # Lịch sử phải nói thật, vì nó là lý do khối này từng KHÔNG có: bản 2026-07-18 đã thử rồi gỡ
+  # đi, do trên Docker Manager container Watchtower bị Restarting liên tục và stack hiện
+  # "Partially running". Hồi đó đoán là "không đụng được Docker socket" - SAI. Log thật (đo lại
+  # 2026-10-01 trên VPS Hostinger) là:
+  #   client version 1.25 is too old. Minimum supported API version is 1.40
+  # Image cũ `containrrr/watchtower` mặc định nói Docker API 1.25, Docker Engine mới từ chối.
+  # Repo đó đã bị archive (read-only từ 12/2025) nên lỗi không bao giờ được sửa ở đó.
+  #
+  # Nay dùng bản fork còn bảo trì `nicholas-fedor/watchtower`: TỰ thương lượng phiên bản API với
+  # Docker, cùng cổng 8080, cùng `POST /v1/update` + Bearer token mà app đang gọi. Ghim major `:1`
+  # để bản v2 (sẽ bỏ các biến HTTP API kiểu cũ) không tự lọt vào làm chết nút lần nữa.
+  # ĐỪNG vá bằng DOCKER_API_VERSION=1.40 trên image cũ: Docker còn nâng mức tối thiểu tiếp.
+  #
+  # Điều KHÔNG đổi: container joyce ở trên CHẠY BÌNH THƯỜNG dù Watchtower hỏng. Nó là một
+  # container RIÊNG, hỏng thì chỉ mất cái nút, không kéo theo app. Gặp "Partially running" thì
+  # mở log container `joyce-watchtower`; không sửa được thì cập nhật bằng REDEPLOY y như trước,
+  # trang Cập nhật trong app cũng tự nói ra điều đó.
+  watchtower:
+    image: ghcr.io/nicholas-fedor/watchtower:1
+    container_name: ${JOYCE_NAME:-joyce}-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_HTTP_API_ENDPOINTS: update                 # nhận lệnh cập nhật từ nút bấm
+      WATCHTOWER_HTTP_API_TOKEN: joyce-update               # khớp WATCHTOWER_TOKEN của app ở trên
+      # TỰ tìm bản mới rồi dựng lại, KHÔNG chờ ai bấm nút. Đây là ô Environment thứ TƯ, và là
+      # `${...}` duy nhất được thêm vào file này - vì nó là một LỰA CHỌN của người cài, không
+      # phải mặc định kỹ thuật: bật lên là Joyce tự khởi động lại bất cứ lúc nào có bản mới,
+      # cắt ngang việc nền và phiên chat đang chạy. Bỏ trống = tắt, cập nhật bằng nút bấm.
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: ${JOYCE_AUTO_UPDATE:-false}
+      WATCHTOWER_POLL_INTERVAL: 86400                       # 24h, chỉ có tác dụng khi bật ở trên
+      WATCHTOWER_CLEANUP: "true"                            # dọn image cũ sau khi update
+    # KHÔNG gắn nhãn traefik.*: đây là container nội bộ, không có gì để mở ra Internet.
+    labels:
+      - traefik.enable=false
+    # Theo dõi ĐÚNG container của bản này. Ghi cứng "joyce" thì trên VPS có hai bản, Watchtower
+    # của bản này sẽ đi cập nhật và restart container của bản kia.
+    command: ${JOYCE_NAME:-joyce}
+
+# ============================================================================
+# NHIỀU BẢN JOYCE TRÊN CÙNG MỘT VPS HOSTINGER
+#
+# Deploy compose này THÊM MỘT LẦN NỮA (stack mới trong Docker Manager), đổi CẢ BA:
+#   Stack 1:  DOMAIN_NAME=shop.srv1782015.hstgr.cloud    JOYCE_NAME=(trống)     JOYCE_HOST_PORT=(trống)
+#   Stack 2:  DOMAIN_NAME=canhan.srv1782015.hstgr.cloud  JOYCE_NAME=joyce-canhan  JOYCE_HOST_PORT=7778
+#
+# Cả ba giá trị phải khác nhau giữa các stack. Trùng JOYCE_NAME -> Docker báo tên container đã
+# dùng; trùng JOYCE_HOST_PORT -> báo cổng đã bị chiếm; trùng DOMAIN_NAME -> hai bản giành nhau
+# một link. Wildcard DNS *.hstgr.cloud của Hostinger có sẵn nên tên miền phụ nào cũng trỏ được ngay.
+#
+# Mỗi stack có volume riêng, nên state / brain / tài khoản admin / token đăng nhập Claude đều
+# TÁCH BẠCH. Đăng nhập Claude phải làm lại một lần cho mỗi bản (App terminal của stack đó).
+# ============================================================================
+
+volumes:
+  joyce-data:
+  joyce-brains:
+  claude-auth:
+  codex-auth:

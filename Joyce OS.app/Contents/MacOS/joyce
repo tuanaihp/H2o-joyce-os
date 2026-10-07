@@ -1,0 +1,6 @@
+#!/bin/bash
+# App bundle entrypoint -> delegates to bin/joyce-start.sh.
+# Resolves the repo root relative to this bundle, so keep "JOYCE OS.app"
+# inside the repo folder (repo/JOYCE OS.app/Contents/MacOS/joyce).
+DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+exec "${DIR}/bin/joyce-start.sh"

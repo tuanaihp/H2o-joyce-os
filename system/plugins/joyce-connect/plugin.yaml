@@ -1,0 +1,10 @@
+name: Đấu thêm MCP
+slug: joyce-connect
+version: 1.0.0
+description: Đấu một MCP server vào kho Kết nối của Joyce ngay từ chat, để nó HIỆN ra trang Kết nối như mọi tài khoản khác. Trước tool này Joyce chỉ còn đường `claude mcp add` - thứ rơi vào config riêng của Claude Code, không bộ não nào khác thấy và người dùng cũng không thấy trên trang Kết nối.
+author: Joyce (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - joyce_add_mcp
+hooks: []

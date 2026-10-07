@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hướng dẫn · H2o joyce OS</title>
+<!-- Trang xem tài liệu nội bộ: mở /static/docs/view.html?f=<file>.md - nội dung lấy từ
+     /guide-src/<file> (server đọc docs/ và các .md gốc trong repo). Renderer markdown nhỏ,
+     tự chứa, không phụ thuộc shell app và không gọi ra ngoài. -->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0e1420; color: #d7dee9;
+    font: 15px/1.65 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 28px 20px 80px; }
+  .bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .bar .logo { font-weight: 700; color: #5eead4; letter-spacing: .3px; }
+  .bar .file { color: #8fa3b8; font-size: 13px; }
+  .bar a { margin-left: auto; color: #7dd3fc; text-decoration: none; font-size: 13px; }
+  .bar a:hover { text-decoration: underline; }
+  h1 { font-size: 24px; margin: 22px 0 12px; color: #fff; }
+  h2 { font-size: 19px; margin: 26px 0 10px; color: #f1f5f9;
+    padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  h3 { font-size: 16.5px; margin: 20px 0 8px; color: #e8eef5; }
+  h4 { font-size: 15px; margin: 16px 0 6px; color: #e8eef5; }
+  p { margin: 8px 0; }
+  a { color: #7dd3fc; }
+  code { background: rgba(255,255,255,.08); border-radius: 5px; padding: 1px 6px;
+    font: 13px/1.5 Consolas, "Courier New", monospace; color: #ffd7a8; }
+  pre { background: #0a0f16; border: 1px solid rgba(255,255,255,.09); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; margin: 12px 0; }
+  pre code { background: none; padding: 0; color: #d7dee9; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  blockquote { margin: 10px 0; padding: 6px 14px; border-left: 3px solid #2dd4bf;
+    background: rgba(45,212,191,.07); color: #bcd; border-radius: 0 8px 8px 0; }
+  table { border-collapse: collapse; margin: 12px 0; width: 100%; font-size: 13.5px; }
+  th, td { border: 1px solid rgba(255,255,255,.12); padding: 6px 10px; text-align: left; }
+  th { background: rgba(255,255,255,.06); }
+  hr { border: 0; border-top: 1px solid rgba(255,255,255,.12); margin: 22px 0; }
+  img { max-width: 100%; border-radius: 8px; }
+  .err { color: #fbb; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="logo">JOYCE OS</span>
+    <span class="file" id="fname"></span>
+    <a href="/">← Quay lại Joyce</a>
+  </div>
+  <div id="doc">Đang tải…</div>
+</div>
+<script>
+(function () {
+  var f = new URLSearchParams(location.search).get("f") || "";
+  document.getElementById("fname").textContent = f;
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  // Renderer markdown tối thiểu, đủ cho docs trong repo (heading/list/table/code/quote/link).
+  function inline(s) {
+    return esc(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/\*([^*]+)\*/g, "<i>$1</i>")
+      .replace(/^(.{0})?~~([^~]+)~~/g, "<del>$2</del>");
+  }
+  function render(md) {
+    var lines = md.split(/\r?\n/), out = [], i = 0, inCode = false, buf = [];
+    function flush() {
+      if (buf.length) { out.push("<pre><code>" + esc(buf.join("\n")) + "</code></pre>"); buf = []; }
+    }
+    function listBlock(list, ord) {
+      var tag = ord ? "ol" : "ul";
+      return "<" + tag + ">" + list.map(function (x) { return "<li>" + inline(x) + "</li>"; }).join("") + "</" + tag + ">";
+    }
+    while (i < lines.length) {
+      var ln = lines[i], m;
+      if (/^```/.test(ln)) {
+        if (inCode) { flush(); inCode = false; } else { inCode = true; }
+        i++; continue;
+      }
+      if (inCode) { buf.push(ln); i++; continue; }
+      if ((m = ln.match(/^(#{1,4})\s+(.*)/))) {
+        var lv = m[1].length; out.push("<h" + lv + ">" + inline(m[2]) + "</h" + lv + ">"); i++; continue;
+      }
+      if (/^\s*---+\s*$/.test(ln)) { out.push("<hr>"); i++; continue; }
+      if ((m = ln.match(/^>\s?(.*)/))) { out.push("<blockquote>" + inline(m[1]) + "</blockquote>"); i++; continue; }
+      if (/^\s*\|.*\|\s*$/.test(ln)) {                      // bảng: gom các dòng | ... |
+        var rows = [];
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+          var cells = lines[i].trim().replace(/^\||\|$/g, "").split("|").map(function (c) { return c.trim(); });
+          if (!cells.every(function (c) { return /^:?-{2,}:?$/.test(c); })) rows.push(cells);
+          i++;
+        }
+        out.push("<table>" + rows.map(function (r, ri) {
+          var tag = ri === 0 ? "th" : "td";
+          return "<tr>" + r.map(function (c) { return "<" + tag + ">" + inline(c) + "</" + tag + ">"; }).join("") + "</tr>";
+        }).join("") + "</table>");
+        continue;
+      }
+      if ((m = ln.match(/^\s*[-*+]\s+(.*)/))) {
+        var ul = [];
+        while (i < lines.length && (m = lines[i].match(/^\s*[-*+]\s+(.*)/))) { ul.push(m[1]); i++; }
+        out.push(listBlock(ul, false)); continue;
+      }
+      if ((m = ln.match(/^\s*\d+[.)]\s+(.*)/))) {
+        var ol = [];
+        while (i < lines.length && (m = lines[i].match(/^\s*\d+[.)]\s+(.*)/))) { ol.push(m[1]); i++; }
+        out.push(listBlock(ol, true)); continue;
+      }
+      if (ln.trim() === "") { i++; continue; }
+      // đoạn thường: gom các dòng liền nhau
+      var para = [ln]; i++;
+      while (i < lines.length && lines[i].trim() !== "" && !/^(#{1,4}\s|```|>|---|\s*[-*+]\s|\s*\d+[.)]\s|\s*\|)/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      out.push("<p>" + para.map(inline).join("<br>") + "</p>");
+    }
+    flush();
+    return out.join("\n");
+  }
+  if (!f) {
+    document.getElementById("doc").innerHTML = '<p class="err">Thiếu tên file. Mở dạng view.html?f=15-thuong-hieu-ten-mien.md</p>';
+    return;
+  }
+  fetch("/guide-src/" + encodeURIComponent(f))
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+    .then(function (md) {
+      document.getElementById("doc").innerHTML = render(md);
+      var h = document.querySelector("#doc h1");
+      if (h) document.title = h.textContent + " · Joyce OS";
+    })
+    .catch(function (e) {
+      document.getElementById("doc").innerHTML = '<p class="err">Không tải được tài liệu (' + esc(String(e.message || e)) + ').</p>';
+    });
+})();
+</script>
+</body>
+</html>

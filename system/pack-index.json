@@ -1,0 +1,11 @@
+{
+  "format": "joyce-pack-index",
+  "format_version": 1,
+  "updated": "2026-10-07",
+  "store": {
+    "name": "Kho cài đặt Joyce (H2O)",
+    "url": ""
+  },
+  "_doc": "Bản H2o joyce OS: file này chỉ là KHUÔN định dạng tham chiếu, không còn trỏ tới kho ngoài. Runtime không đọc file này - kho thật được cấu hình qua Cài đặt (packs.store_url) hoặc JOYCE_PACKS_STORE trong .env; mặc định rỗng = trang Kho trống, vẫn cài được gói từ tệp.",
+  "packs": []
+}

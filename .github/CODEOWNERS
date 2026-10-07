@@ -1,0 +1,4 @@
+# Tự gắn người review cho MỌI Pull Request, dù không bật "Require review" trong branch
+# protection. Xem CONTRIBUTING.md để biết quy trình đóng góp đầy đủ.
+# Bản H2O: điền handle GitHub của đội H2O khi repo nội bộ lên GitHub.
+# * @h2o-team

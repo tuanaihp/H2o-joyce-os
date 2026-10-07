@@ -1,0 +1,1125 @@
+{
+  "source": "JOYCE_SOCIAL_OPS_MASTER_SPEC_V1.1",
+  "departments": [
+    {
+      "id": "STUDIO_SALE_CRM",
+      "brand": "studio",
+      "name": "Sale & CRM",
+      "skills": [
+        {
+          "id": "h2o-studio-sale-lead-triage",
+          "name": "Phân loại lead cưới/makeup/váy/ảnh gia đình",
+          "trigger": "Lead mới từ social/form/call",
+          "output": "Intent, priority, owner, SLA",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-sale-wedding-consult",
+          "name": "Hỏi nhu cầu và lập hồ sơ tư vấn ảnh cưới",
+          "trigger": "Lead cưới đủ liên hệ",
+          "output": "Consult summary, next questions, task",
+          "approval": "Báo giá/cam kết cần người"
+        },
+        {
+          "id": "h2o-studio-sale-service-fit",
+          "name": "Gợi ý dịch vụ/gói theo nhu cầu",
+          "trigger": "Đã có ngày, nhu cầu, ưu tiên",
+          "output": "Phương án phù hợp + lý do",
+          "approval": "Có trước khi gửi"
+        },
+        {
+          "id": "h2o-studio-sale-quote-draft",
+          "name": "Tạo báo giá nháp từ bảng giá hiệu lực",
+          "trigger": "Khách yêu cầu giá",
+          "output": "Quote draft có version nguồn",
+          "approval": "Luôn duyệt"
+        },
+        {
+          "id": "h2o-studio-sale-followup-sla",
+          "name": "Tạo chuỗi chăm lại theo trạng thái",
+          "trigger": "Lead chưa phản hồi/đến hạn",
+          "output": "Task, deadline, message draft",
+          "approval": "Auto-send theo policy"
+        },
+        {
+          "id": "h2o-studio-sale-contract-readiness",
+          "name": "Kiểm tra đủ điều kiện lên hợp đồng",
+          "trigger": "Khách đồng ý phương án",
+          "output": "Missing fields/checklist",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-sale-won-handoff",
+          "name": "Bàn giao deal WON sang Wedding Project",
+          "trigger": "Deal chuyển WON",
+          "output": "Project, brief, owner, milestones",
+          "approval": "Trưởng phòng"
+        },
+        {
+          "id": "h2o-studio-sale-lost-reason",
+          "name": "Chuẩn hóa nguyên nhân mất khách",
+          "trigger": "Deal LOST",
+          "output": "Reason code, note, learning candidate",
+          "approval": "Không"
+        }
+      ],
+      "brain_prefix": [
+        "Ban Hang"
+      ],
+      "desc": "Lead, tư vấn, báo giá và hợp đồng"
+    },
+    {
+      "id": "STUDIO_FRONTDESK_CSKH",
+      "brand": "studio",
+      "name": "Lễ tân & CSKH",
+      "skills": [
+        {
+          "id": "h2o-studio-cskh-booking-confirm",
+          "name": "Xác nhận lịch hẹn/chụp/thử đồ",
+          "trigger": "Trước lịch theo SLA",
+          "output": "Confirmation + response state",
+          "approval": "Auto theo mẫu"
+        },
+        {
+          "id": "h2o-studio-cskh-preparation-guide",
+          "name": "Gửi checklist chuẩn bị đúng dịch vụ",
+          "trigger": "Booking confirmed",
+          "output": "Checklist cá nhân hóa",
+          "approval": "Không nếu mẫu active"
+        },
+        {
+          "id": "h2o-studio-cskh-arrival-checkin",
+          "name": "Check-in và báo phòng phụ trách",
+          "trigger": "Khách đến",
+          "output": "Arrival event, task, wait time",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-cskh-delay-coordination",
+          "name": "Điều phối khi trễ lịch",
+          "trigger": "Khách/nhân sự trễ",
+          "output": "Impact, options, notifications",
+          "approval": "Quản lý nếu đổi lớn"
+        },
+        {
+          "id": "h2o-studio-cskh-complaint-intake",
+          "name": "Tiếp nhận khiếu nại có bằng chứng",
+          "trigger": "Phản hồi tiêu cực",
+          "output": "Ticket, severity, owner, SLA",
+          "approval": "Bắt buộc handoff"
+        },
+        {
+          "id": "h2o-studio-cskh-service-recovery",
+          "name": "Đề xuất phương án khắc phục",
+          "trigger": "Ticket đã xác minh",
+          "output": "Recovery options",
+          "approval": "Quản lý duyệt"
+        },
+        {
+          "id": "h2o-studio-cskh-post-service-followup",
+          "name": "Chăm sóc sau dịch vụ",
+          "trigger": "Milestone hoàn thành",
+          "output": "Feedback, task, issue flag",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-cskh-review-request",
+          "name": "Xin đánh giá đúng thời điểm",
+          "trigger": "Khách hài lòng",
+          "output": "Message + review link",
+          "approval": "Auto theo policy"
+        }
+      ],
+      "brain_prefix": [
+        "CSKH"
+      ],
+      "desc": "Tiếp nhận, lịch hẹn và chăm sóc khách"
+    },
+    {
+      "id": "STUDIO_PHOTO",
+      "brand": "studio",
+      "name": "Studio / Photographer",
+      "skills": [
+        {
+          "id": "h2o-studio-photo-concept-brief",
+          "name": "Chuyển nhu cầu thành brief concept",
+          "trigger": "Project đủ thông tin",
+          "output": "Mood, shot style, props, risks",
+          "approval": "Photographer lead"
+        },
+        {
+          "id": "h2o-studio-photo-shot-plan",
+          "name": "Lập shot list theo concept/gói",
+          "trigger": "Brief approved",
+          "output": "Shot list + sequence + timebox",
+          "approval": "Lead duyệt"
+        },
+        {
+          "id": "h2o-studio-photo-equipment-check",
+          "name": "Checklist thiết bị trước job",
+          "trigger": "Trước buổi chụp",
+          "output": "Checklist + missing alert",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-photo-location-readiness",
+          "name": "Kiểm tra studio/ngoại cảnh",
+          "trigger": "Trước job",
+          "output": "Readiness report + fallback",
+          "approval": "Lead nếu có rủi ro"
+        },
+        {
+          "id": "h2o-studio-photo-onset-qc",
+          "name": "QC file mẫu trong lúc chụp",
+          "trigger": "Sau set đầu/đổi concept",
+          "output": "Exposure/focus/pose/coverage flags",
+          "approval": "Photographer quyết định"
+        },
+        {
+          "id": "h2o-studio-photo-file-ingest",
+          "name": "Nạp file, checksum, backup, gắn job",
+          "trigger": "Kết thúc chụp",
+          "output": "Asset manifest + backup proof",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-photo-handoff-post",
+          "name": "Bàn giao đủ dữ liệu cho hậu kỳ",
+          "trigger": "Ingest hoàn tất",
+          "output": "Handoff package + retouch brief",
+          "approval": "Lead xác nhận"
+        },
+        {
+          "id": "h2o-studio-photo-concept-learning",
+          "name": "Ghi nhận bài học của concept",
+          "trigger": "Job hoàn thành",
+          "output": "Learning candidate + evidence",
+          "approval": "Review trước publish"
+        }
+      ],
+      "brain_prefix": [
+        "San Xuat - Hinh Anh",
+        "San Xuat - Concept",
+        "Nghien Cuu - Concept Hinh Anh"
+      ],
+      "approx": true,
+      "desc": "Concept, shot list và điều phối buổi chụp"
+    },
+    {
+      "id": "STUDIO_MAKEUP_HAIR",
+      "brand": "studio",
+      "name": "Makeup & Hair dịch vụ",
+      "skills": [
+        {
+          "id": "h2o-studio-makeup-client-analysis",
+          "name": "Phân tích nhu cầu, khuôn mặt, da, phong cách",
+          "trigger": "Trước makeup",
+          "output": "Look brief + contraindication questions",
+          "approval": "MUA xác nhận"
+        },
+        {
+          "id": "h2o-studio-makeup-look-plan",
+          "name": "Lập phương án Makeup/Hair theo váy/concept",
+          "trigger": "Brief + wardrobe",
+          "output": "Look plan, palette, hair, timing",
+          "approval": "Lead MUA"
+        },
+        {
+          "id": "h2o-studio-makeup-prep-guide",
+          "name": "Hướng dẫn khách chuẩn bị da/tóc",
+          "trigger": "Trước lịch",
+          "output": "Checklist đúng dịch vụ",
+          "approval": "Không nếu mẫu active"
+        },
+        {
+          "id": "h2o-studio-makeup-kit-check",
+          "name": "Kiểm tra đồ nghề/vệ sinh/vật tư",
+          "trigger": "Đầu ca/job",
+          "output": "Missing/expiry/hygiene alert",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-makeup-service-timing",
+          "name": "Chia thời gian Makeup/Hair",
+          "trigger": "Job bắt đầu",
+          "output": "Timeline + delay alert",
+          "approval": "Điều phối nếu đổi lịch"
+        },
+        {
+          "id": "h2o-studio-makeup-look-qc",
+          "name": "QC nền, mắt, mày, má, môi, tóc, tổng thể",
+          "trigger": "Trước bàn giao khách",
+          "output": "QC evidence + fix list",
+          "approval": "Lead MUA"
+        },
+        {
+          "id": "h2o-studio-makeup-client-note",
+          "name": "Lưu công thức/ghi chú khách cho lần sau",
+          "trigger": "Sau dịch vụ",
+          "output": "Client preference record",
+          "approval": "Consent/policy"
+        },
+        {
+          "id": "h2o-studio-makeup-job-handoff",
+          "name": "Bàn giao khách sang Photo/CSKH",
+          "trigger": "Look approved",
+          "output": "Ready event + notes",
+          "approval": "Không"
+        }
+      ],
+      "brain_prefix": [
+        "San Xuat - Makeup",
+        "San Xuat - Boi Toc",
+        "Nghien Cuu - Concept Makeup"
+      ],
+      "approx": true,
+      "desc": "Phong cách, lịch thợ và chuẩn dịch vụ"
+    },
+    {
+      "id": "STUDIO_WARDROBE_INVENTORY",
+      "brand": "studio",
+      "name": "Váy / Vest / Áo dài & Kho",
+      "skills": [
+        {
+          "id": "h2o-studio-wardrobe-style-match",
+          "name": "Gợi ý trang phục theo dáng/concept",
+          "trigger": "Fitting request",
+          "output": "Shortlist + lý do",
+          "approval": "Stylist xác nhận"
+        },
+        {
+          "id": "h2o-studio-wardrobe-fitting",
+          "name": "Quy trình thử và ghi số đo",
+          "trigger": "Lịch thử đồ",
+          "output": "Fitting record + alterations",
+          "approval": "Nhân viên xác nhận"
+        },
+        {
+          "id": "h2o-studio-wardrobe-reservation",
+          "name": "Giữ đồ theo booking",
+          "trigger": "Mẫu được chọn",
+          "output": "Reservation + conflict alert",
+          "approval": "Theo quyền kho"
+        },
+        {
+          "id": "h2o-studio-wardrobe-checkout",
+          "name": "Bàn giao đồ/phụ kiện",
+          "trigger": "Trước job/thuê",
+          "output": "Manifest + ảnh tình trạng",
+          "approval": "Hai bên xác nhận"
+        },
+        {
+          "id": "h2o-studio-wardrobe-return",
+          "name": "Nhận lại và kiểm tình trạng",
+          "trigger": "Kết thúc",
+          "output": "Return record + issue ticket",
+          "approval": "Quản lý nếu hư hỏng"
+        },
+        {
+          "id": "h2o-studio-wardrobe-maintenance",
+          "name": "Điều phối giặt/sửa/bảo dưỡng",
+          "trigger": "Item cần xử lý",
+          "output": "Work order + unavailable period",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-wardrobe-stock-audit",
+          "name": "Kiểm kê định kỳ",
+          "trigger": "Lịch kiểm kê",
+          "output": "Variance report",
+          "approval": "Trưởng kho"
+        }
+      ],
+      "brain_prefix": [],
+      "approx": true,
+      "desc": "Váy, vest, phụ kiện và tồn kho"
+    },
+    {
+      "id": "STUDIO_POSTPRODUCTION",
+      "brand": "studio",
+      "name": "Hậu kỳ / Photoshop / Lab / Album",
+      "skills": [
+        {
+          "id": "h2o-studio-post-file-intake",
+          "name": "Nhận file và kiểm manifest",
+          "trigger": "Photo handoff",
+          "output": "Intake result + missing alert",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-post-retouch-brief",
+          "name": "Chuẩn hóa yêu cầu chỉnh ảnh",
+          "trigger": "Sau khách chọn ảnh",
+          "output": "Structured retouch brief",
+          "approval": "Khách/CSKH xác nhận"
+        },
+        {
+          "id": "h2o-studio-post-color-match",
+          "name": "Chọn preset/ArtColor theo concept",
+          "trigger": "Bắt đầu color grade",
+          "output": "Preset reference + deviations",
+          "approval": "Color lead"
+        },
+        {
+          "id": "h2o-studio-post-retouch-qc",
+          "name": "QC da, dáng, chi tiết, màu, crop",
+          "trigger": "Batch hoàn tất",
+          "output": "Score + defect list + evidence",
+          "approval": "Reviewer"
+        },
+        {
+          "id": "h2o-studio-post-revision-control",
+          "name": "Quản lý vòng sửa của khách",
+          "trigger": "Khách yêu cầu sửa",
+          "output": "Revision version + scope",
+          "approval": "Ngoài phạm vi cần duyệt"
+        },
+        {
+          "id": "h2o-studio-post-album-layout-qc",
+          "name": "Kiểm layout album",
+          "trigger": "Layout draft",
+          "output": "QC report + approval proof",
+          "approval": "Khách/lead"
+        },
+        {
+          "id": "h2o-studio-post-lab-order",
+          "name": "Tạo lệnh in đúng cấu hình",
+          "trigger": "File print approved",
+          "output": "Lab order + checksum",
+          "approval": "Người có quyền"
+        },
+        {
+          "id": "h2o-studio-post-delivery",
+          "name": "Kiểm đủ sản phẩm và bàn giao",
+          "trigger": "Sản phẩm hoàn tất",
+          "output": "Delivery manifest + acceptance",
+          "approval": "Khách xác nhận"
+        },
+        {
+          "id": "h2o-studio-post-archive",
+          "name": "Lưu trữ/retention sau bàn giao",
+          "trigger": "Job closed",
+          "output": "Archive record + expiry",
+          "approval": "Không"
+        }
+      ],
+      "brain_prefix": [
+        "San Xuat - Photoshop",
+        "San Xuat - In An"
+      ],
+      "approx": true,
+      "desc": "Chọn ảnh, retouch và kiểm soát chất lượng"
+    },
+    {
+      "id": "STUDIO_MARKETING",
+      "brand": "studio",
+      "name": "Marketing / Content / Social",
+      "skills": [
+        {
+          "id": "h2o-studio-marketing-content-mine",
+          "name": "Khai thác câu chuyện từ job thật",
+          "trigger": "Project milestone",
+          "output": "Content candidates + evidence",
+          "approval": "Consent check"
+        },
+        {
+          "id": "h2o-studio-marketing-content-plan",
+          "name": "Lập lịch nội dung 30 ngày/tuần",
+          "trigger": "Kỳ kế hoạch",
+          "output": "Calendar theo trụ cột",
+          "approval": "Trưởng phòng"
+        },
+        {
+          "id": "h2o-studio-marketing-wedding-script",
+          "name": "Viết kịch bản 60–90s đúng triết lý H2O",
+          "trigger": "Content brief",
+          "output": "Script, hook, scene, CTA",
+          "approval": "Duyệt thương hiệu"
+        },
+        {
+          "id": "h2o-studio-marketing-concept-launch",
+          "name": "Ra mắt concept cưới",
+          "trigger": "Concept approved",
+          "output": "Campaign pack",
+          "approval": "Trưởng phòng"
+        },
+        {
+          "id": "h2o-studio-marketing-social-publish",
+          "name": "Schedule/publish nội dung đã duyệt",
+          "trigger": "Content approved",
+          "output": "Publish job + result",
+          "approval": "Theo Social Ops policy"
+        },
+        {
+          "id": "h2o-studio-marketing-comment-lead",
+          "name": "Chuyển comment thành lead cưới",
+          "trigger": "Intent match",
+          "output": "Conversation/lead/task",
+          "approval": "Theo policy"
+        },
+        {
+          "id": "h2o-studio-marketing-performance-review",
+          "name": "Phân tích bài và lead attribution",
+          "trigger": "Tuần/tháng",
+          "output": "KPI + learning actions",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-studio-marketing-brand-voice-qc",
+          "name": "Kiểm giọng điệu/chính tả/claim",
+          "trigger": "Trước duyệt",
+          "output": "Flags + suggested fixes",
+          "approval": "Reviewer"
+        }
+      ],
+      "brain_prefix": [
+        "Marketing",
+        "Truyen Thong"
+      ],
+      "desc": "Content, social và hiệu quả chiến dịch"
+    },
+    {
+      "id": "STUDIO_OPERATIONS",
+      "brand": "studio",
+      "name": "Vận hành",
+      "skills": [
+        {
+          "id": "h2o-studio-ops-daily-briefing",
+          "name": "Tổng hợp lịch, người, phòng, rủi ro",
+          "trigger": "Đầu ngày",
+          "output": "Daily command board",
+          "approval": "Quản lý xem"
+        },
+        {
+          "id": "h2o-studio-ops-staff-allocation",
+          "name": "Gợi ý phân ca theo năng lực/tải",
+          "trigger": "Khi lập lịch/biến động",
+          "output": "Assignment proposal",
+          "approval": "Quản lý duyệt"
+        },
+        {
+          "id": "h2o-studio-ops-capacity-risk",
+          "name": "Cảnh báo quá tải/xung đột",
+          "trigger": "Lịch thay đổi",
+          "output": "Risk + resolution options",
+          "approval": "Quản lý"
+        },
+        {
+          "id": "h2o-studio-ops-incident",
+          "name": "Ghi nhận và điều phối sự cố",
+          "trigger": "Incident created",
+          "output": "Owner, severity, timeline",
+          "approval": "Theo severity"
+        },
+        {
+          "id": "h2o-studio-ops-daily-kpi",
+          "name": "Tổng hợp KPI vận hành",
+          "trigger": "Cuối ngày",
+          "output": "Department digest",
+          "approval": "Trưởng phòng xác nhận"
+        },
+        {
+          "id": "h2o-studio-ops-sop-capture",
+          "name": "Chuyển bài học công việc thành SOP candidate",
+          "trigger": "Job/incident closed",
+          "output": "Process candidate",
+          "approval": "Review Queue"
+        }
+      ],
+      "brain_prefix": [
+        "Ve Sinh",
+        "Van Thu"
+      ],
+      "approx": true,
+      "desc": "Ekip, lịch, tài nguyên và SLA"
+    },
+    {
+      "id": "STUDIO_MANAGEMENT",
+      "brand": "studio",
+      "name": "Quản lý",
+      "skills": [
+        {
+          "id": "h2o-studio-management-weekly-review",
+          "name": "Review liên phòng",
+          "trigger": "Cuối tuần",
+          "output": "KPI, bottleneck, decisions",
+          "approval": "CEO/Manager"
+        },
+        {
+          "id": "h2o-studio-management-approval-router",
+          "name": "Đẩy đúng việc tới người duyệt",
+          "trigger": "Approval requested",
+          "output": "Approval task + SLA",
+          "approval": "Không"
+        }
+      ],
+      "brain_prefix": [
+        "Van Thu"
+      ],
+      "approx": true,
+      "desc": "KPI, phê duyệt và điều hành"
+    },
+    {
+      "id": "ACADEMY_ADMISSIONS",
+      "brand": "academy",
+      "name": "Tuyển sinh",
+      "skills": [
+        {
+          "id": "h2o-academy-admission-lead-triage",
+          "name": "Phân loại nhu cầu học",
+          "trigger": "Lead mới",
+          "output": "Course intent, priority, owner",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-admission-course-fit",
+          "name": "Gợi ý khóa/lộ trình phù hợp",
+          "trigger": "Đủ mục tiêu/thời gian/nền tảng",
+          "output": "Course options + reasoning",
+          "approval": "Tư vấn viên xác nhận"
+        },
+        {
+          "id": "h2o-academy-admission-consult",
+          "name": "Kịch bản tư vấn theo hoàn cảnh học viên",
+          "trigger": "Bắt đầu tư vấn",
+          "output": "Consult summary + objections",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-admission-tuition-quote",
+          "name": "Báo học phí/ưu đãi từ cấu hình active",
+          "trigger": "Hỏi học phí",
+          "output": "Quote draft + expiry",
+          "approval": "Duyệt trước gửi"
+        },
+        {
+          "id": "h2o-academy-admission-followup",
+          "name": "Chăm lại lead theo SLA",
+          "trigger": "Lead im lặng/đến hạn",
+          "output": "Tasks + message drafts",
+          "approval": "Auto theo policy"
+        },
+        {
+          "id": "h2o-academy-admission-enrollment-readiness",
+          "name": "Kiểm hồ sơ trước ghi danh",
+          "trigger": "Học viên đồng ý",
+          "output": "Missing checklist",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-admission-enrolled-handoff",
+          "name": "Bàn giao ENROLLED sang học vụ",
+          "trigger": "Payment/contract condition met",
+          "output": "Enrollment + learner profile",
+          "approval": "Học vụ xác nhận"
+        },
+        {
+          "id": "h2o-academy-admission-dorm-guidance",
+          "name": "Tư vấn KTX theo chính sách hiện hành",
+          "trigger": "Học viên ở xa",
+          "output": "Guidance + request",
+          "approval": "Điều phối xác nhận"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Marketing va Bao Gia"
+      ],
+      "approx": true,
+      "desc": "Tư vấn khóa học và chuyển đổi hồ sơ"
+    },
+    {
+      "id": "ACADEMY_ACADEMIC_AFFAIRS",
+      "brand": "academy",
+      "name": "Học vụ",
+      "skills": [
+        {
+          "id": "h2o-academy-academic-onboarding",
+          "name": "Onboarding học viên/cohort",
+          "trigger": "Enrollment confirmed",
+          "output": "Account, orientation checklist",
+          "approval": "Học vụ"
+        },
+        {
+          "id": "h2o-academy-academic-schedule",
+          "name": "Tạo/điều chỉnh lịch theo course plan",
+          "trigger": "Cohort created/change request",
+          "output": "Schedule + conflicts",
+          "approval": "Quản lý đào tạo"
+        },
+        {
+          "id": "h2o-academy-academic-attendance",
+          "name": "Điểm danh và cảnh báo vắng",
+          "trigger": "Mỗi buổi học",
+          "output": "Attendance + follow-up",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-academic-makeup-session",
+          "name": "Xếp lịch học bù",
+          "trigger": "Vắng có lý do",
+          "output": "Options + booking",
+          "approval": "Giảng viên/học vụ"
+        },
+        {
+          "id": "h2o-academy-academic-materials",
+          "name": "Cấp tài liệu đúng giai đoạn",
+          "trigger": "Stage opened",
+          "output": "Resource pack + access",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-academic-progress",
+          "name": "Tổng hợp tiến độ theo 60 buổi/khóa",
+          "trigger": "Hằng tuần",
+          "output": "Progress dashboard",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-academic-graduation-readiness",
+          "name": "Kiểm điều kiện dự thi/tốt nghiệp",
+          "trigger": "Gần cuối khóa",
+          "output": "Eligibility + missing items",
+          "approval": "Hội đồng xác nhận"
+        },
+        {
+          "id": "h2o-academy-academic-certificate",
+          "name": "Chuẩn bị hồ sơ chứng chỉ",
+          "trigger": "Passed/eligible",
+          "output": "Certificate checklist",
+          "approval": "Học vụ duyệt"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Hoc Viec"
+      ],
+      "desc": "Lịch học, lớp và hồ sơ học viên"
+    },
+    {
+      "id": "ACADEMY_MAKEUP_TRAINING",
+      "brand": "academy",
+      "name": "Đào tạo Makeup",
+      "skills": [
+        {
+          "id": "h2o-academy-makeup-lesson-plan",
+          "name": "Tạo kế hoạch buổi học từ curriculum active",
+          "trigger": "Trước buổi training",
+          "output": "Objectives, demo, practice, rubric",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-makeup-demo-checklist",
+          "name": "Checklist chuẩn bị demo",
+          "trigger": "Trước lớp",
+          "output": "Model/tools/products/setup",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-makeup-practice-assignment",
+          "name": "Giao bài theo level",
+          "trigger": "Sau training",
+          "output": "Assignment + evidence required",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-makeup-image-review",
+          "name": "Phân tích ảnh bài theo rubric",
+          "trigger": "Học viên nộp bài",
+          "output": "Evidence-based feedback",
+          "approval": "Giáo viên duyệt"
+        },
+        {
+          "id": "h2o-academy-makeup-product-guide",
+          "name": "Hướng dẫn sản phẩm theo kỹ thuật",
+          "trigger": "Học viên hỏi",
+          "output": "Options + purpose + caution",
+          "approval": "Không quảng cáo sai"
+        },
+        {
+          "id": "h2o-academy-makeup-client-simulation",
+          "name": "Mô phỏng quy trình làm khách",
+          "trigger": "Giai đoạn thực chiến",
+          "output": "Scenario + checklist + score",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-makeup-portfolio-select",
+          "name": "Chọn bài đủ chuẩn portfolio",
+          "trigger": "Milestone/showcase",
+          "output": "Selected works + improvement list",
+          "approval": "Hội đồng"
+        },
+        {
+          "id": "h2o-academy-makeup-remediation",
+          "name": "Kế hoạch sửa lỗi cá nhân",
+          "trigger": "Điểm dưới ngưỡng",
+          "output": "Practice plan + due date",
+          "approval": "Giảng viên"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Chuyen Gia"
+      ],
+      "approx": true,
+      "desc": "Giáo án, demo và bài thực hành Makeup"
+    },
+    {
+      "id": "ACADEMY_HAIR_TRAINING",
+      "brand": "academy",
+      "name": "Đào tạo Hair",
+      "skills": [
+        {
+          "id": "h2o-academy-hair-lesson-plan",
+          "name": "Lập buổi học Hair từ curriculum",
+          "trigger": "Trước buổi",
+          "output": "Objectives, demo, practice",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-hair-technique-check",
+          "name": "Kiểm nền kỹ thuật dập/uốn/chải/ghim/bới",
+          "trigger": "Trước bài nâng cao",
+          "output": "Readiness + gaps",
+          "approval": "Giáo viên"
+        },
+        {
+          "id": "h2o-academy-hair-practice-assignment",
+          "name": "Giao bài tóc theo kỹ thuật",
+          "trigger": "Sau training",
+          "output": "Assignment + evidence",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-hair-image-review",
+          "name": "Chấm ảnh/bài tóc theo rubric",
+          "trigger": "Học viên nộp",
+          "output": "Score + defect map",
+          "approval": "Giáo viên duyệt"
+        },
+        {
+          "id": "h2o-academy-hair-hygiene-safety",
+          "name": "Kiểm dụng cụ/vệ sinh/an toàn",
+          "trigger": "Trước thực hành",
+          "output": "Checklist + stop flags",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-hair-remediation",
+          "name": "Kế hoạch sửa lỗi tóc",
+          "trigger": "Điểm dưới ngưỡng",
+          "output": "Practice plan",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-hair-portfolio-select",
+          "name": "Chọn bài tóc cho portfolio",
+          "trigger": "Milestone",
+          "output": "Selected works",
+          "approval": "Hội đồng"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Chuyen Gia"
+      ],
+      "approx": true,
+      "desc": "Kỹ thuật tóc, bài tập và phản hồi"
+    },
+    {
+      "id": "ACADEMY_ASSESSMENT_QA",
+      "brand": "academy",
+      "name": "Chấm bài / QA / Tốt nghiệp",
+      "skills": [
+        {
+          "id": "h2o-academy-qa-rubric-resolve",
+          "name": "Chọn đúng rubric/version cho bài",
+          "trigger": "Submission created",
+          "output": "Rubric binding",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-qa-makeup-score-assist",
+          "name": "Gợi ý điểm Makeup theo 8 tiêu chí và evidence",
+          "trigger": "Bài thi/nộp",
+          "output": "Suggested score + evidence",
+          "approval": "Giáo viên quyết định"
+        },
+        {
+          "id": "h2o-academy-qa-hair-score-assist",
+          "name": "Gợi ý điểm Hair theo tiêu chí",
+          "trigger": "Bài thi/nộp",
+          "output": "Suggested score + evidence",
+          "approval": "Giáo viên quyết định"
+        },
+        {
+          "id": "h2o-academy-qa-time-score",
+          "name": "Tính điểm thời gian theo rule active",
+          "trigger": "Bài thi hoàn tất",
+          "output": "Time score",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-qa-feedback",
+          "name": "Chuyển lỗi thành feedback có hướng sửa",
+          "trigger": "Có kết quả chấm",
+          "output": "Feedback + practice plan",
+          "approval": "Giáo viên"
+        },
+        {
+          "id": "h2o-academy-qa-appeal",
+          "name": "Quản lý phúc khảo",
+          "trigger": "Học viên yêu cầu",
+          "output": "Appeal case + reviewer",
+          "approval": "Reviewer độc lập"
+        },
+        {
+          "id": "h2o-academy-qa-graduation-board",
+          "name": "Tổng hợp hồ sơ hội đồng",
+          "trigger": "Kỳ tốt nghiệp",
+          "output": "Candidate pack",
+          "approval": "Hội đồng"
+        },
+        {
+          "id": "h2o-academy-qa-rubric-learning",
+          "name": "Đề xuất cải tiến rubric từ lỗi lặp",
+          "trigger": "Cuối cohort",
+          "output": "Rubric candidate",
+          "approval": "Không tự publish"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Chuyen Gia"
+      ],
+      "approx": true,
+      "desc": "Rubric, chấm thi và chuẩn đầu ra"
+    },
+    {
+      "id": "ACADEMY_STUDENT_SUCCESS",
+      "brand": "academy",
+      "name": "Chăm sóc & phát triển học viên",
+      "skills": [
+        {
+          "id": "h2o-academy-success-risk-alert",
+          "name": "Cảnh báo học viên chậm tiến độ",
+          "trigger": "Attendance/score threshold",
+          "output": "Risk level + action plan",
+          "approval": "Học vụ"
+        },
+        {
+          "id": "h2o-academy-success-coaching",
+          "name": "Gợi ý buổi coaching theo Stage",
+          "trigger": "Learner asks/milestone",
+          "output": "Coaching plan + questions",
+          "approval": "Coach"
+        },
+        {
+          "id": "h2o-academy-success-practice-model",
+          "name": "Điều phối mẫu thực hành",
+          "trigger": "Practice request",
+          "output": "Booking + consent checklist",
+          "approval": "Học vụ"
+        },
+        {
+          "id": "h2o-academy-success-profile-builder",
+          "name": "Xây hồ sơ Makeup Artist",
+          "trigger": "Portfolio milestone",
+          "output": "Bio, service set, portfolio checklist",
+          "approval": "Mentor"
+        },
+        {
+          "id": "h2o-academy-success-client-process",
+          "name": "Dạy quy trình làm khách",
+          "trigger": "Giai đoạn thực chiến",
+          "output": "Simulation + score",
+          "approval": "Giảng viên"
+        },
+        {
+          "id": "h2o-academy-success-content-plan",
+          "name": "Lập nội dung cá nhân cho học viên",
+          "trigger": "Stage brand/growth",
+          "output": "30/90-day plan",
+          "approval": "Mentor"
+        },
+        {
+          "id": "h2o-academy-success-job-readiness",
+          "name": "Đánh giá sẵn sàng đi làm",
+          "trigger": "Cuối khóa",
+          "output": "Readiness score + gaps",
+          "approval": "Hội đồng"
+        },
+        {
+          "id": "h2o-academy-success-alumni-followup",
+          "name": "Theo dõi sau tốt nghiệp",
+          "trigger": "Alumni milestone",
+          "output": "Outcome + support task",
+          "approval": "Không"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Hoc Vien"
+      ],
+      "desc": "Coach, tiến độ và hỗ trợ cá nhân"
+    },
+    {
+      "id": "ACADEMY_MARKETING_EVENTS",
+      "brand": "academy",
+      "name": "Marketing / Sự kiện",
+      "skills": [
+        {
+          "id": "h2o-academy-marketing-student-story",
+          "name": "Biến hành trình học viên thành câu chuyện",
+          "trigger": "Milestone + consent",
+          "output": "Story draft + evidence",
+          "approval": "Duyệt nội dung"
+        },
+        {
+          "id": "h2o-academy-marketing-admission-campaign",
+          "name": "Campaign tuyển sinh theo khóa active",
+          "trigger": "Kỳ tuyển sinh",
+          "output": "Campaign plan + assets",
+          "approval": "Trưởng phòng"
+        },
+        {
+          "id": "h2o-academy-marketing-workshop",
+          "name": "Lập kế hoạch workshop/masterclass",
+          "trigger": "Event approved",
+          "output": "Runbook + content + follow-up",
+          "approval": "Quản lý"
+        },
+        {
+          "id": "h2o-academy-marketing-event-makeup",
+          "name": "Điều phối đội Makeup cho sự kiện/sân khấu",
+          "trigger": "Sponsorship/event",
+          "output": "Roster, kit, timing, QA",
+          "approval": "Lead MUA"
+        },
+        {
+          "id": "h2o-academy-marketing-social-proof",
+          "name": "Chọn bằng chứng học viên/đối tác",
+          "trigger": "Content request",
+          "output": "Approved proof pack",
+          "approval": "Consent/brand review"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Marketing va Bao Gia"
+      ],
+      "approx": true,
+      "desc": "Tuyển sinh, showcase và thực chiến"
+    },
+    {
+      "id": "ACADEMY_OPERATIONS",
+      "brand": "academy",
+      "name": "Vận hành Academy",
+      "skills": [
+        {
+          "id": "h2o-academy-ops-class-readiness",
+          "name": "Kiểm tra phòng, mẫu, dụng cụ, giáo trình",
+          "trigger": "Trước buổi",
+          "output": "Readiness + missing alert",
+          "approval": "Không"
+        },
+        {
+          "id": "h2o-academy-ops-instructor-capacity",
+          "name": "Cảnh báo quá tải giảng viên",
+          "trigger": "Lập cohort/lịch",
+          "output": "Capacity options",
+          "approval": "Quản lý"
+        },
+        {
+          "id": "h2o-academy-ops-daily-report",
+          "name": "Tổng hợp lớp học/nghỉ/bài nộp/rủi ro",
+          "trigger": "Cuối ngày",
+          "output": "Daily digest",
+          "approval": "Học vụ xác nhận"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Nhan Vien",
+        "ThuyH2O - Noi Quy"
+      ],
+      "approx": true,
+      "desc": "Phòng học, vật tư và lịch giảng viên"
+    },
+    {
+      "id": "ACADEMY_MANAGEMENT",
+      "brand": "academy",
+      "name": "Quản lý Academy",
+      "skills": [
+        {
+          "id": "h2o-academy-management-cohort-review",
+          "name": "Review cohort theo tuần/tháng",
+          "trigger": "Kỳ review",
+          "output": "KPI, risks, decisions",
+          "approval": "Ban quản lý"
+        }
+      ],
+      "brain_prefix": [
+        "ThuyH2O - Nhan Vien"
+      ],
+      "approx": true,
+      "desc": "KPI, chất lượng và điều hành Academy"
+    },
+    {
+      "id": "SHARED_INGESTION",
+      "brand": "shared",
+      "name": "Dùng chung - nạp tri thức",
+      "skills": [
+        {
+          "id": "h2o-shared-knowledge-folder-ingest",
+          "name": "Nạp thư mục tài liệu vào knowledge intake",
+          "trigger": "Folder scope được cấp",
+          "output": "Inventory + parsed docs + atom candidates",
+          "approval": "Review trước publish"
+        }
+      ],
+      "brain_prefix": [],
+      "desc": "Nạp, phân loại và định tuyến tri thức"
+    }
+  ],
+  "chains": {
+    "wedding": [
+      "social.triage_inbox",
+      "h2o-studio-sale-lead-triage",
+      "h2o-studio-sale-wedding-consult",
+      "h2o-studio-sale-service-fit",
+      "h2o-studio-sale-quote-draft",
+      "h2o-studio-sale-won-handoff",
+      "h2o-studio-photo-concept-brief",
+      "h2o-studio-makeup-look-plan",
+      "h2o-studio-wardrobe-reservation",
+      "h2o-studio-ops-daily-briefing",
+      "h2o-studio-photo-file-ingest",
+      "h2o-studio-post-retouch-brief",
+      "h2o-studio-post-retouch-qc",
+      "h2o-studio-post-delivery",
+      "h2o-studio-cskh-post-service-followup"
+    ],
+    "academy": [
+      "social.triage_inbox",
+      "h2o-academy-admission-lead-triage",
+      "h2o-academy-admission-course-fit",
+      "h2o-academy-admission-tuition-quote",
+      "h2o-academy-admission-enrolled-handoff",
+      "h2o-academy-academic-onboarding",
+      "h2o-academy-academic-schedule",
+      "h2o-academy-makeup/hair-practice-assignment",
+      "h2o-academy-makeup/hair-image-review",
+      "h2o-academy-academic-progress",
+      "h2o-academy-success-risk-alert khi cần",
+      "h2o-academy-qa-graduation-board",
+      "h2o-academy-success-job-readiness",
+      "h2o-academy-success-alumni-followup"
+    ],
+    "knowledge_loop": [
+      "Task/Job hoàn thành",
+      "Evidence + Outcome",
+      "Learning Candidate",
+      "h2o-shared-knowledge-folder-ingest hoặc Smart Intake",
+      "Knowledge Review",
+      "Verified Process/SOP",
+      "Process-to-Skill Compiler",
+      "Skill QA",
+      "SkillVersion ACTIVE",
+      "Agent/Workflow sử dụng"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "version": "compiler-shadow-v1",
+  "providers": [
+    "groq",
+    "openai",
+    "anthropic-cli",
+    "openai-oauth"
+  ],
+  "required_terms": [
+    "Bạn là Joyce",
+    "Không bịa capability",
+    "Dữ liệu live",
+    "Memory chỉ là nguồn tham khảo",
+    "quyền gateway",
+    "Cách trả lời"
+  ],
+  "forbidden_terms": [
+    "# === BỘ NHỚ DÀI HẠN",
+    "# === SKILL KHẢ DỤNG",
+    "# === NĂNG LỰC JOYCE HIỆN CÓ",
+    "output contract",
+    "Output contract"
+  ]
+}
