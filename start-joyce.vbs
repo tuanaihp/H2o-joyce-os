@@ -16,6 +16,10 @@ Set sh = CreateObject("WScript.Shell")
 ' hiện tại khi môi trường có NoDefaultCurrentDirectoryInExePath (đường dẫn có "\" thì không sao).
 sh.Run "cmd /c cd /d """ & root & """ && call """ & root & "\stop-joyce.bat"" > server\stop-last.log 2>&1", 0, True
 
+' Gỡ cờ "người dùng chủ động dừng" - start-joyce chạy nghĩa là Joyce được phép sống,
+' watchdog (joyce-watchdog.vbs) nhìn cờ này để biết có được tự khởi động lại không.
+If fso.FileExists(root & "\server\.joyce-paused") Then fso.DeleteFile root & "\server\.joyce-paused", True
+
 ' Chạy server ẩn (0 = cửa sổ ẩn, False = không chờ). Output -> server\joyce.log
 sh.Run "cmd /c cd /d """ & root & """ && .venv\Scripts\python.exe server\main.py > server\joyce.log 2>&1", 0, False
 

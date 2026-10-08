@@ -24,6 +24,8 @@ import re
 import urllib.parse
 import secrets
 import shutil
+import subprocess
+import threading
 import time
 import types as _types   # object tạm cho _apply_antigravity_hub ở endpoint kiểm tra
 import yaml
@@ -12229,11 +12231,23 @@ async def do_update():
 
 
 # ============================================================
-# Tự khởi động cùng máy (autostart) - Windows: ghi HKCU Run key trỏ wscript chạy
-# start-joyce.vbs (đã tự tắt bản cũ + chạy NỀN ẩn). Per-user, KHÔNG cần quyền admin.
-# Registry là nguồn sự thật duy nhất - không lưu trùng vào settings.json.
+# Tự khởi động cùng máy (autostart) - Windows.
+#
+# BẢN MỚI (2026-10-09): Run key -> joyce-boot.vbs CHẠY TỨC THÌ -> tạo one-shot task
+# "JoyceOS-Boot" đúng 5 phút nữa -> start-joyce.vbs. Hồ sơ ca thật trên máy này:
+# (a) wscript ẩn ngủ 300s (start-joyce-delayed.vbs) đúng dáng dropper nên bị giết
+#     câm giữa chừng - Run key còn nguyên, dashboard báo Bật, mà không có gì chạy;
+# (b) trigger ONLOGON của schtasks/Register-ScheduledTask đều bị Access Denied
+#     (360/Malwarebytes hardening persistence), còn ONCE/MINUTE thì qua.
+# Nên delay 5 phút giờ do Task Scheduler giữ, không còn process ngủ để ai giết.
+#   "JoyceOS-Watchdog": mỗi 5 phút chạy joyce-watchdog.vbs - uptime >= 5' mà server
+#                       chết không phải do stop-joyce thì tự sống lại. Đây cũng là
+#                       dự phòng nếu cả đường Run key bị giết.
+# Task Scheduler còn cho Last Run/Last Result - Run key xưa nay chết câm không vệt.
 # ============================================================
 _AUTOSTART_NAME = "JoyceOS"
+_AUTOSTART_BOOT = "JoyceOS-Boot"
+_AUTOSTART_DOG = "JoyceOS-Watchdog"
 _AUTOSTART_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 # Task Manager tab "Startup" KHÔNG xoá mục trong Run key khi người dùng bấm Disable. Nó ghi
 # một cờ 12 byte vào khoá riêng dưới đây, rồi Explorer bỏ qua mục đó lúc đăng nhập.
@@ -12249,11 +12263,58 @@ _AUTOSTART_APPROVED_ON = bytes([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
 def _autostart_command() -> str:
-    """Lệnh chạy khi đăng nhập Windows: wscript chạy start-joyce-delayed.vbs - bản ẩn
-    NGỦ 5 PHÚT rồi mới gọi start-joyce.vbs (để Windows/Ollama app khởi động xong,
-    tránh tranh CPU lúc logon)."""
-    vbs = str(PROJECT_ROOT / "start-joyce-delayed.vbs")
+    """Lệnh Run key: wscript chạy joyce-boot.vbs - relay TỨC THÌ (không ngủ), chỉ tạo
+    one-shot task JoyceOS-Boot +5 phút rồi thoát. Lệnh cũ trỏ start-joyce-delayed.vbs
+    sẽ đọc ra là `stale` -> dashboard khuyên bấm bật lại để migrate."""
+    vbs = str(PROJECT_ROOT / "joyce-boot.vbs")
     return f'wscript.exe //nologo "{vbs}"'
+
+
+def _schtasks(args: list, timeout: int = 15) -> tuple:
+    """Chạy schtasks, trả (ok, output). Không nổ: non-Windows/mất schtasks -> (False,'')."""
+    if os.name != "nt":
+        return False, ""
+    try:
+        r = subprocess.run(["schtasks", *args], capture_output=True, text=True,
+                           timeout=timeout, errors="replace")
+        return r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+    except Exception:
+        return False, ""
+
+
+def _autostart_task_status() -> dict:
+    """Sổ nhật ký của one-shot task 'JoyceOS-Boot' (relay 5 phút) + cờ watchdog.
+    Đây là thứ Run key không bao giờ có: biết được relay chạy lúc nào, xịt mã nào."""
+    ok, out = _schtasks(["/query", "/tn", _AUTOSTART_BOOT, "/v", "/fo", "list"])
+    st = {"exists": bool(ok), "last_run": "", "last_result": "", "next_run": ""}
+    if ok:
+        for ln in out.splitlines():
+            low = ln.lower()
+            if "last result" in low:
+                st["last_result"] = ln.split(":", 1)[-1].strip()
+            elif "last run time" in low:
+                st["last_run"] = ln.split(":", 1)[-1].strip()
+            elif "next run time" in low:
+                st["next_run"] = ln.split(":", 1)[-1].strip()
+    d_ok, _ = _schtasks(["/query", "/tn", _AUTOSTART_DOG])
+    st["watchdog"] = bool(d_ok)
+    return st
+
+
+def _autostart_task_install() -> tuple:
+    """Cài task watchdog 5 phút/lần (relay JoyceOS-Boot do joyce-boot.vbs tự tạo mỗi
+    lần logon nên không cần cài sẵn). Trả (ok, detail). Idempotent nhờ /f."""
+    dog_vbs = str(PROJECT_ROOT / "joyce-watchdog.vbs")
+    if not Path(dog_vbs).exists():
+        return False, "missing joyce-watchdog.vbs"
+    return _schtasks(["/create", "/tn", _AUTOSTART_DOG, "/sc", "minute",
+                      "/mo", "5", "/rl", "limited", "/f",
+                      "/tr", f'wscript.exe //nologo "{dog_vbs}"'])
+
+
+def _autostart_task_uninstall() -> None:
+    _schtasks(["/delete", "/tn", _AUTOSTART_BOOT, "/f"])
+    _schtasks(["/delete", "/tn", _AUTOSTART_DOG, "/f"])
 
 
 def _autostart_bi_chan(raw) -> bool:
@@ -12290,13 +12351,25 @@ def _autostart_ly_do(st: dict) -> str:
         return ""
     if st.get("blocked"):
         return ("Windows đang chặn mục khởi động này (ai đó tắt nó trong Task Manager, thẻ "
-                "Startup, hoặc một phần mềm dọn máy đã tắt hộ). Bấm bật lại để gỡ chặn.")
+                "Startup, hoặc disable task trong Task Scheduler, hoặc một phần mềm dọn máy "
+                "đã tắt hộ). Bấm bật lại để gỡ chặn.")
     if st.get("stale"):
         return ("Thư mục cài đặt đã đổi chỗ nên lệnh khởi động đang trỏ vào đường dẫn cũ. "
                 "Bấm bật lại để cập nhật.")
     if st.get("missing"):
         return ("Thiếu " + ", ".join(st["missing"]) + " trong thư mục cài đặt nên lúc đăng nhập "
                 "sẽ không có gì chạy. Chạy lại setup.bat để dựng lại phần thiếu.")
+    # Relay boot đã chạy mà xịt: chẩn đoán mà Run key xưa nay không bao giờ cho được.
+    task = st.get("task") or {}
+    lr = (task.get("last_result") or "").strip()
+    if task.get("exists") and task.get("last_run") and lr:
+        try:
+            code = int(lr, 16) if lr.lower().startswith("0x") else int(lr)
+            if code not in (0, 0x41301):    # 0 = xong tốt, 0x41301 = đang chạy
+                return (f"Lần tự chạy cuối ({task['last_run']}) task báo lỗi mã {lr}. "
+                        "Mở server\\joyce.log hoặc bấm bật lại để cài lại task.")
+        except ValueError:
+            pass
     return ""
 
 
@@ -12312,6 +12385,8 @@ def _autostart_status() -> dict:
     expected = _autostart_command()
     st = {"supported": True, "enabled": False, "expected": expected,
           "log": str(PROJECT_ROOT / "server" / "joyce.log")}
+    # Nhật ký relay one-shot (lần boot gần nhất chạy tới đâu) + cờ watchdog.
+    st["task"] = _autostart_task_status()
     try:
         import winreg
         try:
@@ -12319,6 +12394,7 @@ def _autostart_status() -> dict:
                 val, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
             st["enabled"] = bool(val)
             st["command"] = val
+            # Lệnh cũ trỏ start-joyce-delayed.vbs cũng đọc là stale -> khuyên migrate.
             st["stale"] = bool(val) and val.strip() != expected
         except FileNotFoundError:
             pass
@@ -12351,6 +12427,9 @@ def _autostart_set(enabled: bool) -> dict:
                 except FileNotFoundError:
                     pass
         if enabled:
+            # Watchdog 5'/lần: dự phòng cho cả đường Run key lẫn tự sống lại khi server
+            # chết giữa ngày. Nonfatal: thiếu nó autostart vẫn đi qua relay JoyceOS-Boot.
+            _autostart_task_install()
             # Ghi lại Run key KHÔNG gỡ được cờ chặn của Task Manager, nên bật xong vẫn không
             # chạy và nút bấm thành ra vô nghĩa. Chỉ lật cờ đã có sẵn của CHÍNH mục này, không
             # tự tạo mới: không có cờ đã là đang bật rồi.
@@ -12366,6 +12445,8 @@ def _autostart_set(enabled: bool) -> dict:
                                           _AUTOSTART_APPROVED_ON)
             except FileNotFoundError:
                 pass
+        else:
+            _autostart_task_uninstall()
         return {"ok": True, "enabled": enabled, **_autostart_status()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -15364,6 +15445,14 @@ async def websocket_endpoint(ws: WebSocket):
                     status="running", created_by="voice",
                     chat_id=f"{WEB_CHAT_PREFIX}{conv_sid}",
                 )
+                if tid:
+                    import time as _t
+                    with tasks_feature.store._lock:
+                        tasks_feature.store._db.execute(
+                            "UPDATE tasks SET claim_expires_at=?, claimed_by=? WHERE id=?",
+                            (_t.time() + VOICE_BG_TIMEOUT + 120, "voice", tid),
+                        )
+                        tasks_feature.store._db.commit()
             except Exception as e:
                 print(f"[voice bg] không tạo được thẻ Việc: {type(e).__name__}: {e}", file=sys.stderr)
 

@@ -9,5 +9,8 @@ REM Don cua so CMD den "Joyce OS" kieu cu con sot (flow moi chay an, khong tao c
 taskkill /F /FI "IMAGENAME eq cmd.exe" /FI "WINDOWTITLE eq Joyce OS*" >nul 2>&1
 REM Tat luon tunnel Cloudflare: khoi dong lai se co link trycloudflare MOI gui qua Telegram.
 taskkill /F /IM cloudflared.exe >nul 2>&1
+REM Co pause cho watchdog: stop-joyce la hanh dong CO CHU DINH cua nguoi dung nen
+REM JoyceOS-Watchdog (10 phut/lan) khong duoc tu song lai. start-joyce.vbs xoa co nay.
+echo %DATE% %TIME% > "%~dp0server\.joyce-paused"
 echo Xong.
 exit /b 0
