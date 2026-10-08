@@ -1,5 +1,10 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.2.1] - 2026-10-08
+### Cải thiện
+- **Dải ngân hà nằm ngang, hơi nghiêng, chạy qua sau tinh cầu** về phía hố đen, tông tím xanh có mây hồng, dịu để không lấn tinh cầu.
+- **Vành đai bụi sao vòng quanh tinh cầu** như một chiếc vòng: nửa sau khuất sau tinh cầu, nửa trước chạy ngang trước mặt, quay rất chậm.
+
 ## [1.2.0] - 2026-10-08
 ### Cải thiện
 - **Hố đen thành đĩa xoáy bồi tụ như ảnh mẫu**: xoắn ốc nghiêng, sát lòng hố trắng vàng, ra ngoài hồng cam rồi tím xanh, lòng hố tối viền đỏ cam, các nhánh tự cuộn khi xoay. Nhìn từ xa hay bấm vào phóng to đều cùng một kiểu.

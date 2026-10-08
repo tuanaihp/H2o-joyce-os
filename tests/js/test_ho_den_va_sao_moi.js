@@ -171,5 +171,25 @@ check("máy chủ: fresh=1 bỏ qua cache 60 giây", /fresh: bool = Query\(False
 const khoa = ["planet.bh_tip", "planet.bh_tip_d", "planet.bh_title", "planet.bh_wait", "planet.bh_now", "planet.bh_exit"];
 check("đủ chữ vi + en cho hố đen", khoa.every((k) => VI[k] && EN[k]) && !khoa.some((k) => /[–—]/.test(VI[k] + EN[k])));
 
+// ---- dải ngân hà ngang hơi nghiêng qua sau tinh cầu + vành đai bụi sao (1.2.1) ----
+const gctx = { Math, clamp: ctx.clamp, smooth: ctx.smooth, geo: { cx: 400, cy: 300, R: 150, bh: { x: 700, y: 90, r: 14 } },
+  W: 800, H: 600, profile: "high", cam: { yaw: 0, zoom: 1 } };
+vm.createContext(gctx);
+vm.runInContext([hang("VD_CAP"), hang("vd"), ...["hashRnd", "galAngle", "vdInit", "drawGalRing"].map(fn)].join("\n"), gctx);
+const A = gctx.galAngle();
+check("góc nghiêng hướng về hố đen, kẹp 9-26 độ (hơi nghiêng)", A >= 0.15 && A <= 0.45);
+gctx.geo.bh = { x: 410, y: 0, r: 14 };
+check("hố đen ở góc lạ vẫn chỉ nghiêng tối đa 26 độ", gctx.galAngle() === 0.45);
+gctx.geo.bh = { x: 700, y: 90, r: 14 };
+gctx.drawGalRing(c, 1000, 0.016, false); gctx.drawGalRing(c, 1000, 0.016, true);
+check("vành đai đủ hạt theo hồ sơ máy, bán kính 2,35-3,25R", gctx.vd.pts.length === 1400 && gctx.vd.pts.every((p) => p.r >= 2.35 && p.r <= 3.25));
+check("nửa sau vành không đè lên tinh cầu (khoét đĩa), nửa trước vẽ sau vành quỹ đạo",
+  /c\.arc\(geo\.cx, geo\.cy, R0 \* 0\.995, 0, 6\.2832, true\); c\.clip\("evenodd"\)/.test(PLANET)
+  && PLANET.indexOf("drawGalRing(c, now, ddt, false);") < PLANET.indexOf("drawKnowSky(c, now, ddt);")
+  && PLANET.indexOf("drawGalRing(c, now, 0, true);") < PLANET.indexOf("      drawRings(c, true);"));
+check("shader: dải ngân hà đi qua tâm tinh cầu (uC), nghiêng uGalA, có mây hồng tím xanh",
+  /vec2 gq=\(fcb-uC\+uPar\*\.6\)\/uRes\.y; float ga=-uGalA;/.test(PLANET) && /gl\.uniform1f\(u\.uGalA, galAngle\(\)\);/.test(PLANET)
+  && /vec3 gnC=mix\(vec3\(\.35,\.45,1\.\),vec3\(1\.,\.42,\.78\)/.test(PLANET));
+
 if (fails.length) { console.log("\n" + fails.length + " FAIL"); process.exit(1); }
 console.log("\nOK - test_ho_den_va_sao_moi: tất cả pass");

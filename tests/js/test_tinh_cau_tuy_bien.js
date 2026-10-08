@@ -131,7 +131,7 @@ check("mây trôi theo PHA gió tích luỹ (không giật khi bật gió)", /wi
 ["drawWind", "drawRain", "drawEruption", "drawHot", "drawTornado", "drawLightning"].forEach((f) =>
   check("có hiệu ứng " + f, new RegExp("function " + f + "\\(").test(PLANET)));
 check("hiệu ứng vẽ trước vành + trăng phía trước (bị che đúng)",
-  /drawMoon\(c, false, ddt\);\s*drawLookFx\(c, now, ddt\);\s*drawRings\(c, true\);/.test(PLANET));
+  /drawMoon\(c, false, ddt\);\s*drawLookFx\(c, now, ddt\);\s*(?:drawGalRing\(c, now, 0, true\);[^\n]*\s*)?drawRings\(c, true\);/.test(PLANET));
 check("Mặt Trời: tín hiệu sức khoẻ H2O Legacy vẫn đè lên màu tự chọn", /h\.c\[0\] \* 0\.7/.test(PLANET));
 // 0.65.44: núi lửa không còn bắn hạt; dung nham chảy thành sông (số đoạn cố định, dựng một lần).
 check("núi lửa: sông dung nham dựng một lần, không bắn hạt tung toé", /if \(!volc\.rivers\) volc\.rivers = buildRivers\(\);/.test(PLANET) && !/ventAcc/.test(PLANET));

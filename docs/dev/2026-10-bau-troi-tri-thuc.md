@@ -255,6 +255,17 @@ vừa nạp là một sao băng từ hố đen về ghim H2O (`phongSaoBang`, t�
 (nạp nhiều) thì thêm 14 sao băng nhỏ mờ. Phóng và vẽ dùng chung `performance.now()`: Chrome chạy
 ngầm cho thấy giờ khung hình có thể đứng yên trong khi đồng hồ trang vẫn chạy.
 
+**Dải ngân hà + vành đai bụi sao** (1.2.1, chủ chốt 2026-10-08: "dải ngân hà nằm ngang, hơi
+nghiêng, chạy qua sau tinh cầu, thêm cả vòng quanh tinh cầu như một chiếc vòng; dịu hơn"):
+- Góc chung `galAngle()`: hướng từ tâm tinh cầu tới hố đen, kẹp 0,15-0,45 rad (9-26 độ). Hố đen
+  nằm trên một cánh của dải.
+- Shader: dải ngân hà đi qua TÂM tinh cầu (`uC`), nghiêng `uGalA`, rộng hơn (0,15), lõi sáng ngay
+  sau lưng tinh cầu nên chỉ ló quầng quanh mép; thêm mây hồng tím / xanh dọc dải.
+- Lớp 2D `drawGalRing`: 1400/800/300 hạt bụi sao bán kính 2,35-3,25R, dẹt 0,2, cùng góc nghiêng,
+  quay ~9 phút một vòng, lệch nhẹ khi kéo xoay; hai dải quầng elip rất nhạt. Nửa sau vẽ trước
+  thiên thể và khoét đĩa tinh cầu; nửa trước vẽ ngay trước vành quỹ đạo phía trước. Tan dần khi
+  phóng gần (zoom 1,6-2,4) để không che bản đồ Việt Nam.
+
 Lỗi bắt được khi chụp thử bằng Chrome chạy ngầm (2026-10-08), ghi lại để khỏi lặp:
 - Gradient vành photon bắt đầu từ 0,95 bán kính thì canvas tô màu điểm dừng đầu cho cả phần
   bên trong: lòng hố thành đĩa màu be. Phải bắt đầu từ tâm và trong suốt tới mép bóng.

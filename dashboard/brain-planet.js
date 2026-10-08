@@ -67,7 +67,7 @@
       // Trái Đất H2O: khung địa lý (nhìn -> địa lý), hướng Mặt Trời THẬT, bản đồ Việt Nam,
       // thời tiết kinh doanh, Ngân Hà + hố đen nạp dữ liệu.
       "uniform mat3 uGeo; uniform vec3 uL; uniform sampler2D uVN; uniform float uVNOn; uniform vec4 uVNBox; uniform vec3 uVNc;",
-      "uniform vec4 uWx; uniform vec4 uWxC; uniform float uFlash; uniform float uGal; uniform vec4 uBH; uniform float uCore;",
+      "uniform vec4 uWx; uniform vec4 uWxC; uniform float uFlash; uniform float uGal; uniform float uGalA; uniform vec4 uBH; uniform float uCore;",
       // Giao diện tùy biến (tab Quả tinh cầu): bảng màu bề mặt (đáy, biển, viền, điểm nhấn);
       // uLk = (sức nắng lên hành tinh, khí quyển, độ sáng bề mặt, ánh trăng); uMoonV = hướng
       // Mặt Trăng (khung nhìn); uCl = (độ phủ mây nền, độ u tối, pha gió, mưa toàn cầu);
@@ -120,17 +120,23 @@
       " vec3 neb=mix(OCEAN*.55,VIOLET,smoothstep(.42,.78,n1))+MAGENTA*.35*smoothstep(.62,.9,n2)*smoothstep(.5,.7,n1);",
       " float nebA=(.05+.17*nebFall)*smoothstep(.25,.75,n1)*bgK;",
       " acc+=neb*nebA; al+=nebA;",
-      // Ngân Hà: dải sao chéo + lõi vàng + vệt bụi tối
-      " vec2 gq=(fcb-uRes*.5+uPar*.6)/uRes.y; float ga=-.46;",
+      // Ngân Hà (1.2.1, chủ chốt 2026-10-08): dải gần NGANG, nghiêng nhẹ uGalA, đi qua TÂM tinh cầu
+      // (lõi nằm ngay sau lưng tinh cầu, chỉ ló quầng quanh mép) và hướng về hố đen; mây hồng tím
+      // và xanh dọc dải, tông dịu. Shader nền nên tự nằm sau tinh cầu.
+      " vec2 gq=(fcb-uC+uPar*.6)/uRes.y; float ga=-uGalA;",
       " vec2 gr=vec2(cos(ga)*gq.x-sin(ga)*gq.y,sin(ga)*gq.x+cos(ga)*gq.y);",
-      " float gw=.13+.05*vn(vec3(gr.x*2.2,1.,4.));",
+      " float gw=.15+.06*vn(vec3(gr.x*2.2,1.,4.));",
       " float band=exp(-gr.y*gr.y/(gw*gw));",
-      " vec2 gb=gr-vec2(.42,.02); float bulge=exp(-dot(gb,gb)*14.);",
+      " vec2 gb=gr-vec2(.05,.01); float bulge=exp(-dot(gb,gb)*9.)*.75;",
       " float gn=vn(vec3(gr*6.,2.3))*.6+vn(vec3(gr*15.,7.1))*.4;",
       " float dust=smoothstep(.5,.75,vn(vec3(gr*vec2(5.,16.)+3.,5.1)))*exp(-gr.y*gr.y/(gw*gw*.2));",
       " vec3 galC=mix(vec3(.42,.52,1.),vec3(1.,.84,.66),clamp(bulge+.25*band,0.,1.))*(.45+.55*gn)*(1.-.4*dust);",
-      " float galA=(band*.26*(.5+.5*gn)+bulge*.3)*(1.-.45*dust)*uGal*bgK;",
+      " float galA=(band*.5*(.5+.5*gn)+bulge*.32)*(1.-.45*dust)*uGal*bgK;",
       " acc+=galC*galA; al+=galA*.7;",
+      " float gcl=vn(vec3(gr*vec2(3.,7.)+11.,uT*.004));",
+      " vec3 gnC=mix(vec3(.35,.45,1.),vec3(1.,.42,.78),smoothstep(.35,.7,gcl));",
+      " float gnA=band*.2*smoothstep(.3,.75,gcl)*uGal*bgK;",
+      " acc+=gnC*gnA; al+=gnA*.6;",
       " vec2 dq=(fcb+uPar*1.8)/2.6; vec2 dc=floor(dq); float dh=h13(vec3(dc,3.1));",
       " if(dh>.9965-.0045*band*uGal){vec2 dd=fract(dq)-.5; float tw=.55+.45*sin(uT*(1.+dh*3.)+dh*40.);",
       "  float st=smoothstep(.32,0.,length(dd))*tw*.75*bgK; acc+=mix(vec3(.75,.9,1.),MINT,fract(dh*97.))*st; al+=st;}",
@@ -410,7 +416,7 @@
     if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error("link: " + gl.getProgramInfoLog(pr));
     var u = {};
     ["uRes", "uC", "uR", "uT", "uRot", "uLight", "uAmp", "uHover", "uS1", "uS2", "uPar", "uHorizon", "uFlowT", "uSun", "uSunC",
-     "uGeo", "uL", "uVN", "uVNOn", "uVNBox", "uVNc", "uWx", "uWxC", "uFlash", "uGal", "uBH", "uCore",
+     "uGeo", "uL", "uVN", "uVNOn", "uVNBox", "uVNc", "uWx", "uWxC", "uFlash", "uGal", "uGalA", "uBH", "uCore",
      "uPa", "uPb", "uPc", "uPd", "uLk", "uMoonV", "uCl", "uTor", "uBolt", "uCo", "uRc", "uRs"]
       .forEach(function (k) { u[k] = gl.getUniformLocation(pr, k); });
     return { pr: pr, u: u };
@@ -1944,6 +1950,61 @@
       void t;
     }
     function onBlackHole(x, y) { return !!(geo.bh && Math.hypot(x - geo.bh.x, y - geo.bh.y) < Math.max(14, geo.bh.r * 1.8)); }
+
+    // ---- Dải ngân hà + vành đai bụi sao quanh tinh cầu (1.2.1, chủ chốt 2026-10-08: dải ngang hơi
+    // nghiêng chạy qua sau tinh cầu, THÊM một vành quanh tinh cầu như chiếc vòng; tông dịu) ----
+    // Góc nghiêng chung: hướng từ tâm tinh cầu tới hố đen, kẹp 0,15-0,45 rad (9-26 độ) cho "hơi
+    // nghiêng"; shader dải ngân hà và vành đai dùng cùng góc nên hai thứ song song.
+    function galAngle() {
+      if (!geo.bh) return 0.3;
+      return clamp(Math.atan2(geo.cy - geo.bh.y, geo.bh.x - geo.cx), 0.15, 0.45);
+    }
+    var VD_CAP = { high: 1400, balanced: 800, safe: 300, reduced: 300 };
+    var vd = { pts: [], prof: null, quay: 0 };
+    function vdInit() {
+      var rnd = hashRnd(9091), n = VD_CAP[profile] || 800;
+      vd.pts = [];
+      for (var i = 0; i < n; i++) {
+        var u = rnd();   // bán kính 2,35-3,25R, dày ở giữa vành
+        vd.pts.push({ a: rnd() * 6.2832, r: 2.35 + 0.9 * (0.5 + (u - 0.5) * Math.abs(u - 0.5) * 2), h: (rnd() - 0.5) * 0.09,
+                      s: 0.5 + Math.pow(rnd(), 3) * 2, tone: rnd(), tw: rnd() * 6.28 });
+      }
+      vd.prof = profile;
+    }
+    // Vẽ nửa sau (truoc = false, trước khi vẽ thiên thể) hoặc nửa trước (sau vành quỹ đạo).
+    function drawGalRing(c, now, dt, truoc) {
+      if (profile === "reduced" && truoc) return;
+      if (vd.prof !== profile) vdInit();
+      if (dt && !truoc) vd.quay += dt * 0.012;   // ~9 phút một vòng
+      var A = galAngle(), ca = Math.cos(A), sa = Math.sin(A), FL = 0.2, R0 = geo.R, t = now / 1000;
+      var yaw = cam.yaw * 0.6, fade = 1 - smooth(1.6, 2.4, cam.zoom);
+      if (fade < 0.02) return;
+      c.save();
+      if (!truoc) {   // nửa sau không được đè lên đĩa tinh cầu
+        c.beginPath(); c.rect(0, 0, W, H); c.arc(geo.cx, geo.cy, R0 * 0.995, 0, 6.2832, true); c.clip("evenodd");
+      }
+      // quầng mờ của vành: hai dải elip rộng, rất nhạt
+      c.globalCompositeOperation = "lighter";
+      for (var k = 0; k < 2; k++) {
+        var rr = R0 * (2.6 + k * 0.45);
+        c.strokeStyle = k ? "rgba(255,130,200," + 0.035 * fade + ")" : "rgba(120,150,255," + 0.05 * fade + ")";
+        c.lineWidth = R0 * (0.32 - k * 0.1);
+        c.beginPath();
+        c.ellipse(geo.cx, geo.cy, rr, rr * FL, -A, truoc ? 0 : Math.PI, truoc ? Math.PI : 2 * Math.PI);
+        c.stroke();
+      }
+      vd.pts.forEach(function (p) {
+        var an = p.a + vd.quay * (3 / p.r) + yaw, sn = Math.sin(an);
+        if ((sn > 0) !== truoc) return;   // sn > 0: nửa gần (phía dưới trên màn)
+        var x = Math.cos(an) * p.r * R0, y = (sn * FL + p.h) * p.r * R0;
+        var sx = geo.cx + ca * x + sa * y, sy = geo.cy - sa * x + ca * y;
+        if (sx < -4 || sy < -4 || sx > W + 4 || sy > H + 4) return;
+        var tw = 0.65 + 0.35 * Math.sin(t * 1.4 + p.tw), al = (truoc ? 0.55 : 0.38) * tw * fade;
+        c.fillStyle = p.tone < 0.55 ? "rgba(185,205,255," + al + ")" : p.tone < 0.85 ? "rgba(255,170,215," + al + ")" : "rgba(255,235,200," + al + ")";
+        c.fillRect(sx - p.s / 2, sy - p.s / 2, p.s, p.s);
+      });
+      c.restore();
+    }
 
     // ---- Hố đen kiểu XOÁY BỒI TỤ (ảnh mẫu chủ gửi 2026-10-08) ----
     // Đĩa xoắn ốc nghiêng: sát lòng hố trắng vàng, ra ngoài hồng cam rồi xanh tím, nhánh xoắn có
@@ -3884,6 +3945,7 @@
         gl.uniform4f(u.uWxC, wx.center[0], wx.center[1], wx.center[2], wx.sigma);
         gl.uniform1f(u.uFlash, wx.flash);
         gl.uniform1f(u.uGal, 0.45 + 0.55 * (geo.gal || 0));
+        gl.uniform1f(u.uGalA, galAngle());
         gl.uniform1f(u.uCore, 1 - smooth(1.8, 3.6, cam.zoom));   // phóng cận Việt Nam: lõi lặn dần
         if (geo.bh) gl.uniform4f(u.uBH, geo.bh.x * s, (H - geo.bh.y) * s, geo.bh.r * s * (VX ? 0.5 : 1), ing.k);
         else gl.uniform4f(u.uBH, 0, 0, 0, 0);
@@ -3922,6 +3984,7 @@
       var ddt = reduced ? 0 : dt;
       if (profile === "safe" || !gl) drawSafePlanet(c, now);
       drawMoonPath(c);
+      drawGalRing(c, now, ddt, false);              // nửa sau vành đai bụi sao (sau tinh cầu)
       drawBHSwirl(c, now, ddt);
       drawKnowSky(c, now, ddt);
       drawRings(c, false);
@@ -3930,6 +3993,7 @@
       drawSatDots(c, false, ddt);
       drawMoon(c, false, ddt);
       drawLookFx(c, now, ddt);
+      drawGalRing(c, now, 0, true);                 // nửa trước vành đai, chạy ngang trước tinh cầu
       drawRings(c, true);
       drawParticles(c, true, 0);
       drawKnowOrbit(c, true, 0);
