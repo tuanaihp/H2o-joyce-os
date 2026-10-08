@@ -318,6 +318,12 @@ class LoopFeature:
             "owner_chat": str(fm.get("owner_chat", "") or "").strip(),
             "notify": notify,
             "ambient_mcp": ambient_mcp,
+            # Model RIÊNG của loop, override "model việc nền" chung. Hai cách ghi:
+            #   model: "provider/model"      (vd ollama-local/qwen3:14b)
+            #   model: "model" + model_provider: "provider"
+            # Trống/không parse được provider → chạy model việc nền như mọi loop khác.
+            "model": str(fm.get("model", "") or "").strip(),
+            "model_provider": str(fm.get("model_provider", "") or "").strip(),
             "updated": str(fm.get("updated", "") or ""),
             "body": (body or "").strip(),
         }
@@ -373,6 +379,10 @@ class LoopFeature:
         # Chỉ ghi ambient_mcp khi BẬT - giữ file loop mặc định sạch (fork không thấy cờ lạ).
         if loop.get("ambient_mcp"):
             fm["ambient_mcp"] = True
+        if loop.get("model"):
+            fm["model"] = loop["model"]
+            if loop.get("model_provider"):
+                fm["model_provider"] = loop["model_provider"]
         y = yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False, width=1000).strip()
         d = self._loops_dir(brain)
         d.mkdir(parents=True, exist_ok=True)
@@ -823,8 +833,27 @@ class LoopFeature:
                     self.deps.apply_mcp(cli)   # deps cũ (test) không nhận mode
             else:
                 _isolate(cli)              # không có hook (vd unit test) → giữ 0-MCP như cũ
-        cli = aux_engine.apply(self.deps, cli, mode=("suggest" if for_verify else mode), tag="loop")
+        cli = self._apply_loop_engine(cli, mode=("suggest" if for_verify else mode), loop=loop)
         return cli
+
+    def _apply_loop_engine(self, cli, mode: str, loop: dict):
+        """Engine nền cho 1 vòng loop. Frontmatter `model` của loop (dạng
+        "provider/model" hoặc `model` + `model_provider`) override model việc nền
+        chung; trống hoặc thiếu provider → đi qua router aux như cũ (kèm fallback)."""
+        raw = (loop.get("model") or "").strip()
+        prov = (loop.get("model_provider") or "").strip()
+        if raw and "/" in raw and not prov:
+            prov, raw = (p.strip() for p in raw.split("/", 1))
+        if raw and prov:
+            spec = {"provider": prov, "model": raw}
+            fn = getattr(self.deps, "aux_swap", None)
+            if fn:
+                try:
+                    return fn(cli, mode=mode, tag="loop", spec=spec)
+                except TypeError:
+                    pass    # deps cũ/test không nhận spec
+            return aux_engine.swap(cli, mode=mode, tag="loop", spec=spec)
+        return aux_engine.apply(self.deps, cli, mode=mode, tag="loop")
 
     def _chay_nen(self, brain: str, slug: str, reason: str) -> None:
         async def _run():
@@ -1083,6 +1112,7 @@ class LoopFeature:
             workspace: str = Form(None), tools_profile: str = Form(None),
             quiet_hours: str = Form(None), max_runs_per_day: str = Form(None),
             owner_chat: str = Form(None), notify: str = Form(None),
+            model: str = Form(None), model_provider: str = Form(None),
             body: str = Form(""), brain: str = Form("brain"),
         ):
             self.ensure_migrated()
@@ -1123,11 +1153,16 @@ class LoopFeature:
             oc = owner_chat if owner_chat is not None else (old["owner_chat"] if old else "")
             nf = (notify in ("1", "true", "True", "on", "yes")) if notify is not None \
                 else (bool(old["notify"]) if old else True)
+            # model: form web không gửi → giữ nguyên của loop cũ (như owner_chat).
+            lm = model if model is not None else (old.get("model", "") if old else "")
+            lp_ = model_provider if model_provider is not None else (old.get("model_provider", "") if old else "")
             loop = self.save_loop(brain, {
                 "slug": s, "name": name.strip() or s, "enabled": en, "goal": goal, "mode": mode,
                 "interval_min": iv, "workspace": ws, "tools_profile": tools_profile,
                 "quiet_hours": quiet_hours.strip(), "max_runs_per_day": mr,
-                "owner_chat": (oc or "").strip(), "notify": nf, "body": body,
+                "owner_chat": (oc or "").strip(), "notify": nf,
+                "model": (lm or "").strip(), "model_provider": (lp_ or "").strip(),
+                "body": body,
             })
             self.register_brain(brain)
             return {"ok": True, "loop": self.loop_view(brain, loop)}

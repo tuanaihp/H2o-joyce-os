@@ -3348,6 +3348,7 @@
         : lp.mode === "auto" ? window.t("cs.si_mode_auto_low") : window.t("cs.si_mode_suggest_low");
       const extra = [
         `${modeLbl} · ${window.t("cs.si_every", { so: lp.interval_min })}`,
+        lp.model ? `${ic("cpu")} ${esc(lp.model)}` : "",
         (lp.goal && lp.goal !== "custom") ? (GNAME[lp.goal] || lp.goal) : "",
         lp.quiet_hours ? window.t("cs.si_quiet", { gio: lp.quiet_hours }) : "",
         lp.max_runs_per_day ? window.t("cs.si_maxruns", { so: lp.max_runs_per_day, da: lp.runs_today }) : "",

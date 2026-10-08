@@ -2095,10 +2095,12 @@ def _aux_model():
     return spec["model"] if aux_engine.is_claude(spec) else ""
 
 
-def _aux_swap(cli, mode=None, tag=None):
+def _aux_swap(cli, mode=None, tag=None, spec=None):
     """Engine Claude vừa dựng cho việc nền -> engine theo model phụ người dùng chọn.
-    Mặc định/hỏng cấu hình thì trả lại chính engine Claude đó (việc nền không được chết)."""
-    return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
+    Mặc định/hỏng cấu hình thì trả lại chính engine Claude đó (việc nền không được chết).
+    `spec` (loop.model riêng, vd {'provider':'ollama-local','model':'qwen3:14b'}) override
+    model việc nền chung cho đúng một lần chạy."""
+    return aux_engine.swap(cli, mode=mode, tag=tag, spec=spec, codex_profile=_write_codex_profile)
 
 
 async def _reply_policy_ask(prompt: str, purpose: str = "") -> str:
