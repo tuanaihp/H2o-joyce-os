@@ -1,5 +1,9 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.7] - 2026-10-08
+### Sửa lỗi
+- **Bấm vào ngôi sao, chấm hay tinh cầu kiến thức là mở thẳng file đó** để đọc, kể cả file nằm ở brain phòng ban khác khi đang xem bầu trời gộp ở Brain Default. Thẻ Đọc nhanh vẫn còn phía sau, đóng file là thấy.
+
 ## [1.0.6] - 2026-10-08
 ### Cải thiện
 - **Big Bang làm lại theo góp ý**: tinh cầu kiến thức giữ nguyên chỗ trên bầu trời và phóng to tại chỗ, mặt đá lồi lõm có miệng hố và quầng màu dải ngân hà. Các thiên thể quanh nó lao vào, nổ lửa vàng rồi nổ xanh chưng cất có hai tia sáng; Mặt Trời chiếu dần, tài liệu khớp nhất sáng nhất.

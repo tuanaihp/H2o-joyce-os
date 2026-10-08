@@ -221,10 +221,14 @@
   }
 
   // ---------------------------------------------------------------- mo file
-  function open(brainRel) {
+  // opts.brain: mở file của MỘT BRAIN KHÁC brain đang mở (đường dẫn gốc brain, như giá trị
+  // "path:..." của ô chọn brain). Bầu trời tri thức của admin gộp mọi phòng ban, nên bấm một
+  // ngôi sao có thể là file nằm ở brain phòng khác; trước bản này trình sửa luôn đọc theo brain
+  // đang mở và file đó không mở được. Máy chủ vẫn tự khoá phạm vi nhân viên (_brain_root).
+  function open(brainRel, opts) {
     if (!brainRel) return;
     build();
-    var b = brain();
+    var b = (opts && opts.brain) || brain();
     elTitle.innerHTML = esc(baseOf(brainRel));
     elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">' + esc(tw("fedit.opening")) + "</div>";
     curSave = null;

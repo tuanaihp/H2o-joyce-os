@@ -83,8 +83,13 @@ check("công tắc knowledge trong LOOK_BOOL + FX_KEYS",
   /LOOK_BOOL = \{[^}]*knowledge: true/.test(PLANET) && /FX_KEYS = \[[^\]]*"knowledge"/.test(PLANET));
 check("R.setKnowledge + R.knowledgeInfo lộ ra", /R\.setKnowledge = setKnowledge;/.test(PLANET) && /R\.knowledgeInfo = /.test(PLANET));
 check("hud.js nạp /knowledge/sky và đọc nhanh /knowledge/quick",
-  /\/knowledge\/sky\?brain=/.test(HUD) && /\/knowledge\/quick\?brain=/.test(HUD) && /onKnowledgeClick: function \(b\) \{ openKnow\(b\); \}/.test(HUD));
-check("nút Mở chỉ khi tài liệu thuộc brain đang mở", /cungBrain \? '<button class="pc-btn pc-open"/.test(HUD));
+  /\/knowledge\/sky\?brain=/.test(HUD) && /\/knowledge\/quick\?brain=/.test(HUD) && /onKnowledgeClick: function \(b\) \{ openKnow\(b\);/.test(HUD));
+check("bấm thiên thể mở THẲNG file (kể cả file ở brain phòng khác)",
+  /onKnowledgeClick: function \(b\) \{ openKnow\(b\); moFileTriThuc\(b\); \}/.test(HUD)
+  && /window\.JoyceFileEditor\.open\(b\.path, goc \? \{ brain: goc \} : null\)/.test(HUD));
+check("tìm brain của file: /knowledge/sky -> ô chọn brain -> /brains (máy chủ cũ vẫn mở được)",
+  /x\.dataset\.brainName === b\.brain/.test(HUD) && /jget\("\/brains"\)/.test(HUD) && /hit\.is_default \? "brain" : hit\.path/.test(HUD));
+check("trình sửa file mở được brain khác (opts.brain)", /var b = \(opts && opts\.brain\) \|\| brain\(\);/.test(D("file-editor.js")));
 check("Cài đặt có công tắc Bầu trời tri thức", /congTac\("knowledge", "sparkles", "look\.fx_knowledge", "look\.fx_knowledge_d"\)/.test(CON));
 const khoa = ["planet.k_star", "planet.k_proc", "planet.k_skill", "planet.k_workflow", "planet.k_memory", "planet.k_debris",
   "planet.k_loading", "planet.k_err", "planet.k_no_heads", "planet.k_raw", "planet.k_open", "planet.k_ask", "planet.k_ask_q",

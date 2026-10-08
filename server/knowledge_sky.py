@@ -9,8 +9,8 @@ Phạm vi (chốt 2026-10-08): admin đứng ở brain chủ (Brain Default) th�
 admin mở brain một phòng thì chỉ phòng đó; nhân viên thì brain đang mở. Phạm vi nhân viên KHÔNG
 tự tính ở đây: gốc brain đi qua `_brain_root` của main.py, vốn đã ép vào phòng được gán.
 
-Chỉ đọc. Đường dẫn tuyệt đối không bao giờ ra khỏi máy chủ: thiên thể mang `brain` là tên thư
-mục brain (key), `path` là đường dẫn trong brain đó.
+Chỉ đọc. Thiên thể mang `brain` là tên thư mục brain (key), `path` là đường dẫn trong brain đó.
+Đường dẫn gốc chỉ đi ra ở mảng `brains` và chỉ cho brain TRONG phạm vi (để mở file khi bấm).
 """
 from __future__ import annotations
 
@@ -310,7 +310,10 @@ def _dung_troi(brain: str) -> dict:
     for b in bodies:
         counts[b["kind"]] += 1
     gon = [{k: v for k, v in b.items() if not k.startswith("_")} for b in bodies[:_TOI_DA_THIEN_THE]]
-    return {"ok": True, "scope": scope, "brains": [_thong_tin_brain(k) for k, _ in ds],
+    # `path` của từng brain: để trình duyệt mở được file ở brain phòng khác khi bấm một thiên thể
+    # (bầu trời gộp của admin). Chỉ brain TRONG phạm vi mới có mặt ở đây, nên nhân viên không
+    # thấy đường dẫn phòng khác; thiên thể vẫn chỉ mang key + đường dẫn trong brain.
+    return {"ok": True, "scope": scope, "brains": [dict(_thong_tin_brain(k), path=str(r)) for k, r in ds],
             "bodies": gon, "counts": counts, "truncated": tong > len(gon)}
 
 

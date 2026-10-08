@@ -182,6 +182,17 @@ Kết quả ngoài phần đang vẽ (vượt trần mục 4) vẫn hiện: ch�
 - Nạp lại bầu trời giữ góc đang chạy của chấm vành và đá vụn cũ, không giật về góc ban đầu.
 - Lần nạp bầu trời ĐẦU TIÊN không coi gì là sao mới.
 
+## 7a. Bấm thiên thể là mở file (1.0.7)
+
+Chủ báo 2026-10-08: bấm một tinh thể hiện tên quy trình nhưng không dẫn tới file. Gốc: trời gộp
+của admin có file ở brain phòng khác, mà nút Mở chỉ hiện khi file thuộc brain đang mở, và trình
+sửa file luôn đọc theo brain đang mở. Sửa:
+- Bấm thiên thể (cả tinh cầu kết quả Big Bang) mở THẲNG file trong trình xem/sửa
+  (`JoyceFileEditor.open(path, {brain})`); thẻ Đọc nhanh vẫn mở phía sau.
+- `file-editor.js` nhận `opts.brain` để mở file của brain khác brain đang mở.
+- Tìm đường dẫn gốc brain theo thứ tự: `brains[].path` của `/knowledge/sky` (chỉ brain trong phạm
+  vi), ô chọn brain (`data-brain-name`), rồi `/brains`. Máy chủ chưa khởi động lại vẫn mở được.
+
 ## 7b. Hố đen luôn xoay và nhìn sâu vào hố đen (1.0.6)
 
 Chủ yêu cầu 2026-10-08, kèm ảnh mẫu (xoáy bụi xanh có luồng bụi bị hút; đĩa bồi tụ trong xanh

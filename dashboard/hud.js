@@ -284,13 +284,45 @@
     if (b.kind === "orbit") return t(KNOW_RING[b.ring | 0] || KNOW_RING[0]);
     return t(b.kind === "star" && b.proc ? KNOW_KIND.proc : (KNOW_KIND[b.kind] || KNOW_KIND.star));
   }
+  // Mở thẳng file của thiên thể trong trình xem/sửa (chủ yêu cầu 2026-10-08: "click vào phải dẫn
+  // đến file quy trình cần đọc"). File ở brain phòng khác (trời gộp của admin) mở theo đường dẫn
+  // gốc brain máy chủ trả trong `brains`; brain đang mở thì đi đường thường.
+  // Đường dẫn gốc brain của thiên thể. Ba nguồn theo thứ tự: `brains` của /knowledge/sky (máy chủ
+  // 1.0.7 trở đi), ô chọn brain (giá trị "path:..." kèm data-brain-name = tên thư mục), rồi
+  // /brains. Hai nguồn sau để máy chủ chưa khởi động lại vẫn mở được (và ô chọn có thể đang ẩn
+  // brain của thương hiệu khác). "Brain Default" là brain mặc định: gửi "brain" là đủ.
+  var _dsBrain = null;
+  function goBrainCua(b) {
+    if (!b || b.brain === tenBrainDangMo()) return null;
+    var br = ((D.know && D.know.brains) || []).filter(function (x) { return x.key === b.brain; })[0];
+    if (br && br.path) return br.path;
+    var sel = document.getElementById("graphSource");
+    var o = sel ? [].slice.call(sel.options).filter(function (x) { return x.dataset && x.dataset.brainName === b.brain; })[0] : null;
+    if (o && o.value.indexOf("path:") === 0) return o.value.slice(5);
+    var hit = (_dsBrain || []).filter(function (x) { return x.name === b.brain; })[0];
+    if (hit) return hit.is_default ? "brain" : hit.path;
+    return null;
+  }
+  function moFileTriThuc(b) {
+    if (!b || !b.path) return;
+    var mo = function (goc) {
+      if (window.JoyceFileEditor && window.JoyceFileEditor.open) { window.JoyceFileEditor.open(b.path, goc ? { brain: goc } : null); return; }
+      if (!goc && typeof window.JoyceOpenVaultPath === "function") window.JoyceOpenVaultPath(b.path);
+    };
+    var goc = goBrainCua(b);
+    if (goc || b.brain === tenBrainDangMo() || _dsBrain) { mo(goc); return; }
+    jget("/brains").then(function (r) {   // lần đầu: hỏi danh sách brain rồi mở
+      _dsBrain = (r && (r.brains || (Array.isArray(r) ? r : []))) || [];
+      mo(goBrainCua(b));
+    });
+  }
   // Thẻ Đọc nhanh: dùng lại ngăn kéo #planetCtx của vệ tinh (cùng chỗ, cùng cách đóng: nút x,
   // Esc, bấm khoảng trống). Đầu mục do máy chủ rút từ tài liệu, không gọi AI.
   function openKnow(b) {
     var box = view && view.querySelector("#planetCtx");
     if (!box || !b) return;
     _ctxId = "know:" + b.id;
-    var cungBrain = !D.know || D.know.scope !== "all" || b.brain === tenBrainDangMo();
+    var coTheMo = true;   // moFileTriThuc tự tìm brain của file (kể cả phòng khác)
     box.innerHTML =
       '<div class="pc-head"><span class="pc-dot pc-know-dot"></span>' +
         '<span class="pc-name">' + esc(b.title || b.path) + '</span>' +
@@ -299,15 +331,13 @@
       '<div class="pc-know-brain">' + esc(b.brain || "") + '</div>' +
       '<div class="pc-know-body"><div class="pc-know-note">' + esc(t("planet.k_loading")) + '</div></div>' +
       '<div class="pc-acts">' +
-        (cungBrain ? '<button class="pc-btn pc-open" type="button" data-k="open">' + esc(t("planet.k_open")) + '</button>' : '') +
+        (coTheMo ? '<button class="pc-btn pc-open" type="button" data-k="open">' + esc(t("planet.k_open")) + '</button>' : '') +
         '<button class="pc-btn" type="button" data-k="ask">' + esc(t("planet.k_ask")) + '</button>' +
       '</div>';
     box.hidden = false;
     box.querySelector(".pc-x").addEventListener("click", closeCtx);
     var mo = box.querySelector('[data-k="open"]');
-    if (mo) mo.addEventListener("click", function () {
-      if (typeof window.JoyceOpenVaultPath === "function") window.JoyceOpenVaultPath(b.path);
-    });
+    if (mo) mo.addEventListener("click", function () { moFileTriThuc(b); });
     box.querySelector('[data-k="ask"]').addEventListener("click", function () {
       var cau = t("planet.k_ask_q", { ten: b.title || b.path, path: b.path, brain: b.brain || "" });
       try { if (window.Alpine) window.Alpine.store("nav").go("chat"); } catch (e) {}
@@ -689,7 +719,7 @@
         insets: planetInsets,
         onPlanetClick: function () { var vb = document.getElementById("voiceBtn"); if (vb) vb.click(); },
         onSatelliteClick: function (p) { openCtx(p); },
-        onKnowledgeClick: function (b) { openKnow(b); },
+        onKnowledgeClick: function (b) { openKnow(b); moFileTriThuc(b); },
         onKnowledgeHover: baoRePhiaVault,
         onBackgroundClick: function () { if (_ctxId != null) closeCtx(); },
       });
