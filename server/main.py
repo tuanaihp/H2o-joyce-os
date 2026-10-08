@@ -10399,7 +10399,8 @@ social_ops.register(app, _brain_root)
 # thức là một thiên thể quanh quả tinh cầu. Chỉ đọc; phạm vi nhân viên đi qua _brain_root.
 import knowledge_sky
 
-knowledge_sky.register(app, _brain_root, _default_brain_dir, lambda: bool(_STAFF_SCOPE.get()), BRAINS_DIR)
+knowledge_sky.register(app, _brain_root, _default_brain_dir, lambda: bool(_STAFF_SCOPE.get()), BRAINS_DIR,
+                       lambda: _STAFF_SCOPE.get() or ())
 
 
 @app.get("/viec/all")

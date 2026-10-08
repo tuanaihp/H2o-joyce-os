@@ -93,8 +93,8 @@ check("zoom bị kẹp ở trần 12 (cận cảnh Hải Phòng)", near(r.camera
 // ---- 2. Chụm hai ngón: zoom nhỏ ----
 ov.fire("pointermove", ev(2, cx + 100, cy));                 // về 200px: về x1
 check("chụm về khoảng cách ban đầu -> zoom về x1", near(r.camera().zoom, 1));
-ov.fire("pointermove", ev(2, cx - 50, cy));                  // 50px: x0,25 -> kẹp 0,32
-check("chụm sát -> lùi xa, kẹp ở sàn 0,32 (thấy Ngân Hà)", near(r.camera().zoom, 0.32));
+ov.fire("pointermove", ev(2, cx - 90, cy));                  // 10px: x0,05 -> kẹp 0,12 (tầng Thiên hà)
+check("chụm sát -> lùi xa, kẹp ở sàn 0,12 (tầng Thiên hà phòng ban)", near(r.camera().zoom, 0.12));
 ov.fire("pointermove", ev(2, cx + 100, cy));
 
 // ---- 3. Kéo hai ngón: xoay; nhấc ngón: không phải bấm ----

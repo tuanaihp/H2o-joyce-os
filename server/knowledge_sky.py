@@ -47,9 +47,10 @@ _RE_LINK = re.compile(r"\[\[([^\]|#]+)")
 _RE_SO_DAU = re.compile(r"^\s*\d+\s*[.)-]\s*")
 
 
-def register(app, brain_root_fn, default_dir_fn, is_staff_fn, brains_dir):
+def register(app, brain_root_fn, default_dir_fn, is_staff_fn, brains_dir, scope_fn=None):
+    """scope_fn(): các gốc brain nhân viên được phép (rỗng = admin), cho thiên hà phòng ban."""
     _deps.update(brain_root=brain_root_fn, default_dir=default_dir_fn,
-                 is_staff=is_staff_fn, brains_dir=str(brains_dir))
+                 is_staff=is_staff_fn, brains_dir=str(brains_dir), scope=scope_fn or (lambda: ()))
     app.include_router(router)
 
 
@@ -397,6 +398,106 @@ async def knowledge_search(brain: str = Query("brain"), q: str = Query("")):
     if len(q or "") > 200:
         return _err("từ khoá quá dài")
     return await run_in_threadpool(tim, brain, q or "")
+
+
+# ---------------------------------------------------------------- thiên hà phòng ban
+# Thiết kế: docs/dev/2026-10-thien-ha-phong-ban.md. Mỗi brain phòng ban là một tinh cầu ở tầng zoom
+# Thiên hà; số liệu ở đây quyết định to nhỏ, sáng tối, nhấp nháy đỏ, hố đen nhỏ, số mặt trăng.
+_cache_ha: dict = {}
+
+
+def _viec_ket() -> dict:
+    """Số việc KẸT (status blocked) trên bảng Việc theo gốc brain. Đọc thẳng SQLite chỉ đọc; lỗi
+    thì trả rỗng (thiên hà vẫn vẽ, chỉ không nhấp nháy)."""
+    out = {}
+    try:
+        import sqlite3
+        import config as cfgmod
+        db = Path(cfgmod.STATE_DIR) / "kanban.sqlite3"
+        if not db.is_file():
+            return out
+        con = sqlite3.connect("file:" + str(db) + "?mode=ro", uri=True, timeout=2)
+        try:
+            for root, n in con.execute("select brain_root, count(*) from tasks where status = 'blocked' group by brain_root"):
+                if root:
+                    out[os.path.normcase(str(Path(root).resolve()))] = int(n)
+        finally:
+            con.close()
+    except Exception:
+        return {}
+    return out
+
+
+def _dong_thien_ha(key: str, root: Path, ket: dict, bay_gio: float) -> dict:
+    bs = _quet_brain(root, key)
+    ag = root / "agents"
+    return {
+        "key": key, "path": str(root),
+        "docs": sum(1 for b in bs if b["kind"] != "debris"),
+        "raw": sum(1 for b in bs if b["kind"] == "debris"),
+        "proc": sum(1 for b in bs if b.get("proc")),
+        "recent7": sum(1 for b in bs if b["_mtime"] and bay_gio - b["_mtime"] < _GAN_DAY),
+        "agents": len([f for f in ag.glob("*.md") if not _bo_qua(f.name)]) if ag.is_dir() else 0,
+        "stuck": ket.get(os.path.normcase(str(root.resolve())), 0),
+    }
+
+
+def dung_thien_ha() -> dict:
+    """Thiên hà: brain chủ (Trái Đất), brain chung của từng thương hiệu (ngôi sao đầu cánh tay),
+    và mọi brain phòng ban kèm khối / thương hiệu / số liệu. Nhân viên chỉ thấy phòng được gán,
+    các phòng khác chỉ là con số `others` (đốm sao mờ không tên)."""
+    import h2o_departments as hd
+    base = Path(_deps["brains_dir"])
+    la_nv = bool(_deps["is_staff"]())
+    duoc = None
+    if la_nv:   # phạm vi nhân viên: đúng các gốc mà _brain_root cho phép
+        duoc = {os.path.normcase(str(Path(r).resolve())) for r in (_deps.get("scope", lambda: ())() or ())}
+    ket, bay_gio = _viec_ket(), time.time()
+    brands = {b.get("id"): b for b in hd.brands()}
+    ds = hd.list_all()
+    khoi = {k["id"]: k for k in ds.get("khoi", [])}
+    out_khoi = [{"id": k["id"], "ten": k.get("ten", k["id"]), "brand": k.get("brand") or "h2o"} for k in ds.get("khoi", [])]
+    phong, others = [], 0
+    for p in ds.get("phong", []):
+        ten_brain = str(p.get("brain") or "").strip()
+        root = base / ten_brain
+        if not ten_brain or not root.is_dir():
+            continue
+        if duoc is not None and os.path.normcase(str(root.resolve())) not in duoc:
+            others += 1
+            continue
+        k = khoi.get(p.get("khoi_id")) or {}
+        d = _dong_thien_ha(ten_brain, root.resolve(), ket, bay_gio)
+        d.update(ten=p.get("ten") or ten_brain, khoi=p.get("khoi_id") or "", khoi_ten=k.get("ten", ""),
+                 brand=k.get("brand") or "h2o")
+        phong.append(d)
+    sao = []
+    for bid, b in brands.items():
+        sb = str(hd.shared_brain_of_brand(b) or "")
+        root = base / sb
+        if sb and root.is_dir():
+            d = _dong_thien_ha(sb, root.resolve(), ket, bay_gio)
+            d.update(ten=b.get("ten") or sb, brand=bid)
+            sao.append(d)
+    earth = None
+    if not la_nv:
+        chu = Path(_deps["default_dir"]()).resolve()
+        earth = _dong_thien_ha(chu.name, chu, ket, bay_gio)
+        earth.update(ten=chu.name)
+    return {"ok": True, "staff": la_nv, "earth": earth, "stars": sao, "khoi": out_khoi,
+            "phong": phong, "others": others}
+
+
+@router.get("/knowledge/galaxy")
+async def knowledge_galaxy(fresh: bool = Query(False)):
+    from starlette.concurrency import run_in_threadpool
+    ck = (bool(_deps["is_staff"]()), tuple(_deps.get("scope", lambda: ())() or ()))
+    hit = _cache_ha.get(ck)
+    if hit and not fresh and time.time() - hit[0] < _HAN_CACHE:
+        return hit[1]
+    data = await run_in_threadpool(dung_thien_ha)
+    _cache_ha[ck] = (time.time(), data)
+    return data
 
 
 @router.get("/knowledge/sky")

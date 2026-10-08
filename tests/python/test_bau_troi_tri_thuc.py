@@ -169,6 +169,31 @@ main_src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("mọi chỗ gửi tool_call đều kèm files", main_src.count('"files": tool_label.tep(') == 7
       and main_src.count("tool_label.chi_tiet(") == 7)
 
+# ---- thiên hà phòng ban: /knowledge/galaxy ----
+import h2o_departments as _hd  # noqa: E402
+_goc_list, _goc_brands, _goc_shared = _hd.list_all, _hd.brands, _hd.shared_brain_of_brand
+_hd.list_all = lambda: {"khoi": [{"id": "ban-hang", "ten": "Bán Hàng", "brand": "thuyh2o"}],
+                        "phong": [{"id": "p1", "khoi_id": "ban-hang", "ten": "Marketing và Báo Giá", "brain": phong.name},
+                                  {"id": "p2", "khoi_id": "ban-hang", "ten": "Không có thư mục", "brain": "Khong Ton Tai"}]}
+_hd.brands = lambda: [{"id": "thuyh2o", "ten": "ThuyH2O"}]
+_hd.shared_brain_of_brand = lambda b: "Brain Default"
+ks._viec_ket = lambda: {os.path.normcase(str(phong.resolve())): 2}
+g = ks.dung_thien_ha()
+check("thiên hà: Trái Đất là brain chủ, phòng có thư mục mới tính", g["earth"]["key"] == "Brain Default"
+      and [p["key"] for p in g["phong"]] == [phong.name])
+p0 = g["phong"][0]
+check("thiên hà: số tài liệu / thô / việc kẹt / khối / thương hiệu", p0["docs"] >= 1 and p0["stuck"] == 2
+      and p0["khoi"] == "ban-hang" and p0["brand"] == "thuyh2o" and "path" in p0)
+check("thiên hà: ngôi sao thương hiệu", g["stars"] and g["stars"][0]["brand"] == "thuyh2o")
+dang_la_nhan_vien["v"] = True
+ks._deps["scope"] = lambda: (str(chu),)
+g2 = ks.dung_thien_ha()
+check("thiên hà: nhân viên chỉ thấy phòng được gán, còn lại là đốm mờ; không thấy Trái Đất",
+      g2["phong"] == [] and g2["others"] == 1 and g2["earth"] is None)
+dang_la_nhan_vien["v"] = False
+ks._deps["scope"] = lambda: ()
+_hd.list_all, _hd.brands, _hd.shared_brain_of_brand = _goc_list, _goc_brands, _goc_shared
+
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")
     sys.exit(1)

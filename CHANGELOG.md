@@ -1,5 +1,12 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.3.0] - 2026-10-08
+### Thêm mới
+- **Thiên hà phòng ban**: thu nhỏ tinh cầu (hoặc bấm nút **Thiên hà**) là thấy 44 tinh cầu phòng ban gom thành 11 cụm theo khối, xoắn quanh Trái Đất. Mỗi khối một kiểu: Kế Toán vàng có vành, Nhân Sự xanh lá, Marketing cam có bão, Sản Xuất dung nham, Nghiên Cứu tím tinh thể, CSKH đại dương, Vệ Sinh băng, ThuyH2O hồng kim tuyến...
+- Tinh cầu to theo số tài liệu, sáng theo hoạt động tuần, vòng đỏ khi có việc kẹt, hố đen nhỏ khi còn tài liệu thô, mặt trăng là trợ lý của phòng. Rê chuột xem số liệu.
+- **Bấm vào tinh cầu phòng ban là bay tới và đổi luôn brain đang mở** (khung chat, VAULT đổi theo); tinh cầu mang màu của khối, hố đen, Big Bang, sợi sáng hoạt động như Trái Đất. Nút **← Trái Đất** để về. Chọn brain phòng ở ô chọn cũng bay vào đúng tinh cầu đó.
+- Tìm ở ô VAULT khi đang xem thiên hà: phòng nào có tài liệu khớp thì sáng lên kèm số; bấm vào là Big Bang luôn.
+
 ## [1.2.2] - 2026-10-08
 ### Cải thiện
 - Bỏ vệt nền trắng xám cong phía trên hố đen; chỉ còn các hạt bụi li ti chảy vào hố.

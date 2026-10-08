@@ -129,7 +129,7 @@
   // i18n xong muộn lẫn khi đổi ngôn ngữ.
   function repaintTitles() {
     if (!built) return;
-    view.querySelectorAll(".hp-title[data-tk], .planet-call-btn[data-tk], .hs-end[data-tk]").forEach(function (el) {
+    view.querySelectorAll(".hp-title[data-tk], .planet-call-btn[data-tk], .hs-end[data-tk], .gx-btn[data-tk]").forEach(function (el) {
       el.textContent = t(el.dataset.tk);
     });
   }
@@ -274,6 +274,8 @@
       D.know = r;
       if (planet) planet.setKnowledge(r);
       paintPanels();
+      // vừa bay tới một tinh cầu có kết quả tìm ở thiên hà: Big Bang luôn với đúng từ khoá đó
+      if (_choTim) { var q0 = _choTim; _choTim = null; setTimeout(function () { timTriThuc(q0); }, 900); }
     });
   }
   // Gộp X.docx.txt (bản chữ trích ra) vào X.docx rồi đếm lại theo đúng các loại thiên thể. Máy
@@ -514,6 +516,72 @@
   }
   window.JoyceTriThuc = { ghep: ghepThienThe, nguon: nguonNgoai, chips: chipNguon };
 
+  // ---------- Thiên hà phòng ban (docs/dev/2026-10-thien-ha-phong-ban.md) ----------
+  // Lùi xa là thấy 44 tinh cầu phòng ban; bấm một tinh cầu thì bay tới và ĐỔI LUÔN brain đang mở
+  // (chủ chốt 2026-10-08), nên khung chat, VAULT, bầu trời tri thức, hố đen đổi theo. Chọn brain ở
+  // ô chọn cũng chạy đúng hiệu ứng vào tinh cầu đó.
+  var _choTim = null, _dangBay = false, _gxQ = "";
+  function loadGalaxy(fresh) {
+    jget("/knowledge/galaxy" + (fresh ? "?fresh=1" : "")).then(function (r) {
+      if (!r || r.ok === false) return;
+      D.gal = r;
+      if (planet && planet.setGalaxy) planet.setGalaxy(r, tenBrainDangMo());
+      veNutThienHa();
+    });
+  }
+  function nodeThienHa(key) {
+    var g = D.gal;
+    if (!g) return null;
+    if (g.earth && g.earth.key === key) return Object.assign({ role: "earth" }, g.earth);
+    return (g.phong || []).concat(g.stars || []).filter(function (n) { return n.key === key; })[0] || null;
+  }
+  function chuyenBrain(n) {
+    var sel = document.getElementById("graphSource");
+    if (!sel || !n) return;
+    var want = n.role === "earth" ? "brain" : "path:" + n.path;
+    if (![].some.call(sel.options, function (o) { return o.value === want; })) {
+      var o = document.createElement("option");
+      o.value = want; o.textContent = n.ten || n.key; o.dataset.brain = "1"; o.dataset.brainName = n.key;
+      sel.appendChild(o);
+    }
+    sel.value = want;
+    try { localStorage.setItem("joyce.graphSource", want); } catch (e) {}
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  function vaoTinhCau(n) {
+    if (!planet || !n) return;
+    if (n.key === tenBrainDangMo()) { planet.zoomTo(1); return; }
+    if (_gxQ && D.gal) _choTim = _gxQ;   // đang có kết quả tìm ở thiên hà: tới nơi thì Big Bang luôn
+    _dangBay = true;
+    planet.flyTo(n, function () { chuyenBrain(n); });
+    setTimeout(function () { _dangBay = false; }, 1500);
+  }
+  function doiBrainThienHa() {
+    if (!planet || !planet.setGalaxyCur) return;
+    planet.setGalaxyCur(tenBrainDangMo());
+    if (planet.galaxyHits) { planet.galaxyHits(null); _gxQ = ""; }
+    // đổi brain ở ô chọn (không qua thiên hà) mà là brain phòng ban: diễn cảnh vào tinh cầu từ xa
+    if (!_dangBay && nodeThienHa(tenBrainDangMo())) planet.arrive();
+    veNutThienHa();
+  }
+  function veNutThienHa() {
+    var b = view && view.querySelector("#gxEarth");
+    if (!b) return;
+    var e = D.gal && D.gal.earth;
+    b.hidden = !e || tenBrainDangMo() === e.key;
+  }
+  // Tìm ở ô VAULT khi đang ở tầng Thiên hà: tinh cầu phòng có tài liệu khớp sáng lên kèm số.
+  function timThienHa(q) {
+    _gxQ = q;
+    if (!q) { planet.galaxyHits(null); return; }
+    jget("/knowledge/search?brain=brain&q=" + encodeURIComponent(q)).then(function (r) {
+      if (_gxQ !== q || !planet) return;
+      var m = {};
+      ((r && r.hits) || []).forEach(function (h) { m[h.brain] = (m[h.brain] || 0) + 1; });
+      planet.galaxyHits(m);
+    });
+  }
+
   // ---------- Big Bang khi tìm kiếm (giai đoạn 2) ----------
   // console.js (ô VAULT) bắn "joyce:vault-search" khi bấm Enter hoặc ngừng gõ 0,7 giây; ở đây
   // hỏi /knowledge/search (cùng phạm vi bầu trời, admin ở brain chủ = mọi phòng) rồi đẩy kết
@@ -530,7 +598,10 @@
   }
   window.addEventListener("joyce:vault-search", function (e) {
     if (!active) return;
-    timTriThuc(String((e.detail && e.detail.q) || "").trim());
+    var q = String((e.detail && e.detail.q) || "").trim();
+    if (planet && planet.galaxyLevel && planet.galaxyLevel() > 0.5) { timThienHa(q); return; }
+    if (!q && _gxQ && planet) { planet.galaxyHits(null); _gxQ = ""; }
+    timTriThuc(q);
   });
   window.addEventListener("joyce:vault-hover", function (e) {
     if (!planet) return;
@@ -875,6 +946,7 @@
         // chỉ mở khi bấm nút Mở trên thẻ (moFileTriThuc). Bản 1.0.7 mở cả hai cùng lúc.
         onKnowledgeClick: function (b) { openKnow(b); },
         onKnowledgeHover: baoRePhiaVault,
+        onGalaxyClick: function (n) { vaoTinhCau(n); },
         onBackgroundClick: function () { if (_ctxId != null) closeCtx(); },
       });
       planet.mount(stage);
@@ -890,6 +962,7 @@
     if (wxKey()) planet.setWeather(wxKey());
     if (D.nap) planet.setIngest(D.nap);
     loadKnow(false);
+    loadGalaxy(false);
     if (!active) planet.pause();
   }
   function unmountPlanet() {
@@ -1001,6 +1074,9 @@
         '<div class="hud-panel"><div class="hp-title" data-tk="hud.projects"></div><div id="hpProj"></div></div>' +
       "</div>" +
       '<canvas id="hudWave"></canvas>' +
+      // Nút Thiên hà (lùi ra tầng thiên hà / về tinh cầu) và đường về Trái Đất (Brain Default).
+      '<div class="gx-ctl" id="gxCtl"><button type="button" class="gx-btn" id="gxBtn" data-tk="planet.gx_btn"></button>' +
+        '<button type="button" class="gx-btn" id="gxEarth" data-tk="planet.gx_back_earth" hidden></button></div>' +
       '<div class="planet-ctx" id="planetCtx" role="dialog" hidden></div>' +
       '<div class="holo-screen" id="holoScreen" role="region" aria-live="polite" hidden>' +
         '<div class="hs-frame">' +
@@ -1047,6 +1123,15 @@
       host.classList.toggle("hud-peek-r", x > r.width - 70);
     });
     host.addEventListener("mouseleave", function () { host.classList.remove("hud-peek-l", "hud-peek-r"); });
+    var gxB = view.querySelector("#gxBtn"), gxE = view.querySelector("#gxEarth");
+    if (gxB) gxB.addEventListener("click", function () {
+      if (!planet) return;
+      planet.zoomTo(planet.galaxyLevel() > 0.5 ? 1 : 0.16);
+    });
+    if (gxE) gxE.addEventListener("click", function () {
+      var e = D.gal && D.gal.earth;
+      if (e) vaoTinhCau(Object.assign({ role: "earth" }, e)); else chuyenBrain({ role: "earth" });
+    });
     built = true;
   }
 
@@ -1074,7 +1159,7 @@
     if (!_knowNghe) {   // đổi brain ở ô chọn: bầu trời đổi theo ngay
       _knowNghe = true;
       document.addEventListener("change", function (e) {
-        if (e.target && e.target.id === "graphSource" && active) loadKnow(false);
+        if (e.target && e.target.id === "graphSource" && active) { loadKnow(false); doiBrainThienHa(); }
       });
     }
     knowId = setInterval(function () { loadKnow(true); }, 300000);

@@ -524,7 +524,7 @@
   var VIEW_HOME = { lat: 14.5, lon: 108.4 };   // thấy trọn Việt Nam + Hoàng Sa + Trường Sa
   var VIEW_VN = { lat: 15.6, lon: 106.6 };     // phóng vừa: Việt Nam giữa đĩa
   var VIEW_NEAR = { lat: 20.87, lon: 106.6 };  // phóng sâu: Hải Phòng - nơi đặt H2O Studio
-  var ZMIN = 0.32, ZMAX = 12;
+  var ZMIN = 0.12, ZMAX = 12;   // 0,12-0,42: tầng Thiên hà phòng ban
   var VN_CENTER = geoVec(16, 106.5);
 
   // ---------------------------------------------------------------------------
@@ -1289,7 +1289,7 @@
       var cx = geo.cx, cy = geo.cy, r = geo.R;
       var A = light ? 0.75 : 1;
       // Concept màu của tab Quả tinh cầu -> màu 0..255 cho gradient (bản này không có shader).
-      var P = LD.pal, pc = function (v, m) { return [Math.min(255, v[0] * 255 * m) | 0, Math.min(255, v[1] * 255 * m) | 0, Math.min(255, v[2] * 255 * m) | 0]; };
+      var P = curPal(), pc = function (v, m) { return [Math.min(255, v[0] * 255 * m) | 0, Math.min(255, v[1] * 255 * m) | 0, Math.min(255, v[2] * 255 * m) | 0]; };
       var cRim = pc(P.rim, 1), cSea = pc(P.sea, 1), aK = look.atmo;
       drawSafeSun(c);
       // Khí quyển vẽ bằng CUNG TRÒN (không fillRect) -> không bao giờ ra khung vuông.
@@ -1730,7 +1730,7 @@
       var kf = fx.knowledge;
       if (kf < 0.02) return;
       var t = now / 1000, R0 = geo.R, hv = know.hover;
-      kf *= focDim();
+      kf *= focDim() * (1 - 0.9 * gxLevel());
       var ns = Math.min(know.stars.length, knowCap(0));
       for (var i = 0; i < ns; i++) {
         var s = know.stars[i], p = camRot(s.v[0], s.v[1], s.v[2]);
@@ -1796,7 +1796,7 @@
     // Chấm tri thức trên vành: vẽ cùng nhịp drawParticles (nửa sau rồi nửa trước) để hành tinh
     // che đúng; hưởng luôn thanh Cỡ vành quỹ đạo (ringPt) và Cỡ chấm trên vành (orbitDot).
     function drawKnowOrbit(c, front, dt) {
-      var kf = fx.knowledge * ringFade() * focDim();
+      var kf = fx.knowledge * ringFade() * focDim() * (1 - 0.9 * gxLevel());
       if (kf < 0.02) return;
       var n = Math.min(know.orbit.length, knowCap(1)), hv = know.hover, now = performance.now();
       for (var i = 0; i < n; i++) {
@@ -2003,6 +2003,363 @@
       });
       c.restore();
     }
+
+    // ---------------------------------------------------------------------------
+    // THIÊN HÀ PHÒNG BAN (docs/dev/2026-10-thien-ha-phong-ban.md, chủ duyệt 2026-10-08).
+    // Lùi xa qua mốc zoom 0,42 là sang tầng Thiên hà: 44 tinh cầu phòng ban gom thành cụm theo khối,
+    // nằm trên hai cánh tay của dải ngân hà (H2O Studio một phía, ThuyH2O phía kia), brain chung
+    // của thương hiệu là ngôi sao lớn đầu cánh, Trái Đất (Brain Default) ở gần lõi. Toạ độ tính theo
+    // "đơn vị thiên hà" rồi nhân base x zoom: zoom 1 thì các cụm nằm ngoài khung, lùi xa thì hiện.
+    // Tinh cầu ở xa là ẢNH 2D dựng sẵn (mỗi khung dựng tối đa 2 ảnh); WebGL chỉ vẽ tinh cầu đang mở.
+    // ---------------------------------------------------------------------------
+    var GX_STYLE = {
+      "ke-toan": { pal: "gold", feat: "ring" }, "nhan-su": { pal: "emerald", feat: "clouds" },
+      "marketing": { pal: "sunset", feat: "storm" }, "ban-hang": { pal: "lava", feat: "cracks" },
+      "san-xuat": { pal: "lava", feat: "volcano" }, "nghien-cuu": { pal: "amethyst", feat: "crystal" },
+      "cskh": { pal: "ocean", feat: "waves" }, "ve-sinh": { pal: "ice", feat: "ice" },
+      "xu-ly-truyen-thong": { pal: "abyss", feat: "antenna" }, "van-thu-va-quy-trinh": { pal: "paper", feat: "paper" },
+      "thuyh2o": { pal: "pink", feat: "glitter" }, "_earth": { pal: "ocean", feat: "clouds" },
+    };
+    // Bảng màu thêm cho tinh cầu phòng ban (định dạng như PALETTES): hồng ThuyH2O, giấy xám Văn Thư.
+    var GX_PAL = {
+      pink: { deep: [0.14, 0.03, 0.1], sea: [0.86, 0.36, 0.7], rim: [1, 0.72, 0.9], mint: [1, 0.55, 0.85] },
+      paper: { deep: [0.08, 0.08, 0.1], sea: [0.55, 0.57, 0.62], rim: [0.9, 0.92, 0.95], mint: [0.8, 0.84, 0.9] },
+    };
+    function gxPal(id) { return GX_PAL[id] || PALETTES[id] || PALETTES.ocean; }
+    var GX_KHOI_MAU = { "ke-toan": [255, 205, 90], "nhan-su": [90, 230, 150], "marketing": [255, 140, 80],
+      "ban-hang": [255, 100, 60], "san-xuat": [230, 90, 50], "nghien-cuu": [180, 120, 255], "cskh": [70, 160, 255],
+      "ve-sinh": [200, 235, 255], "xu-ly-truyen-thong": [120, 140, 230], "van-thu-va-quy-trinh": [190, 195, 205],
+      "thuyh2o": [255, 120, 200] };
+    var gal = { d: null, nodes: [], clusters: [], arms: [], cur: null, sprites: {}, hover: null, hits: null,
+                hitsMax: 0, fly: null, palOverride: null };
+    function strHash(s) {
+      var h = 2166136261;
+      s = String(s || "");
+      for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return h >>> 0;
+    }
+    // Bố cục cố định theo dữ liệu (không theo thứ tự trả về): cùng phòng luôn cùng chỗ.
+    function setGalaxy(d, curKey) {
+      gal.d = d || null; gal.nodes = []; gal.clusters = []; gal.arms = [];
+      if (!d) return;
+      var brandIds = [];
+      (d.khoi || []).forEach(function (k) { if (brandIds.indexOf(k.brand) < 0) brandIds.push(k.brand); });
+      (d.stars || []).forEach(function (s) { if (brandIds.indexOf(s.brand) < 0) brandIds.push(s.brand); });
+      var armDir = {};
+      brandIds.forEach(function (b, i) { armDir[b] = i === 0 ? 0 : i === 1 ? Math.PI : Math.PI / 2 + i; });
+      var earth = d.earth ? Object.assign({ role: "earth", style: "_earth", gx: 0, gy: 0 }, d.earth) : null;
+      if (earth) gal.nodes.push(earth);
+      // brain chung của thương hiệu: ngôi sao lớn đầu cánh tay
+      (d.stars || []).forEach(function (s) {
+        var a = armDir[s.brand] || 0;
+        gal.nodes.push(Object.assign({ role: "star", gx: Math.cos(a) * 2.6, gy: Math.sin(a) * 2.6 * 0.6 }, s));
+        gal.arms.push({ brand: s.brand, dir: a });
+      });
+      // cụm theo khối, dọc cánh tay, cuộn dần như xoắn ốc
+      var dem = {};
+      (d.khoi || []).forEach(function (k) {
+        var i = dem[k.brand] = (dem[k.brand] == null ? 0 : dem[k.brand] + 1);
+        // Xoắn ốc quanh Trái Đất: mỗi cụm xoay thêm 0,75 rad và xa thêm 0,83 đơn vị, nên 10 cụm của
+        // H2O Studio trải hơn một vòng thay vì dồn một phía (chụp thử bản đầu thấy chồng nhau).
+        var a = (armDir[k.brand] || 0) + 0.75 * i, r = (k.brand === "h2o" ? 3.3 : 4.6) + 0.83 * i;
+        var cl = { id: k.id, ten: k.ten, brand: k.brand, gx: Math.cos(a) * r, gy: Math.sin(a) * r * 0.6,
+                   col: GX_KHOI_MAU[k.id] || [150, 170, 255], n: 0 };
+        gal.clusters.push(cl);
+      });
+      var byK = {};
+      gal.clusters.forEach(function (c) { byK[c.id] = c; });
+      // xếp theo tên trước khi đặt chỗ: thứ tự máy chủ trả về không được làm phòng đổi chỗ
+      (d.phong || []).slice().sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; }).forEach(function (p) {
+        var c = byK[p.khoi];
+        if (!c) return;
+        // xếp kiểu hoa hướng dương (góc vàng 2,4 rad, bán kính theo căn bậc hai): các phòng trong
+        // cụm không đè lên nhau dù cụm 9 phòng như Nhân Sự
+        var j = c.n++, ang = j * 2.39996 + (strHash(c.id) % 100) / 16, rr = 0.5 * Math.sqrt(j + 0.6);
+        gal.nodes.push(Object.assign({ role: "dept", style: p.khoi, gx: c.gx + Math.cos(ang) * rr, gy: c.gy + Math.sin(ang) * rr * 0.75,
+                                       cluster: c }, p));
+      });
+      // đốm sao mờ không tên: phòng ngoài phạm vi của nhân viên
+      for (var j = 0; j < (d.others || 0); j++) {
+        var rn = hashRnd(9000 + j), cc = gal.clusters[j % Math.max(1, gal.clusters.length)];
+        gal.nodes.push({ role: "anon", key: "_anon" + j, gx: (cc ? cc.gx : 4) + (rn() - 0.5) * 1.4, gy: (cc ? cc.gy : 0) + (rn() - 0.5) * 1 });
+      }
+      // độ to: theo số tài liệu (log); độ sáng: theo hoạt động 7 ngày
+      gal.nodes.forEach(function (n) {
+        n.sizeK = clamp(Math.log1p(n.docs || 0) / Math.log1p(60), 0, 1);
+        n.liveK = clamp(Math.log1p(n.recent7 || 0) / Math.log1p(20), 0, 1);
+        n.seed = strHash(n.key);
+      });
+      setGalaxyCur(curKey);
+    }
+    function setGalaxyCur(curKey) {
+      gal.cur = null;
+      for (var i = 0; i < gal.nodes.length; i++) if (gal.nodes[i].key === curKey) gal.cur = gal.nodes[i];
+      if (!gal.cur) gal.cur = gal.nodes.filter(function (n) { return n.role === "earth"; })[0] || null;
+      // tinh cầu đang mở mang bảng màu của khối nó (không ghi vào cài đặt giao diện của người dùng)
+      var st = gal.cur && gal.cur.role === "dept" && GX_STYLE[gal.cur.style];
+      gal.palOverride = st ? gxPal(st.pal) : null;
+    }
+    // 0 ở tầng tinh cầu, 1 ở tầng Thiên hà.
+    function gxLevel() { return 1 - smooth(0.24, 0.42, cam.zoom); }
+    function gxScale() { return (geo.base || 100) * cam.zoom * 1.55; }
+    function gxPos(n) {   // đơn vị thiên hà -> màn hình, tâm là tinh cầu đang mở, cùng góc với dải ngân hà
+      var cur = gal.cur || { gx: 0, gy: 0 }, S = gxScale(), A = galAngle();
+      var x = (n.gx - cur.gx) * S, y = (n.gy - cur.gy) * S, ca = Math.cos(A), sa = Math.sin(A);
+      return { x: geo.cx + ca * x + sa * y, y: geo.cy - sa * x + ca * y };
+    }
+    function gxRad(n) {
+      if (n.role === "star") return clamp((geo.base || 100) * cam.zoom * 0.42, 6, 26);
+      if (n.role === "anon") return 1.6;
+      return clamp((geo.base || 100) * cam.zoom * (0.2 + 0.32 * n.sizeK), 4, 26);
+    }
+    // ---- ảnh tinh cầu dựng sẵn ----
+    function buildGxSprite(n) {
+      var S = 96, cv = document.createElement("canvas");
+      cv.width = cv.height = S;
+      var g = cv.getContext("2d"), img = g.createImageData(S, S), D = img.data;
+      var st = GX_STYLE[n.style] || GX_STYLE._earth, P = gxPal(st.pal), rnd = hashRnd(n.seed), off = rnd() * 30;
+      var lech = 0.88 + rnd() * 0.24;   // phòng cùng khối lệch sắc độ nhẹ
+      for (var y = 0; y < S; y++) for (var x = 0; x < S; x++) {
+        var nx = (x + 0.5) / S * 2 - 1, ny = (y + 0.5) / S * 2 - 1, r2 = nx * nx + ny * ny, o = (y * S + x) * 4;
+        if (r2 > 1) continue;
+        var nz = Math.sqrt(1 - r2), lit = clamp(0.25 + 0.85 * (-0.55 * nx - 0.6 * ny + 0.58 * nz), 0.08, 1.15);
+        var h = fbm3(nx * 2.4 + off, ny * 2.4, nz * 2.4, 4), col = null, k = smooth(0.35, 0.7, h);
+        col = [P.deep[0] + (P.sea[0] - P.deep[0]) * k, P.deep[1] + (P.sea[1] - P.deep[1]) * k, P.deep[2] + (P.sea[2] - P.deep[2]) * k];
+        var them = 0, tc = P.rim;
+        if (st.feat === "clouds") { them = smooth(0.58, 0.72, fbm3(nx * 3.4 + 9, ny * 3.4, nz * 3 + off, 3)) * 0.8; tc = [1, 1, 1]; }
+        else if (st.feat === "storm") {
+          var band = 0.5 + 0.5 * Math.sin(ny * 11 + fbm3(nx * 3, ny * 3, off, 2) * 3);
+          col = col.map(function (v, i) { return v * (0.75 + 0.45 * band); });
+          var sx = nx - 0.25, sy = (ny - 0.2) * 1.8; them = Math.exp(-(sx * sx + sy * sy) * 18) * 0.85; tc = [1, 0.55, 0.3];
+        } else if (st.feat === "cracks" || st.feat === "volcano") {
+          col = col.map(function (v) { return v * (st.feat === "volcano" ? 0.35 : 0.5); });
+          var cr = Math.abs(fbm3(nx * 4 + off, ny * 4, nz * 4, 3) - 0.5);
+          them = (1 - smooth(0.0, st.feat === "volcano" ? 0.03 : 0.05, cr)) * 1.2; tc = [1, 0.62, 0.2];
+        } else if (st.feat === "crystal") {
+          var f = fbm3(nx * 7 + off, ny * 7, nz * 7, 2); them = smooth(0.66, 0.72, f) * 0.9; tc = [0.95, 0.85, 1];
+        } else if (st.feat === "waves") {
+          them = Math.pow(0.5 + 0.5 * Math.sin(ny * 26 + nx * 4 + h * 6), 6) * 0.35; tc = [0.75, 0.95, 1];
+        } else if (st.feat === "ice") {
+          them = smooth(0.55, 0.85, Math.abs(ny) + (h - 0.5) * 0.4); tc = [1, 1, 1];
+        } else if (st.feat === "glitter") {
+          them = (h3((x * 7) | 0, (y * 7) | 0, n.seed & 255) > 0.965 ? 1 : 0) * 0.9; tc = [1, 0.92, 0.98];
+        }
+        for (var ch = 0; ch < 3; ch++) {
+          var v = (col[ch] + (tc[ch] - col[ch]) * clamp(them, 0, 1)) * lit * lech;
+          v += P.rim[ch] * Math.pow(1 - nz, 3) * 0.55;   // viền khí quyển
+          D[o + ch] = clamp(Math.round(v * 255), 0, 255);
+        }
+        D[o + 3] = Math.round(clamp((1 - Math.sqrt(r2)) * S * 0.5, 0, 1) * 255);
+      }
+      g.putImageData(img, 0, 0);
+      return cv;
+    }
+    function gxSprite(n) {
+      var sp = gal.sprites[n.key];
+      if (sp) return sp;
+      if (typeof document === "undefined") return null;
+      if (gal.built >= 2) return null;   // mỗi khung dựng tối đa 2 ảnh, chưa có thì vẽ tạm cầu gradient
+      gal.built++;
+      try { sp = gal.sprites[n.key] = buildGxSprite(n); } catch (e) { sp = gal.sprites[n.key] = null; }
+      return sp;
+    }
+    function drawGalaxy(c, now, dt) {
+      gal.built = 0;
+      gal.hitPts = [];
+      if (!gal.d || !gal.nodes.length) return;
+      var gx = gxLevel(), t = now / 1000;
+      // ở tầng tinh cầu chỉ những tinh cầu gần nhất ló ở rìa khung; tầng Thiên hà mới hiện đủ
+      var nenA = 0.35 + 0.65 * gx;
+      c.save();
+      // vầng tinh vân của từng cụm khối
+      if (gx > 0.05) {
+        c.globalCompositeOperation = "lighter";
+        gal.clusters.forEach(function (cl) {
+          var p = gxPos(cl), rr = gxScale() * 1.25;
+          if (p.x < -rr || p.y < -rr || p.x > W + rr || p.y > H + rr) return;
+          var g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr);
+          g.addColorStop(0, rgba(cl.col, 0.1 * gx)); g.addColorStop(1, rgba(cl.col, 0));
+          c.fillStyle = g; c.beginPath(); c.arc(p.x, p.y, rr, 0, 6.2832); c.fill();
+        });
+        // bụi sao dọc hai cánh tay xoắn
+        gal.arms.forEach(function (arm, ai) {
+          var rnd = hashRnd(500 + ai);
+          for (var i = 0; i < 160; i++) {
+            var u = rnd(), r = 2.2 + u * 12, a = arm.dir + 0.34 * (r - 3.6) / 1.12 + (rnd() - 0.5) * 0.5;
+            var p = gxPos({ gx: Math.cos(a) * r, gy: Math.sin(a) * r * 0.6 + (rnd() - 0.5) * 0.6 });
+            if (p.x < 0 || p.y < 0 || p.x > W || p.y > H) continue;
+            c.fillStyle = arm.brand === "thuyh2o" ? "rgba(255,160,215," + 0.35 * gx + ")" : "rgba(150,185,255," + 0.35 * gx + ")";
+            c.fillRect(p.x, p.y, 1.2, 1.2);
+          }
+        });
+        c.globalCompositeOperation = "source-over";
+      }
+      var hv = gal.hover, coHit = gal.hits && gal.hitsMax > 0;
+      gal.nodes.forEach(function (n) {
+        if (n === gal.cur) return;   // tinh cầu đang mở do WebGL vẽ ở giữa
+        var p = gxPos(n), rad = gxRad(n);
+        if (p.x < -rad * 2 || p.y < -rad * 2 || p.x > W + rad * 2 || p.y > H + rad * 2) return;
+        // tránh vẽ đè lên tinh cầu đang mở
+        if (Math.hypot(p.x - geo.cx, p.y - geo.cy) < geo.R + rad * 0.5) return;
+        var hit = coHit ? (gal.hits[n.key] || 0) : 0, mo = coHit && !hit ? 0.3 : 1;
+        var a = nenA * mo * (n.role === "dept" ? 0.6 + 0.4 * n.liveK : 1), on = hv === n;
+        if (n.role === "anon") {
+          c.fillStyle = "rgba(170,185,220," + 0.4 * gx + ")"; c.fillRect(p.x - 1, p.y - 1, 2, 2);
+          return;
+        }
+        if (n.role === "star") {   // ngôi sao thương hiệu: lõi trắng + quầng + chữ thập
+          c.globalCompositeOperation = "lighter";
+          var col = n.brand === "thuyh2o" ? [255, 150, 210] : [140, 190, 255];
+          var g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad * 3);
+          g.addColorStop(0, "rgba(255,255,255," + a + ")"); g.addColorStop(0.25, rgba(col, 0.6 * a)); g.addColorStop(1, rgba(col, 0));
+          c.fillStyle = g; c.beginPath(); c.arc(p.x, p.y, rad * 3, 0, 6.2832); c.fill();
+          c.strokeStyle = rgba(col, 0.5 * a); c.lineWidth = 1;
+          c.beginPath(); c.moveTo(p.x - rad * 4, p.y); c.lineTo(p.x + rad * 4, p.y); c.moveTo(p.x, p.y - rad * 4); c.lineTo(p.x, p.y + rad * 4); c.stroke();
+          c.globalCompositeOperation = "source-over";
+        } else {
+          var st = GX_STYLE[n.style] || GX_STYLE._earth, P = gxPal(st.pal);
+          var ringBack = st.feat === "ring" || st.feat === "paper";
+          if (ringBack) { c.strokeStyle = rgba(P.rim.map(function (v) { return v * 255 | 0; }), 0.35 * a); c.lineWidth = Math.max(1, rad * 0.12);
+            c.beginPath(); c.ellipse(p.x, p.y, rad * 1.8, rad * 0.5, -0.35, Math.PI, 2 * Math.PI); c.stroke(); }
+          var sp = gxSprite(n);
+          c.globalAlpha = a;
+          if (sp) c.drawImage(sp, p.x - rad, p.y - rad, rad * 2, rad * 2);
+          else {
+            var gg = c.createRadialGradient(p.x - rad * 0.35, p.y - rad * 0.4, 0, p.x, p.y, rad);
+            gg.addColorStop(0, rgba(P.rim.map(function (v) { return v * 255 | 0; }), 1)); gg.addColorStop(1, rgba(P.deep.map(function (v) { return v * 255 | 0; }), 1));
+            c.fillStyle = gg; c.beginPath(); c.arc(p.x, p.y, rad, 0, 6.2832); c.fill();
+          }
+          c.globalAlpha = 1;
+          if (ringBack) { c.strokeStyle = rgba(P.rim.map(function (v) { return v * 255 | 0; }), 0.6 * a); c.lineWidth = Math.max(1, rad * 0.12);
+            c.beginPath(); c.ellipse(p.x, p.y, rad * 1.8, rad * 0.5, -0.35, 0, Math.PI); c.stroke(); }
+          if (st.feat === "antenna") {   // vệ tinh ăng ten nhỏ + sóng tín hiệu
+            var aa = t * 0.9 + n.seed % 6, ax = p.x + Math.cos(aa) * rad * 1.6, ay = p.y + Math.sin(aa) * rad * 0.7;
+            c.fillStyle = "rgba(220,230,255," + a + ")"; c.fillRect(ax - 1.5, ay - 1.5, 3, 3);
+            var sw = (t * 0.8) % 1;
+            c.strokeStyle = "rgba(160,190,255," + 0.5 * a * (1 - sw) + ")"; c.lineWidth = 1;
+            c.beginPath(); c.arc(ax, ay, 3 + sw * rad, -1, 0.2); c.stroke();
+          }
+          if (st.feat === "volcano") {   // núi lửa nhỏ phun đốm sáng
+            var vp = (t * 0.7 + (n.seed % 10) / 10) % 1;
+            c.fillStyle = "rgba(255,170,60," + a * (1 - vp) + ")";
+            c.beginPath(); c.arc(p.x + rad * 0.2, p.y - rad * (0.95 + vp * 0.8), 1.2 + rad * 0.06, 0, 6.2832); c.fill();
+          }
+          // mặt trăng = số trợ lý (tối đa 3)
+          for (var m = 0; m < Math.min(3, n.agents || 0); m++) {
+            var ma = t * (0.6 + m * 0.25) + m * 2.1 + n.seed % 7;
+            c.fillStyle = "rgba(210,215,230," + 0.85 * a + ")";
+            c.beginPath(); c.arc(p.x + Math.cos(ma) * rad * (1.45 + m * 0.3), p.y + Math.sin(ma) * rad * (0.55 + m * 0.12), Math.max(1, rad * 0.12), 0, 6.2832); c.fill();
+          }
+          // hố đen nhỏ cạnh tinh cầu khi phòng còn tài liệu thô chờ chưng cất
+          if (n.raw > 0 && gx > 0.3) {
+            var bx = p.x + rad * 1.7, by = p.y - rad * 1.1, br = Math.max(2, rad * 0.22);
+            c.strokeStyle = "rgba(255,150,190," + 0.55 * a + ")"; c.lineWidth = 1;
+            c.beginPath(); c.ellipse(bx, by, br * 2.2, br * 0.9, 0.38 + t * 0.4 % 0.01, 0, 6.2832); c.stroke();
+            c.fillStyle = "#000"; c.beginPath(); c.ellipse(bx, by, br, br * 0.7, 0.38, 0, 6.2832); c.fill();
+          }
+          // việc kẹt: vòng đỏ nhấp nháy nhẹ
+          if (n.stuck > 0) {
+            c.strokeStyle = "rgba(255,80,80," + (0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t * 3))) * a + ")"; c.lineWidth = 1.5;
+            c.beginPath(); c.arc(p.x, p.y, rad + 4, 0, 6.2832); c.stroke();
+          }
+        }
+        if (hit) {   // tìm từ thiên hà: tinh cầu có kết quả sáng lên kèm số
+          c.strokeStyle = "rgba(255,240,180," + (0.6 + 0.4 * Math.sin(t * 4)) + ")"; c.lineWidth = 2;
+          c.beginPath(); c.arc(p.x, p.y, rad + 6, 0, 6.2832); c.stroke();
+        }
+        if (on) { c.strokeStyle = "rgba(235,248,255,0.9)"; c.lineWidth = 1.4; c.beginPath(); c.arc(p.x, p.y, rad + 3, 0, 6.2832); c.stroke(); }
+        if (gx > 0.55 && (on || hit || n.role === "star")) {
+          var ten = String(n.ten || n.key);
+          if (ten.length > 24) ten = ten.slice(0, 23) + "…";
+          c.font = (on || hit ? "700 " : "600 ") + "10.5px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "top";
+          c.fillStyle = "rgba(225,240,255," + (on || hit ? 0.95 : 0.7) * gx + ")";
+          c.fillText(ten + (hit ? " · " + hit : ""), p.x, p.y + rad + (n.role === "star" ? rad * 1.2 : 5));
+        }
+        if (gx > 0.15) gal.hitPts.push({ x: p.x, y: p.y, r: rad + 6, n: n });
+      });
+      // tên khối giữa mỗi cụm
+      if (gx > 0.6) {
+        c.font = "700 11px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+        gal.clusters.forEach(function (cl) {
+          var p = gxPos(cl);
+          c.fillStyle = rgba(cl.col, 0.42 * gx); c.fillText(String(cl.ten).toUpperCase(), p.x, p.y - gxScale() * 0.95);
+        });
+      }
+      // "Bạn đang ở đây" quanh tinh cầu đang mở
+      if (gx > 0.35 && gal.cur) {
+        var tt = window.t || function (k) { return k; }, nh = tt("planet.gx_here");
+        if (nh === "planet.gx_here") nh = "Bạn đang ở đây";
+        c.strokeStyle = "rgba(140,240,220," + (0.4 + 0.3 * Math.sin(t * 2.5)) * gx + ")"; c.lineWidth = 1.2;
+        c.beginPath(); c.arc(geo.cx, geo.cy, geo.R + 9, 0, 6.2832); c.stroke();
+        c.font = "600 10.5px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "top";
+        c.fillStyle = "rgba(170,250,230," + 0.9 * gx + ")";
+        c.fillText(nh + " · " + (gal.cur.ten || gal.cur.key), geo.cx, geo.cy + geo.R + 14);
+      }
+      c.restore();
+      void dt;
+    }
+    function hitGalaxy(x, y) {
+      var best = null, bd = 1e9;
+      (gal.hitPts || []).forEach(function (h) {
+        var d = Math.hypot(h.x - x, h.y - y);
+        if (d < h.r && d < bd && h.n.role !== "anon") { bd = d; best = h.n; }
+      });
+      return best;
+    }
+    function showGalTip(n, x, y) {
+      if (!n || opts.tips === false) { tip.hidden = true; return; }
+      var tt = window.t || function (k) { return k; }, f = function (k, v, fb) { var s = tt(k, v); return s === k ? fb : s; };
+      tip.innerHTML = "";
+      var a = document.createElement("div"); a.className = "pt-name";
+      a.textContent = (n.khoi_ten ? n.khoi_ten + " · " : "") + (n.ten || n.key);
+      var b = document.createElement("div"); b.className = "pt-know";
+      var ds = [f("planet.gx_docs", { n: n.docs || 0 }, (n.docs || 0) + " tài liệu")];
+      if (n.raw) ds.push(f("planet.gx_raw", { n: n.raw }, n.raw + " tài liệu thô"));
+      if (n.stuck) ds.push(f("planet.gx_stuck", { n: n.stuck }, n.stuck + " việc kẹt"));
+      if (gal.hits && gal.hits[n.key]) ds.push(f("planet.gx_hits", { n: gal.hits[n.key] }, gal.hits[n.key] + " kết quả"));
+      b.textContent = ds.join(" · ");
+      tip.appendChild(a); tip.appendChild(b);
+      tip.hidden = false;
+      var tw = tip.offsetWidth || 160;
+      tip.style.left = clamp(x + 14, 6, W - tw - 6) + "px";
+      tip.style.top = clamp(y - 10, 6, H - 50) + "px";
+    }
+    // Bay tới một tinh cầu phòng ban: tinh cầu lớn dần ra giữa, màn tối lại; giữa lúc tối nhất
+    // gọi mid() (hud.js đổi brain), rồi zoom từ xa vào tinh cầu mới.
+    function flyTo(n, mid) {
+      if (!n) return;
+      var p = gxPos(n);
+      gal.fly = { n: n, t0: performance.now(), x0: p.x, y0: p.y, r0: gxRad(n), mid: mid, done: false };
+      tip.hidden = true;
+    }
+    function drawFly(c) {
+      var f = gal.fly;
+      if (!f) return;
+      var u = (performance.now() - f.t0) / 1200;
+      if (u >= 1) { gal.fly = null; return; }
+      var e = smooth(0, 0.55, u), dark = u < 0.55 ? smooth(0.15, 0.55, u) : 1 - smooth(0.55, 1, u);
+      if (u >= 0.55 && !f.done) {
+        f.done = true;
+        try { if (f.mid) f.mid(); } catch (er) {}
+        cam.zoom = 0.38; cam.tzoom = 1; cam.tyaw = cam.tpitch = 0;
+      }
+      c.save();
+      c.fillStyle = "rgba(2,6,18," + 0.88 * dark + ")"; c.fillRect(0, 0, W, H);
+      if (u < 0.55) {
+        var x = f.x0 + (geo.cx - f.x0) * e, y = f.y0 + (geo.cy - f.y0) * e, r = f.r0 + ((geo.base || 100) * 0.9 - f.r0) * e * e;
+        var sp = gal.sprites[f.n.key];
+        if (sp) c.drawImage(sp, x - r, y - r, r * 2, r * 2);
+      }
+      c.restore();
+    }
+    function galaxyHits(m) {
+      gal.hits = m || null; gal.hitsMax = 0;
+      for (var k in (m || {})) gal.hitsMax = Math.max(gal.hitsMax, m[k]);
+    }
+
+    // Bảng màu của tinh cầu đang mở: phòng ban dùng bảng màu của khối nó (chỉ cho renderer này,
+    // không ghi vào cài đặt giao diện của người dùng).
+    function curPal() { return gal.palOverride || LD.pal; }
 
     // ---- Hố đen kiểu XOÁY BỒI TỤ (ảnh mẫu chủ gửi 2026-10-08) ----
     // Đĩa xoắn ốc nghiêng: sát lòng hố trắng vàng, ra ngoài hồng cam rồi xanh tím, nhánh xoắn có
@@ -3563,7 +3920,7 @@
     // đen tối. Xám và tối là vòi rồng của bão thật: không phát sáng, nhiều bụi đen, thân đặc hơn,
     // sét quấn vòi dày hơn hẳn và có cả sét đánh xuống đất quanh chân vòi.
     function tornadoTheme() {
-      var P = LD.pal, tc = look.tornadoColor;
+      var P = curPal(), tc = look.tornadoColor;
       if (tc === "cyan") return { id: tc, cb: [0, 231, 255], glow: true, dust: 0.16, body: 0.5, zap: [500, 1300], ground: 0.15 };
       if (tc === "fire") return { id: tc, cb: [255, 128, 40], glow: true, dust: 0.16, body: 0.5, zap: [450, 1200], ground: 0.2 };
       if (tc === "grey") return { id: tc, cb: [196, 202, 212], glow: false, dust: 0.32, body: 0.62, zap: [220, 650], ground: 0.45 };
@@ -3948,7 +4305,7 @@
         if (geo.bh) gl.uniform4f(u.uBH, geo.bh.x * s, (H - geo.bh.y) * s, geo.bh.r * s * (VX ? 0.5 : 1), ing.k);
         else gl.uniform4f(u.uBH, 0, 0, 0, 0);
         // Giao diện tùy biến (tab Quả tinh cầu)
-        var PL = LD.pal;
+        var PL = curPal();
         gl.uniform3f(u.uPa, PL.deep[0], PL.deep[1], PL.deep[2]);
         gl.uniform3f(u.uPb, PL.sea[0], PL.sea[1], PL.sea[2]);
         gl.uniform3f(u.uPc, PL.rim[0], PL.rim[1], PL.rim[2]);
@@ -3982,6 +4339,7 @@
       var ddt = reduced ? 0 : dt;
       if (profile === "safe" || !gl) drawSafePlanet(c, now);
       drawMoonPath(c);
+      drawGalaxy(c, now, ddt);                      // thiên hà phòng ban (xa nhất)
       drawGalRing(c, now, ddt, false);              // nửa sau vành đai bụi sao (sau tinh cầu)
       drawBHSwirl(c, now, ddt);
       drawKnowSky(c, now, ddt);
@@ -4005,6 +4363,7 @@
       if (opts.labels !== false) drawLabels(c);
       drawKnowFocus(c, now, reduced ? 0.12 : dt);   // Big Bang đè lên trên cùng (kể cả nhãn)
       drawBHView(c, now, reduced ? 0.12 : dt);      // cảnh nhìn sâu vào hố đen phủ cả khung
+      drawFly(c);                                   // bay tới tinh cầu phòng ban
     }
     function loopFn(now) { frame(now, false); }
 
@@ -4115,13 +4474,16 @@
       var s = hitSat(p.x, p.y);
       hoverSat = s;
       var overBH = !s && onBlackHole(p.x, p.y);
-      var kh = s || overBH ? null : hitKnow(p.x, p.y);
+      var gh = s || overBH || gxLevel() < 0.15 ? null : hitGalaxy(p.x, p.y);
+      gal.hover = gh;
+      var kh = s || overBH || gh ? null : hitKnow(p.x, p.y);
       if (kh !== know.hover) { try { opts.onKnowledgeHover && opts.onKnowledgeHover(kh ? kh.b : null); } catch (_) {} }
       know.hover = kh;
-      var onP = !s && !kh && onPlanet(p.x, p.y);
+      var onP = !s && !kh && !gh && onPlanet(p.x, p.y);
       hoverT = onP ? 1 : 0;
-      ovCv.style.cursor = s || kh || onP || overBH ? "pointer" : "default";
-      if (overBH) showBHTip(p.x, p.y);
+      ovCv.style.cursor = s || kh || onP || overBH || gh ? "pointer" : "default";
+      if (gh) showGalTip(gh, p.x, p.y);
+      else if (overBH) showBHTip(p.x, p.y);
       else if (kh) showKnowTip(kh, p.x, p.y); else showTip(s, p.x, p.y);
     }
     function onDown(e) {
@@ -4157,6 +4519,8 @@
       var s = hitSat(p.x, p.y);
       if (s) { try { opts.onSatelliteClick && opts.onSatelliteClick(s.p, { x: p.x, y: p.y }); } catch (_) {} return; }
       if (onBlackHole(p.x, p.y)) { openBlackHole(true); return; }   // bấm giữa hố đen: nhìn sâu vào
+      var gnc = gxLevel() < 0.15 || gal.fly ? null : hitGalaxy(p.x, p.y);
+      if (gnc) { try { opts.onGalaxyClick && opts.onGalaxyClick(gnc); } catch (_) {} return; }
       var kh = hitKnow(p.x, p.y);
       if (kh) { try { opts.onKnowledgeClick && opts.onKnowledgeClick(kh.b, { x: p.x, y: p.y }); } catch (_) {} return; }
       if (!onPlanet(p.x, p.y)) {   // bấm khoảng trống trên vũ trụ: hud.js đóng khung thông tin đang mở
@@ -4190,7 +4554,7 @@
       var stp = cam.tzoom > 2 ? 1.14 : 1.087;
       cam.tzoom = clamp(cam.tzoom * (e.deltaY > 0 ? 1 / stp : stp), ZMIN, ZMAX);
     }
-    function onLeave() { hoverSat = null; know.hover = null; hoverT = 0; par.tx = par.ty = 0; tip.hidden = true; }
+    function onLeave() { hoverSat = null; know.hover = null; gal.hover = null; hoverT = 0; par.tx = par.ty = 0; tip.hidden = true; }
 
     function onVis() { if (document.hidden) stopLoop(); else if (!paused) startLoop(); }
     function onLost(e) {
@@ -4300,6 +4664,18 @@
     };
     // Bầu trời tri thức (hud.js đọc /knowledge/sky): {scope, brains, bodies, counts}.
     R.setKnowledge = setKnowledge;
+    // Thiên hà phòng ban (hud.js đọc /knowledge/galaxy).
+    R.setGalaxy = setGalaxy;
+    R.setGalaxyCur = setGalaxyCur;
+    R.galaxyHits = galaxyHits;
+    R.galaxyLevel = gxLevel;
+    R.flyTo = flyTo;
+    R.zoomTo = function (z) { cam.tzoom = clamp(+z || 1, ZMIN, ZMAX); };
+    R.arrive = function () { cam.zoom = 0.38; cam.tzoom = 1; cam.tyaw = cam.tpitch = 0; };   // vào tinh cầu từ xa
+    R.galaxyInfo = function () {
+      return { nodes: gal.nodes.length, cur: gal.cur ? gal.cur.key : null, level: gxLevel(), flying: !!gal.fly,
+               palette: !!gal.palOverride, hits: gal.hitsMax };
+    };
     // Tia tri thức khi hỏi Joyce (hud.js đổi khung tool_call của lượt chat thành các pha này).
     R.traceTurn = traceTurn;
     R.traceInfo = function () {

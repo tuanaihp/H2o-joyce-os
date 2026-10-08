@@ -3882,6 +3882,12 @@ body.ne-full-on .cview { z-index: 250; }
 .planet-ctx .pc-btn:hover { border-color: var(--accent); color: var(--text-hi); }
 .planet-ctx .pc-open { background: var(--accent2-wash); border-color: var(--accent); color: var(--text-hi); }
 .planet-ctx .pc-btn:disabled { opacity: .6; cursor: progress; }
+/* Nút Thiên hà / về Trái Đất trên khoang tinh cầu (hud.js, thiên hà phòng ban) */
+.gx-ctl { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 6px; pointer-events: auto; }
+.gx-btn { font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text2); cursor: pointer; }
+.gx-btn:hover, .gx-btn:focus-visible { color: var(--accent); border-color: var(--accent); }
+.hud-center.hud-on.brain-overlays-hidden .gx-ctl { opacity: 0; pointer-events: none; }
 /* Thẻ Đọc nhanh của bầu trời tri thức (hud.js openKnow) dùng lại khung .planet-ctx. */
 .planet-tip .pt-know { font-size: 10.5px; color: var(--text2); margin-top: 3px; letter-spacing: .3px; }
 .planet-ctx .pc-know-dot { color: var(--accent); }

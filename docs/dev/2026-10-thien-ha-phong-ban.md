@@ -130,6 +130,29 @@ Chọn brain phòng ban ở **ô chọn brain** (thay vì bấm trên thiên hà
 | 2. Tinh cầu phòng ban sống | Bảng màu theo khối khi vào phòng, kích thước / độ sáng / việc kẹt / hố đen nhỏ từ dữ liệu thật, mặt trăng = trợ lý |
 | 3. Tìm kiếm và nạp xuyên thiên hà | Tìm từ thiên hà sáng tinh cầu có kết quả, bấm là Big Bang luôn; sao băng rơi vào đúng tinh cầu phòng đang nạp |
 
+## 10b. Trạng thái: code xong 1.3.0 (2026-10-08)
+
+Chủ không ưng bản demo của Codex, bảo bỏ demo và làm thẳng theo thiết kế này. Cả ba giai đoạn ở
+mục 10 làm cùng lúc (trừ sao băng rơi đúng tinh cầu phòng đang nạp: hố đen nhỏ của phòng đã có,
+sao băng riêng từng phòng để sau).
+
+- Máy chủ `knowledge_sky.dung_thien_ha` + `GET /knowledge/galaxy`: Trái Đất (brain chủ), ngôi sao
+  thương hiệu, mỗi phòng `{docs, raw, proc, recent7, agents, stuck, khoi, brand, path}`. Việc kẹt
+  đọc thẳng `kanban.sqlite3` (status blocked) chỉ đọc. Nhân viên: chỉ phòng được gán, còn lại là
+  `others` (đốm mờ), không thấy Trái Đất. Phạm vi nhân viên truyền vào qua `register(..., scope_fn)`
+  (KHÔNG `import main` trong module: máy chủ chạy main.py trực tiếp, import lại là chạy lại cả máy chủ).
+- Renderer: `ZMIN` 0,32 -> 0,12; `gxLevel()` = 1 - smooth(0,24; 0,42; zoom). Bố cục đơn vị thiên
+  hà nhân `base x zoom x 1,55`, xoay theo `galAngle()`. Cụm khối xoắn ốc quanh Trái Đất (mỗi cụm
+  +0,75 rad, +0,83 đơn vị); phòng trong cụm xếp hoa hướng dương (góc vàng), sắp theo tên trước để
+  thứ tự dữ liệu không làm đổi chỗ (test bắt được). Ảnh tinh cầu 96px dựng sẵn, mỗi khung tối đa 2.
+- Tinh cầu đang mở là phòng ban thì shader dùng bảng màu khối qua `curPal()` (không ghi
+  `joyce.planetLook` của người dùng). Thêm bảng `pink` (ThuyH2O) và `paper` (Văn Thư).
+- `flyTo`: 1,2 giây, tinh cầu lớn dần ra giữa, màn tối nhất lúc 0,55 thì gọi hud.js đổi brain
+  (ô chọn brain + sự kiện change, đúng cơ chế trang Phòng ban), rồi zoom 0,38 -> 1 vào tinh cầu mới.
+  Chọn brain ở ô chọn cũng diễn `arrive()`. Nút "Thiên hà" và "← Trái Đất" dưới công tắc Lõi nước.
+- Tìm ở tầng thiên hà: `/knowledge/search?brain=brain` (phạm vi gộp), đếm kết quả theo brain, tinh
+  cầu sáng + số; bấm vào thì tới nơi Big Bang luôn với từ khoá đó.
+
 ## 11. Quyết định đã chốt (2026-10-08)
 
 | Câu hỏi | Chốt |

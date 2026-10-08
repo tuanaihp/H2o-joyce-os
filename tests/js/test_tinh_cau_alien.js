@@ -104,7 +104,7 @@ check("không tải texture/ảnh ngoài trong renderer",
 check("bấm cầu chờ nhịp double-click (không gọi rồi cúp ngay)", /clickTimer = setTimeout/.test(PC) && /function onDbl\(\) \{\s*clearTimeout\(clickTimer\)/.test(PC));
 // 0.65.35: zoom 4 tầng (Ngân Hà -> cận cảnh Hải Phòng), chủ duyệt; vẫn phải KẸP trong trần cố định.
 check("zoom bị kẹp trong phạm vi an toàn",
-  /clamp\(cam\.tzoom \* [^;]+, ZMIN, ZMAX\)/.test(PC) && /var ZMIN = 0\.32, ZMAX = 12;/.test(PC));
+  /clamp\(cam\.tzoom \* [^;]+, ZMIN, ZMAX\)/.test(PC) && /var ZMIN = 0\.12, ZMAX = 12;/.test(PC));
 check("vòng lặp đã dừng thì khung xếp hàng không tự đặt lại RAF", /if \(destroyed \|\| \(!once && !running\)\) return;/.test(PC));
 
 // ---- 4. KHÔNG còn khung sáng vuông ----
