@@ -95,26 +95,52 @@
       {id:'banner',icon:'BN',name:'Banner sản phẩm',category:'Bán hàng',output:'2 phương án 1:1',desc:'Bản đủ chữ và bản tối giản'},
       {id:'brand',icon:'BI',name:'Bộ nhận diện',category:'Thương hiệu',output:'Brand Kit + usage rules',desc:'Màu · chữ · logo · luật dùng'}
     ];
-    const jobs=[
-      {name:'Ads Wedding mùa thu',unit:'H2O Studio',skill:'Ảnh quảng cáo',owner:'Minh Anh',status:'Đang tạo',class:'running',updated:'6 phút'},
-      {name:'5 lỗi makeup cô dâu',unit:'Academy',skill:'Carousel',owner:'Lan Nguyễn',status:'Chờ duyệt',class:'wait',updated:'12 phút'},
-      {name:'Workbook nền da',unit:'Academy',skill:'Ebook',owner:'H2OBOOK',status:'Chờ duyệt',class:'wait',updated:'24 phút'},
-      {name:'Banner Love in Style',unit:'H2O Studio',skill:'Banner',owner:'Marketing',status:'Đạt QA',class:'good',updated:'31 phút'}
-    ];
+    // Dữ liệu thật từ Kanban của brain đang chọn ở dashboard cha (iframe cùng
+    // origin). Lỗi/không có brain -> mảng rỗng, lane hiện "Chưa có công việc".
+    const _brain=()=>{try{return parent.currentBrainPath?parent.currentBrainPath():'brain'}catch(e){return 'brain'}};
+    const _ago=ts=>{const s=Math.max(0,Date.now()/1000-(Number(ts)||0));return s<3600?`${Math.max(1,Math.round(s/60))} phút`:s<86400?`${Math.round(s/3600)} giờ`:`${Math.round(s/86400)} ngày`};
+    const _stMap={triage:['Bản nháp','draft'],todo:['Bản nháp','draft'],ready:['Đang tạo','running'],running:['Đang tạo','running'],review:['Chờ duyệt','wait'],blocked:['Chờ duyệt','wait'],done:['Đã duyệt','good'],cancelled:['Đã duyệt','good']};
+    let jobs=[];
+    async function loadJobs(){
+      try{
+        const d=await (await fetch(`/api/joyce/v1/tasks?brain=${encodeURIComponent(_brain())}`)).json();
+        const cols=(d&&d.columns)||{};
+        jobs=[];
+        for(const st of Object.keys(cols))for(const t of cols[st]){
+          const m=_stMap[st]||['Bản nháp','draft'];
+          jobs.push({name:t.title||'(không tên)',unit:(t.route&&t.route!=='auto')?t.route:'Kanban',skill:t.capability||'auto',owner:t.created_by||'joyce',status:m[0],class:m[1],updated:_ago(t.updated_at)});
+        }
+      }catch(e){jobs=[]}
+    }
     const sources={studio:[['CRM / Offer','Giá, gói dịch vụ, persona'],['Wedding Operations','Project, concept, timeline'],['Asset Library','Ảnh đã chọn + consent'],['H2O Legacy','SOP, tone, approved claim']],academy:[['Academy / H2OBOOK','CourseVersion, lesson, rubric'],['CRM tuyển sinh','Persona, FAQ, offer'],['Student Evidence','Kết quả có consent'],['H2O Legacy','Method, citation, E0–E5']]};
     const tabs=[...document.querySelectorAll('.local-tab')],panels=[...document.querySelectorAll('.tab-panel')],toast=document.getElementById('toast'),toastMessage=document.getElementById('toastMessage');let toastTimer,currentSkill='landing';
     function showToast(message){toastMessage.textContent=message;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),2400)}
     function openTab(name){tabs.forEach(b=>b.classList.toggle('active',b.dataset.tab===name));panels.forEach(p=>p.hidden=p.id!==`panel-${name}`);window.scrollTo({top:0,behavior:'smooth'})}
     tabs.forEach(b=>b.addEventListener('click',()=>openTab(b.dataset.tab)));document.querySelectorAll('[data-tab-link]').forEach(b=>b.addEventListener('click',()=>openTab(b.dataset.tabLink)));document.querySelectorAll('[data-toast]').forEach(b=>b.addEventListener('click',()=>showToast(b.dataset.toast)));
     document.getElementById('quickSkills').innerHTML=skills.map(s=>`<button class="skill-card" data-open-drawer="${s.id}"><div class="skill-top"><span class="skill-icon">${s.icon}</span><span class="skill-tag">${s.category}</span></div><h3>${s.name}</h3><p>${s.desc}</p><b>${s.output} →</b></button>`).join('');
-    document.getElementById('overviewJobs').innerHTML=jobs.map(j=>`<tr><td><strong>${j.name}</strong><small>Job có version và audit</small></td><td>${j.unit}</td><td>${j.skill}</td><td>${j.owner}</td><td><span class="status ${j.class}">${j.status}</span></td><td>${j.updated}</td></tr>`).join('');
+    function renderOverview(){document.getElementById('overviewJobs').innerHTML=jobs.length?jobs.map(j=>`<tr><td><strong>${j.name}</strong><small>Job có version và audit</small></td><td>${j.unit}</td><td>${j.skill}</td><td>${j.owner}</td><td><span class="status ${j.class}">${j.status}</span></td><td>${j.updated}</td></tr>`).join(''):'<tr><td colspan="6">Chưa có công việc nào trên Kanban của brain này.</td></tr>'}
     document.getElementById('skillCatalog').innerHTML=skills.map((s,i)=>`<button class="catalog-btn ${i===0?'active':''}" data-skill="${s.id}">${s.name}<span>${s.output}</span></button>`).join('');
     function renderCreate(id){currentSkill=id;const s=skills.find(x=>x.id===id);document.getElementById('createTitle').textContent=s.name;document.getElementById('createSubtitle').textContent=`${s.output} · tạo brief trước khi Joyce chạy Skill`;document.getElementById('previewFormat').textContent=s.output;document.querySelectorAll('.catalog-btn').forEach(b=>b.classList.toggle('active',b.dataset.skill===id));renderSources(document.getElementById('createUnit').value)}
     function renderSources(unit){document.getElementById('sourceList').innerHTML=sources[unit].map(s=>`<div class="source"><div><b>${s[0]}</b><span>${s[1]}</span></div><span class="status good">Sẵn sàng</span></div>`).join('')}
     document.querySelectorAll('.catalog-btn').forEach(b=>b.addEventListener('click',()=>renderCreate(b.dataset.skill)));document.getElementById('createUnit').addEventListener('change',e=>renderSources(e.target.value));renderSources('studio');
-    const states=[['Bản nháp','draft'],['Đang tạo','running'],['Chờ duyệt','wait'],['Đã duyệt','good']];document.getElementById('kanban').innerHTML=states.map(([label,cls])=>{const list=jobs.filter(j=>(label==='Bản nháp'&&j.status==='Đạt QA')||j.status===label);return `<section class="lane"><div class="lane-head"><strong>${label}</strong><span class="lane-count">${list.length||1}</span></div>${(list.length?list:[{name:'Chưa có công việc',unit:'-',skill:'-',owner:'-',status:label,class:cls,updated:'-'}]).map(j=>`<article class="job"><div class="job-top"><span class="job-type">${j.skill}</span><span class="status ${j.class||cls}">${j.status}</span></div><h3>${j.name}</h3><p>${j.unit} · Owner ${j.owner}</p><div class="job-foot"><span>Cập nhật ${j.updated}</span><button class="tiny-btn" data-job-open>Mở</button></div></article>`).join('')}</section>`}).join('');document.querySelectorAll('[data-job-open]').forEach(b=>b.addEventListener('click',()=>showToast('Đã mở chi tiết Job, version, QA và audit trail.')));
+    const states=[['Bản nháp','draft'],['Đang tạo','running'],['Chờ duyệt','wait'],['Đã duyệt','good']];
+    function renderKanban(){document.getElementById('kanban').innerHTML=states.map(([label,cls])=>{const list=jobs.filter(j=>j.status===label);return `<section class="lane"><div class="lane-head"><strong>${label}</strong><span class="lane-count">${list.length||1}</span></div>${(list.length?list:[{name:'Chưa có công việc',unit:'-',skill:'-',owner:'-',status:label,class:cls,updated:'-'}]).map(j=>`<article class="job"><div class="job-top"><span class="job-type">${j.skill}</span><span class="status ${j.class||cls}">${j.status}</span></div><h3>${j.name}</h3><p>${j.unit} · Owner ${j.owner}</p><div class="job-foot"><span>Cập nhật ${j.updated}</span><button class="tiny-btn" data-job-open>Mở</button></div></article>`).join('')}</section>`}).join('');document.querySelectorAll('[data-job-open]').forEach(b=>b.addEventListener('click',()=>showToast('Chi tiết và nút duyệt nằm ở trang Việc (Kanban).')));
+    }
     const drawer=document.getElementById('createDrawer'),drawerSkill=document.getElementById('drawerSkill');drawerSkill.innerHTML=skills.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');function openDrawer(id='landing'){const s=skills.find(x=>x.id===id)||skills[0];drawerSkill.value=s.id;document.getElementById('drawerOutput').textContent=s.output;drawer.classList.add('show');drawer.setAttribute('aria-hidden','false')}function closeDrawer(){drawer.classList.remove('show');drawer.setAttribute('aria-hidden','true')}
-    document.addEventListener('click',e=>{const b=e.target.closest('[data-open-drawer]');if(b)openDrawer(b.dataset.openDrawer)});drawerSkill.addEventListener('change',e=>document.getElementById('drawerOutput').textContent=skills.find(s=>s.id===e.target.value).output);document.getElementById('closeDrawer').addEventListener('click',closeDrawer);document.getElementById('cancelDrawer').addEventListener('click',closeDrawer);drawer.addEventListener('click',e=>{if(e.target===drawer)closeDrawer()});document.getElementById('drawerCreate').addEventListener('click',()=>{closeDrawer();showToast('Đã tạo Job ở trạng thái Nháp; Joyce chưa chạy hoặc xuất bản.')});document.getElementById('createDraft').addEventListener('click',()=>showToast('Job nháp đã được tạo và gắn source binding.'));
+    document.addEventListener('click',e=>{const b=e.target.closest('[data-open-drawer]');if(b)openDrawer(b.dataset.openDrawer)});drawerSkill.addEventListener('change',e=>document.getElementById('drawerOutput').textContent=skills.find(s=>s.id===e.target.value).output);document.getElementById('closeDrawer').addEventListener('click',closeDrawer);document.getElementById('cancelDrawer').addEventListener('click',closeDrawer);drawer.addEventListener('click',e=>{if(e.target===drawer)closeDrawer()});// "Tạo Job nháp" tạo task THẬT trên Kanban của brain đang chọn, cờ chờ duyệt để
+// xong việc rơi vào cột Chờ duyệt (anh duyệt ở trang Việc). Nội dung brief/mục
+// tiêu nằm trong intent của task.
+    async function createJob(){const s=skills.find(x=>x.id===drawerSkill.value)||skills[0];
+      const ten=document.querySelector('#createDrawer input.field').value||s.name;
+      const muc=document.querySelector('#createDrawer textarea.field').value||s.desc;
+      try{
+        const fd=new FormData();fd.set('title',`[Xưởng content] ${ten}`);fd.set('intent',`Skill: ${s.name} (${s.output}). Mục tiêu: ${muc}`);fd.set('route','xuong-content');fd.set('brain',_brain());fd.set('needs_approval','1');
+        const r=await (await fetch('/kanban/task',{method:'POST',body:fd})).json();
+        showToast(r&&r.ok!==false?'Đã tạo Job trên Kanban - theo dõi ở trang Việc.':('Không tạo được: '+((r&&r.error)||'lỗi')));
+      }catch(e){showToast('Không tạo được Job: '+e)}
+      closeDrawer();await loadJobs();renderOverview();renderKanban();}
+    document.getElementById('drawerCreate').addEventListener('click',createJob);document.getElementById('createDraft').addEventListener('click',createJob);
+    (async()=>{await loadJobs();renderOverview();renderKanban()})();setInterval(async()=>{await loadJobs();renderOverview();renderKanban()},30000);
     document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
   </script>
 </body>

@@ -209,6 +209,27 @@ class TasksFeature:
     # ------------------------------------------------------------------
     # Public generator API used by Learn/chat
     # ------------------------------------------------------------------
+    # Policy Gate (Operating Loop 2.0): việc chạm ra ngoài (gửi tin, đăng bài,
+    # báo giá, động tiền/CRM) TỰ cờ needs_approval - chạy xong rơi vào cột review
+    # thay vì done, chủ duyệt mới coi là hoàn thành. Áp cho mọi đường tạo việc
+    # (chat tool, API, workflow) vì nằm ngay trong enqueue.
+    _POLICY_TU_KHOA = (
+        "gửi tin", "nhắn tin", "đăng bài", "đăng page", "đăng fanpage",
+        "báo giá", "gửi báo giá", "thanh toán", "chuyển khoản", "đòi nợ",
+        "sửa crm", "xoá crm", "xoa crm", "phản hồi công khai", "trả lời bình luận",
+        "gửi khách", "nhắn khách", "gửi zalo", "gọi điện", "hủy đơn", "huỷ đơn",
+    )
+    _POLICY_CAPABILITIES = {"external-write"}
+
+    @classmethod
+    def _policy_gate(cls, title: str, intent: str, route: str, capability: str) -> bool:
+        if capability in cls._POLICY_CAPABILITIES:
+            return True
+        if (route or "") == "bai-hoc":
+            return False  # bài học đã nằm sẵn review
+        text = f"{title or ''} {intent or ''}".casefold()
+        return any(k in text for k in cls._POLICY_TU_KHOA)
+
     def enqueue(
         self,
         brain: str,
@@ -225,6 +246,8 @@ class TasksFeature:
         idempotency_key: str = "",
     ) -> str:
         root = self._ensure(brain)
+        if not needs_approval:
+            needs_approval = self._policy_gate(title, intent, route, capability)
         status = "todo" if deps else "triage"
         tid = self.store.enqueue(
             root,

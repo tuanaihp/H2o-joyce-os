@@ -9145,15 +9145,27 @@ def _workflow_agent_helpers(brain, tools):
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         return c
 
+    def _tach_brain(aslug):
+        """Bước workflow có thể chỉ agent của PHÒNG KHÁC: `Ten Brain|slug`
+        (vd `CSKH - Sau Dich Vu va Khieu Nai|truong-phong-sau-dich-vu`). Không có
+        '|' thì giữ nguyên brain của workflow. Tên brain là TÊN THƯ MỤC trong
+        BRAINS_DIR; tên lạ không có thì về brain hiện tại để không trỏ nhầm."""
+        if "|" not in (aslug or ""):
+            return brain, aslug
+        bname, s = aslug.split("|", 1)
+        cand = str(Path(BRAINS_DIR) / bname.strip())
+        return (cand if os.path.isdir(cand) else brain), s.strip()
+
     def _agent_sysprompt(aslug):
-        ameta, abody = _read_md(_agents_dir(brain) / f"{aslug}.md")
-        amem = _agent_memory(brain, aslug)
+        abrain, aslug = _tach_brain(aslug)
+        ameta, abody = _read_md(_agents_dir(abrain) / f"{aslug}.md")
+        amem = _agent_memory(abrain, aslug)
         # Khối bộ nhớ + luật tự bồi đắp chèn VÔ ĐIỀU KIỆN (kể cả khi amem rỗng): điều
         # kiện `if amem` cũ là bẫy con-gà-quả-trứng - agent chưa có ký ức thì không bao
         # giờ được bảo là mình CÓ bộ nhớ, nên không bao giờ tạo được ký ức đầu tiên.
         # Đây là cơ chế "tự thông minh lên LÚC DÙNG" chủ repo chốt 16/08: agent tự đúc
         # bài học ngay trong lượt chạy, KHÔNG có job nền nào quét hàng loạt.
-        mem_path = _brain_memory_dir(brain) / "agents" / aslug / "MEMORY.md"
+        mem_path = _brain_memory_dir(abrain) / "agents" / aslug / "MEMORY.md"
         sysprompt = (
             f"Bạn là agent **{ameta.get('name', aslug)}**.\nVai trò: {ameta.get('role','')}\n{abody}\n\n"
             f"Skills khả dụng: {', '.join(ameta.get('skills', []) or []) or '(không)'}. Dùng skill khi cần.\n"
@@ -9175,15 +9187,18 @@ def _workflow_agent_helpers(brain, tools):
                 (ameta.get("model_provider") or "").strip())
 
     def _log_run(aslug, task, out):
-        _log_agent_run(brain, aslug, task, out)
+        abrain, aslug = _tach_brain(aslug)
+        _log_agent_run(abrain, aslug, task, out)
 
     def _learn(aslug, out):
-        """Bóc JOYCE_LESSON khỏi output, ghi vào bộ nhớ agent, trả output ĐÃ SẠCH
-        (marker không được chảy vào {{prev}} của bước sau hay lên UI)."""
+        """Bóc JOYCE_LESSON khỏi output, xếp chờ duyệt vào đúng brain của agent,
+        trả output ĐÃ SẠCH (marker không được chảy vào {{prev}} của bước sau hay
+        lên UI)."""
         lessons, sach = _boc_bai_hoc(out or "")
         if not lessons:
             return out
-        _xep_cho_bai_hoc(brain, aslug, lessons)
+        abrain, aslug = _tach_brain(aslug)
+        _xep_cho_bai_hoc(abrain, aslug, lessons)
         return sach
 
     return _mk, _agent_sysprompt, _log_run, _learn
