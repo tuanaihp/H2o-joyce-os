@@ -1898,10 +1898,8 @@
       c.save();
       c.globalCompositeOperation = "lighter";
       c.lineCap = "round";
-      // vệt mờ của luồng bụi (dải tinh vân)
-      var s0 = bhStream(B, 0, { ph: 0, w: 0 }), s1 = bhStream(B, 0.5, { ph: 0, w: 0 }), s2 = bhStream(B, 1, { ph: 0, w: 0 });
-      c.strokeStyle = "rgba(255,190,170," + (0.07 + 0.1 * ing.k) + ")"; c.lineWidth = B.r * 1.4;
-      c.beginPath(); c.moveTo(s0.x, s0.y); c.quadraticCurveTo(2 * s1.x - (s0.x + s2.x) / 2, 2 * s1.y - (s0.y + s2.y) / 2, s2.x, s2.y); c.stroke();
+      // (Bỏ ở 1.2.2: dải nền mờ rộng dọc luồng bụi. Chủ báo 2026-10-08 nó thành vệt trắng xám to
+      // cong như lông mày trên hố đen. Chỉ giữ các hạt li ti chảy vào.)
       bhs.stream.forEach(function (it) {
         if (dt) it.t += it.sp * sp * dt;
         if (it.t >= 1) {   // tới rìa đĩa: nhập vào xoáy

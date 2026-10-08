@@ -1,5 +1,9 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.2.2] - 2026-10-08
+### Cải thiện
+- Bỏ vệt nền trắng xám cong phía trên hố đen; chỉ còn các hạt bụi li ti chảy vào hố.
+
 ## [1.2.1] - 2026-10-08
 ### Cải thiện
 - **Dải ngân hà nằm ngang, hơi nghiêng, chạy qua sau tinh cầu** về phía hố đen, tông tím xanh có mây hồng, dịu để không lấn tinh cầu.
