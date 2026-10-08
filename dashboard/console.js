@@ -4189,9 +4189,10 @@
       const acts = taskActions(t);
       const reason = t.block_reason ? `<div class="kn-task-result" style="color:var(--red)">${esc(t.block_reason)}</div>` : "";
       const result = !reason && t.result ? `<div class="kn-task-result">${esc(t.result.slice(0, 240))}</div>` : "";
+      const lane = t.metadata && t.metadata.lane ? `<span title="Intent lane">lane ${esc(t.metadata.lane)}</span>` : "";
       return `<div class="kn-task" data-task="${esc(t.id)}">
         <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(_kstatus(t.status))}</span></div>
-        <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span><span>attempt ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span></div>
+        <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span>${lane}<span>attempt ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span></div>
         ${reason}${result}
         ${acts.length ? `<div class="kn-actions">${acts.join("")}</div>` : ""}
       </div>`;

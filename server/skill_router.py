@@ -217,7 +217,9 @@ def _meta_of(smd: Path, lang: str = "") -> dict:
         body.split("\n")[0][:SKILL_DESC_MAX] if body else "")
     return {"name": theo_ngon_ngu(meta, "name", lang) or smd.parent.name,
             "description": desc,
-            "group": meta.get("group") or "Chung"}
+            "group": meta.get("group") or "Chung",
+            "version": meta.get("version") or 1,
+            "status": meta.get("status") or "active"}
 
 
 def _iter_skill_dirs(base: Path):

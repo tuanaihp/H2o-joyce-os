@@ -6810,7 +6810,8 @@ async def skill_get(slug: str = Query(...), brain: str = Query("brain")):
         return JSONResponse({"error": "Không tìm thấy skill"}, status_code=404)
     meta, body = _read_md(smd)
     return {"slug": slug, "name": meta.get("name", slug), "description": meta.get("description", ""),
-            "group": meta.get("group") or "Chung", "body": body}
+            "group": meta.get("group") or "Chung", "body": body,
+            "version": int(meta.get("version") or 1), "status": meta.get("status") or "active"}
 
 
 @app.post("/skills")
@@ -6842,11 +6843,36 @@ async def save_skill(name: str = Form(...), description: str = Form(""), group: 
     # GIỮ LẠI các bản dịch (`description_en`, `name_en`...) của skill đang có. Form chỉ gửi lên
     # bản gốc, nên ghi đè trắng meta là mỗi lần user bấm Lưu lại xoá sạch bản dịch mà không ai
     # thấy - skill hệ thống sẽ tụt về mô tả tiếng Việt cho người dùng tiếng Anh.
-    cu, _ = _read_md(d / "SKILL.md")
+    cu, cu_body = _read_md(d / "SKILL.md")
     for k, v in (cu or {}).items():
         if skill_router.la_khoa_ngon_ngu(k) and k not in meta:
             meta[k] = v
-    _write_md(d / "SKILL.md", meta, body or f"# {name}\n\n{description}")
+    # Skill versioning: skill đang ACTIVE mà bị sửa thân bài → KHÔNG ghi đè câm mà lưu
+    # snapshot bản cũ vào .history/v<N>.md rồi tăng version. Bản active luôn là bản
+    # mới nhất; ai cần so sánh/rollback đọc .history. Skill mới/draft: version=1.
+    new_body = body or f"# {name}\n\n{description}"
+    old_status = str((cu or {}).get("status", "active")).lower()
+    old_ver = int((cu or {}).get("version") or 0)
+    if cu is not None and old_status == "active" and (cu_body or "").strip() != new_body.strip():
+        ver = old_ver + 1
+        hist = d / ".history"
+        try:
+            hist.mkdir(parents=True, exist_ok=True)
+            (hist / f"v{max(old_ver, 1)}.md").write_text(
+                (Path(d / "SKILL.md").read_text(encoding="utf-8")), encoding="utf-8")
+        except Exception:
+            pass
+        meta["version"] = ver
+        meta["updated"] = _today()
+        if (cu or {}).get("created"):
+            meta["created"] = cu["created"]
+    elif cu is not None and old_ver:
+        meta["version"] = old_ver          # sửa nhẹ không đổi thân, hay skill draft → giữ version
+    elif cu is None:
+        meta["version"] = 1
+        meta["created"] = _today()
+    meta.setdefault("status", "active")
+    _write_md(d / "SKILL.md", meta, new_body)
     try:
         system_sync.mirror_skills(root)   # bật → cập nhật mirror; tắt (.disabled) → mirror bỏ qua
     except Exception:

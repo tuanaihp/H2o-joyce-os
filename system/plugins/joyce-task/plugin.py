@@ -44,6 +44,7 @@ Phạm vi v1: `add` và `list`. Chuyển cột, huỷ, duyệt việc chờ phê
 from __future__ import annotations
 
 import time
+from pathlib import Path
 import tasks as tasks_mod
 
 try:
@@ -91,6 +92,32 @@ def _feature():
     return f, ""
 
 
+def _acl_cho_phep(vault_dich: str, vault_nguon: str) -> bool:
+    """Brain đích có chấp nhận việc từ brain nguồn không? Luật ở <đích>/Joyce/acl.json:
+
+    {"deny_brains": ["Ke Toan - Thu"]}       -> chặn đúng các brain khai tên
+    {"allow_brains": ["Marketing - ..."]}    -> chỉ nhận việc từ các brain khai tên
+    Không có file / file hỏng = cho phép (giữ hành vi cũ, org nhỏ không cần khoá)."""
+    try:
+        import json as _json
+        acl = Path(vault_dich) / "Joyce" / "acl.json"
+        if not acl.is_file():
+            return True
+        cfg = _json.loads(acl.read_text(encoding="utf-8"))
+        if not isinstance(cfg, dict):
+            return True
+        ten_nguon = Path(vault_nguon).name.casefold()
+        allow = [str(x).casefold() for x in (cfg.get("allow_brains") or [])]
+        deny = [str(x).casefold() for x in (cfg.get("deny_brains") or [])]
+        if ten_nguon in deny:
+            return False
+        if allow:
+            return ten_nguon in allow
+        return True
+    except Exception:
+        return True   # lỗi đọc ACL không được làm nghẽn giao việc - log ở nơi gọi nếu cần
+
+
 def _them(args, ctx) -> str:
     if not ctx.vault_root:
         return ("ERROR: chưa biết đang làm việc trên brain nào nên không giao việc được. "
@@ -119,6 +146,14 @@ def _them(args, ctx) -> str:
             return f"ERROR: không tìm được brain '{brain_arg}' ({type(e).__name__}: {e})."
         if not vault:
             return f"ERROR: không tìm được brain '{brain_arg}'."
+        # ACL chéo brain: brain đích có Joyce/acl.json thì giao việc vào phải được phép.
+        # {"allow_brains": [...]} = whitelist; {"deny_brains": [...]} = blacklist; khớp theo
+        # TÊN thư mục brain (không phân biệt hoa thường). Không có file = mở (mặc định cũ).
+        if not _acl_cho_phep(vault, ctx.vault_root):
+            return (f"ERROR: brain '{Path(vault).name}' từ chối việc giao từ brain "
+                    f"'{Path(ctx.vault_root).name}' (Joyce/acl.json của brain đích). "
+                    "Người quản trị sửa acl.json để mở, hoặc giao việc trực tiếp trên "
+                    "brain đó ở trang Việc.")
     # route: "auto" (mặc định) hoặc "wf:<slug>" để task chạy nguyên một workflow của brain đích
     # (vd wf:xu-ly-y-tuong-moi = pipeline ý tưởng của phòng).
     route = str((args or {}).get("route") or "auto").strip()

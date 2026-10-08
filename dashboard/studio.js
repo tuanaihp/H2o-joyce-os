@@ -1054,7 +1054,7 @@
       usageHtml = ` · <span class="sk-usage sk-stale" title="${esc(t("studio.unused_title"))}">${esc(t("studio.unused"))}</span>`;
     }
     div.innerHTML = `<input type="checkbox" class="sk2-tog" ${on ? "checked" : ""} title="${esc(on ? t("studio.tog_on") : t("studio.tog_off"))}">
-      <div class="sk2-info"><div class="nm">${ic("puzzle")} ${esc(s.name)}${sysBadge}</div><div class="ds">${esc(s.description || "")}</div><div class="gp">${ic("folder-open")} ${esc(s.group || "Chung")} · ${esc(s.slug)}${s.source === ".agents" ? " · .agents" : ""}${usageHtml}</div></div>
+      <div class="sk2-info"><div class="nm">${ic("puzzle")} ${esc(s.name)}${sysBadge}</div><div class="ds">${esc(s.description || "")}</div><div class="gp">${ic("folder-open")} ${esc(s.group || "Chung")} · ${esc(s.slug)}${s.version > 1 ? ` · v${s.version}` : ""}${s.status && s.status !== "active" ? ` · ${esc(s.status)}` : ""}${s.source === ".agents" ? " · .agents" : ""}${usageHtml}</div></div>
       <div class="sk2-act">${s.system ? "" : `<label class="sk2-selwrap" title="${esc(t("studio.sel_one"))}"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"> ${esc(t("studio.pick"))}</label>`}<button class="edit">${esc(t("common.edit"))}</button>${s.system ? "" : `<button class="exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="del danger">${esc(t("common.delete"))}</button>`}</div>`;
     div.querySelector(".sk2-tog").onchange = (e) => toggleSkill(s, e.target.checked);
     const selBox = div.querySelector(".sk2-sel");

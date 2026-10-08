@@ -231,6 +231,42 @@ class TasksFeature:
         text = f"{title or ''} {intent or ''}".casefold()
         return any(k in text for k in cls._POLICY_TU_KHOA)
 
+    # Intent Contract (Operating Loop 2.0 bước 2-3): mỗi việc vào hàng đợi được gán một
+    # "lane" = đường xử lý. Rule-based, deterministic, không tốn token: 4 lane của spec
+    # (fast/live/skill/controlled). Lane "controlled" tự cờ needs_approval - việc có tác
+    # động thật không bao giờ chạy thẳng, kể cả khi từ khóa policy thoát lọt.
+    _LANE_LIVE = (
+        "doanh thu", "hôm nay", "hôm qua", "tuần này", "tháng này", "bây giờ",
+        "hiện tại", "mới nhất", "vừa rồi", "bao nhiêu đơn", "bao nhiêu lead",
+        "tồn kho", "lịch hẹn", "lịch chụp", "số liệu", "kpi", "live",
+    )
+    _LANE_SKILL = (
+        "viết", "soạn", "dựng", "thiết kế", "làm slide", "dựng slide", "banner",
+        "carousel", "reel", "ebook", "landing", "content", "kế hoạch", "đề xuất",
+        "phân tích", "báo cáo", "tóm tắt", "concept",
+    )
+
+    @classmethod
+    def _classify_lane(cls, title: str, intent: str, route: str, capability: str) -> str:
+        if capability in cls._POLICY_CAPABILITIES:
+            return "controlled"
+        if (route or "") == "bai-hoc":
+            return "fast"
+        text = f"{title or ''} {intent or ''}".casefold()
+        if any(k in text for k in cls._POLICY_TU_KHOA):
+            return "controlled"
+        if str(route or "").startswith("wf:"):
+            # Workflow = chuỗi bước tạo đầu ra (skill lane), KHÔNG tự suy ra nhạy cảm -
+            # pipeline ý tưởng chỉ ghi wiki nội bộ mà cũng controlled thì mọi task ý tưởng
+            # đều phải chờ duyệt, phá luồng tự chạy. Việc nhạy cảm đã bị keyword/capability
+            # cờ ở trên; tác động ngoài trong từng bước còn được hub chặn theo mode.
+            return "skill"
+        if any(k in text for k in cls._LANE_LIVE):
+            return "live"
+        if any(k in text for k in cls._LANE_SKILL):
+            return "skill"
+        return "fast"
+
     def enqueue(
         self,
         brain: str,
@@ -247,8 +283,10 @@ class TasksFeature:
         idempotency_key: str = "",
     ) -> str:
         root = self._ensure(brain)
+        lane = self._classify_lane(title, intent, route, capability)
         if not needs_approval:
-            needs_approval = self._policy_gate(title, intent, route, capability)
+            needs_approval = self._policy_gate(title, intent, route, capability) \
+                or lane == "controlled"
         status = "todo" if deps else "triage"
         tid = self.store.enqueue(
             root,
@@ -264,6 +302,7 @@ class TasksFeature:
             execution_mode if execution_mode in EXECUTION_MODES else "auto",
             idempotency_key,
             status,
+            metadata={"lane": lane},
         )
         self.store.promote_dependencies(root)
         self._snapshot(root)
