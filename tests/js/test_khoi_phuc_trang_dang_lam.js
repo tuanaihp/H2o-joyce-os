@@ -44,6 +44,7 @@ function navCase(seed, expected) {
     window: {},
     renderPage: id => rendered.push(id),
     refreshModelUi() {}, parkQuickSet() {}, recomputeGraph() {},
+    _ghiVetTrang() {}, _layCuonCho() { return null; }, _traCuon() {}, 
     _pageLeave: null,
   };
   vm.createContext(ctx);

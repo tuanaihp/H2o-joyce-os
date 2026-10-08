@@ -1,5 +1,12 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.3] - 2026-10-08
+### Cải thiện
+- **Nút Quay lại trên đầu mọi trang**: bấm mũi tên sang trang khác xong, nút ghi rõ "Quay lại Bảng điều hành" (hay trang vừa rời) đưa về đúng chỗ đang xem, kể cả vị trí đã cuộn tới.
+- Nút Back của trình duyệt, nút lùi trên chuột và cú vuốt cạnh trên điện thoại cũng lùi về trang trước, không còn văng ra khỏi Joyce.
+- **Thanh trượt Cỡ vành quỹ đạo** trong Cài đặt → Giao diện Joyce → Quả tinh cầu (thẻ Khác): kéo để phóng to hoặc thu nhỏ ba vành quỹ đạo dữ liệu quanh tinh cầu, và thanh **Cỡ chấm trên vành** cho các tiểu hành tinh chạy trên vành.
+- **Gỡ và thêm Fanpage ngay trong Cẩm nang → Fanpage**: mỗi Trang có nút Gỡ (Joyce và AI thôi đụng tới Trang đó, Trang trên Facebook vẫn nguyên), Trang đã gỡ thêm lại được bằng một nút, và nút "Thêm Trang từ Facebook" mở đăng nhập để tick thêm Trang mới.
+
 ## [1.0.2] - 2026-10-07
 ### Cải thiện
 - **Sông dung nham chảy chậm và lan rộng như dòng sông thật**: đầu dòng bò tới từ từ (khoảng 1,5 phút một dòng), phía sau tràn rộng ra, hai bên là dải đất cháy sẫm, mặt dung nham có mảng vỏ nguội trôi chậm.

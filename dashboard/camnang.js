@@ -366,27 +366,48 @@
       return;
     }
     const pages = (r.data && (r.data.pages || (Array.isArray(r.data) ? r.data : []))) || [];
-    if (!pages.length) {
-      box.innerHTML = '<div class="cn-mini-d">' + esc(tw("camnang.fb_pages_none")) + '</div>';
-      return;
-    }
-    box.innerHTML = pages.map(p => {
+    const daGo = (r.data && r.data.hidden) || [];
+    // Hàng Trang là <div role=button> chứ không phải <button>: bên trong còn nút Gỡ, mà nút
+    // lồng trong nút là HTML sai (trình duyệt tách nó ra ngoài, bấm Gỡ thành bấm chọn Trang).
+    box.innerHTML = (pages.length ? pages.map(p => {
       const nq = (p.tasks || []).length;
-      return '<button type="button" class="cn-prow cn-page" data-page="' + esc(p.id)
+      return '<div role="button" tabindex="0" class="cn-prow cn-page" data-page="' + esc(p.id)
         + '" data-pname="' + esc(p.name) + '">'
         + '<span class="cn-plogo">' + iconInner(con || {}) + '</span>'
         + '<span class="cn-pmain"><b>' + esc(p.name) + '</b><span>' + esc(p.category || "") + '</span></span>'
         + '<span class="cn-pcell"><b class="cn-mono">' + esc(p.id) + '</b>'
         + '<span>' + (nq ? esc(tw("camnang.fb_tasks_n", { so: nq })) : "") + '</span></span>'
-        + '<span class="cn-pgo">' + ic("chevron-right") + '</span></button>';
-    }).join("");
-    box.querySelectorAll(".cn-page").forEach(c =>
-      c.onclick = () => {
-        CN_STATE.fbPage = c.dataset.page;
-        box.querySelectorAll(".cn-page").forEach(x => x.classList.toggle("sel", x === c));
-        napBaoCao(c.dataset.page, c.dataset.pname);
-        napBaiDang(c.dataset.page);
-        napTacVu();
+        + '<button type="button" class="cn-prm" data-hide="' + esc(p.id) + '" data-pname="' + esc(p.name) + '"'
+        + ' title="' + esc(tw("camnang.fb_hide_t")) + '" aria-label="' + esc(tw("camnang.fb_hide_t") + ": " + p.name) + '">'
+        + ic("x") + '<span>' + esc(tw("camnang.fb_hide")) + '</span></button>'
+        + '<span class="cn-pgo">' + ic("chevron-right") + '</span></div>';
+    }).join("") : '<div class="cn-mini-d">' + esc(tw("camnang.fb_pages_none")) + '</div>')
+      + theThemTrang(daGo, r.data && r.data.conn_id);
+    ganThemTrang(box, con, r.data && r.data.conn_id);
+    if (!pages.length) return;
+    const chon = (c) => {
+      CN_STATE.fbPage = c.dataset.page;
+      box.querySelectorAll(".cn-page").forEach(x => x.classList.toggle("sel", x === c));
+      napBaoCao(c.dataset.page, c.dataset.pname);
+      napBaiDang(c.dataset.page);
+      napTacVu();
+    };
+    box.querySelectorAll(".cn-page").forEach(c => {
+      c.onclick = (e) => { if (!e.target.closest(".cn-prm")) chon(c); };
+      c.onkeydown = (e) => {
+        if (e.target !== c || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault(); chon(c);
+      };
+    });
+    box.querySelectorAll(".cn-prm").forEach(b =>
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        const dlg = window.JoyceDialog;
+        const dongY = dlg ? await dlg.confirm(tw("camnang.fb_hide_q", { ten: b.dataset.pname }),
+          { title: tw("camnang.fb_hide_t"), okText: tw("camnang.fb_hide"), kind: "warn" }) : true;
+        if (!dongY) return;
+        if (String(CN_STATE.fbPage) === String(b.dataset.hide)) CN_STATE.fbPage = null;
+        await doiHienTrang(b.dataset.hide, true, con);
       });
     // Tự chọn Trang đầu (hoặc trang đã chọn trước) để báo cáo + bài đăng hiện ngay.
     const chonTruoc = CN_STATE.fbPage && pages.find(p => String(p.id) === String(CN_STATE.fbPage));
@@ -397,6 +418,69 @@
     napBaoCao(p0.id, p0.name);
     napBaiDang(p0.id);
     napTacVu();
+  }
+
+  // Gỡ / thêm lại một Trang. Gỡ chỉ là Joyce thôi quản lý (máy chủ ghi hidden_pages vào kết
+  // nối facebook-pages, plugin fb_* lọc theo): Facebook không cho app bỏ riêng một Trang khỏi
+  // token, chỉ thu hồi được cả app.
+  async function doiHienTrang(pid, an, con) {
+    let d = null;
+    try {
+      const r = await fetch("/social/facebook/pages/visibility", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page_id: String(pid), hidden: !!an, brain: brain() }) });
+      d = await r.json().catch(() => null);
+      if (!r.ok && d) d.ok = false;
+    } catch (e) { d = null; }
+    const dlg = window.JoyceDialog;
+    if (!d || d.ok === false) {
+      if (dlg) dlg.toast(tw("camnang.fb_vis_err", { loi: (d && d.error) || "" }), true);
+      return;
+    }
+    if (dlg) dlg.toast(tw(an ? "camnang.fb_hidden_ok" : "camnang.fb_shown_ok"));
+    napFanpages(con);
+  }
+
+  // Khối cuối danh sách: Trang đã gỡ (bấm Thêm lại) + nút đăng nhập Facebook lại để tick thêm
+  // Trang mới. Trang chưa từng tick lúc đăng nhập thì Joyce không thấy, chỉ Facebook thêm được.
+  function theThemTrang(daGo, connId) {
+    let h = '<div class="cn-padd">';
+    if (daGo.length) {
+      h += '<div class="cn-padd-h">' + esc(tw("camnang.fb_hidden_h", { so: daGo.length })) + '</div>'
+        + daGo.map(p => '<div class="cn-prow cn-prow-off">'
+          + '<span class="cn-pmain"><b>' + esc(p.name) + '</b><span>' + esc(p.category || "") + '</span></span>'
+          + '<button type="button" class="cn-padd-btn" data-show="' + esc(p.id) + '">' + ic("plus")
+          + '<span>' + esc(tw("camnang.fb_show")) + '</span></button></div>').join("");
+    }
+    if (connId) {
+      h += '<button type="button" class="cn-padd-btn cn-padd-fb" data-fb-add="1">' + ic("plus")
+        + '<span>' + esc(tw("camnang.fb_add")) + '</span></button>'
+        + '<div class="cn-padd-d">' + esc(tw("camnang.fb_add_d")) + '</div>';
+    }
+    return h + '</div>';
+  }
+  function ganThemTrang(box, con, connId) {
+    box.querySelectorAll("[data-show]").forEach(b =>
+      b.onclick = () => doiHienTrang(b.dataset.show, false, con));
+    const nut = box.querySelector("[data-fb-add]");
+    if (!nut || !connId) return;
+    nut.onclick = async () => {
+      nut.disabled = true;
+      let d = null;
+      try {
+        const r = await fetch("/connect/oauth/start", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: connId }) });
+        d = await r.json().catch(() => null);
+      } catch (e) { d = null; }
+      nut.disabled = false;
+      if (!d || d.ok === false || !d.url) {
+        if (window.JoyceDialog) window.JoyceDialog.toast(tw("camnang.fb_vis_err", { loi: (d && d.error) || "" }), true);
+        return;
+      }
+      window.open(d.url, "_blank");
+      // Đăng nhập xong quay lại tab này là nạp lại danh sách, Trang vừa tick hiện ngay.
+      window.addEventListener("focus", () => napFanpages(con), { once: true });
+    };
   }
 
   // Báo cáo tuần: tổng giá trị mỗi metric + follower hiện tại + ghi chú metric trống/lỗi.

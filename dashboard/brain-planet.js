@@ -538,6 +538,11 @@
     clouds: [0, 1, 0.3], cloudDark: [0, 1, 0],
     coreVis: [0, 2, 1], coreGlow: [0, 2, 1],
     lavaSpeed: [0.2, 3, 1],   // tốc độ chảy của sông dung nham (1 = chậm, ~1,5 phút một dòng)
+    // Cỡ ba vành quỹ đạo dữ liệu, nhân thẳng vào bán kính vành (ringPt). Đáy 0,75 vì vành trong
+    // cùng (1,42 R) nhỏ hơn nữa là chui vào lòng tinh cầu và bị che mất.
+    orbitSize: [0.75, 1.8, 1],
+    // Cỡ các chấm (tiểu hành tinh) chạy trên vành, nhân vào bán kính chấm ở drawParticles.
+    orbitDot: [0.5, 3, 1],
   };
   var LOOK_COLOR = { sunColor: "#ffd46b", seaColor: "#064cff", rimColor: "#00e7ff" };
   var LOOK_BOOL = { rain: false, lightning: false, wind: false, tornado: false, eruption: false, orbits: true };
@@ -1062,7 +1067,7 @@
     ];
     // Điểm góc a trên vành i -> toạ độ màn hình + độ sâu z (>0 là phía trước hành tinh).
     function ringPt(i, a) {
-      var g = RINGS[i], Rr = geo.R * g.k;
+      var g = RINGS[i], Rr = geo.R * g.k * look.orbitSize;
       var x = Math.cos(a) * Rr, y0 = Math.sin(a) * Rr;
       var y = y0 * Math.cos(g.incl), z = -y0 * Math.sin(g.incl);
       var cr = Math.cos(g.roll), sr = Math.sin(g.roll);
@@ -1394,7 +1399,7 @@
         if ((pt.z >= 0) !== front || pt.hidden) return;
         var a = (front ? 0.55 + 0.4 * pt.z : 0.22) * (1 - cur[5] * 0.5) * rf;
         c.fillStyle = rgba(RINGS[p.ring].col, a);
-        c.beginPath(); c.arc(pt.x, pt.y, p.s * (front ? 1.1 : 0.8), 0, 6.2832); c.fill();
+        c.beginPath(); c.arc(pt.x, pt.y, p.s * (front ? 1.1 : 0.8) * look.orbitDot, 0, 6.2832); c.fill();
       });
       // Nghĩ: hạt xoáy nhẹ quanh hành tinh
       if (cur[1] > 0.03 && swirl.length) {

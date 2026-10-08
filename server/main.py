@@ -4704,6 +4704,8 @@ _PLANET_SO = {
     "clouds": (0, 1), "cloudDark": (0, 1),
     "coreVis": (0, 2), "coreGlow": (0, 2),
     "lavaSpeed": (0.2, 3),
+    "orbitSize": (0.75, 1.8),
+    "orbitDot": (0.5, 3),
 }
 _PLANET_MAU = ("sunColor", "seaColor", "rimColor")
 _PLANET_BAT = ("rain", "lightning", "wind", "tornado", "eruption", "orbits")
@@ -17026,7 +17028,7 @@ _STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins",
                "/ollama-local", "/update", "/brand", "/domain", "/chatbots",
                "/secrets", "/brains", "/brain/", "/reminders", "/loops", "/h2o-projects",
                "/projects", "/telegram", "/zalo", "/h2o-departments", "/learn",
-               "/vault")
+               "/vault", "/social/facebook/pages/")
 
 # Chặn MỌI method: mặt chạm tới đĩa NGOÀI brain phòng ban (duyệt ổ đĩa, kiểm đường dẫn tuyệt
 # đối, repo của trang Coding) và /ingest-upload (nhận thẳng đường dẫn thư mục đích từ client,

@@ -193,6 +193,7 @@ const nctx = {
   Alpine: { store: () => nav }, TRANG_GOP: {}, TRANG_CUOI_KEY: "k", localStorage: { setItem() {} },
   window: {}, document: { body: { classList: { toggle() {} } } }, _pageLeave: null,
   renderPage: (id) => rendered.push([id, nav.settingsTab]), refreshModelUi() {}, parkQuickSet() {}, recomputeGraph() {},
+  _ghiVetTrang() {}, _layCuonCho() { return null; }, _traCuon() {}, 
 };
 vm.createContext(nctx);
 vm.runInContext(fn("navigateTo"), nctx);

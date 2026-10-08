@@ -177,6 +177,13 @@ def connection_secrets(cid):
     return secrets_store.decrypt_map((c or {}).get("secrets") or {})
 
 
+def connection_config(cid):
+    """Bản SAO config của 1 connection (dict rỗng nếu không có). Sửa thì ghi lại qua
+    update_connection(cid, {"config": ...}) - config được thay CẢ KHỐI, nên đọc-gộp-ghi."""
+    c = _find(_load(), cid)
+    return dict((c or {}).get("config") or {})
+
+
 def reuse_client_fields(target_con, fields, from_cid, keys=("client_id", "client_secret")):
     """Dùng lại key OAuth client từ connection KHÁC, copy hoàn toàn SERVER-SIDE.
 

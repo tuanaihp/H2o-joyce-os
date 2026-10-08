@@ -33,7 +33,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=2">
   <link rel="stylesheet" href="/static/style.css?v=117">
-  <link rel="stylesheet" href="/static/console.css?v=103">
+  <link rel="stylesheet" href="/static/console.css?v=104">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('joyce.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -638,6 +638,13 @@
 
   <section class="cview" id="cview" x-data x-cloak x-show="$store.nav.active !== 'home'" x-transition.opacity.duration.200ms>
     <div class="cview-head">
+      <!-- Quay lại trang vừa rời, đúng chỗ đang cuộn (luiTrang trong console.js). Chỉ hiện khi
+           có trang để về; nhãn ghi rõ về đâu để không phải đoán. -->
+      <button class="cview-back" type="button" x-show="$store.nav.navStack.length" @click="$store.nav.back()"
+              :title="($store.nav.i18nTick, t('nav.back_to', { trang: ($store.nav.backMeta || {}).label || '' }))"
+              :aria-label="($store.nav.i18nTick, t('nav.back_to', { trang: ($store.nav.backMeta || {}).label || '' }))">
+        <span class="ico" x-html="ic('arrow-left')"></span><span class="cview-back-txt" x-text="($store.nav.backMeta || {}).label || ''"></span>
+      </button>
       <div>
         <!-- meta.icon là TÊN icon Lucide (VIEW_ICON trong console.js) nên phải render
              qua ic() bằng x-html; x-text sẽ in nguyên tên ("brain", "bot"...) ra màn hình. -->
@@ -990,7 +997,7 @@
   <script src="/static/workspace.js?v=16"></script>
   <script src="/static/packs.js?v=2"></script>
   <!-- Trang Cẩm nang (bản đồ năng lực): nạp TRƯỚC console.js để renderPage uỷ quyền được. -->
-  <script src="/static/camnang.js?v=5"></script>
+  <script src="/static/camnang.js?v=6"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots.js?v=17"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
@@ -1011,7 +1018,7 @@
   <script src="/static/mcp-form-parse.js?v=1"></script>
   <!-- Nhóm Tổng quan (Bảng điều hành, Phòng ban, Lịch, Báo cáo): console.js gọi JoyceOverview.render. -->
   <script src="/static/overview.js?v=1"></script>
-  <script src="/static/console.js?v=198"></script>
+  <script src="/static/console.js?v=199"></script>
   <!-- Dock hội thoại nổi bên phải (menu pet -> Trò chuyện). Mượn node chat qua
        JoyceChatBorrow mà console.js expose ở trên, nên phải nạp SAU console.js. -->
   <script src="/static/chat-dock.js?v=1"></script>

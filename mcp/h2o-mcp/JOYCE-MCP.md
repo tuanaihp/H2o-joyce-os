@@ -44,6 +44,31 @@ Vào Joyce → trang **Kết nối** → **Thêm MCP** → transport **HTTP**:
 
 Bấm Lưu → Kết nối. Xong — Joyce tự thấy 6 tool `h2o_*` và dùng được ngay.
 
+## Giữ song song: cổng riêng + cổng chung
+
+Hai kiểu MCP trong một project **cùng tồn tại**, Joyce cắm 2 connection:
+
+| Cổng | Deploy | Tool | Dùng khi |
+|---|---|---|---|
+| **Riêng** (`h2o-mcp`) | Tool nghiệp vụ viết tay cho app: `legacy_list_cases`, `crm_report`... | Ổn định, đúng luật đếm/tính của app, cho nhân viên dùng hằng ngày |
+| **Chung** (`h2o-mcp-open`) | File generic trong thư mục này | `h2o_query`/`h2o_tables`... | Ad-hoc: hỏi bất kỳ bảng nào, kể cả bảng mới chưa có tool riêng |
+
+Deploy song song trong cùng project Supabase:
+
+```bash
+# Ban rieng da co san: functions/h2o-mcp/index.ts -> khong dong
+# Ban chung: dat file index.ts (generic) vao functions/h2o-mcp-open/
+supabase functions deploy h2o-mcp-open --no-verify-jwt
+```
+
+`H2O_MCP_TOKEN` là secret mức project nên **hai function dùng chung một token** —
+không cần set lại. Trong Joyce thêm connection thứ hai trỏ URL
+`.../functions/v1/h2o-mcp-open`, header Bearer giữ nguyên.
+
+Khuyến nghị: cổng riêng đặt tên kết nối `h2o-<app>` (tool chuẩn cho staff), cổng
+chung `h2o-<app>-open` (admin/query tự do) — có thể gỡ `-open` khỏi quyền nhân
+viên nếu muốn giới hạn ai được query tự do.
+
 ## Tool Joyce nhận được
 
 | Tool | Dùng | Args |

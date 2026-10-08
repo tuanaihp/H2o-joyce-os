@@ -360,6 +360,84 @@
     store.openGroup = groupLabelOf(id);
     navigateTo(id, true);
   }
+  // ---- Quay lại trang trước ----
+  // Chủ repo báo 2026-10-08: từ Bảng điều hành bấm mũi tên sang Tệp tin xong là hết đường về,
+  // phải mò lại rail rồi cuộn lại từ đầu. Mọi lần đổi trang đều đi qua navigateTo, nên ghi vệt
+  // ở ĐÚNG một chỗ này là cả hệ thống có nút Quay lại, không trang nào phải tự lo.
+  //
+  // Vệt sống trong store nav (navStack) để nút trên đầu trang tự hiện/ẩn. Mỗi bước còn chèn
+  // một mục History API, nên nút Back của trình duyệt, nút lùi trên chuột và cú vuốt cạnh trên
+  // điện thoại cũng lùi về trang trước thay vì thoát khỏi Joyce. Trình sửa file và lightbox ảnh
+  // cũng chèn mục riêng (không có `jvpg`); đóng chúng thì popstate rơi về đúng mục của trang
+  // hiện tại, và so số `jvpg` với độ sâu vệt là biết đó không phải lùi trang.
+  // Không cắt bớt vệt: số `jvpg` trong lịch sử trình duyệt phải khớp ĐÚNG độ dài vệt, cắt đầu
+  // là lệch và Back phải bấm hai lần. Mỗi bước chỉ vài trường, cả ngày bấm cũng không đáng kể.
+  let _dangLuiTrang = false;     // lần navigateTo này do lùi gây ra: đừng ghi thêm vệt
+  let _cuonCho = null;           // {id, y} - vị trí cuộn cần trả lại sau khi trang lùi về vẽ xong
+  function _doSauLichSu() {
+    const s = history.state;
+    return s && typeof s.jvpg === "number" ? s.jvpg : null;
+  }
+  // Trang lùi về thường nạp số liệu bất đồng bộ, nên chờ tới khi đủ cao mới cuộn. Người dùng tự
+  // cuộn trong lúc chờ thì thôi, đừng giật màn hình của họ.
+  function _traCuon(id, y) {
+    if (!y) return;
+    const t0 = Date.now();
+    const thu = () => {
+      const el = body();
+      if (!el || !window.Alpine || Alpine.store("nav").active !== id || el.scrollTop > 0) return;
+      if (el.scrollHeight - el.clientHeight >= y || Date.now() - t0 > 4000) { el.scrollTop = y; return; }
+      setTimeout(thu, 80);
+    };
+    thu();
+  }
+  // Ghi vệt trước khi rời. Chỉ khi đổi hẳn TRANG: đổi tab trong Cài đặt cũng đi qua
+  // navigateTo mà không đáng một bước lùi.
+  function _ghiVetTrang(store, id) {
+    if (_dangLuiTrang || store.active === id) return;
+    const b = body();
+    store.navStack.push({ id: store.active, tab: store.settingsTab, cnSub: store.cnSub,
+                          cuon: store.active !== "home" && b ? b.scrollTop : 0 });
+    try { history.pushState({ jvpg: store.navStack.length }, ""); } catch (e) {}
+  }
+  function _layCuonCho(id) {
+    const c = _cuonCho && _cuonCho.id === id ? _cuonCho : null;
+    _cuonCho = null;
+    return c;
+  }
+  function _luiVe(muc) {
+    if (!muc) return;
+    const store = Alpine.store("nav");
+    if (muc.id === "camnang") { store.cnSub = muc.cnSub || "tongquan"; try { window.__cnSub = store.cnSub; } catch (e) {} }
+    store.openGroup = groupLabelOf(muc.id) || store.openGroup;
+    _cuonCho = { id: muc.id, y: muc.cuon || 0 };
+    _dangLuiTrang = true;
+    try { navigateTo(muc.id, false, muc.tab); } finally { _dangLuiTrang = false; }
+  }
+  // Nút Quay lại trên đầu trang. Còn đứng trên mục lịch sử của chính bước này thì đi qua
+  // history.back() để vệt Joyce và vệt trình duyệt không lệch nhau; lệch rồi (vd một mã khác
+  // replaceState xoá mất state) thì lùi thẳng.
+  function luiTrang() {
+    const store = Alpine.store("nav");
+    const vet = store.navStack;
+    if (!vet.length) return;
+    if (_doSauLichSu() === vet.length) { try { history.back(); return; } catch (e) {} }
+    _luiVe(vet.pop());
+  }
+  if (typeof window !== "undefined") {
+    try { if (_doSauLichSu() == null) history.replaceState({ ...(history.state || {}), jvpg: 0 }, ""); } catch (e) {}
+    window.addEventListener("popstate", (e) => {
+      if (!window.Alpine) return;
+      const s = e.state || {};
+      if (s.jvfe || s.jvlb) return;            // mục của trình sửa / lightbox, không phải trang
+      const n = typeof s.jvpg === "number" ? s.jvpg : 0;
+      const vet = Alpine.store("nav").navStack;
+      if (n >= vet.length) return;              // vừa đóng trình sửa / lightbox, vẫn trang này
+      let muc = null;
+      while (vet.length > n) muc = vet.pop();
+      _luiVe(muc);
+    });
+  }
   function navigateTo(id) {
     // Trang Chatbot là TAB của trang Hội thoại từ 0.61.0: nhớ tab rồi đi tới trang đó.
     if (id === "chatbots") {
@@ -373,6 +451,9 @@
     if (tab && !["general", "voice", "appearance", "pet", "usage", "updates"].includes(tab)) tab = "general";
     if (oldTab) id = "settings";
     if (store.active === id && (!tab || store.settingsTab === tab)) return;
+    // Cờ `true` (mở trang lúc khởi động, đổi tab Cài đặt) không đáng một bước lùi.
+    if (arguments[1] !== true) _ghiVetTrang(store, id);
+    const cuonCho = _layCuonCho(id);
     const swap = () => {
       const leave = _pageLeave; _pageLeave = null;
       if (leave) { try { leave(); } catch (e) {} }   // dọn trang cũ trước khi thay nội dung
@@ -393,6 +474,7 @@
       // Rời trang Cài đặt → cất #quickSet về holder TRƯỚC khi cviewBody bị ghi đè (giữ node + handler).
       if (id !== "settings") parkQuickSet(true);
       if (id !== "home") renderPage(id);
+      if (cuonCho) _traCuon(id, cuonCho.y);
       recomputeGraph();
     };
     // Dính tab Trò chuyện thì bỏ View Transition: nó chụp snapshot đồ thị của home rồi
@@ -6792,6 +6874,9 @@
         '<div class="mcpf-dan"><label class="mcpf-nhan" for="mfDan">' + ic("clipboard-paste") + esc(window.t("cs.mf_paste_lbl")) + '</label>'
         + '<textarea class="js-input" id="mfDan" rows="3" spellcheck="false" placeholder="' + esc(window.t("cs.mf_paste_ph")) + '"></textarea>'
         + '<div class="mcpf-dan-kq" id="mfDanKq">' + esc(window.t("cs.mf_paste_hint")) + '</div></div>')
+      + '<details class="mcpf-h2o"><summary>' + ic("plug") + esc(window.t("cs.mf_h2o_head")) + '</summary>'
+      + '<div class="mcpf-h2o-body">' + esc(window.t("cs.mf_h2o_body")) + '</div>'
+      + '<div class="mcpf-h2o-body mcpf-h2o-dual">' + esc(window.t("cs.mf_h2o_dual")) + '</div></details>'
       + '<label class="mcpf-nhan" for="mfTen">' + esc(window.t("cs.mf_name")) + '</label>'
       + '<input class="js-input" id="mfTen" placeholder="' + esc(window.t("cs.mf_name_ph")) + '">'
       + '<div class="mcpf-nhan">' + esc(window.t("cs.mf_kind")) + '</div>'
@@ -8151,7 +8236,9 @@
           `<div class="look-fxs">${congTac("eruption", "zap", "look.fx_eruption", "look.fx_eruption_d")}</div>` +
           truot("lavaSpeed", "look.lava_speed", "look.slow", "look.fast"))}
         ${the("layers", "look.other", "",
-          `<div class="look-fxs">${congTac("orbits", "circle", "look.fx_orbits", "look.fx_orbits_d")}</div>`)}
+          `<div class="look-fxs">${congTac("orbits", "circle", "look.fx_orbits", "look.fx_orbits_d")}</div>` +
+          truot("orbitSize", "look.orbit_size", "look.small", "look.big") +
+          truot("orbitDot", "look.orbit_dot", "look.small", "look.big"))}
       </div>
     </div>`;
 
@@ -9112,6 +9199,10 @@
       },
       // Tab con đang chọn của trang Cẩm nang (tongquan/phongban/fanpage/zalo) -
       // rail tô sáng đúng mục con theo biến này, camnang.js đồng bộ khi đổi tab.
+      // Vệt trang đã đi qua cho nút Quay lại (xem luiTrang). Mảng phản ứng: nút tự hiện/ẩn.
+      navStack: [],
+      get backMeta() { void this.i18nTick; const m = this.navStack[this.navStack.length - 1]; return m ? (VIEW_META[m.id] || VIEW_META.home) : null; },
+      back() { luiTrang(); },
       cnSub: "tongquan",
       // Nhóm tab con đang bung (mục cha có `subs`, hiện chỉ Cẩm nang). Chevron sổ
       // xuống trên mục cha bật/tắt; mặc định bung. Nhớ lựa chọn qua localStorage.

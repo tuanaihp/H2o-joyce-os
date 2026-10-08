@@ -100,12 +100,35 @@ def _fmt(d):
     return json.dumps(d, ensure_ascii=False, default=str)
 
 
-async def _pages(user_token):
-    """Danh sách Trang user quản lý, mỗi Trang kèm access_token RIÊNG. Trả (list, err)."""
+def hidden_page_ids():
+    """id các Trang người dùng đã GỠ khỏi Joyce (Cẩm nang → Fanpage → Gỡ). Lưu trong config
+    của kết nối facebook-pages, khoá `hidden_pages`.
+
+    Facebook không cho app tự bỏ một Trang khỏi token (chỉ thu hồi được CẢ app), nên "gỡ" ở
+    đây nghĩa là Joyce thôi quản lý: Trang biến khỏi danh sách và mọi tool fb_* coi như không
+    có Trang đó, AI không đọc, không đăng lên được. Thêm lại là hiện lại ngay, không cần đăng
+    nhập Facebook lần nữa."""
+    cid = _connected_id()
+    if not cid:
+        return set()
+    try:
+        import mcp_store
+        return {str(x) for x in (mcp_store.connection_config(cid).get("hidden_pages") or [])}
+    except Exception:
+        return set()
+
+
+async def _pages(user_token, include_hidden=False):
+    """Danh sách Trang user quản lý, mỗi Trang kèm access_token RIÊNG. Trả (list, err).
+    Mặc định bỏ các Trang đã gỡ khỏi Joyce (hidden_page_ids)."""
     d = await _get("me/accounts", {"fields": "id,name,category,access_token,tasks", "limit": 200}, user_token)
     if isinstance(d, dict) and d.get("error"):
         return None, _fmt(d)
-    return (d or {}).get("data") or [], None
+    pages = (d or {}).get("data") or []
+    if include_hidden:
+        return pages, None
+    an = hidden_page_ids()
+    return [p for p in pages if str(p.get("id")) not in an], None
 
 
 async def _resolve_page(args, user_token):
@@ -137,12 +160,15 @@ async def _list(args, ctx):
     token = await _token()
     if not token:
         return "ERROR: " + (_check() or "chưa kết nối")
-    pages, err = await _pages(token)
+    tat_ca = bool((args or {}).get("include_hidden"))
+    pages, err = await _pages(token, include_hidden=tat_ca)
     if err:
         return err
+    an = hidden_page_ids() if tat_ca else set()
     # KHÔNG lộ access_token của Trang ra output.
     safe = [{"id": p.get("id"), "name": p.get("name"), "category": p.get("category"),
-             "tasks": p.get("tasks")} for p in pages]
+             "tasks": p.get("tasks"), **({"hidden": str(p.get("id")) in an} if tat_ca else {})}
+            for p in pages]
     return json.dumps(safe, ensure_ascii=False, default=str)
 
 
@@ -540,8 +566,11 @@ def register(ctx):
     ctx.register_tool(
         name="fb_pages_list", min_mode="readonly", check_fn=_check, handler=_list,
         description=("Liệt kê các Trang/Fanpage Facebook bạn quản lý (id, tên, hạng mục, quyền). Gọi đầu "
-                     "tiên để lấy id/tên Trang cho các tool khác. KHÔNG lộ token của Trang."),
-        schema={"type": "object", "properties": {}},
+                     "tiên để lấy id/tên Trang cho các tool khác. KHÔNG lộ token của Trang. Trang người "
+                     "dùng đã gỡ khỏi Joyce không hiện, và các tool fb_* khác cũng không thao tác được trên đó."),
+        schema={"type": "object", "properties": {
+            "include_hidden": {"type": "boolean",
+                               "description": "true = kèm cả Trang đã gỡ khỏi Joyce (đánh dấu hidden)"}}},
     )
     ctx.register_tool(
         name="fb_page_posts", min_mode="readonly", check_fn=_check, handler=_posts,

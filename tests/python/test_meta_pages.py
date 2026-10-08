@@ -320,11 +320,55 @@ async def handler_tests():
     pid2, ptok2, _, err2 = await plug._resolve_page({"page": "Shop B"}, "USERTOK")
     check("_resolve_page: khớp theo tên Trang", pid2 == "P2" and ptok2 == "PTOKB" and err2 is None)
 
+    # Gỡ Trang khỏi Joyce (Cẩm nang → Fanpage → Gỡ): Trang biến khỏi danh sách và tool không
+    # chọn được nó nữa; include_hidden thì vẫn thấy, kèm cờ hidden để giao diện cho Thêm lại.
+    plug.hidden_page_ids = lambda: {"P2"}
+    _, _, _, err_an = await plug._resolve_page({"page": "Shop B"}, "USERTOK")
+    check("Trang đã gỡ: tool không chọn được nữa", bool(err_an) and err_an.startswith("ERROR"))
+    pid_con, _, _, _ = await plug._resolve_page({}, "USERTOK")
+    check("Trang đã gỡ: còn 1 Trang thì tự lấy Trang còn lại", pid_con == "P1")
+    ds = json.loads(await plug._list({}, None))
+    check("fb_pages_list: không hiện Trang đã gỡ", [p["id"] for p in ds] == ["P1"])
+    ds_all = json.loads(await plug._list({"include_hidden": True}, None))
+    check("fb_pages_list include_hidden: đủ Trang + cờ hidden",
+          {p["id"]: p["hidden"] for p in ds_all} == {"P1": False, "P2": True})
+    plug.hidden_page_ids = lambda: set()
+
     # format lỗi Graph
     check("_fmt: lỗi Graph → ERROR message",
           plug._fmt({"error": {"message": "boom"}}).startswith("ERROR: Facebook API: boom"))
 
 asyncio.run(handler_tests())
+
+
+# ---- Endpoint gỡ / thêm lại Trang: đọc-gộp-ghi config, không nhân đôi, không đụng khoá khác ----
+async def visibility_tests():
+    import mcp_store
+    import social_ops
+
+    luu = {"cfbp": {"home_dir": "x", "hidden_pages": ["111"]}}
+    social_ops._fb_conn_id = lambda: "cfbp"
+    mcp_store.connection_config = lambda cid: dict(luu.get(cid) or {})
+    mcp_store.update_connection = lambda cid, patch: luu.__setitem__(cid, patch["config"]) or True
+
+    class _Req:
+        def __init__(self, body): self._b = body
+        async def json(self): return self._b
+
+    r = await social_ops.fb_pages_visibility(_Req({"page_id": "222", "hidden": True}))
+    check("visibility: gỡ thêm Trang", r.get("ok") and luu["cfbp"]["hidden_pages"] == ["111", "222"])
+    await social_ops.fb_pages_visibility(_Req({"page_id": "222", "hidden": True}))
+    check("visibility: gỡ lại lần nữa không nhân đôi", luu["cfbp"]["hidden_pages"] == ["111", "222"])
+    await social_ops.fb_pages_visibility(_Req({"page_id": "111", "hidden": False}))
+    check("visibility: thêm lại", luu["cfbp"]["hidden_pages"] == ["222"])
+    check("visibility: giữ nguyên khoá config khác", luu["cfbp"].get("home_dir") == "x")
+    bad = await social_ops.fb_pages_visibility(_Req({"page_id": "../x"}))
+    check("visibility: page_id không phải số → 400", getattr(bad, "status_code", 200) == 400)
+    social_ops._fb_conn_id = lambda: None
+    chua = await social_ops.fb_pages_visibility(_Req({"page_id": "1"}))
+    check("visibility: chưa kết nối → 409", getattr(chua, "status_code", 200) == 409)
+
+asyncio.run(visibility_tests())
 
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")

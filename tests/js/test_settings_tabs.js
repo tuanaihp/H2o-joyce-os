@@ -25,6 +25,7 @@ const ctx = {
   window: {}, document: { body: { classList: { toggle() {} } } },
   _pageLeave: null, renderPage: id => rendered.push([id, nav.settingsTab]),
   refreshModelUi() {}, parkQuickSet() {}, recomputeGraph() {},
+  _ghiVetTrang() {}, _layCuonCho() { return null; }, _traCuon() {}, 
 };
 vm.createContext(ctx);
 vm.runInContext(fn("navigateTo"), ctx);
