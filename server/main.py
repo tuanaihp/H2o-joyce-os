@@ -5567,9 +5567,46 @@ def _scope_root(root: str) -> str:
 def _brain_root(brain: str) -> str:
     if not brain or brain == "brain":
         root = str(_default_brain_dir())
+    elif os.path.isdir(brain):
+        root = brain
     else:
-        root = brain if os.path.isdir(brain) else str(_default_brain_dir())
+        # Tham số là TÊN brain (vd "Marketing - Hinh Anh" - joyce_task, reminders/loop
+        # loaders gọi bằng tên): resolve qua BRAINS_DIR trước khi rơi về mặc định.
+        # Bản cũ chỉ thử isdir() nên TÊN luôn rơi về Brain Default - nhắc hẹn/loop của
+        # mọi phòng ban bị đọc nhầm thành của brain mặc định.
+        root = str(_default_brain_dir())
+        try:
+            cand = (Path(BRAINS_DIR) / brain).resolve()
+            base = Path(BRAINS_DIR).resolve()
+            if cand.is_dir() and base in cand.parents:
+                root = str(cand)
+        except Exception:
+            pass
     return _scope_root(root) if _STAFF_SCOPE.get() else root
+
+
+def _brain_by_name(name: str) -> "str | None":
+    """TÊN brain -> thư mục brain trong BRAINS_DIR (đã qua staff scope). KHÔNG tạo mới,
+    KHÔNG fallback về Brain Default: tên không khớp folder nào thì trả None để caller báo
+    lỗi tường minh - giao việc nhầm brain tệ hơn là báo 'không tìm thấy'."""
+    try:
+        base = Path(BRAINS_DIR).resolve()
+        p = (base / str(name or "").strip()).resolve()
+        if not (p.is_dir() and base in p.parents):
+            return None
+        scope = _STAFF_SCOPE.get()
+        if scope:
+            # Nhân viên: brain đích ngoài phạm vi phòng ban -> TỪ CHỐI (None), không được
+            # _scope_root về brain riêng - đó vẫn là "giao nhầm phòng", chỉ khác hướng rơi.
+            rp = os.path.normcase(str(p))
+            allowed = any(rp == os.path.normcase(s)
+                          or rp.startswith(os.path.normcase(s).rstrip(os.sep) + os.sep)
+                          for s in scope)
+            return str(p) if allowed else None
+        return str(p)
+    except Exception:
+        pass
+    return None
 
 
 def _cwd_luot_chat(row, brain: str) -> str:
@@ -10367,6 +10404,7 @@ def _kanban_brains():
 
 tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     brain_root=_brain_root,
+    brain_by_name=_brain_by_name,
     atomic_write_text=_atomic_write_text,
     execute_workflow=execute_workflow,
     workflows_dir=_workflows_dir,
@@ -17000,9 +17038,16 @@ async def _v1_cmd_today(name: str, brain: str):
     return None
 
 
+_OPS_SUMMARY_CACHE: list = [0.0, {}]   # [timestamp, kết quả] - strip Nhịp ngày CEO quét
+                                      # ~47 brain (list loop + glob ý tưởng) mỗi lần Hôm
+                                      # nay render; 60 giây cache là đủ tươi cho chỉ số này.
+
+
 def _ops_summary() -> dict:
     """Tổng hợp vận hành cho strip 'Nhịp ngày CEO' trên trang Hôm nay: số loop đang bật,
     đang lỗi/tự-pause, đã chạy hôm nay - cộng số file ý tưởng mới trong 7 ngày (mọi brain)."""
+    if time.time() - _OPS_SUMMARY_CACHE[0] < 60:
+        return _OPS_SUMMARY_CACHE[1]
     out = {"loops_on": 0, "loops_bad": 0, "loops_ran": 0, "ideas_week": 0}
     cutoff = time.time() - 7 * 86400
     today = _today()
@@ -17027,6 +17072,8 @@ def _ops_summary() -> dict:
                     1 for f in d.glob("*.md") if f.stat().st_mtime > cutoff)
         except Exception:
             pass
+    _OPS_SUMMARY_CACHE[0] = time.time()
+    _OPS_SUMMARY_CACHE[1] = out
     return out
 
 

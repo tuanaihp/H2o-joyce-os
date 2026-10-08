@@ -101,6 +101,10 @@ class TasksDeps:
     mcp_allow_patterns: Optional[Callable[[], List[str]]] = None
     report: Optional[Callable] = None
     aux_swap: Optional[Callable] = None
+    # Tên brain -> thư mục brain (resolve server-side, áp staff scope). None nếu tên không
+    # tồn tại. Cần vì brain_root() chỉ nhận "brain"/đường dẫn - truyền TÊN thì rơi câm về
+    # Brain Default (vi phạm luật không fallback câm).
+    brain_by_name: Optional[Callable[[str], Optional[str]]] = None
     # Nối Kanban → tự học: việc nền chạy xong/vướng thì xếp vào hàng đợi học (learn.enqueue_job).
     # Tiêm sau khi learn_feature sẵn sàng (main gán). None = chưa nối → bỏ qua, worker chạy như cũ.
     learn_hook: Optional[Callable] = None
@@ -128,7 +132,16 @@ class TasksFeature:
     # Board identity, migration and portable snapshot
     # ------------------------------------------------------------------
     def _root(self, brain: str) -> str:
-        return str(Path(self.deps.brain_root(brain)).resolve())
+        b = str(brain or "").strip()
+        # brain là TÊN (không phải đường dẫn tồn tại): resolve qua brain_by_name. Không
+        # resolve được -> raise, TUYỆT ĐỐI không rơi câm về Brain Default - một task giao
+        # nhầm phòng còn tệ hơn một task báo lỗi.
+        if b and b != "brain" and not os.path.isdir(b) and self.deps.brain_by_name:
+            hit = self.deps.brain_by_name(b)
+            if hit:
+                return str(Path(hit).resolve())
+            raise ValueError(f"không tìm thấy brain '{b}'")
+        return str(Path(self.deps.brain_root(b)).resolve())
 
     def _legacy_path(self, root: str) -> Path:
         return Path(root) / "Joyce" / "kanban.json"
@@ -487,6 +500,13 @@ class TasksFeature:
                         tid, worker_id, "transient", error, transient=True
                     )
                 else:
+                    # Specifier vừa đọc kỹ việc: capability mới + intent đã chuẩn hoá có thể
+                    # lộ ra việc nhạy cảm mà tiêu đề gốc giấu đi (vd "báo khách" -> external-
+                    # write). Cờ duyệt phải re-check ở đây, không thì việc chạm ngoài đi
+                    # thẳng cột xong mà không qua review.
+                    needs_appr = bool(task.get("needs_approval")) \
+                        or spec.get("capability") in self._POLICY_CAPABILITIES \
+                        or self._policy_gate(spec["intent"], "", "auto", spec["capability"])
                     final_task = self.store.prepared(
                         tid,
                         worker_id,
@@ -499,6 +519,7 @@ class TasksFeature:
                             "acceptance": spec.get("acceptance", []),
                             "specifier": spec.get("specifier", "ai"),
                         },
+                        needs_approval=needs_appr,
                     )
                 return
 

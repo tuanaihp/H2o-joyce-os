@@ -671,7 +671,10 @@ class TaskStore:
                 """SELECT * FROM tasks
                    WHERE brain_root=? AND status IN ('triage','ready')
                      AND not_before <= ?
-                     AND (title LIKE '[Ý tưởng]%' OR title LIKE '[Y tuong]%')
+                     AND (title LIKE '[Ý tưởng]%' OR title LIKE '[ý tưởng]%'
+                          OR title LIKE '[Ý TƯỞNG]%' OR title LIKE '[Y tuong]%'
+                          OR title LIKE '[y tuong]%' OR title LIKE '[Y TUONG]%'
+                          OR title LIKE '[Idea]%')
                    ORDER BY CASE status WHEN 'triage' THEN 0 ELSE 1 END,
                             priority, created_at
                    LIMIT 1""",
@@ -870,13 +873,14 @@ class TaskStore:
         capability: str,
         execution_mode: str,
         metadata: Optional[dict] = None,
+        needs_approval: Optional[bool] = None,
     ) -> Optional[dict]:
         ts = now()
         with self._lock:
             self._tx()
             try:
                 row = self._db.execute(
-                    """SELECT current_run_id FROM tasks
+                    """SELECT current_run_id, metadata_json FROM tasks
                        WHERE id=? AND status='running' AND claimed_by=?""",
                     (task_id, worker_id),
                 ).fetchone()
@@ -884,16 +888,25 @@ class TaskStore:
                     self._db.rollback()
                     return None
                 run_id = str(row["current_run_id"] or "")
+                # GỘP metadata thay vì ghi đè: lane (đặt lúc enqueue) và các cờ khác phải
+                # sống sót qua vòng specifier, không thì thẻ mất nhãn đường xử lý.
+                merged = _loads(row["metadata_json"], {})
+                merged.update(metadata or {})
+                appr_sql = ""
+                if needs_approval:
+                    # Specifier vừa nâng việc thành nhạy cảm (external-write...) -> cờ duyệt
+                    # phải bật NGAY tại đây, không thì việc chạm ngoài đi thẳng 'done'.
+                    appr_sql = ", needs_approval=1"
                 self._db.execute(
                     """UPDATE tasks
                        SET status='ready', attempts=CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,
                            intent=?, capability=?, execution_mode=?,
                            metadata_json=?, claimed_by='', claim_expires_at=0,
-                           current_run_id='', updated_at=?
+                           current_run_id='', updated_at=?""" + appr_sql + """
                        WHERE id=?""",
                     (
                         intent, capability or "files", execution_mode or "auto",
-                        _json(metadata or {}), ts, task_id,
+                        _json(merged), ts, task_id,
                     ),
                 )
                 if run_id:
