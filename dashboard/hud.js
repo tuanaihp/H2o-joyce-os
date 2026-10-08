@@ -412,6 +412,108 @@
     });
   }
 
+  // ---------- Tia tri thức khi hỏi Joyce (docs/dev/2026-10-tia-tri-thuc-khi-hoi.md) ----------
+  // app.js bắn "joyce:turn-trace" theo nhịp của lượt chat: start (gửi câu hỏi), tool (mỗi lệnh
+  // gọi công cụ, kèm đường dẫn file), answer (chữ trả lời bắt đầu chạy), done (xong / lỗi).
+  // Ở đây ghép file -> thiên thể và công cụ -> app H2O / cổng nguồn ngoài, rồi đẩy cho tinh cầu.
+  function gapKhoa(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+  function chuanDuong(s) {
+    return String(s || "").replace(/\\/g, "/").replace(/^(…|\.\.\.)\//, "").trim().toLowerCase()
+      .replace(/\.(docx?|xlsx?|pptx?|pdf)\.txt$/, ".$1");   // X.docx.txt là bản chữ của X.docx
+  }
+  // Đường dẫn file Joyce đọc -> thiên thể. Không khớp thiên thể nào thì BỎ (không bịa sợi).
+  function ghepThienThe(files) {
+    var bs = (D.know && D.know.bodies) || [], ten = tenBrainDangMo().toLowerCase(), out = [], da = {};
+    if (!bs.length) return out;
+    (files || []).forEach(function (f) {
+      var p = chuanDuong(f);
+      if (!p) return;
+      var ung = bs.filter(function (b) {
+        var bp = String(b.path || "").toLowerCase();
+        return bp && (p === bp || p.slice(-(bp.length + 1)) === "/" + bp);
+      });
+      if (!ung.length) return;
+      var hon = ung.filter(function (b) { return p.indexOf("/" + String(b.brain).toLowerCase() + "/") >= 0; })[0]
+        || ung.filter(function (b) { return String(b.brain).toLowerCase() === ten; })[0] || ung[0];
+      if (!da[hon.id]) { da[hon.id] = 1; out.push(hon); }
+    });
+    return out;
+  }
+  // Công cụ -> nguồn dữ liệu ngoài ({key, label}) hoặc null nếu là công cụ cục bộ.
+  var NGUON_TIEN_TO = { fb: "Facebook", zalo: "Zalo", crm: "CRM", pos: "POS" };
+  function nguonNgoai(tool) {
+    var t0 = String(tool || "").trim();
+    if (!t0) return null;
+    if (/^web_?(search|fetch)$/i.test(t0)) return { key: "internet", label: "Internet" };
+    var ps = t0.split("__"), srv = "";
+    if (ps.length >= 3 && ps[0] === "mcp") srv = ps[1];
+    else if (ps.length >= 2 && ps[0]) srv = ps[0];
+    else {
+      var m = /^([a-z]+)_/i.exec(t0);
+      if (m && NGUON_TIEN_TO[m[1].toLowerCase()]) return { key: m[1].toLowerCase(), label: NGUON_TIEN_TO[m[1].toLowerCase()] };
+      return null;
+    }
+    var k = gapKhoa(srv);
+    if (/facebook|^fb/.test(k)) return { key: k, label: "Facebook" };
+    if (/zalo/.test(k)) return { key: k, label: "Zalo" };
+    return { key: k, label: srv.replace(/[-_]+/g, " ") };
+  }
+  // Nguồn ngoài trùng một app H2O đang là thiên thể (Mặt Trời, Mặt Trăng, vệ tinh) -> id app.
+  function appCuaNguon(key) {
+    if (!key || key.length < 3) return null;
+    // Trùng hẳn, hoặc phần chứa nhau dài >= 5 ký tự: "facebookpages" chứa "book" (id ngắn của
+    // H2OBOOK) mà không được coi là H2OBOOK (test bắt được 2026-10-08).
+    var khop = function (a) { return a === key || (a.length >= 5 && key.indexOf(a) >= 0) || (key.length >= 5 && a.indexOf(key) >= 0); };
+    var hit = healthList().filter(function (p) { return khop(gapKhoa(p.name)) || khop(gapKhoa(p.id)); })[0];
+    return hit ? hit.id : null;
+  }
+  window.addEventListener("joyce:turn-trace", function (e) {
+    var d = e.detail || {};
+    if (!planet || !planet.traceTurn) return;
+    if (d.pha === "tool") {
+      ghepThienThe(d.files).forEach(function (b) { planet.traceTurn("source", { id: b.id }); });
+      var g = nguonNgoai(d.tool);
+      if (g) {
+        var app = appCuaNguon(g.key);
+        planet.traceTurn("gate", app ? { kind: "sat", id: app } : { kind: "edge", label: g.label });
+      }
+    } else if (d.pha === "start" || d.pha === "answer" || d.pha === "done") planet.traceTurn(d.pha);
+  });
+  // Chip "Nguồn tri thức" dưới câu trả lời. Bầu trời chưa nạp (đang ở trang Trò chuyện, chưa
+  // mở màn Joyce) thì nạp trước rồi mới ghép.
+  function damBaoKnow() {
+    if (D.know) return Promise.resolve(D.know);
+    return jget("/knowledge/sky?brain=" + encodeURIComponent(brainPath())).then(function (r) {
+      if (r && r.ok !== false) { D.know = gopBanChu(r); _knowBrain = brainPath(); }
+      return D.know;
+    });
+  }
+  function chipNguon(el, files) {
+    if (!el || !files || !files.length) return;
+    damBaoKnow().then(function () {
+      var ds = ghepThienThe(files);
+      if (!ds.length || el.querySelector(".jv-nguon")) return;
+      var box = document.createElement("div");
+      box.className = "jv-nguon";
+      var nhan = document.createElement("span");
+      nhan.className = "jv-nguon-k"; nhan.textContent = t("hud.k_sources");
+      box.appendChild(nhan);
+      ds.slice(0, 8).forEach(function (b) {
+        var bt = document.createElement("button");
+        bt.type = "button"; bt.textContent = b.title || b.path; bt.title = (b.brain ? b.brain + " · " : "") + b.path;
+        bt.addEventListener("click", function () { moFileTriThuc(b); });
+        box.appendChild(bt);
+      });
+      if (ds.length > 8) {
+        var them = document.createElement("span");
+        them.className = "jv-nguon-k"; them.textContent = "+" + (ds.length - 8);
+        box.appendChild(them);
+      }
+      el.appendChild(box);
+    });
+  }
+  window.JoyceTriThuc = { ghep: ghepThienThe, nguon: nguonNgoai, chips: chipNguon };
+
   // ---------- Big Bang khi tìm kiếm (giai đoạn 2) ----------
   // console.js (ô VAULT) bắn "joyce:vault-search" khi bấm Enter hoặc ngừng gõ 0,7 giây; ở đây
   // hỏi /knowledge/search (cùng phạm vi bầu trời, admin ở brain chủ = mọi phòng) rồi đẩy kết

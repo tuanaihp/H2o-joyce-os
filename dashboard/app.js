@@ -1044,6 +1044,13 @@ function handleMessage(data) {
   // khung chat chết cứng ở "đang suy nghĩ" ngay sau khi một việc nền báo xong. Chủ dự án gặp
   // 15/09: "sau khi có đoạn chạy nền thì không nói nữa luôn, không nhắn tiếp vào khung chat".
   const KHUNG_LUOT = ["status", "tool_call", "tool_result", "stream", "response", "error", "turn_done"];
+  // Tia tri thức (docs/dev/2026-10-tia-tri-thuc-khi-hoi.md): báo nhịp của lượt cho tinh cầu.
+  const veTriThuc = (pha, them) => {
+    try { window.dispatchEvent(new CustomEvent("joyce:turn-trace", { detail: Object.assign({ pha }, them || {}) })); } catch (e) {}
+  };
+  // Máy chủ cũ chưa gửi `files`: bóc từ `detail` nếu nó trông như đường dẫn file.
+  const tepCuaLenh = (d) => (Array.isArray(d.files) && d.files.length) ? d.files
+    : (/[\/\\]/.test(d.detail || "") && /\.[a-z0-9]{1,5}$/i.test(d.detail || "") ? [d.detail] : []);
   const t = !sid ? null
     : (turns[sid] || (KHUNG_LUOT.includes(data.type)
         ? (turns[sid] = { text: "", bubble: null, spoke: false, running: true })
@@ -1094,10 +1101,14 @@ function handleMessage(data) {
   }
   if (data.type === "status") {
     if (t) t.running = true;
+    if (isActive && t && !t.triThuc) { t.triThuc = true; veTriThuc("start"); }
     setSessionRunning(sid, true);
     if (isActive) { runActions(turn.turnStart()); showActivity(escapeHtml(data.content || "")); syncActiveUI(); }
   } else if (data.type === "tool_call") {
     if (t && window.JoyceSteps) t.buoc = window.JoyceSteps.nhan(t.buoc, data);
+    const _tep = tepCuaLenh(data);
+    if (t) t.tep = (t.tep || []).concat(_tep);
+    if (isActive) veTriThuc("tool", { tool: data.tool || "", files: _tep });
     if (isActive) {
       runActions(turn.toolCall(data.tool || ""));
       veKhoiBuoc(t, true);
@@ -1114,6 +1125,7 @@ function handleMessage(data) {
     t.text += (data.content || "");
     if (isActive) {
       petReact("viet");   // chữ trả lời đang chảy về: linh vật chuyển từ nghĩ sang cắm cúi viết
+      if (!t.triThucTraLoi) { t.triThucTraLoi = true; veTriThuc("answer"); }
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
       t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
@@ -1165,6 +1177,9 @@ function handleMessage(data) {
         if (ask) window.JoyceAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
+      veTriThuc("answer"); veTriThuc("done");
+      // Chip "Nguồn tri thức": tài liệu Joyce thật sự đọc trong lượt này (hud.js ghép với bầu trời).
+      if (t && t.tep && t.tep.length && window.JoyceTriThuc) window.JoyceTriThuc.chips(msgEl, t.tep);
       // V3: bộ não giọng vừa giao một việc chạy NỀN (tách nói khỏi làm). Ghi rõ dưới câu xác
       // nhận để người dùng biết việc đã nhận; kết quả về sau bằng khung push (tự đọc khi loa rảnh).
       // 0.64.48: vẽ bằng chat-viec.js (dòng gọn có icon) và GHI kèm khối JOYCE_VIEC vào bản lưu
@@ -1198,6 +1213,7 @@ function handleMessage(data) {
     if (isActive) {
       hideActivity();
       veKhoiBuoc(t, false);
+      veTriThuc("done");
       const errEl = appendJoyceError(data.content);
       runActions(turn.turnDone());   // lỗi cũng là hết lượt; turn_done theo sau chỉ lặp lại
       if (data.limit) {

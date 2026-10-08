@@ -1,5 +1,11 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.1.0] - 2026-10-08
+### Thêm mới
+- **Tia tri thức khi hỏi Joyce**: gửi câu hỏi là từ ghim H2O phát vòng sóng quét bầu trời. Mỗi tài liệu Joyce thật sự đọc thì ngôi sao (hoặc viên đá vụn) đó bừng sáng và có sợi sáng chạy về H2O. Joyce bắt đầu trả lời thì các sợi co về và ghim H2O loé sáng.
+- Joyce lấy dữ liệu từ app H2O thì tia đi từ đúng vệ tinh / Mặt Trời của app đó; từ Facebook, Zalo, Internet thì đi từ cổng ở mép trái có ghi tên nguồn. Không đọc tài liệu nào thì chỉ một nhịp sáng nhẹ ở lõi địa cầu, không bịa tia.
+- **Hàng chip "Nguồn tri thức"** dưới câu trả lời: tài liệu Joyce đã đọc, bấm là mở file.
+
 ## [1.0.9] - 2026-10-08
 ### Cải thiện
 - **Bấm vào thiên thể giờ mở theo hai bước**: trước tiên là thẻ tóm tắt nhỏ (đầu mục, thuộc phòng nào), bấm **Mở** trên thẻ mới mở khung đọc file lớn. Mở được cả file ở brain phòng ban khác.

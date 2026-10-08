@@ -74,6 +74,49 @@ def _tu_dict(d: dict, sau: int = 0) -> str:
     return ""
 
 
+# Khoá mang ĐƯỜNG DẪN FILE trong tham số lệnh gọi (Claude Read/Edit, Codex, công cụ vault của
+# bộ não API...). Dùng cho tia tri thức khi hỏi Joyce (docs/dev/2026-10-tia-tri-thuc-khi-hoi.md):
+# trình duyệt ghép đường dẫn với thiên thể để biết Joyce vừa đọc tài liệu nào.
+_KHOA_TEP = ("file_path", "notebook_path", "path", "paths", "file", "files", "target_file", "filename")
+
+
+def _tep_tu(d, sau: int, out: list) -> None:
+    if sau > 3 or not isinstance(d, dict):
+        return
+    for k in _KHOA_TEP:
+        v = d.get(k)
+        for x in (v if isinstance(v, list) else [v]):
+            if isinstance(x, str) and x.strip() and len(x) < 500 and "\n" not in x:
+                out.append(x.strip())
+    for k in ("arguments", "input", "parameters", "args"):
+        v = d.get(k)
+        if isinstance(v, str) and v.strip()[:1] == "{":
+            try:
+                v = json.loads(v)
+            except Exception:
+                v = None
+        if isinstance(v, dict):
+            _tep_tu(v, sau + 1, out)
+
+
+def tep(ev) -> list:
+    """Đường dẫn file ĐẦY ĐỦ (không rút gọn như chi_tiet) trong một lệnh gọi, tối đa 8, không
+    trùng, giữ thứ tự. [] khi không có hoặc payload lạ."""
+    out: list = []
+    try:
+        if isinstance(ev, dict):
+            for k in ("input", "item"):
+                _tep_tu(ev.get(k), 0, out)
+    except Exception:
+        return []
+    gon, da = [], set()
+    for x in out:
+        if x not in da:
+            da.add(x)
+            gon.append(x)
+    return gon[:8]
+
+
 def chi_tiet(ev) -> str:
     """Một dòng mô tả lệnh gọi từ sự kiện `tool_call` của engine. "" khi không rút được."""
     try:

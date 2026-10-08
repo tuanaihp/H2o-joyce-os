@@ -2152,6 +2152,154 @@
       return { x: geo.cx + v[0] * geo.R, y: geo.cy - v[1] * geo.R };
     }
 
+    // ---- Tia tri thức khi hỏi Joyce (docs/dev/2026-10-tia-tri-thuc-khi-hoi.md) ----
+    // Chỉ diễn đúng việc Joyce thật sự làm trong lượt: mỗi tài liệu đọc / nguồn ngoài gọi là một
+    // sợi sáng về ghim H2O Studio. Không đọc gì thì không có sợi nào, chỉ một nhịp sáng ở lõi.
+    var TR_MAX = 24, TR_GROW = 0.5, TR_BACK = 0.7, TR_GLOW = 10000;
+    function trMoi() { return { on: false, t0: 0, tAns: 0, tDone: 0, threads: [], keys: {}, used: [], glowUntil: 0 }; }
+    var tr = trMoi();
+    function trPin() {   // ghim H2O Studio; khuất sau địa cầu thì mép địa cầu phía ghim
+      var p = studioPt();
+      if (p) return p;
+      var st = window.JoyceVNGeo && window.JoyceVNGeo.studio;
+      if (st && geo.R) {
+        var v = toView(Gm, geoVec(st.lat, st.lon)), l = Math.hypot(v[0], v[1]) || 1;
+        return { x: geo.cx + v[0] / l * geo.R, y: geo.cy - v[1] / l * geo.R };
+      }
+      return { x: geo.cx, y: geo.cy };
+    }
+    function trSatPos(id) {
+      var all = sats.slice();
+      if (sun) all.push(sun);
+      if (moon) all.push(moon);
+      for (var i = 0; i < all.length; i++) {
+        var s = all[i];
+        if (s && s.p && s.pt && String(s.p.id) === String(id)) return { x: s.pt.x, y: s.pt.y };
+      }
+      return null;
+    }
+    function traceTurn(pha, d) {
+      var now = performance.now();
+      d = d || {};
+      if (pha === "start") { tr = trMoi(); tr.on = true; tr.t0 = now; return; }
+      if (pha === "done") {
+        if (!tr.on) return;
+        if (!tr.tAns) tr.tAns = now;
+        tr.tDone = now; tr.on = false;
+        tr.used = tr.threads.filter(function (x) { return x.kind === "src"; }).map(function (x) { return x.k; });
+        tr.glowUntil = now + TR_BACK * 1000 + TR_GLOW;
+        return;
+      }
+      if (!tr.on) { tr = trMoi(); tr.on = true; tr.t0 = now; }   // an toàn khi thiếu "start"
+      if (pha === "answer") { if (!tr.tAns) tr.tAns = now; return; }
+      if (tr.tAns || tr.threads.length >= TR_MAX) return;      // đã trả lời: không mọc sợi mới
+      var key = pha === "source" ? "s" + d.id : "g" + (d.kind === "sat" ? d.id : d.label);
+      if (tr.keys[key]) return;
+      var th = { t0: now, ph: Math.random(), bend: (Math.random() - 0.5) * 0.6 };
+      if (pha === "source") {
+        var k = know.byId[d.id];
+        if (!k) return;
+        th.kind = "src"; th.k = k;
+      } else if (pha === "gate") {
+        th.kind = d.kind === "sat" ? "sat" : "edge"; th.id = d.id; th.label = String(d.label || "");
+        th.gi = tr.threads.filter(function (x) { return x.kind === "edge"; }).length;
+      } else return;
+      tr.keys[key] = 1;
+      tr.threads.push(th);
+    }
+    function trStart(th) {
+      if (th.kind === "src") return knowPos(th.k);
+      if (th.kind === "sat") return trSatPos(th.id);
+      var ins = (opts.insets && opts.insets()) || { left: 0, top: 0 };
+      return { x: (ins.left || 0) + 26, y: (ins.top || 0) + 70 + th.gi * 46 };
+    }
+    function trCurve(A, B, bend, u) { return bez(A, B, bend, u); }
+    function drawTrace(c, now) {
+      var song = tr.on && !tr.tAns, lite = profile === "safe" || profile === "reduced";
+      if (!tr.on && !tr.tAns && now > tr.glowUntil) return;
+      if (!tr.on && tr.tAns && now - tr.tAns > (TR_BACK + 1.2) * 1000 && now > tr.glowUntil) return;
+      var P = trPin(), maxR = Math.max(W, H) * 0.9;
+      c.save();
+      c.globalCompositeOperation = "lighter";
+      // 1. Vòng sóng quét từ H2O, lặp mỗi 2,4 giây tới khi có câu trả lời
+      if (song) {
+        for (var w = 0; w < (lite ? 1 : 2); w++) {
+          var ph = ((now - tr.t0) / 2400 + w * 0.5) % 1;
+          if (lite && (now - tr.t0) > 2400) break;
+          c.strokeStyle = "rgba(90,220,255," + 0.32 * (1 - ph) + ")"; c.lineWidth = 1.5;
+          c.beginPath(); c.arc(P.x, P.y, 6 + ph * maxR, 0, 6.2832); c.stroke();
+        }
+      }
+      // 2. Sợi sáng: mọc dần từ nguồn về H2O, hạt sáng trôi về H2O; trả lời thì co về H2O
+      var back = tr.tAns ? clamp((now - tr.tAns) / (TR_BACK * 1000), 0, 1) : 0;
+      if (back < 1) {
+        c.lineCap = "round";
+        tr.threads.forEach(function (th) {
+          var A = trStart(th);
+          if (!A) return;
+          var grow = clamp((now - th.t0) / (TR_GROW * 1000), 0, 1), u0 = back * back, u1 = grow;
+          if (u1 <= u0) return;
+          var col = th.kind === "src" ? th.k.col : th.kind === "sat" ? PAL.gold : PAL.mint;
+          var bendK = lite ? 0 : th.bend, n = 18, pts = [];
+          for (var i = 0; i <= n; i++) pts.push(trCurve(A, P, bendK, u0 + (u1 - u0) * i / n));
+          for (var pass = 0; pass < 2; pass++) {
+            c.strokeStyle = pass ? rgba([235, 250, 255], 0.75) : rgba(col, 0.18);
+            c.lineWidth = pass ? 1.3 : 5;
+            c.beginPath(); c.moveTo(pts[0].x, pts[0].y);
+            for (var j = 1; j < pts.length; j++) c.lineTo(pts[j].x, pts[j].y);
+            c.stroke();
+          }
+          if (!lite) for (var q = 0; q < 3; q++) {   // hạt sáng trôi về H2O
+            var s = ((now - th.t0) / 1000 * 0.55 + q / 3 + th.ph) % 1;
+            if (s < u0 || s > u1) continue;
+            var pp = trCurve(A, P, bendK, s);
+            c.fillStyle = rgba(col, 0.95); c.beginPath(); c.arc(pp.x, pp.y, 2, 0, 6.2832); c.fill();
+          }
+          if (back === 0) {   // nguồn đang được đọc: vòng sáng nhấp nháy
+            var rr = 6 + 2 * Math.sin(now / 160 + th.ph * 6);
+            c.strokeStyle = rgba(col, 0.85); c.lineWidth = 1.4;
+            c.beginPath(); c.arc(A.x, A.y, rr, 0, 6.2832); c.stroke();
+          }
+          if (th.kind === "edge" && back === 0) {   // cổng nguồn ngoài ở mép trái + tên nguồn
+            c.globalCompositeOperation = "source-over";
+            c.font = "600 10.5px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "left"; c.textBaseline = "middle";
+            c.fillStyle = "rgba(200,255,240,0.9)"; c.fillText(th.label, A.x + 12, A.y);
+            c.globalCompositeOperation = "lighter";
+          }
+        });
+      }
+      // 3. Kiến thức về tới nơi: H2O loé sáng; không đọc gì thì chỉ một nhịp sáng nhẹ ở lõi
+      if (tr.tAns) {
+        var coSoi = tr.threads.length > 0, fu = (now - tr.tAns) / 1000 - (coSoi ? TR_BACK : 0);
+        if (fu >= 0 && fu < 1.2) {
+          var e = fu / 1.2, a = 1 - e;
+          if (coSoi) {
+            var gr = c.createRadialGradient(P.x, P.y, 0, P.x, P.y, 8 + 46 * e);
+            gr.addColorStop(0, "rgba(255,255,255," + a + ")"); gr.addColorStop(0.4, "rgba(120,230,255," + 0.7 * a + ")");
+            gr.addColorStop(1, "rgba(120,230,255,0)");
+            c.fillStyle = gr; c.beginPath(); c.arc(P.x, P.y, 8 + 46 * e, 0, 6.2832); c.fill();
+            c.strokeStyle = "rgba(150,240,255," + 0.6 * a + ")"; c.lineWidth = 1.6;
+            c.beginPath(); c.arc(P.x, P.y, 10 + 80 * e, 0, 6.2832); c.stroke();
+          } else {
+            var cr = geo.R * 0.55, cg = c.createRadialGradient(geo.cx, geo.cy, 0, geo.cx, geo.cy, cr);
+            cg.addColorStop(0, "rgba(150,230,255," + 0.22 * a + ")"); cg.addColorStop(1, "rgba(150,230,255,0)");
+            c.fillStyle = cg; c.beginPath(); c.arc(geo.cx, geo.cy, cr, 0, 6.2832); c.fill();
+          }
+        }
+      }
+      // 4. Thiên thể đã dùng còn sáng thêm 10 giây
+      if (tr.used.length && now < tr.glowUntil) {
+        var ga = clamp((tr.glowUntil - now) / 3000, 0, 1);
+        tr.used.forEach(function (k) {
+          var p = knowPos(k);
+          if (!p) return;
+          c.strokeStyle = rgba(k.col, 0.7 * ga); c.lineWidth = 1.3;
+          c.beginPath(); c.arc(p.x, p.y, 6 + Math.sin(now / 300) * 1.2, 0, 6.2832); c.stroke();
+        });
+      }
+      c.restore();
+    }
+
     // ---- Big Bang khi tìm kiếm (giai đoạn 2, mục 6 của docs/dev/2026-10-bau-troi-tri-thuc.md) ----
     // Bản 1.0.6 theo góp ý chủ (2026-10-08): tinh cầu kiến thức GIỮ NGUYÊN CHỖ trên bầu trời và
     // phóng to tại chỗ. Với mỗi kết quả: các thiên thể lân cận lao vào nó (0,3-1,1s), nổ LỬA vàng
@@ -2161,7 +2309,12 @@
     var FOC_MAX = 12, FOC_MORE = 30;
     var FOC_T = { dim: 0.3, hit: 1.1, fire: 0.6, blue0: 1.6, blue: 1.0, grow0: 1.6, grow1: 2.7, sun0: 2.0, sun1: 3.6, close: 0.8 };
     var FOC_GALAXY = [[255, 92, 190], [80, 150, 255], [150, 100, 255]];   // hồng, xanh, tím
-    function focDim() { return foc ? 1 - 0.7 * (foc.dark || 0) : 1; }
+    function focDim() {
+      var d = foc ? 1 - 0.7 * (foc.dark || 0) : 1;
+      // đang quét tìm kiến thức cho câu hỏi (tia tri thức): sao mờ đi một chút
+      if (typeof tr !== "undefined" && tr.on && !tr.tAns) d *= 0.8;
+      return d;
+    }
     // Thiên thể đang là kết quả, hoặc đã lao vào vụ nổ: trời nền không vẽ nó trong lúc diễn.
     function focHidden(k) { return !!(foc && k && k.b && (foc.ids[k.b.id] || foc.gone[k.b.id])); }
     // Chỗ THẬT của một thiên thể trên màn hình, kể cả khi nó không được vẽ (vượt trần, khuất).
@@ -3621,6 +3774,7 @@
       drawGlyphs(c, now);
       drawVN(c, now);
       drawIngest(c, now, ddt);
+      drawTrace(c, now);                            // tia tri thức của câu hỏi đang trả lời
       if (opts.labels !== false) drawLabels(c);
       drawKnowFocus(c, now, reduced ? 0.12 : dt);   // Big Bang đè lên trên cùng (kể cả nhãn)
       drawBHView(c, now, reduced ? 0.12 : dt);      // cảnh nhìn sâu vào hố đen phủ cả khung
@@ -3919,6 +4073,12 @@
     };
     // Bầu trời tri thức (hud.js đọc /knowledge/sky): {scope, brains, bodies, counts}.
     R.setKnowledge = setKnowledge;
+    // Tia tri thức khi hỏi Joyce (hud.js đổi khung tool_call của lượt chat thành các pha này).
+    R.traceTurn = traceTurn;
+    R.traceInfo = function () {
+      return { on: tr.on, answered: !!tr.tAns, threads: tr.threads.map(function (x) { return x.kind + ":" + (x.k ? x.k.b.id : x.id || x.label); }),
+               used: tr.used.length };
+    };
     // Nhìn sâu vào hố đen (bấm giữa hố đen, hoặc gọi thẳng). Esc / bấm bất kỳ đâu để ra.
     R.openBlackHole = function (v) { openBlackHole(v !== false); };
     R.blackHoleView = function () {

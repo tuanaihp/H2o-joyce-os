@@ -227,6 +227,11 @@ Lỗi bắt được khi chụp thử bằng Chrome chạy ngầm (2026-10-08), 
 - Nửa gần của đĩa là nửa PHÍA DƯỚI trên màn (sin > 0 khi y hướng xuống); lấy ngược thì nửa xa
   vẽ đè lên hố.
 
+## 7c. Tia tri thức khi hỏi Joyce (1.1.0)
+
+Thiết kế riêng: `docs/dev/2026-10-tia-tri-thuc-khi-hoi.md` (nhịp diễn một câu hỏi, ghép file với
+thiên thể, nguồn ngoài, chip "Nguồn tri thức").
+
 ## 8. Kiến trúc và API
 
 ### 8.1 Máy chủ (`server/knowledge_sky.py`, mount qua `register(app, deps)`)

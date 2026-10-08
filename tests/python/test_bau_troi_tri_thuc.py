@@ -150,6 +150,21 @@ check("tìm: nhân viên chỉ trong brain của mình",
       all(h["brain"] == "Brain Default" for h in ks.tim("brain", "báo giá")["hits"]))
 dang_la_nhan_vien["v"] = False
 
+# ---- tia tri thức: tool_label.tep rút đường dẫn file đầy đủ từ lệnh gọi công cụ ----
+import tool_label  # noqa: E402
+check("tep: Claude Read file_path tuyệt đối, KHÔNG rút gọn",
+      tool_label.tep({"input": {"file_path": "E:/brains/ThuyH2O - Noi Quy va Bieu Mau/wiki/a.md"}})
+      == ["E:/brains/ThuyH2O - Noi Quy va Bieu Mau/wiki/a.md"])
+check("tep: arguments JSON lồng (Codex / MCP / bộ não API) + paths dạng mảng",
+      tool_label.tep({"item": {"arguments": '{"path": "wiki/b.md", "paths": ["sources/c.docx"]}'}}) == ["wiki/b.md", "sources/c.docx"])
+check("tep: lệnh không có file / payload lạ -> []",
+      tool_label.tep({"input": {"command": "ls"}}) == [] and tool_label.tep(None) == [] and tool_label.tep({"input": "x"}) == [])
+check("tep: không trùng, tối đa 8", tool_label.tep({"input": {"paths": ["a.md"] * 3 + [f"f{i}.md" for i in range(12)]}})
+      == ["a.md"] + [f"f{i}.md" for i in range(7)])
+main_src = (SERVER / "main.py").read_text(encoding="utf-8")
+check("mọi chỗ gửi tool_call đều kèm files", main_src.count('"files": tool_label.tep(') == 7
+      and main_src.count("tool_label.chi_tiet(") == 7)
+
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")
     sys.exit(1)

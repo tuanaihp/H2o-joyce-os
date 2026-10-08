@@ -3600,6 +3600,7 @@
   "hud.vault": "KNOWLEDGE PULSE",
   "hud.chats": "RECENT SIGNALS",
   "hud.k_title": "KNOWLEDGE STORE",
+  "hud.k_sources": "Knowledge sources",
   "hud.k_scope_all": "· {n} brains",
   "hud.k_scope_one": "· this brain",
   "hud.k_total": "Total documents",

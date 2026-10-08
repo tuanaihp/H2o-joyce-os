@@ -3600,6 +3600,7 @@
   "hud.vault": "NHỊP TRI THỨC",
   "hud.chats": "TÍN HIỆU GẦN",
   "hud.k_title": "KHO TRI THỨC",
+  "hud.k_sources": "Nguồn tri thức",
   "hud.k_scope_all": "· {n} brain",
   "hud.k_scope_one": "· brain này",
   "hud.k_total": "Tổng tài liệu",
