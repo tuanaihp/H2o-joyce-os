@@ -333,9 +333,9 @@
     if (b.kind === "orbit") return t(KNOW_RING[b.ring | 0] || KNOW_RING[0]);
     return t(b.kind === "star" && b.proc ? KNOW_KIND.proc : (KNOW_KIND[b.kind] || KNOW_KIND.star));
   }
-  // Mở thẳng file của thiên thể trong trình xem/sửa (chủ yêu cầu 2026-10-08: "click vào phải dẫn
-  // đến file quy trình cần đọc"). File ở brain phòng khác (trời gộp của admin) mở theo đường dẫn
-  // gốc brain máy chủ trả trong `brains`; brain đang mở thì đi đường thường.
+  // Mở file của thiên thể trong trình xem/sửa lớn, gọi từ nút Mở của thẻ tóm tắt. File ở brain
+  // phòng khác (trời gộp của admin) mở theo đường dẫn gốc brain của nó; brain đang mở thì đi
+  // đường thường.
   // Đường dẫn gốc brain của thiên thể. Ba nguồn theo thứ tự: `brains` của /knowledge/sky (máy chủ
   // 1.0.7 trở đi), ô chọn brain (giá trị "path:..." kèm data-brain-name = tên thư mục), rồi
   // /brains. Hai nguồn sau để máy chủ chưa khởi động lại vẫn mở được (và ô chọn có thể đang ẩn
@@ -769,7 +769,9 @@
         insets: planetInsets,
         onPlanetClick: function () { var vb = document.getElementById("voiceBtn"); if (vb) vb.click(); },
         onSatelliteClick: function (p) { openCtx(p); },
-        onKnowledgeClick: function (b) { openKnow(b); moFileTriThuc(b); },
+        // Hai bước (chủ chốt 2026-10-08): bấm thiên thể chỉ mở THẺ TÓM TẮT; khung đọc file lớn
+        // chỉ mở khi bấm nút Mở trên thẻ (moFileTriThuc). Bản 1.0.7 mở cả hai cùng lúc.
+        onKnowledgeClick: function (b) { openKnow(b); },
         onKnowledgeHover: baoRePhiaVault,
         onBackgroundClick: function () { if (_ctxId != null) closeCtx(); },
       });

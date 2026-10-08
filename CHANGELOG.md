@@ -1,5 +1,9 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.9] - 2026-10-08
+### Cải thiện
+- **Bấm vào thiên thể giờ mở theo hai bước**: trước tiên là thẻ tóm tắt nhỏ (đầu mục, thuộc phòng nào), bấm **Mở** trên thẻ mới mở khung đọc file lớn. Mở được cả file ở brain phòng ban khác.
+
 ## [1.0.8] - 2026-10-08
 ### Sửa lỗi
 - **Số tài liệu thô không còn bị đếm đôi**: mỗi file Word đều có một bản chữ trích ra đi kèm, trước đây thành hai viên đá vụn. Giờ 47 brain đúng 261 tài liệu thô (trước báo 477), và Đọc nhanh file Word ra được đầu mục thật.

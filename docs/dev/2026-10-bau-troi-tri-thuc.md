@@ -187,8 +187,9 @@ Kết quả ngoài phần đang vẽ (vượt trần mục 4) vẫn hiện: ch�
 Chủ báo 2026-10-08: bấm một tinh thể hiện tên quy trình nhưng không dẫn tới file. Gốc: trời gộp
 của admin có file ở brain phòng khác, mà nút Mở chỉ hiện khi file thuộc brain đang mở, và trình
 sửa file luôn đọc theo brain đang mở. Sửa:
-- Bấm thiên thể (cả tinh cầu kết quả Big Bang) mở THẲNG file trong trình xem/sửa
-  (`JoyceFileEditor.open(path, {brain})`); thẻ Đọc nhanh vẫn mở phía sau.
+- Hai bước (chủ chốt lại ở 1.0.9, vì 1.0.7 mở cả thẻ lẫn khung file cùng lúc): bấm thiên thể
+  (cả tinh cầu kết quả Big Bang) chỉ mở THẺ TÓM TẮT; nút **Mở** trên thẻ mới mở khung file lớn
+  (`JoyceFileEditor.open(path, {brain})`), kể cả file ở brain phòng khác.
 - `file-editor.js` nhận `opts.brain` để mở file của brain khác brain đang mở.
 - Tìm đường dẫn gốc brain theo thứ tự: `brains[].path` của `/knowledge/sky` (chỉ brain trong phạm
   vi), ô chọn brain (`data-brain-name`), rồi `/brains`. Máy chủ chưa khởi động lại vẫn mở được.

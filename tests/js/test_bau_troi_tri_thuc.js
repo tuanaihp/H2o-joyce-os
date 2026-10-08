@@ -84,8 +84,9 @@ check("công tắc knowledge trong LOOK_BOOL + FX_KEYS",
 check("R.setKnowledge + R.knowledgeInfo lộ ra", /R\.setKnowledge = setKnowledge;/.test(PLANET) && /R\.knowledgeInfo = /.test(PLANET));
 check("hud.js nạp /knowledge/sky và đọc nhanh /knowledge/quick",
   /\/knowledge\/sky\?brain=/.test(HUD) && /\/knowledge\/quick\?brain=/.test(HUD) && /onKnowledgeClick: function \(b\) \{ openKnow\(b\);/.test(HUD));
-check("bấm thiên thể mở THẲNG file (kể cả file ở brain phòng khác)",
-  /onKnowledgeClick: function \(b\) \{ openKnow\(b\); moFileTriThuc\(b\); \}/.test(HUD)
+check("bấm thiên thể CHỈ mở thẻ tóm tắt; nút Mở trên thẻ mới mở khung file lớn (kể cả brain phòng khác)",
+  /onKnowledgeClick: function \(b\) \{ openKnow\(b\); \},/.test(HUD)
+  && /if \(mo\) mo\.addEventListener\("click", function \(\) \{ moFileTriThuc\(b\); \}\);/.test(HUD)
   && /window\.JoyceFileEditor\.open\(b\.path, goc \? \{ brain: goc \} : null\)/.test(HUD));
 check("tìm brain của file: /knowledge/sky -> ô chọn brain -> /brains (máy chủ cũ vẫn mở được)",
   /x\.dataset\.brainName === b\.brain/.test(HUD) && /jget\("\/brains"\)/.test(HUD) && /hit\.is_default \? "brain" : hit\.path/.test(HUD));
