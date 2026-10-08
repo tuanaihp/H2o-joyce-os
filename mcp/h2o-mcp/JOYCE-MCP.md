@@ -36,11 +36,12 @@ supabase secrets set H2O_MCP_ALLOW=bang1,bang2       # neu dat: CHI cho doc cac 
 
 Vào Joyce → trang **Kết nối** → **Thêm MCP** → transport **HTTP**:
 
-| Ô | Điền |
-|---|---|
-| Tên | `h2o-<ten-app>` (vd `h2o-legacy`, `h2o-book`) |
-| URL | `https://<project-ref>.supabase.co/functions/v1/h2o-mcp` |
-| Header | `Authorization: Bearer <H2O_MCP_TOKEN>` |
+| Ô | Điền | Lấy ở đâu |
+|---|---|---|
+| Tên | `h2o-<ten-app>` (vd `h2o-legacy`) | Tự đặt cho dễ nhớ |
+| URL | `https://<ref>.supabase.co/functions/v1/h2o-mcp` | `<ref>` = Project Reference ID: supabase.com/dashboard → project → **Settings → General → Reference ID** (hoặc Project URL ở Settings → Data API) |
+| Header trái | `Authorization` | Cố định |
+| Header phải | `Bearer <H2O_MCP_TOKEN>` | Token ngẫu nhiên ≥24 ký tự do người deploy tạo lúc `supabase secrets set H2O_MCP_TOKEN=...` — hỏi admin. Supabase không cho xem lại secret sau khi set, admin phải tự lưu |
 
 Bấm Lưu → Kết nối. Xong — Joyce tự thấy 6 tool `h2o_*` và dùng được ngay.
 

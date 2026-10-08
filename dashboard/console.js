@@ -6876,6 +6876,10 @@
         + '<div class="mcpf-dan-kq" id="mfDanKq">' + esc(window.t("cs.mf_paste_hint")) + '</div></div>')
       + '<details class="mcpf-h2o"><summary>' + ic("plug") + esc(window.t("cs.mf_h2o_head")) + '</summary>'
       + '<div class="mcpf-h2o-body">' + esc(window.t("cs.mf_h2o_body")) + '</div>'
+      + '<div class="mcpf-h2o-body">' + esc(window.t("cs.mf_h2o_name")) + '</div>'
+      + '<div class="mcpf-h2o-body">' + esc(window.t("cs.mf_h2o_url")) + '</div>'
+      + '<div class="mcpf-h2o-body">' + esc(window.t("cs.mf_h2o_tok")) + '</div>'
+      + '<div class="mcpf-h2o-body">' + esc(window.t("cs.mf_h2o_new")) + '</div>'
       + '<div class="mcpf-h2o-body mcpf-h2o-dual">' + esc(window.t("cs.mf_h2o_dual")) + '</div></details>'
       + '<label class="mcpf-nhan" for="mfTen">' + esc(window.t("cs.mf_name")) + '</label>'
       + '<input class="js-input" id="mfTen" placeholder="' + esc(window.t("cs.mf_name_ph")) + '">'

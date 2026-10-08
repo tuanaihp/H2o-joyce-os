@@ -10395,6 +10395,12 @@ import social_ops
 
 social_ops.register(app, _brain_root)
 
+# BẦU TRỜI TRI THỨC (knowledge_sky.py, docs/dev/2026-10-bau-troi-tri-thuc.md): mỗi tài liệu kiến
+# thức là một thiên thể quanh quả tinh cầu. Chỉ đọc; phạm vi nhân viên đi qua _brain_root.
+import knowledge_sky
+
+knowledge_sky.register(app, _brain_root, _default_brain_dir, lambda: bool(_STAFF_SCOPE.get()), BRAINS_DIR)
+
 
 @app.get("/viec/all")
 async def viec_all():
