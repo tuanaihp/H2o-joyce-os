@@ -270,9 +270,58 @@
     _knowBrain = b;
     jget("/knowledge/sky?brain=" + encodeURIComponent(b) + (fresh ? "&fresh=1" : "")).then(function (r) {
       if (!r || r.ok === false || _knowBrain !== b) return;
+      r = gopBanChu(r);
       D.know = r;
       if (planet) planet.setKnowledge(r);
+      paintPanels();
     });
+  }
+  // Gộp X.docx.txt (bản chữ trích ra) vào X.docx rồi đếm lại theo đúng các loại thiên thể. Máy
+  // chủ 1.0.8 đã tự gộp; làm cả ở đây để máy chủ chưa khởi động lại vẫn ra số đúng.
+  function gopBanChu(r) {
+    var bs = r.bodies || [], co = {};
+    bs.forEach(function (b) { if (b.kind === "debris") co[b.brain + "\n" + b.path.toLowerCase()] = 1; });
+    var gon = bs.filter(function (b) {
+      if (b.kind !== "debris") return true;
+      var p = b.path.toLowerCase();
+      if (!/\.txt$/.test(p)) return true;
+      var goc = p.slice(0, -4);
+      return !(/\.[a-z0-9]+$/.test(goc) && co[b.brain + "\n" + goc]);
+    });
+    var tt = {};
+    (r.brains || []).forEach(function (x) { tt[x.key] = x.brand || ""; });
+    var c = { star: 0, orbit: 0, debris: 0, proc: 0, skill: 0, workflow: 0, memory: 0, total: gon.length,
+              brains: (r.brains || []).length, brands: {} };
+    gon.forEach(function (b) {
+      c[b.kind] = (c[b.kind] || 0) + 1;
+      if (b.proc) c.proc++;
+      if (b.kind === "orbit") c[["skill", "workflow", "memory"][b.ring | 0] || "skill"]++;
+      var ten = tt[b.brain] || "";
+      c.brands[ten] = (c.brands[ten] || 0) + 1;
+    });
+    var out = {};
+    for (var k in r) out[k] = r[k];
+    out.bodies = gon; out.counts = c;
+    return out;
+  }
+  // Khối KHO TRI THỨC trong khung TÍN HIỆU GẦN: số tài liệu chia đúng các loại thiên thể đang vẽ.
+  function khoTriThucHtml() {
+    var c = D.know && D.know.counts;
+    if (!c) return "";
+    var ten = { "": t("hud.k_owner") }, br = c.brands || {}, ds = [];
+    for (var k in br) ds.push([k, br[k]]);
+    ds.sort(function (a, b) { return b[1] - a[1]; });
+    return '<div class="hp-sub">' + esc(t("hud.k_title")) + ' <span>' +
+        esc(D.know.scope === "all" ? t("hud.k_scope_all", { n: c.brains }) : t("hud.k_scope_one")) + "</span></div>" +
+      row(t("hud.k_total"), c.total, "ok") +
+      row(t("hud.k_star"), c.star + (c.proc ? " · " + t("hud.k_proc", { n: c.proc }) : "")) +
+      row(t("hud.k_skill"), c.skill) +
+      row(t("hud.k_workflow"), c.workflow) +
+      row(t("hud.k_memory"), c.memory) +
+      row(t("hud.k_debris"), c.debris) +
+      (ds.length > 1 ? '<div class="hp-brands">' + ds.map(function (x) {
+        return "<span>" + esc(ten[x[0]] != null ? ten[x[0]] : x[0]) + " <b>" + x[1] + "</b></span>";
+      }).join("") + "</div>" : "");
   }
   function tenBrainDangMo() {
     var b = brainPath();
@@ -431,6 +480,7 @@
               fmtAgo(s.updated_at) + "</span></div>";
           }).join("")
         : '<div class="hp-empty">' + t("hud.none") + "</div>";
+      el.innerHTML += khoTriThucHtml();
     }
     // Phải 2: lịch hẹn - nhãn + ĐẾM NGƯỢC (tickClock cập nhật mỗi giây)
     el = document.getElementById("hpSched");

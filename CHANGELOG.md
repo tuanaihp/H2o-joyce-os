@@ -1,5 +1,11 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.8] - 2026-10-08
+### Sửa lỗi
+- **Số tài liệu thô không còn bị đếm đôi**: mỗi file Word đều có một bản chữ trích ra đi kèm, trước đây thành hai viên đá vụn. Giờ 47 brain đúng 261 tài liệu thô (trước báo 477), và Đọc nhanh file Word ra được đầu mục thật.
+### Thêm mới
+- **Khối KHO TRI THỨC trong khung TÍN HIỆU GẦN** (góc phải trên): tổng số tài liệu và chia đúng như bầu trời: sao đã chưng cất (bao nhiêu quy trình), kỹ năng, quy trình Joyce, trí nhớ doanh nghiệp, đá vụn tài liệu thô, kèm số theo từng thương hiệu.
+
 ## [1.0.7] - 2026-10-08
 ### Sửa lỗi
 - **Bấm vào ngôi sao, chấm hay tinh cầu kiến thức là mở thẳng file đó** để đọc, kể cả file nằm ở brain phòng ban khác khi đang xem bầu trời gộp ở Brain Default. Thẻ Đọc nhanh vẫn còn phía sau, đóng file là thấy.

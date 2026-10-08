@@ -100,5 +100,36 @@ check("chữ mới không có gạch ngang dài", !khoa.some((k) => /[–—]/.t
 const css = STYLE.slice(STYLE.indexOf("/* Thẻ Đọc nhanh"), STYLE.indexOf(".planet-ctx .pc-know-note"));
 check("CSS thẻ Đọc nhanh dùng token theme, không màu cứng", css.length > 100 && !/#[0-9a-f]{3,6}\b|\bwhite\b(?!-)/i.test(css));
 
+// ---- KHO TRI THỨC trong khung TÍN HIỆU GẦN (chạy thật trong vm) ----
+function fnHud(name) {
+  const s = HUD.indexOf("\n  function " + name + "(");
+  if (s < 0) { check("hud.js có hàm " + name, false); return ""; }
+  let i = HUD.indexOf("{", s), d = 0;
+  for (; i < HUD.length; i++) { if (HUD[i] === "{") d++; else if (HUD[i] === "}" && --d === 0) break; }
+  return HUD.slice(s, i + 1);
+}
+const hctx = { D: {}, t: (k, v) => k + (v ? JSON.stringify(v) : ""), esc: (s) => String(s),
+  row: (k, v) => "<row " + k + "=" + v + ">" };
+vm.createContext(hctx);
+vm.runInContext(fnHud("gopBanChu") + "\n" + fnHud("khoTriThucHtml"), hctx);
+const raw = { scope: "all", brains: [{ key: "A", brand: "H2O Studio" }, { key: "B", brand: "ThuyH2O" }, { key: "C", brand: "" }],
+  bodies: [
+    { id: "1", kind: "debris", brain: "A", path: "sources/x.docx" }, { id: "2", kind: "debris", brain: "A", path: "sources/x.docx.txt" },
+    { id: "3", kind: "debris", brain: "B", path: "sources/x.docx.txt" }, { id: "4", kind: "star", brain: "B", path: "wiki/q.md", proc: true },
+    { id: "5", kind: "orbit", ring: 0, brain: "C", path: "skills/s/SKILL.md" }, { id: "6", kind: "orbit", ring: 2, brain: "A", path: "memory/facts/f.md" }] };
+const g = hctx.gopBanChu(raw);
+check("trình duyệt cũng gộp X.docx.txt cùng brain (khác brain thì giữ)", g.bodies.length === 5 && !g.bodies.some((b) => b.id === "2"));
+check("đếm lại đúng loại", g.counts.total === 5 && g.counts.debris === 2 && g.counts.star === 1 && g.counts.proc === 1
+  && g.counts.skill === 1 && g.counts.memory === 1 && g.counts.workflow === 0);
+check("đếm theo thương hiệu", g.counts.brands["H2O Studio"] === 2 && g.counts.brands.ThuyH2O === 2 && g.counts.brands[""] === 1);
+hctx.D.know = g;
+const html = hctx.khoTriThucHtml();
+check("khối KHO TRI THỨC có tổng, từng loại và thương hiệu",
+  /hud\.k_title/.test(html) && /hud\.k_total=5/.test(html) && /hud\.k_debris=2/.test(html) && /hud\.k_owner/.test(html));
+check("khối nằm trong khung TÍN HIỆU GẦN", /el\.innerHTML \+= khoTriThucHtml\(\);/.test(HUD));
+const khoaKho = ["hud.k_title", "hud.k_scope_all", "hud.k_scope_one", "hud.k_total", "hud.k_star", "hud.k_proc", "hud.k_skill",
+  "hud.k_workflow", "hud.k_memory", "hud.k_debris", "hud.k_owner"];
+check("đủ chữ vi + en cho KHO TRI THỨC", khoaKho.every((k) => VI[k] && EN[k]));
+
 if (fails.length) { console.log("\n" + fails.length + " FAIL"); process.exit(1); }
 console.log("\nOK - test_bau_troi_tri_thuc: tất cả pass");

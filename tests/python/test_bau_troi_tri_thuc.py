@@ -42,6 +42,10 @@ viet(chu / "wiki" / "1. Quy Trình Báo Giá.md", "---\ntags: [quy-trinh]\n---\n
 viet(chu / "wiki" / "index.md", "# chỉ mục")
 viet(chu / "wiki" / "_open-questions.md", "x")
 viet(chu / "sources" / "bao-gia-2026.pdf", "%PDF")
+# Tài liệu .docx kèm bản chữ trích ra (X.docx.txt): CÙNG một tài liệu, chỉ được là MỘT viên đá vụn.
+viet(chu / "sources" / "quy-trinh-coc.docx", "PK")
+viet(chu / "sources" / "quy-trinh-coc.docx.txt", "Quy trình cọc\n# Nhận cọc khách\n# Hoàn cọc khách\n")
+viet(chu / "sources" / "ghi-chu-rieng.txt", "txt đứng riêng vẫn là tài liệu")
 viet(chu / "inbox" / "ghi-chu.md", "ghi chú thô")
 viet(chu / "skills" / "tu-van-bao-gia" / "SKILL.md", "---\nname: Tư vấn báo giá\n---\n")
 viet(chu / "skills" / "joyce-builder" / "SKILL.md", "---\nname: joyce-builder\n---\n")
@@ -76,6 +80,14 @@ check("thiên thể không mang đường dẫn tuyệt đối", not any(str(goc
 check("id cố định giữa hai lần dựng", ks._dung_troi("brain")["bodies"][0]["id"] == d["bodies"][0]["id"]
       and B("wiki/bang-gia.md")["id"] == ks._id_of("Brain Default", "wiki/bang-gia.md"))
 check("số đếm khớp", d["counts"]["total"] == len(d["bodies"]) and d["counts"]["star"] == 3)
+check("X.docx.txt gộp vào X.docx (không đếm đôi)",
+      B("sources/quy-trinh-coc.docx") is not None and B("sources/quy-trinh-coc.docx.txt") is None
+      and B("sources/ghi-chu-rieng.txt") is not None)
+c0 = d["counts"]
+check("số đếm chia đúng loại thiên thể: proc, kỹ năng, quy trình Joyce, trí nhớ",
+      c0["proc"] == 1 and c0["skill"] == 1 and c0["workflow"] == 1 and c0["memory"] == 1
+      and c0["skill"] + c0["workflow"] + c0["memory"] == c0["orbit"])
+check("số đếm theo thương hiệu cộng lại đủ tổng", sum(c0["brands"].values()) == c0["total"] and c0["brains"] == 2)
 
 # ---- phạm vi ----
 d2 = ks._dung_troi(str(phong))
@@ -98,6 +110,8 @@ r = asyncio.run(quick(src=phong.name, path="wiki/kich-ban.md"))
 check("đọc nhanh: brain phòng trong trời gộp", r.get("ok") and r["bullets"] == ["Chào khách", "Hỏi ngày cưới"])
 check("đọc nhanh: chặn ..", asyncio.run(quick(src="Brain Default", path="../ThuyH2O - Marketing va Bao Gia/wiki/kich-ban.md")).get("status") == 400)
 check("đọc nhanh: brain lạ ngoài phạm vi -> 403", asyncio.run(quick(src="Khong Co", path="wiki/x.md")).get("status") == 403)
+r = asyncio.run(quick(src="Brain Default", path="sources/quy-trinh-coc.docx"))
+check("đọc nhanh .docx: lấy chữ từ bản .docx.txt đi kèm", r.get("text_file") is True and r["bullets"] == ["Nhận cọc khách", "Hoàn cọc khách"])
 r = asyncio.run(quick(src="Brain Default", path="sources/bao-gia-2026.pdf"))
 check("đọc nhanh: file thô không phải văn bản", r.get("ok") and r["text_file"] is False and r["bullets"] == [])
 dang_la_nhan_vien["v"] = True

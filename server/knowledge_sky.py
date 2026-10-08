@@ -176,8 +176,9 @@ def _quet_brain(root: Path, key: str) -> list:
             continue
         for dp, dns, fns in os.walk(base):
             dns[:] = [d for d in dns if not _bo_qua(d)]
+            co = {f.lower() for f in fns}
             for fn in fns:
-                if _bo_qua(fn):
+                if _bo_qua(fn) or _la_ban_chu(fn, co):
                     continue
                 p = Path(dp) / fn
                 info = _info(p) if fn.lower().endswith(".md") else {"mtime": _mtime(p)}
@@ -218,6 +219,16 @@ def _quet_brain(root: Path, key: str) -> list:
                 info = _info(p)
                 them(p, "star", 0, info.get("title") or "", info, proc=_la_quy_trinh(p.stem, info))
     return out
+
+
+def _la_ban_chu(fn: str, cung_thu_muc: set) -> bool:
+    """`X.docx.txt` nằm cạnh `X.docx`: bản chữ trích ra để chưng cất, CÙNG một tài liệu. Đếm cả
+    hai thì 209 tài liệu .docx thành 418 viên đá vụn (chủ hỏi 2026-10-08 sao số liệu lệch)."""
+    f = fn.lower()
+    if not f.endswith(".txt"):
+        return False
+    goc = f[:-4]
+    return "." in goc and goc in cung_thu_muc
 
 
 def _skill_he_thong(slug: str) -> bool:
@@ -306,9 +317,17 @@ def _dung_troi(brain: str) -> dict:
         b["recent"] = bool(b["_mtime"] and bay_gio - b["_mtime"] < _GAN_DAY)
     bodies.sort(key=lambda b: (-b["size"], b["id"]))
     tong = len(bodies)
-    counts = {"star": 0, "orbit": 0, "debris": 0, "total": tong}
+    counts = {"star": 0, "orbit": 0, "debris": 0, "total": tong, "proc": 0, "skill": 0, "workflow": 0,
+              "memory": 0, "brains": len(ds), "brands": {}}
+    tt = {k: _thong_tin_brain(k) for k, _ in ds}
     for b in bodies:
         counts[b["kind"]] += 1
+        if b.get("proc"):
+            counts["proc"] += 1
+        if b["kind"] == "orbit":
+            counts[("skill", "workflow", "memory")[b["ring"]]] += 1
+        ten = tt.get(b["brain"], {}).get("brand") or ""
+        counts["brands"][ten] = counts["brands"].get(ten, 0) + 1
     gon = [{k: v for k, v in b.items() if not k.startswith("_")} for b in bodies[:_TOI_DA_THIEN_THE]]
     # `path` của từng brain: để trình duyệt mở được file ở brain phòng khác khi bấm một thiên thể
     # (bầu trời gộp của admin). Chỉ brain TRONG phạm vi mới có mặt ở đây, nên nhân viên không
@@ -497,7 +516,12 @@ async def knowledge_quick(brain: str = Query("brain"), src: str = Query(""), pat
     if not p.is_file():
         return _err("không thấy tài liệu", 404)
     la_md = p.suffix.lower() in (".md", ".txt")
-    txt = _doc_text(p) if la_md else ""
+    ban_chu = p.with_name(p.name + ".txt")   # X.docx -> X.docx.txt (bản chữ trích sẵn)
+    if not la_md and ban_chu.is_file():
+        la_md = True
+        txt = _doc_text(ban_chu)
+    else:
+        txt = _doc_text(p) if la_md else ""
     info = _info(p) if p.suffix.lower() == ".md" else {}
     return {"ok": True, "title": info.get("title") or p.stem, "brain_name": goc.name, "src": goc.name,
             "path": rel, "updated": _mtime(p), "text_file": la_md,

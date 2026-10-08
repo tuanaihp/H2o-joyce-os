@@ -303,6 +303,26 @@ opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
 - Đang nổ thì chưa bấm được gì; tinh cầu bấm được khi đã nở quá 60%; đang thu về thì không
   bấm được nữa (test canh cả ba).
 
+### 9.2 Đối chiếu số liệu với đĩa (1.0.8, chủ hỏi 2026-10-08 "có khớp dữ liệu thực tế không")
+
+Đếm lại toàn bộ 1973 file trong 47 brain (bỏ thư mục ẩn):
+
+| Thư mục | File trên đĩa | Thành thiên thể | Vì sao chênh |
+|---|---|---|---|
+| `wiki/` | 410 | 222 sao (214 quy trình) | 188 = 4 trang quản trị wiki x 47 brain (`index`, `log`, `_open-questions`, `_session-handoff`) |
+| `sources/` + `inbox/` | 473 + 4 | 261 đá vụn | **209 file `X.docx.txt` là bản chữ trích từ chính `X.docx`**: trước 1.0.8 đếm đôi thành 477. Giờ gộp làm một (máy chủ `_la_ban_chu` + trình duyệt `gopBanChu`), Đọc nhanh của `.docx` lấy chữ từ bản `.txt` đó |
+| `skills/` | 297 SKILL.md | 15 kỹ năng | 282 = 6 skill hệ thống x 47 brain |
+| `memory/` | 70 | 14 trí nhớ | chỉ `facts/`; `MEMORY.md` (chỉ mục) và `conversations/` (nhật ký thô) không phải kiến thức |
+| `workflows/` | 0 | 0 | chưa brain nào có |
+| `Joyce/`, `agents/`, `00 - Dashboard`, `CLAUDE.md`, `AGENTS.md` | 157 + 45 + 47 + 94 | 0 | file hệ thống / vai trò, không phải tài liệu kiến thức |
+
+Tổng 512 tài liệu: H2O Studio 304, ThuyH2O 190, Brain chủ 18. Khối **KHO TRI THỨC** trong khung
+TÍN HIỆU GẦN (hud.js `khoTriThucHtml`) hiện đúng các số này, chia theo đúng loại thiên thể.
+
+Trên màn thấy ít hơn tổng là đúng: sao rải trên vỏ cầu quanh địa cầu nên một phần nằm sau lưng
+địa cầu (bị che) hoặc ngoài khung, đá vụn quanh hố đen ở góc trên-phải tràn một phần ra mép
+trên. Trần vẽ (1500/600/600) lớn hơn số thật nên không thiên thể nào bị cắt.
+
 ### 9.1 Phát hiện khi chạy giai đoạn 1 trên dữ liệu thật (2026-10-08)
 
 47 brain, 1010 tài liệu: 477 đá vụn, 222 sao (214 là quy trình), 15 kỹ năng, 14 trí nhớ, 0
