@@ -108,6 +108,21 @@ def _them(args, ctx) -> str:
     if loi:
         return loi
 
+    # brain: giao việc cho phòng ban KHÁC (vd task "[Ý tưởng]" đẩy về brain phòng đó).
+    # Rỗng = brain đang mở. Resolve tên brain -> root; sai tên thì báo lỗi, không đoán bừa.
+    brain_arg = str((args or {}).get("brain") or "").strip()
+    vault = ctx.vault_root
+    if brain_arg:
+        try:
+            vault = f._ensure(brain_arg)
+        except Exception as e:
+            return f"ERROR: không tìm được brain '{brain_arg}' ({type(e).__name__}: {e})."
+        if not vault:
+            return f"ERROR: không tìm được brain '{brain_arg}'."
+    # route: "auto" (mặc định) hoặc "wf:<slug>" để task chạy nguyên một workflow của brain đích
+    # (vd wf:xu-ly-y-tuong-moi = pipeline ý tưởng của phòng).
+    route = str((args or {}).get("route") or "auto").strip()
+
     chat_id = str((args or {}).get("chat_id") or "").strip()
     # Model quên chat_id thì hỏi sổ lượt đang chạy (0.64.49): đúng một khung chat đang hỏi trên
     # brain này thì đó chính là người giao việc. Không chắc thì để trống như cũ và cảnh báo.
@@ -121,10 +136,10 @@ def _them(args, ctx) -> str:
     deps = [d.strip() for d in str((args or {}).get("deps") or "").split(",") if d.strip()]
     try:
         tid = f.enqueue(
-            ctx.vault_root,
+            vault,
             tieu_de,
             str((args or {}).get("intent") or "").strip() or tieu_de,
-            "auto",
+            route,
             2,
             deps,
             False,
@@ -171,7 +186,9 @@ def _them(args, ctx) -> str:
         muc = f.board_view(ctx.vault_root).get("orchestration") or "off"
     except Exception:
         pass
-    if _dieu_phoi_chay(muc):
+    if _dieu_phoi_chay(muc) or tieu_de.startswith(("[Ý tưởng]", "[Y tuong]")):
+        # Task ý tưởng tự chạy kể cả khi điều phối tắt (dispatcher nhặt riêng
+        # tiền tố [Ý tưởng]) - nên vẫn báo "tự chạy" dù board đang off.
         ra.append("Việc chạy nền. Kết quả tự về, tiến độ xem ở trang Việc.")
     else:
         ra.append(_CANH_BAO_DIEU_PHOI.format(muc=muc))
@@ -229,7 +246,9 @@ def register(ctx):
         "đúng người, và intent nếu cần mô tả kỹ hơn tiêu đề. mode=full (mặc định: toàn quyền, "
         "tự thao tác ra ngoài như lúc chat), auto (chỉ ghi file nháp trong brain) hoặc suggest "
         "(chỉ đọc và đề xuất); chỉ hạ mức khi người dùng muốn vậy. deps='id1,id2' để việc này "
-        "chờ việc khác xong. "
+        "chờ việc khác xong. brain='<tên phòng ban>' để giao việc cho brain khác (vd ý tưởng về "
+        "phòng nào thì đẩy vào brain phòng đó), route='wf:<slug>' để việc chạy nguyên một "
+        "workflow của brain đích (vd wf:xu-ly-y-tuong-moi). "
         "op=list: liệt kê việc theo cột. "
         "Chuyển cột, huỷ việc và duyệt việc chờ phê duyệt thì làm ở trang Việc, tool này không có.",
         _chay,
@@ -241,7 +260,8 @@ def register(ctx):
                 "intent": {"type": "string", "description": "Mô tả đầy đủ hơn nếu tiêu đề chưa đủ"},
                 "mode": {"type": "string", "enum": ["suggest", "auto", "full"]},
                 "chat_id": {"type": "string", "description": "Người nhận kết quả, vd web:<mã phiên>"},
-                "deps": {"type": "string", "description": "Mã các việc phải xong trước, cách nhau dấu phẩy"},
+                "brain": {"type": "string", "description": "Brain đích (tên phòng ban), rỗng = brain đang mở"},
+                "route": {"type": "string", "description": "auto (mặc định) hoặc wf:<slug> để chạy workflow của brain đích"},
             },
             "required": ["op"],
         },

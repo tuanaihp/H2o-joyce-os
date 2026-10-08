@@ -661,6 +661,22 @@ class TaskStore:
             ).fetchone()
         return self._task_from_row(row) if row else None
 
+    def next_idea_candidate(self, brain_root: str) -> Optional[dict]:
+        """Ứng viên CHỈ là task ý tưởng (tiền tố '[Ý tưởng]') - dùng khi board chưa
+        bật auto: ý tưởng chủ động gửi vẫn tự chạy, việc thường vẫn chờ."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT * FROM tasks
+                   WHERE brain_root=? AND status IN ('triage','ready')
+                     AND not_before <= ?
+                     AND (title LIKE '[Ý tưởng]%' OR title LIKE '[Y tuong]%')
+                   ORDER BY CASE status WHEN 'triage' THEN 0 ELSE 1 END,
+                            priority, created_at
+                   LIMIT 1""",
+                (brain_root, now()),
+            ).fetchone()
+        return self._task_from_row(row) if row else None
+
     def claim(
         self,
         task_id: str,

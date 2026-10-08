@@ -359,9 +359,13 @@ class TasksFeature:
         candidates: list[dict] = []
         for root in self._brain_roots():
             self._housekeep(root)
-            if self.store.board_mode(root) != "auto":
-                continue
-            task = self.store.next_candidate(root)
+            if self.store.board_mode(root) == "auto":
+                task = self.store.next_candidate(root)
+            else:
+                # Board chưa bật auto: việc thường vẫn nằm chờ, NHƯNG task ý tưởng
+                # (tiền tố [Ý tưởng], do chat đẩy vào đúng phòng) được tự chạy -
+                # kênh nạp ý tưởng là chủ động của chủ/nhân viên.
+                task = self.store.next_idea_candidate(root)
             if task:
                 candidates.append(task)
         candidates.sort(
