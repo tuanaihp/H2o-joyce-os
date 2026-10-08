@@ -2218,6 +2218,22 @@
     .td-app.down b{color:var(--text2)}
     .td-app-ms{flex:none;font-size:10.5px;color:var(--text3)}
     .td-app.down .td-app-ms{color:var(--red)}
+    /* Nhịp ngày CEO - checklist vận hành, mỗi mục là cửa nhảy sang trang chủ quản. */
+    .td-routine{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+    .td-rt{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--hairline);border-radius:11px;background:var(--surface-1);cursor:pointer;font-size:12.5px;color:var(--text2);transition:.15s}
+    .td-rt:hover{border-color:var(--accent-line);color:var(--text)}
+    .td-rt b{color:var(--text);font-variant-numeric:tabular-nums}
+    .td-rt .td-rt-ico{width:15px;height:15px;color:var(--text3);display:grid;place-items:center}
+    .td-rt .td-rt-ico svg{width:15px;height:15px}
+    .td-rt.warn{border-color:var(--warn-line);background:var(--warn-wash)} .td-rt.warn .td-rt-ico,.td-rt.warn b{color:var(--warn-ink)}
+    .td-rt.ok .td-rt-ico{color:var(--green)}
+    .td-rt-sub{font-size:11px;color:var(--text3)}
+    .td-tok{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.055);font-size:12.5px}
+    .td-tok:last-child{border-bottom:none}
+    .td-tok b{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .td-tok .prov{flex:none;font-size:10.5px;color:var(--text3);border:1px solid var(--hairline);border-radius:99px;padding:1px 7px}
+    .td-tok .num{flex:none;color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums}
+    .td-tok .num.cost{color:var(--accent-ink)}
     @media(max-width:1100px){.td-grid{grid-template-columns:1fr}.td-metrics{grid-template-columns:repeat(3,1fr)}}
     @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-list{max-height:none}.td-metrics{grid-template-columns:repeat(2,1fr)}.td-hi{font-size:22px}}`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
@@ -3859,7 +3875,8 @@
       return;
     }
     const brief = d.brief || {}, metrics = d.metrics || [], tasks = d.tasks || [],
-          schedule = d.schedule || [], pulse = d.pulse || [], apps = d.apps || [];
+          schedule = d.schedule || [], pulse = d.pulse || [], apps = d.apps || [],
+          ops = d.ops || {}, usage = d.usage || { items: [], total: {} };
     const sevIcon = { critical: ic("circle-x", { cls: "ic-err" }), high: WARN_ICON,
                       medium: ic("info", { cls: "ic-warn" }), low: ic("info", { cls: "ic-dim" }) };
     const metricIcon = { running: "zap", review: "hourglass", done24: "circle-check",
@@ -3888,6 +3905,27 @@
       </div>
 
       ${d.partial ? `<div class="td-partial">${WARN_ICON} ${esc(t("today.partial", { n: (d.sources_down || []).length }))}</div>` : ""}
+
+      <div class="td-routine">
+        <button class="td-rt ${(ops.loops_ran || 0) > 0 ? "ok" : ""}" data-go="selfimprove">
+          <span class="td-rt-ico">${ic("sun")}</span>${esc(t("today.rt_report"))}
+          <b>${ops.loops_ran || 0}/${ops.loops_on || 0}</b></button>
+        <button class="td-rt ${(d.approvals_pending || 0) > 0 ? "warn" : "ok"}" data-go="kanban">
+          <span class="td-rt-ico">${ic("clipboard-check")}</span>${esc(t("today.rt_approve"))}
+          <b>${d.approvals_pending || 0}</b></button>
+        <button class="td-rt ${(ops.loops_bad || 0) > 0 ? "warn" : "ok"}" data-go="selfimprove">
+          <span class="td-rt-ico">${ic("repeat")}</span>${esc(t("today.rt_loops"))}
+          <b>${ops.loops_bad ? `${ops.loops_bad} ${t("today.rt_bad")}` : `${ops.loops_on || 0} ${t("today.rt_on")}`}</b></button>
+        <button class="td-rt ${(d.inbox_unread || 0) > 0 ? "warn" : "ok"}" data-go="conversations">
+          <span class="td-rt-ico">${ic("inbox")}</span>${esc(t("today.rt_inbox"))}
+          <b>${d.inbox_unread || 0}</b></button>
+        <button class="td-rt" data-go="files">
+          <span class="td-rt-ico">${ic("lightbulb")}</span>${esc(t("today.rt_ideas"))}
+          <b>${ops.ideas_week || 0}</b></button>
+        <button class="td-rt" data-go="settings">
+          <span class="td-rt-ico">${ic("chart-column")}</span>${esc(t("today.rt_cost"))}
+          <b>${_uzTok((usage.total || {}).in + (usage.total || {}).out || 0)}${(usage.total || {}).cost ? ` · $${usage.total.cost.toFixed(2)}` : ""}</b></button>
+      </div>
 
       <div class="td-metrics">
         ${metrics.map(m => `<div class="td-metric" data-tone="${esc(m.tone || "")}">
@@ -3929,11 +3967,23 @@
             <span class="td-app-ms">${a.ok ? (a.ms ? esc(String(a.ms)) + "ms" : "") : esc(t("today.app_down"))}</span>
           </div>`).join("") : `<div class="kn-empty">${esc(t("today.empty_apps"))}</div>`}</div>
         </section>
+
+        <section class="td-panel">
+          <div class="td-panel-head"><b>${esc(t("today.p_tokens"))}</b><span class="td-src">usage_store · ${esc(t("today.tk_today"))}</span></div>
+          <div class="td-list">${(usage.items || []).length ? usage.items.slice(0, 8).map(u => `<div class="td-tok" data-go="settings">
+            <span class="prov">${esc(u.provider || "?")}</span>
+            <b>${esc(u.model || "?")}</b>
+            <span class="num">${_uzTok(u.in)}↑ ${_uzTok(u.out)}↓ · ${u.turns || 0} ${esc(t("today.tk_turns"))}</span>
+            ${u.cost ? `<span class="num cost">$${u.cost.toFixed(3)}</span>` : ""}
+          </div>`).join("") : `<div class="kn-empty">${esc(t("today.tk_empty"))}</div>`}</div>
+        </section>
       </div>
     </div>`;
 
     const go = (id) => navigateTo(id);
     el.querySelector("#tdRefresh").onclick = () => renderToday(el);
+    // Nhịp ngày CEO + bảng token: mỗi mục là cửa nhảy sang trang chủ quản.
+    el.querySelectorAll(".td-rt,.td-tok").forEach(n => n.onclick = () => go(n.dataset.go));
     // Brief LLM: endpoint /brief-ai gọi aux model (có thể chậm/chết) nên trang render
     // ngay với brief deterministic, rồi cập nhật "lười". Lỗi/fallback → giữ nguyên.
     fetch(`/api/joyce/v1/brief-ai?brain=${encodeURIComponent(fbrain())}`)
@@ -7777,15 +7827,11 @@
         if (!tts.elevenlabs_key_set) $("vcElKey").focus();
       }
     };
-    // Nghe thử: ChatGPT Live phát mẫu thu sẵn (dashboard/voices/<giọng>.mp3, không mở phiên
-    // realtime nào); đường Cơ bản đọc một câu bằng giọng đang chọn (app.js JoyceVoiceSample).
+    // Nghe thử: mọi đường đều dùng TTS đọc câu mẫu (app.js JoyceVoiceSample).
     tryBtn.onclick = () => {
       try {
-        if (window._vcSample) window._vcSample.pause();
-        if (call.engine === "chatgpt") {
-          window._vcSample = new Audio("/static/voices/" + encodeURIComponent(sel.value) + ".mp3");
-          window._vcSample.play().catch(() => {});
-        } else if (window.JoyceVoiceSample) window.JoyceVoiceSample();
+        if (window._vcSample) { window._vcSample.pause(); window._vcSample = null; }
+        if (window.JoyceVoiceSample) window.JoyceVoiceSample();
       } catch (e) {}
     };
 

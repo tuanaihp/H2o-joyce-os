@@ -94,6 +94,7 @@ class TasksDeps:
     build_system_prompt: Callable[[str], str]
     aux_model: Callable[[], Optional[str]]
     safe_tools: List[str]
+    readonly_tools: Optional[List[str]] = None
     state_dir: Optional[Path] = None
     scheduler_brains: Optional[Callable[[], List[str]]] = None
     apply_mcp: Optional[Callable] = None
@@ -497,6 +498,24 @@ class TasksFeature:
                     result=result,
                 )
             else:
+                verify = None
+                if task.get("needs_approval") and result:
+                    # Lớp kiểm chứng (Verify trong Operating Loop 2.0): việc chạm ngoài /
+                    # động tiền được cờ needs_approval không vào thẳng cột review mà qua một
+                    # pass độc lập "giả định kết quả SAI" trước. Người vẫn là cổng cuối -
+                    # verify chỉ gắn phán quyết lên thẻ để người duyệt đọc nhanh hơn.
+                    try:
+                        verify = await asyncio.wait_for(
+                            self._verify(task, result), timeout=180
+                        )
+                    except Exception:
+                        verify = None
+                    if verify:
+                        metadata = dict(metadata or {})
+                        metadata["verify"] = verify
+                        verdict = "✓ Đạt" if verify.get("pass") else "✗ CHƯA ĐẠT"
+                        result += (f"\n\n**Kiểm chứng: {verdict}** — "
+                                   f"{str(verify.get('reason') or '')[:300]}")
                 final_task = self.store.complete(
                     tid,
                     worker_id,
@@ -867,6 +886,43 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 "provider": aux_engine.read_spec().get("provider"),
             },
         )
+
+    async def _verify(self, task: dict, result: str) -> Optional[dict]:
+        """Kiểm chứng độc lập cho việc needs_approval trước khi vào cột review.
+        Readonly + mode suggest: verifier chỉ đọc lại file liên quan, không đụng gì.
+        Trả None khi không kiểm chứng được (coi như chưa kiểm, người tự đọc)."""
+        tools = list(self.deps.readonly_tools or [])
+        if not tools:
+            return None
+        try:
+            cli = self._base_cli(task, tools, "suggest", "verify")
+        except Exception:
+            return None
+        prompt = (
+            "Bạn là người KIỂM CHỨNG độc lập. Giả định kết quả dưới đây SAI và đi tìm lỗi.\n\n"
+            f"VIỆC: {task.get('title') or ''}\n"
+            f"MỤC TIÊU: {task.get('intent') or ''}\n\n"
+            f"KẾT QUẢ WORKER BÁO:\n{str(result)[:8000]}\n\n"
+            "Kiểm tra thực tế bằng cách đọc lại các file được nhắc tới: kết quả có đúng mục "
+            "tiêu không, có bịa số liệu/trích dẫn không, file nói là đã tạo có tồn tại không, "
+            "có phần nào vượt phạm vi việc được giao không. "
+            'CHỈ trả JSON 1 dòng: {"pass":true|false,"reason":"ngắn gọn"}.'
+        )
+        out = ""
+        try:
+            async for ev in cli.query(prompt):
+                if ev["type"] == "final":
+                    out = ev.get("content", "") or out
+        except Exception:
+            return None
+        m = re.search(r"\{.*\}", out or "", re.DOTALL)
+        if not m:
+            return None
+        try:
+            vj = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            return None
+        return {"pass": bool(vj.get("pass")), "reason": str(vj.get("reason", ""))[:400]}
 
     @staticmethod
     def _tran_giay_viec() -> float:

@@ -10348,6 +10348,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     aux_model=_aux_model,
     aux_swap=_aux_swap,
     safe_tools=SAFE_FILE_TOOLS,
+    readonly_tools=READONLY_TOOLS,
     state_dir=cfgmod.STATE_DIR,
     scheduler_brains=_kanban_brains,
     apply_mcp=_apply_mcp,
@@ -16973,6 +16974,36 @@ async def _v1_cmd_today(name: str, brain: str):
     return None
 
 
+def _ops_summary() -> dict:
+    """Tổng hợp vận hành cho strip 'Nhịp ngày CEO' trên trang Hôm nay: số loop đang bật,
+    đang lỗi/tự-pause, đã chạy hôm nay - cộng số file ý tưởng mới trong 7 ngày (mọi brain)."""
+    out = {"loops_on": 0, "loops_bad": 0, "loops_ran": 0, "ideas_week": 0}
+    cutoff = time.time() - 7 * 86400
+    today = _today()
+    for root in _overview_brain_paths():
+        try:
+            st_all = loop_feature.read_state(root)
+            for lp in loop_feature.list_loops(root):
+                if not lp.get("enabled"):
+                    continue
+                out["loops_on"] += 1
+                st = st_all.get(lp["slug"], {})
+                if st.get("auto_paused_reason") or int(st.get("fail_streak") or 0) > 0:
+                    out["loops_bad"] += 1
+                if st.get("day") == today and int(st.get("runs_today") or 0) > 0:
+                    out["loops_ran"] += 1
+        except Exception:
+            pass
+        try:
+            d = Path(root) / "wiki" / "y-tuong"
+            if d.is_dir():
+                out["ideas_week"] += sum(
+                    1 for f in d.glob("*.md") if f.stat().st_mtime > cutoff)
+        except Exception:
+            pass
+    return out
+
+
 _today_deps = joyce_today.TodayDeps(
     board_view=tasks_feature.board_view,
     brain_names=_brain_names_today,
@@ -17018,6 +17049,8 @@ _today_deps = joyce_today.TodayDeps(
     # Integration Center: list_connections/list_bots đã là bản redacted (không secrets).
     conns_list=mcp_store.list_connections,
     bots_list=lambda: chatbot_store.list_bots(),
+    ops_summary=_ops_summary,
+    usage_today=lambda: usage_store.summary()["today"],
 )
 joyce_today.register(app, _today_deps)
 

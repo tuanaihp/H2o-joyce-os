@@ -78,6 +78,8 @@ class TodayDeps:
     staff_channel: Optional[Callable[[dict], str]] = None            # staff -> "staff:<id>"
     conns_list: Optional[Callable[[], list]] = None                  # mcp_store.list_connections (redacted)
     bots_list: Optional[Callable[[], list]] = None                   # chatbot_store.list_bots (redacted)
+    ops_summary: Optional[Callable[[], dict]] = None                 # loop bật/lỗi + ý tưởng mới (mọi brain)
+    usage_today: Optional[Callable[[], dict]] = None                 # usage_store.summary()["today"]
 
 
 def _sev_rank(sev: str) -> int:
@@ -366,6 +368,16 @@ def register(app, deps: TodayDeps):
         except Exception as e:
             _log_pulse_error("connectors/today", e)
             conn_down = 0
+        try:
+            ops_sum = deps.ops_summary() if deps.ops_summary else {}
+        except Exception as e:
+            _log_pulse_error("ops/today", e)
+            ops_sum = {}
+        try:
+            usage_today = deps.usage_today() if deps.usage_today else {"items": [], "total": {}}
+        except Exception as e:
+            _log_pulse_error("usage/today", e)
+            usage_today = {"items": [], "total": {}}
         start, end = _today_bounds()
         today_rems = _schedule_today(deps, brains)
         brief = _brief({
@@ -407,6 +419,9 @@ def register(app, deps: TodayDeps):
             "approvals_pending": int(counts.get("review", 0)),
             "inbox_unread": unread,
             "reminders_pending": len(pending_rems),
+            # Nhịp ngày CEO: loop nền (bật/lỗi/chạy hôm nay) + ý tưởng mới 7 ngày + token theo model.
+            "ops": ops_sum,
+            "usage": usage_today,
             "partial": bool(src_down), "sources_down": src_down,
             # Spec Phase 2: mọi card có source label + last_synced_at khi phù hợp.
             # Client hiện "Cập nhật HH:MM" từ đây - không tự lấy giờ trình duyệt vì
