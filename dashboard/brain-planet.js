@@ -2192,7 +2192,7 @@
       }
       if (!tr.on) { tr = trMoi(); tr.on = true; tr.t0 = now; }   // an toàn khi thiếu "start"
       if (pha === "answer") { if (!tr.tAns) tr.tAns = now; return; }
-      if (tr.tAns || tr.threads.length >= TR_MAX) return;      // đã trả lời: không mọc sợi mới
+      if (tr.threads.length >= TR_MAX) return;
       var key = pha === "source" ? "s" + d.id : "g" + (d.kind === "sat" ? d.id : d.label);
       if (tr.keys[key]) return;
       var th = { t0: now, ph: Math.random(), bend: (Math.random() - 0.5) * 0.6 };
@@ -2204,6 +2204,10 @@
         th.kind = d.kind === "sat" ? "sat" : "edge"; th.id = d.id; th.label = String(d.label || "");
         th.gi = tr.threads.filter(function (x) { return x.kind === "edge"; }).length;
       } else return;
+      // Bộ não nói một câu mở đầu ("Em sẽ kiểm tra Wiki...") RỒI mới đọc file: một nguồn GHÉP ĐƯỢC
+      // tới sau nhịp "answer" thì mở lại vòng thu thập, sợi cũ hiện lại, tới đoạn trả lời sau mới
+      // co về. Lệnh gọi không khớp gì thì không mở lại.
+      if (tr.tAns) tr.tAns = 0;
       tr.keys[key] = 1;
       tr.threads.push(th);
     }

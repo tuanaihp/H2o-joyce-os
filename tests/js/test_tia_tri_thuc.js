@@ -85,7 +85,7 @@ const ve = (s) => { for (let i = 0; i < s * 30; i++) { NOW += 33; pctx.drawTrace
 ve(1);
 pctx.traceTurn("answer");
 pctx.traceTurn("source", { id: "s1x" });
-check("đã trả lời thì không mọc sợi mới", info().threads.length === 3 && !!info().tAns);
+check("sau khi trả lời, lệnh gọi KHÔNG ghép được gì thì không mở lại vòng thu thập", info().threads.length === 3 && !!info().tAns);
 ve(0.8);
 pctx.traceTurn("done");
 check("xong: thiên thể đã dùng sáng thêm ~10 giây", info().used.length === 1 && info().glowUntil - NOW > 9000);
@@ -96,6 +96,32 @@ check("thiếu 'start' vẫn an toàn (tự mở lượt mới)", info().on && i
 pctx.traceTurn("start");
 for (let i = 0; i < 40; i++) pctx.traceTurn("gate", { kind: "edge", label: "n" + i });
 check("tối đa 24 sợi một lượt", info().threads.length === 24);
+
+// ---- Codex: đọc file bằng lệnh shell, nói trước rồi mới đọc; câu trả lời trích dẫn nguồn ----
+// Chủ thử 2026-10-08 với Codex: chỉ có vòng quét, không có sợi nào. Hai gốc: đường dẫn nằm LẪN
+// trong câu lệnh (Get-Content '...md'), và câu mở đầu "Em sẽ kiểm tra Wiki..." chảy về TRƯỚC khi
+// đọc file nên bị coi là "đã trả lời". Thêm nguồn thứ ba: link tài liệu trích dẫn trong câu trả lời.
+const aS = APP.indexOf("  const DUOI_TL = "), aE = APP.indexOf("  const t = !sid ? null", aS);
+const ham = new Function(APP.slice(aS, aE) + "\nreturn { tepCuaLenh, tepTrichDan };")();
+const L = (d) => JSON.stringify(ham.tepCuaLenh(d));
+check("Get-Content '<đường dẫn tuyệt đối>.md' -> đường dẫn",
+  L({ detail: "Get-Content -LiteralPath 'E:\\b\\Brain Default\\wiki\\Bảng tư vấn báo giá online - chụp ngoại cảnh.md' -Encoding UTF8" })
+  === JSON.stringify(["E:\\b\\Brain Default\\wiki\\Bảng tư vấn báo giá online - chụp ngoại cảnh.md"]));
+check("cat \"...\" và sed -n '1,200p' file", L({ detail: 'cat "wiki/Bảng giá.md"' }) === '["wiki/Bảng giá.md"]'
+  && L({ detail: "sed -n '1,200p' wiki/quy-trinh.md" }) === '["wiki/quy-trinh.md"]');
+check("lệnh TÌM (rg) không tính là đã đọc", L({ detail: 'rg -n "báo giá" wiki sources' }) === "[]");
+check("máy chủ mới gửi files thì dùng files", L({ files: ["wiki/a.md"], detail: "x" }) === '["wiki/a.md"]');
+check("trích dẫn trong câu trả lời: link có khoảng trắng, %20, <...>, [[wiki]]; bỏ link web",
+  JSON.stringify(ham.tepTrichDan("Nguồn: [A](wiki/Bảng tư vấn báo giá online - chụp ngoại cảnh.md) [B](wiki/x%20y.md) [C](<wiki/c d.md>) [w](https://x.com/a.md) [[wiki/Joyce OS]]"))
+  === JSON.stringify(["wiki/Bảng tư vấn báo giá online - chụp ngoại cảnh.md", "wiki/x y.md", "wiki/c d.md", "wiki/Joyce OS.md"]));
+pctx.traceTurn("start"); pctx.traceTurn("answer");
+check("câu mở đầu chảy về trước: đang 'trả lời'", !!info().tAns);
+pctx.traceTurn("source", { id: "s1" });
+check("lệnh đọc file tới SAU câu mở đầu: mở lại vòng thu thập, có sợi", !info().tAns && info().threads.length === 1);
+check("app.js: chữ chảy lại sau một lệnh gọi mới là trả lời", /t\.tep = \(t\.tep \|\| \[\]\)\.concat\(_tep\); t\.triThucTraLoi = false;/.test(APP));
+check("app.js: tài liệu trích dẫn thành sợi + chip trước nhịp answer",
+  APP.indexOf("const _trich = tepTrichDan(shownText);") > 0 && APP.indexOf("const _trich = tepTrichDan(shownText);") < APP.indexOf('veTriThuc("answer"); veTriThuc("done");'));
+check("ghép chuẩn hoá Unicode NFC (tên file tiếng Việt)", /normalize\("NFC"\)/.test(HUD));
 
 // ---- nối dây ----
 check("app.js báo nhịp: start ở status đầu lượt, tool ở mỗi tool_call, answer ở stream đầu, done ở response/lỗi",

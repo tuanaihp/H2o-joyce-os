@@ -99,6 +99,21 @@ hoặc phần chứa nhau dài từ 5 ký tự.
 Máy chủ chưa khởi động lại thì chưa có trường `files`: trình duyệt bóc đường dẫn từ `detail`
 (3 đoạn cuối), vẫn ghép được phần lớn tài liệu.
 
+## 7c. Sửa sau lần chủ thử đầu tiên (1.1.1, 2026-10-08)
+
+Chủ hỏi Joyce (bộ não Codex) "báo giá online gói chụp ảnh ngoại cảnh": chỉ có vòng sóng quét,
+không có sợi nào, không có chip. Hai gốc và một bổ sung:
+- **Codex đọc file bằng lệnh shell** (`Get-Content '...md'`, `cat`, `sed -n`), không có khoá
+  `file_path`. Giờ bóc đường dẫn trong câu lệnh: chuỗi trong nháy, hoặc từ không nháy có gạch
+  chéo, kết thúc bằng đuôi tài liệu (máy chủ `tool_label.tep_trong_lenh`, trình duyệt
+  `tepTrongChu`). Lệnh tìm (`rg "báo giá" wiki`) không tính là đã đọc.
+- **Câu mở đầu chảy về trước khi đọc** ("Em sẽ kiểm tra Wiki..."), bị coi là "đã trả lời" nên
+  mọi lệnh đọc sau đó bị bỏ. Giờ lệnh gọi tới sau nhịp `answer` thì mở lại vòng thu thập; chữ
+  chảy lại SAU một lệnh gọi mới là `answer` tiếp theo.
+- **Tài liệu trích dẫn trong câu trả lời** (`[tên](wiki/x.md)`, `[[wiki/x]]`, đúng dạng Joyce
+  ghi ở dòng "Nguồn: ...") cũng là nguồn thật: thành sợi và chip, đẩy vào trước nhịp `answer`.
+- Ghép chuẩn hoá Unicode NFC cho tên file tiếng Việt.
+
 ## 8. Kiểm thử
 
 `tests/js/test_tia_tri_thuc.js`: ghép đường dẫn (tuyệt đối, tương đối, "…/", `.docx.txt`, file

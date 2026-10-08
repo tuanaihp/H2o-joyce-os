@@ -161,6 +161,10 @@ check("tep: lệnh không có file / payload lạ -> []",
       tool_label.tep({"input": {"command": "ls"}}) == [] and tool_label.tep(None) == [] and tool_label.tep({"input": "x"}) == [])
 check("tep: không trùng, tối đa 8", tool_label.tep({"input": {"paths": ["a.md"] * 3 + [f"f{i}.md" for i in range(12)]}})
       == ["a.md"] + [f"f{i}.md" for i in range(7)])
+check("tep: đường dẫn LẪN trong lệnh shell của Codex (Get-Content '...md'); lệnh tìm rg không tính",
+      tool_label.tep({"item": {"command": ["powershell", "-Command", "Get-Content -LiteralPath 'E:\\b\\Brain Default\\wiki\\Bảng giá.md'"]}})
+      == ["E:\\b\\Brain Default\\wiki\\Bảng giá.md"]
+      and tool_label.tep({"item": {"command": 'rg -n "báo giá" wiki sources'}}) == [])
 main_src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("mọi chỗ gửi tool_call đều kèm files", main_src.count('"files": tool_label.tep(') == 7
       and main_src.count("tool_label.chi_tiet(") == 7)

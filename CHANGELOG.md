@@ -1,5 +1,9 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.1.1] - 2026-10-08
+### Sửa lỗi
+- **Tia tri thức chạy cả với bộ não Codex**: trước chỉ có vòng sóng quét mà không có sợi sáng, vì Codex đọc file bằng câu lệnh và nói một câu mở đầu trước khi đọc. Giờ nhận ra file trong câu lệnh, và tài liệu Joyce trích dẫn ở dòng "Nguồn" cũng thành sợi sáng về H2O và chip "Nguồn tri thức".
+
 ## [1.1.0] - 2026-10-08
 ### Thêm mới
 - **Tia tri thức khi hỏi Joyce**: gửi câu hỏi là từ ghim H2O phát vòng sóng quét bầu trời. Mỗi tài liệu Joyce thật sự đọc thì ngôi sao (hoặc viên đá vụn) đó bừng sáng và có sợi sáng chạy về H2O. Joyce bắt đầu trả lời thì các sợi co về và ghim H2O loé sáng.

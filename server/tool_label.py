@@ -11,6 +11,7 @@ URL, câu tìm kiếm. Không đoán được thì trả "" và dashboard giữ 
 Chỉ đọc, không ném lỗi: payload lạ kiểu gì cũng chỉ ra chuỗi rỗng.
 """
 import json
+import re
 
 TRAN = 160   # một dòng trong khung chat; dài hơn thì cắt, bản đầy đủ không cần cho mắt người
 
@@ -80,9 +81,32 @@ def _tu_dict(d: dict, sau: int = 0) -> str:
 _KHOA_TEP = ("file_path", "notebook_path", "path", "paths", "file", "files", "target_file", "filename")
 
 
+# Đường dẫn file nằm LẪN trong câu lệnh shell: Codex đọc file bằng `Get-Content '...md'`, `cat`,
+# `sed -n '1,200p' x.md`... chứ không qua công cụ Read có khoá file_path (chủ thử 2026-10-08 thấy
+# chỉ có vòng quét mà không có sợi nào). Lấy chuỗi trong nháy kết thúc bằng đuôi tài liệu, và từ
+# không nháy có gạch chéo kết thúc bằng đuôi tài liệu.
+_DUOI = r"(?:md|txt|docx?|xlsx?|pptx?|pdf|csv|json|ya?ml)"
+_RE_TEP_LENH = re.compile(r"'([^'\n]+\." + _DUOI + r")'|\"([^\"\n]+\." + _DUOI + r")\"|((?:[A-Za-z]:)?[^\s'\"]*[\\/][^\s'\"]*\." + _DUOI + r")(?=[\s;|)]|$)", re.I)
+
+
+def tep_trong_lenh(lenh: str) -> list:
+    out = []
+    for m in _RE_TEP_LENH.finditer(str(lenh or "")):
+        x = (m.group(1) or m.group(2) or m.group(3) or "").strip()
+        if x:
+            out.append(x)
+    return out
+
+
 def _tep_tu(d, sau: int, out: list) -> None:
     if sau > 3 or not isinstance(d, dict):
         return
+    for k in ("command", "cmd"):
+        v = d.get(k)
+        if isinstance(v, list):
+            v = " ".join(x for x in v if isinstance(x, str))
+        if isinstance(v, str):
+            out.extend(tep_trong_lenh(v))
     for k in _KHOA_TEP:
         v = d.get(k)
         for x in (v if isinstance(v, list) else [v]):

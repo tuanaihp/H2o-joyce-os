@@ -418,7 +418,7 @@
   // Ở đây ghép file -> thiên thể và công cụ -> app H2O / cổng nguồn ngoài, rồi đẩy cho tinh cầu.
   function gapKhoa(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
   function chuanDuong(s) {
-    return String(s || "").replace(/\\/g, "/").replace(/^(…|\.\.\.)\//, "").trim().toLowerCase()
+    return String(s || "").normalize("NFC").replace(/\\/g, "/").replace(/^(…|\.\.\.)\//, "").replace(/^\.\//, "").trim().toLowerCase()
       .replace(/\.(docx?|xlsx?|pptx?|pdf)\.txt$/, ".$1");   // X.docx.txt là bản chữ của X.docx
   }
   // Đường dẫn file Joyce đọc -> thiên thể. Không khớp thiên thể nào thì BỎ (không bịa sợi).
@@ -429,7 +429,7 @@
       var p = chuanDuong(f);
       if (!p) return;
       var ung = bs.filter(function (b) {
-        var bp = String(b.path || "").toLowerCase();
+        var bp = String(b.path || "").normalize("NFC").toLowerCase();
         return bp && (p === bp || p.slice(-(bp.length + 1)) === "/" + bp);
       });
       if (!ung.length) return;

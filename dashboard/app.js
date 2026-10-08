@@ -1048,9 +1048,28 @@ function handleMessage(data) {
   const veTriThuc = (pha, them) => {
     try { window.dispatchEvent(new CustomEvent("joyce:turn-trace", { detail: Object.assign({ pha }, them || {}) })); } catch (e) {}
   };
-  // Máy chủ cũ chưa gửi `files`: bóc từ `detail` nếu nó trông như đường dẫn file.
-  const tepCuaLenh = (d) => (Array.isArray(d.files) && d.files.length) ? d.files
-    : (/[\/\\]/.test(d.detail || "") && /\.[a-z0-9]{1,5}$/i.test(d.detail || "") ? [d.detail] : []);
+  // Đường dẫn file trong lệnh gọi. Máy chủ mới gửi `files`; máy chủ cũ thì bóc từ `detail`: là
+  // một đường dẫn, hoặc LẪN trong câu lệnh shell (Codex đọc file bằng Get-Content / cat / sed).
+  const DUOI_TL = "(?:md|txt|docx?|xlsx?|pptx?|pdf|csv|json|ya?ml)";
+  const RE_TEP_LENH = new RegExp("'([^'\\n]+\\." + DUOI_TL + ")'|\"([^\"\\n]+\\." + DUOI_TL + ")\"|((?:[A-Za-z]:)?[^\\s'\"]*[\\\\/][^\\s'\"]*\\." + DUOI_TL + ")(?=[\\s;|)]|$)", "gi");
+  const tepTrongChu = (s) => { const o = []; String(s || "").replace(RE_TEP_LENH, (m, a, b, c) => { o.push(a || b || c); return m; }); return o; };
+  const tepCuaLenh = (d) => {
+    if (Array.isArray(d.files) && d.files.length) return d.files;
+    const ct = String(d.detail || "");
+    if (/[\/\\]/.test(ct) && new RegExp("\\." + DUOI_TL + "$", "i").test(ct) && !/\s-/.test(ct)) return [ct];
+    return tepTrongChu(ct);
+  };
+  // Tài liệu Joyce TRÍCH DẪN trong câu trả lời ([tên](wiki/x.md), [[wiki/x]]): cũng là nguồn thật.
+  const tepTrichDan = (txt) => {
+    const o = [], s = String(txt || "");
+    s.replace(/\]\(<?([^)>]+?)>?(?:\s+"[^"]*")?\)/g, (m, u) => {
+      if (/^[a-z]+:/i.test(u) && !/^[a-z]:[\\/]/i.test(u)) return m;   // http:, mailto:... (giữ ổ đĩa C:\)
+      try { o.push(decodeURIComponent(u)); } catch (e) { o.push(u); }
+      return m;
+    });
+    s.replace(/\[\[([^\]|#]+)/g, (m, u) => { o.push(/\.[a-z0-9]{1,5}$/i.test(u) ? u : u + ".md"); return m; });
+    return o;
+  };
   const t = !sid ? null
     : (turns[sid] || (KHUNG_LUOT.includes(data.type)
         ? (turns[sid] = { text: "", bubble: null, spoke: false, running: true })
@@ -1107,7 +1126,7 @@ function handleMessage(data) {
   } else if (data.type === "tool_call") {
     if (t && window.JoyceSteps) t.buoc = window.JoyceSteps.nhan(t.buoc, data);
     const _tep = tepCuaLenh(data);
-    if (t) t.tep = (t.tep || []).concat(_tep);
+    if (t) { t.tep = (t.tep || []).concat(_tep); t.triThucTraLoi = false; }   // chữ chảy lại sau lệnh này = trả lời
     if (isActive) veTriThuc("tool", { tool: data.tool || "", files: _tep });
     if (isActive) {
       runActions(turn.toolCall(data.tool || ""));
@@ -1177,6 +1196,11 @@ function handleMessage(data) {
         if (ask) window.JoyceAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
+      const _trich = tepTrichDan(shownText);
+      if (_trich.length) {
+        if (t) t.tep = (t.tep || []).concat(_trich);
+        veTriThuc("tool", { tool: "", files: _trich });
+      }
       veTriThuc("answer"); veTriThuc("done");
       // Chip "Nguồn tri thức": tài liệu Joyce thật sự đọc trong lượt này (hud.js ghép với bầu trời).
       if (t && t.tep && t.tep.length && window.JoyceTriThuc) window.JoyceTriThuc.chips(msgEl, t.tep);
