@@ -49,15 +49,16 @@ const ctx = {
   rgba: (col, a) => "rgba(" + col.join(",") + "," + a + ")",
   geo: { cx: 400, cy: 300, R: 150, bh: { x: 700, y: 90, r: 14 } },
   W: 800, H: 600, profile: "high",
-  ing: { on: false, items: [], k: 0, beam: 0 },
+  ing: { on: false, items: [], k: 0, mets: [] },
   know: { debris: Array.from({ length: 9 }, (_, i) => ({ b: { title: "tai-lieu-tho-" + i + ".docx" } })) },
   tip: { hidden: false },
   foc: null,
 };
 vm.createContext(ctx);
-vm.runInContext([hang("BH_TILT"), hang("BH_CAP"), hang("bhs"), hang("BHV_CAP"), hang("bhv"),
+vm.runInContext([hang("BH_TILT"), hang("BH_CAP"), hang("bhs"), hang("BHV_CAP"), hang("bhv"), hang("VX"),
   ...["hashRnd", "bhPt", "bhInit", "bhStream", "drawBHSwirl", "onBlackHole", "bhvName", "bhvCrystal", "bhvInit",
-    "openBlackHole", "bhvFunnel", "bhvPos", "drawCrystal", "drawBHView", "fireBurst", "blueBurst"].map(fn)].join("\n"), ctx);
+    "openBlackHole", "bhvPos", "drawCrystal", "drawBHView", "fireBurst", "blueBurst",
+    "ensureVortex", "drawVortexDisk", "drawVortexHole"].map(fn)].join("\n"), ctx);
 
 // ---- hố đen luôn xoay ----
 ctx.drawBHSwirl(c, NOW, 0);
@@ -109,19 +110,21 @@ check("đang nhìn sâu thì lăn chuột không phóng quả cầu", /if \(bhv\
 check("xoáy bụi vẽ dưới thiên thể, cảnh nhìn sâu vẽ trên cùng",
   PLANET.indexOf("drawBHSwirl(c, now, ddt);") < PLANET.indexOf("drawKnowSky(c, now, ddt);")
   && PLANET.indexOf("drawBHView(c, now, reduced") > PLANET.indexOf("drawKnowFocus(c, now, reduced"));
-// Chủ góp ý 2026-10-08: hố đen phải NẰM NGANG như phễu xoáy (bản trước là đĩa tròn đen đứng).
-const fz = ctx.bhv.fz;
-check("phễu nằm ngang: miệng hố là elip dẹt (FL < 0,4) nằm ở đáy phễu, sâu hơn vành ngoài",
-  fz && fz.FL < 0.4 && fz.T.y > fz.top && fz.Rth < fz.Rout);
-const pNgoai = ctx.bhvPos({ x: 400, y: 300 }, 0, 1, Math.PI / 2), pTrong = ctx.bhvPos({ x: 400, y: 300 }, 0, 0.3, Math.PI / 2);
-const pTrai = ctx.bhvPos({ x: 400, y: 300 }, 0, 1, Math.PI);
-check("càng vào trong càng sâu xuống (vách phễu)", pTrong.y - fz.top - 0.3 * fz.Rout * fz.FL > pNgoai.y - fz.top - fz.Rout * fz.FL);
-check("vòng phễu rộng ngang hơn cao (nhìn chéo từ trên)", Math.abs(pTrai.x - 400) > Math.abs(pNgoai.y - fz.top) * 2);
+// Chủ gửi ảnh mẫu 2026-10-08: hố đen là ĐĨA XOÁY BỒI TỤ nghiêng (trong trắng vàng hồng, ngoài
+// xanh tím, lòng hố tối viền đỏ cam), cả ở bầu trời lẫn cảnh nhìn sâu. Thay phễu của 1.1.2.
+check("đĩa xoáy dựng sẵn 3 vành xoay khác tốc (trong nhanh, ngoài chậm)",
+  /VX_RATE = \[0\.5, 0\.26, 0\.11\]/.test(PLANET) && /function buildVortex\(\)/.test(PLANET) && /requestIdleCallback\(dung/.test(PLANET));
+check("màu đĩa: trong trắng vàng -> hồng cam -> tím -> xanh lam", /\[0\.06, \[255, 252, 240\]\]/.test(PLANET) && /\[1, \[45, 65, 170\]\]/.test(PLANET));
+check("dùng chung cho bầu trời và cảnh nhìn sâu", /drawVortexDisk\(c, B\.x, B\.y, B\.r \* 7\.5/.test(PLANET) && /drawVortexDisk\(c, T\.x, T\.y, VR/.test(PLANET));
+check("lòng hố elip tối viền đỏ cam", /"rgba\(90,25,15,0\.95\)"/.test(PLANET) && /drawVortexHole\(c, T\.x, T\.y, VR\)/.test(PLANET));
+const pa = ctx.bhvPos({ x: 400, y: 300 }, 0, 1, 0), pb = ctx.bhvPos({ x: 400, y: 300 }, 0, 1, Math.PI / 2);
+check("tinh thể nằm trên mặt đĩa nghiêng dẹt (cùng VX_TILT, VX_FLAT)",
+  Math.hypot(pb.x - 400, pb.y - 300) < Math.hypot(pa.x - 400, pa.y - 300) * 0.6 && pa.y > 300);
 check("bụi tinh thể nhiều cỡ, có mảnh đá, cuộn theo nhánh xoắn",
   ctx.bhv.disk.some((p) => p.shard) && ctx.bhv.disk.some((p) => !p.shard)
   && Math.max(...ctx.bhv.disk.map((p) => p.s)) / Math.min(...ctx.bhv.disk.map((p) => p.s)) > 2.5
   && /p\.a = p\.base \+ 3\.4 \* \(1 - p\.f\) \+ bhv\.quay/.test(PLANET));
-check("không còn đĩa tròn đen đứng (arc tròn Rb tô đen)", !/c\.fillStyle = "#000"; c\.beginPath\(\); c\.arc\(C\.x, C\.y, Rb, 0, 6\.2832\)/.test(PLANET));
+check("không còn phễu / đĩa tròn đen đứng", !/function bhvFunnel/.test(PLANET) && !/c\.fillStyle = "#000"; c\.beginPath\(\); c\.arc\(C\.x, C\.y, Rb/.test(PLANET));
 check("bầu trời thường: bụi đá thay vệt neon; luồng xoắn shader nhạt màu bụi",
   /bụi đá tinh thể nhiều cỡ/i.test(PLANET) && /arm\*flowM\*ing\*\.45\*bgK/.test(PLANET) && !/mix\(CYAN,MINT,\.5\+\.5\*sin\(bang/.test(PLANET));
 check("R.openBlackHole + R.blackHoleView lộ ra", /R\.openBlackHole = /.test(PLANET) && /R\.blackHoleView = /.test(PLANET));
@@ -129,7 +132,7 @@ check("R.openBlackHole + R.blackHoleView lộ ra", /R\.openBlackHole = /.test(PL
 // ---- giai đoạn 3 ----
 const ctx3 = {
   performance: { now: () => NOW }, PAL: { gold: [255, 211, 106], cyan: [0, 231, 255] },
-  clamp: ctx.clamp, ing: { beam: 0 },
+  clamp: ctx.clamp, ing: { mets: [] },
   know: { stars: [], orbit: [], debris: [], hits: [], hover: null, counts: null, scope: "", bi: {}, byId: {}, hl: null },
   KNOW_DUST: [150, 160, 175],
 };
@@ -138,15 +141,29 @@ vm.runInContext(["hashRnd", "setKnowledge"].map(fn).join("\n"), ctx3);
 const troi = (ids) => ({ brains: [{ key: "H2O Studio", color: "cyan" }], bodies: ids.map((id) => ({
   id, brain: "H2O Studio", kind: id.startsWith("0") ? "orbit" : "star", ring: 1, path: id + ".md", size: 0.2 })) });
 ctx3.setKnowledge(troi(["a0000001", "a0000002", "0b000001"]));
-check("lần nạp ĐẦU không coi là sao mới", ctx3.know.stars.every((s) => !s.born) && ctx3.ing.beam === 0);
+check("lần nạp ĐẦU không coi là sao mới", ctx3.know.stars.every((s) => !s.born) && !ctx3.ing.henSaoBang);
 ctx3.know.byId["0b000001"].a = 4.2;
 ctx3.setKnowledge(troi(["a0000001", "a0000002", "0b000001", "a0000003", "a0000004"]));
 const moi = ctx3.know.stars.filter((s) => s.born);
 check("tài liệu vừa chưng cất thành sao mới (2 sao, nối đuôi nhau)", moi.length === 2 && moi[1].born > moi[0].born);
-check("sao mới bắn lại tia sáng cho khớp nhịp", ctx3.ing.beam === 1);
+check("sao mới mà chưa có sao băng: hẹn bắn sao băng ở khung sau", ctx3.ing.henSaoBang === 2);
 check("nạp lại không làm chấm vành giật về góc ban đầu", ctx3.know.byId["0b000001"].a === 4.2);
-check("tia sáng nhắm ghim H2O Studio khi đang thấy", /var stp = studioPt\(\), ex = stp \? stp\.x : /.test(PLANET)
-  && /window\.JoyceVNGeo && window\.JoyceVNGeo\.studio/.test(PLANET));
+// ---- mưa sao băng khi nạp (chủ chốt 2026-10-08, thay tia sáng thẳng; không ghi chữ "+N") ----
+const mctx = { performance: { now: () => NOW }, Math, clamp: ctx.clamp, smooth: ctx.smooth, rgba: ctx.rgba,
+  geo: { cx: 400, cy: 300, R: 150, bh: { x: 700, y: 90, r: 14 } }, ing: { mets: [] }, trPin: () => ({ x: 420, y: 280 }) };
+vm.createContext(mctx);
+vm.runInContext(["phongSaoBang", "drawMeteors", "bez"].map(fn).join("\n"), mctx);
+mctx.phongSaoBang(3);
+check("nạp 3 tài liệu: 3 sao băng, nối đuôi nhau", mctx.ing.mets.length === 3 && mctx.ing.mets.every((m) => m.big)
+  && mctx.ing.mets[1].t0 > mctx.ing.mets[0].t0 && mctx.ing.mets[2].t0 > mctx.ing.mets[1].t0);
+mctx.ing.mets = []; mctx.phongSaoBang(40);
+check("nạp nhiều: tối đa 8 sao băng chính + mưa sao băng nhỏ", mctx.ing.mets.filter((m) => m.big).length === 8 && mctx.ing.mets.filter((m) => !m.big).length === 14);
+ve.text = [];
+for (let i = 0; i < 400; i++) { NOW += 16; mctx.drawMeteors(c, NOW, 0.016); }
+check("sao băng bay xong thì tự tắt, không ghi chữ '+N'", mctx.ing.mets.length === 0 && !ve.text.some((x) => /^\+\d/.test(x)));
+check("nạp xong thì phóng sao băng (không còn tia sáng thẳng)", /if \(ing\.wasOn && !ing\.on\) phongSaoBang\(/.test(PLANET) && !/ing\.beam/.test(PLANET));
+check("sao băng bay về ghim H2O Studio (trPin)", /var B = geo\.bh, E = trPin\(\);/.test(PLANET) && /window\.JoyceVNGeo && window\.JoyceVNGeo\.studio/.test(PLANET));
+check("vào khí quyển thì đầu sao băng bùng cam", /smooth\(geo\.R \* 1\.4, geo\.R \* 1\.0, dc\)/.test(PLANET));
 check("sao mới bay từ ghim H2O Studio lên chỗ của nó", /s\.bornFrom = studioPt\(\)/.test(PLANET));
 check("hud.js: nạp xong thì nạp lại bầu trời bỏ cache", /if \(_napDangChay && !r\.active\) setTimeout\(function \(\) \{ loadKnow\(true, true\); \}, 1200\);/.test(HUD)
   && /\(fresh \? "&fresh=1" : ""\)/.test(HUD));

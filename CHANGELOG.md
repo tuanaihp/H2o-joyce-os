@@ -1,5 +1,10 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.2.0] - 2026-10-08
+### Cải thiện
+- **Hố đen thành đĩa xoáy bồi tụ như ảnh mẫu**: xoắn ốc nghiêng, sát lòng hố trắng vàng, ra ngoài hồng cam rồi tím xanh, lòng hố tối viền đỏ cam, các nhánh tự cuộn khi xoay. Nhìn từ xa hay bấm vào phóng to đều cùng một kiểu.
+- **Mưa sao băng khi nạp xong**: mỗi tài liệu vừa nạp là một sao băng từ hố đen bay về H2O, đầu bùng cam khi vào khí quyển rồi loé ở ghim H2O. Nạp nhiều thì thành trận mưa sao băng. Khi hỏi Joyce vẫn giữ sợi sáng như cũ.
+
 ## [1.1.2] - 2026-10-08
 ### Cải thiện
 - **Hố đen nằm ngang như phễu xoáy**: bấm vào hố đen giờ thấy một phễu nhìn chéo từ trên, bụi đá tinh thể nhiều cỡ cuộn theo nhánh xoắn ốc rơi xuống miệng hố ở đáy, tinh thể dữ liệu thô nằm trên vách phễu; hết cảnh đĩa tròn đen dựng đứng.

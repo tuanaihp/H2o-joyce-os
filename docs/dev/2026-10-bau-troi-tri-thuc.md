@@ -237,6 +237,24 @@ lam ở bầu trời thường trông như đèn neon):
   sáng xanh lam). Luồng xoắn trong shader khi đang nạp giảm còn 0,45 và đổi sang màu bụi xanh
   trắng nhạt (trước là CYAN/MINT x 1,6, chính là vệt "neon").
 
+**Bản 1.2.0: đĩa xoáy bồi tụ theo ảnh mẫu** (chủ gửi 2026-10-08, ảnh hố đen xoắn ốc nghiêng: sát lòng
+hố trắng vàng, ra ngoài hồng cam, rồi tím, xanh lam; lòng hố tối viền đỏ cam). Thay PHỄU của
+1.1.2, dùng chung cho hố đen nhỏ ở bầu trời và cảnh nhìn sâu:
+- `buildVortex`: dựng MỘT lần (lúc trình duyệt rảnh, ~140ms ở 448px) ba vành ảnh nhìn từ trên
+  xuống, nối mềm ở r = 0,3 và 0,58. Mật độ = hai nhánh xoắn ốc log uốn bằng nhiễu x sợi bụi
+  nhiễu, cộng vành nóng sát lòng hố (r = 0,155). Màu theo bảng `VX_MAU`.
+- `drawVortexDisk`: mỗi khung xoay từng vành (0,5 / 0,26 / 0,11 rad/giây x tốc, trong nhanh ngoài
+  chậm, nên nhánh tự cuộn lại), rồi ép dẹt 0,48 và nghiêng 0,38 rad, hoà màu cộng dồn.
+  `drawVortexHole`: elip tối nghiêng theo đĩa, viền đỏ cam. Shader thu bóng hố cũ còn nửa.
+- Tinh thể dữ liệu thô và bụi lấp lánh nằm trên mặt đĩa nghiêng (`bhvPos` cùng VX_TILT, VX_FLAT).
+  Tia kiến thức sau vụ nổ xoắn vào lòng hố rồi loé một vòng sáng ở đó.
+
+**Mưa sao băng khi nạp** (1.2.0, thay tia sáng thẳng; chủ chốt không ghi chữ "+N"): mỗi tài liệu
+vừa nạp là một sao băng từ hố đen về ghim H2O (`phongSaoBang`, tối đa 8, nối đuôi 0,38 giây),
+đuôi xanh trắng, vào khí quyển thì đầu bùng cam, tới nơi thì loé + vòng sóng. Danh sách đủ 8 tên
+(nạp nhiều) thì thêm 14 sao băng nhỏ mờ. Phóng và vẽ dùng chung `performance.now()`: Chrome chạy
+ngầm cho thấy giờ khung hình có thể đứng yên trong khi đồng hồ trang vẫn chạy.
+
 Lỗi bắt được khi chụp thử bằng Chrome chạy ngầm (2026-10-08), ghi lại để khỏi lặp:
 - Gradient vành photon bắt đầu từ 0,95 bán kính thì canvas tô màu điểm dừng đầu cho cả phần
   bên trong: lòng hố thành đĩa màu be. Phải bắt đầu từ tâm và trong suốt tới mép bóng.
