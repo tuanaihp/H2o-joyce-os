@@ -170,7 +170,7 @@
       "   float bang=atan(bq.y,bq.x);",
       "   float arm=pow(.5+.5*sin(3.*bang+6.*log(max(br,.2))+uT*4.),7.);",
       "   float flowM=smoothstep(6.5,1.6,br)*smoothstep(.98,1.25,br);",
-      "   vec3 stream=mix(CYAN,MINT,.5+.5*sin(bang*2.+uT))*arm*flowM*ing*1.6*bgK;",
+      "   vec3 stream=mix(vec3(.55,.68,.95),vec3(.85,.9,1.),.5+.5*sin(bang*2.+uT))*arm*flowM*ing*.45*bgK;",
       "   vec3 rc=VIOLET*exp(-max(br-1.,0.)*1.6)*.1*step(1.,br)*bgK+dC*fr0*.55+stream;",
       "   acc+=rc; al+=dot(rc,vec3(.3,.45,.25));",
       "  }",
@@ -1883,7 +1883,10 @@
     function bhInit() {
       var cap = BH_CAP[profile] || BH_CAP.balanced, rnd = hashRnd(4242);
       bhs.parts = []; bhs.stream = [];
-      for (var i = 0; i < cap[0]; i++) bhs.parts.push({ a: rnd() * 6.2832, r: 1.15 + Math.pow(rnd(), 0.8) * 5.6, j: rnd() });
+      for (var i = 0; i < cap[0]; i++) {
+        bhs.parts.push({ a: rnd() * 6.2832, r: 1.15 + Math.pow(rnd(), 0.8) * 5.6, j: rnd(),
+                         s: 0.5 + Math.pow(rnd(), 2) * 2.2, shard: rnd() < 0.2, rot: rnd() * 6.2832 });
+      }
       for (var k = 0; k < cap[1]; k++) bhs.stream.push({ t: rnd(), ph: rnd() * 6.2832, sp: 0.08 + rnd() * 0.06, w: (rnd() - 0.5) });
       bhs.init = profile;
     }
@@ -1925,19 +1928,28 @@
           p.r -= (0.05 + 0.35 * ing.k) * dt;
           if (p.r < 1.08) { p.r = 5 + Math.random() * 1.6; p.a = Math.random() * 6.2832; }
         }
-        var P = bhPt(B, p.r, p.a), Q = bhPt(B, p.r, p.a - Math.min(0.6, w * 0.35 + 0.08));
+        // Bụi đá tinh thể nhiều cỡ (chủ góp ý 2026-10-08: vệt xoáy xanh lam trông như đèn neon,
+        // không thật). Hạt bụi / mảnh đá nhỏ màu đá nhạt, vệt đuôi rất mờ để thấy đang trôi.
+        var P = bhPt(B, p.r, p.a), Q = bhPt(B, p.r, p.a - Math.min(0.35, w * 0.2 + 0.04));
         if (!P.front && Math.hypot(P.x - B.x, P.y - B.y) < B.r * 1.02) return;   // khuất sau bóng đen
-        var dop = 0.55 + 0.45 * Math.cos(p.a + 0.4), k = clamp((p.r - 1.1) / 5, 0, 1);
-        var col = k < 0.35 ? [215, 238, 255] : k < 0.7 ? [110, 175, 255] : [160, 120, 255];
-        c.strokeStyle = rgba(col, Math.min(1, (0.95 - 0.5 * k) * dop * (0.8 + 0.3 * ing.k)));
-        c.lineWidth = 1.3 + (1 - k) * 0.9;
+        var dop = 0.6 + 0.4 * Math.cos(p.a + 0.4), k = clamp((p.r - 1.1) / 5, 0, 1);
+        var col = k < 0.3 ? [236, 244, 255] : k < 0.65 ? [175, 200, 240] : [160, 165, 185];
+        var al = Math.min(1, (0.9 - 0.45 * k) * dop * (0.8 + 0.3 * ing.k)), sz = p.s * (1.15 - 0.4 * k);
+        c.strokeStyle = rgba(col, al * 0.22); c.lineWidth = 0.6;
         c.beginPath(); c.moveTo(Q.x, Q.y); c.lineTo(P.x, P.y); c.stroke();
+        c.fillStyle = rgba(col, al);
+        if (p.shard) {
+          if (dt) p.rot += dt * 2;
+          var cr = Math.cos(p.rot) * sz, sr = Math.sin(p.rot) * sz;
+          c.beginPath(); c.moveTo(P.x + cr * 1.5, P.y + sr * 1.5); c.lineTo(P.x - sr * 0.8, P.y + cr * 0.8);
+          c.lineTo(P.x - cr * 1.2, P.y - sr * 1.2); c.lineTo(P.x + sr * 0.7, P.y - cr * 0.7); c.closePath(); c.fill();
+        } else c.fillRect(P.x - sz / 2, P.y - sz / 2, sz, sz);
       });
       // vành sáng quanh miệng hố xoay chậm (thấy rõ là hố đang xoay)
       if (dt) bhs.spin += dt * (0.5 + 1.5 * ing.k);
       for (var i = 0; i < 3; i++) {
         var a0 = bhs.spin + i * 2.094;
-        c.strokeStyle = "rgba(190,220,255," + (0.45 + 0.25 * ing.k) + ")"; c.lineWidth = 1.5;
+        c.strokeStyle = "rgba(200,220,250," + (0.2 + 0.15 * ing.k) + ")"; c.lineWidth = 1;
         c.beginPath(); c.arc(B.x, B.y, B.r * 1.12, a0, a0 + 1.1); c.stroke();
       }
       c.restore();
@@ -1951,7 +1963,7 @@
     // sources/, inbox/) xoáy dần vào; cứ 1,4-2,2 giây hai tinh thể trong cùng va nhau: nổ lửa, nổ
     // xanh chưng cất, và một tia kiến thức đã chưng cất bắn ra theo luồng phản lực. Bấm bất kỳ
     // đâu hoặc Esc để quay ra.
-    var BHV_CAP = { high: [700, 26], balanced: [400, 20], safe: [160, 12], reduced: [160, 12] };
+    var BHV_CAP = { high: [1100, 26], balanced: [600, 20], safe: [220, 12], reduced: [220, 12] };
     var bhv = { k: 0, target: 0, init: false, disk: [], crys: [], booms: [], sparks: [], stars: [], neb: [], names: [], nameI: 0, nextCol: 0 };
     function bhvName() {
       if (ing.on && ing.items && ing.items.length && Math.random() < 0.5) return String(ing.items[(Math.random() * ing.items.length) | 0]);
@@ -1967,7 +1979,15 @@
       var cap = BHV_CAP[profile] || BHV_CAP.balanced, rnd = hashRnd(777), i;
       bhv.names = know.debris.map(function (d) { return String(d.b.title || d.b.path || ""); }).filter(Boolean);
       bhv.disk = []; bhv.crys = []; bhv.stars = []; bhv.neb = []; bhv.booms = []; bhv.sparks = [];
-      for (i = 0; i < cap[0]; i++) bhv.disk.push({ a: rnd() * 6.2832, r: 1.35 + Math.pow(rnd(), 0.9) * 3.3, j: rnd() });
+      // Bụi tinh thể: nhiều cỡ, ~22% là mảnh đá, ~12% thỉnh thoảng loé. 80% nằm dọc 3 nhánh xoắn
+      // ốc (góc gốc = nhánh + lệch nhỏ) để nhìn ra xoáy nước; 20% rải đều làm nền.
+      for (i = 0; i < cap[0]; i++) {
+        var nhanh = rnd() < 0.8;
+        bhv.disk.push({ base: nhanh ? ((rnd() * 3) | 0) * 2.094 + (rnd() - 0.5) * 0.55 : rnd() * 6.2832, f: rnd(),
+                        s: 0.6 + Math.pow(rnd(), 2) * 2.8, shard: rnd() < 0.22, glint: rnd() < 0.12,
+                        rot: rnd() * 6.2832, vs: (rnd() - 0.5) * 3, a: 0 });
+      }
+      bhv.quay = 0;
       for (i = 0; i < cap[1]; i++) bhv.crys.push(bhvCrystal(0.4 + rnd() * 0.6));
       for (i = 0; i < 170; i++) bhv.stars.push({ x: rnd(), y: rnd(), s: 0.4 + rnd() * 1.2, tw: rnd() * 6.28 });
       for (i = 0; i < 34; i++) bhv.neb.push({ t: i / 33, o: (rnd() - 0.5) * 0.12, s: 0.05 + rnd() * 0.07 });
@@ -1978,9 +1998,17 @@
       bhv.target = on ? 1 : 0;
       tip.hidden = true;
     }
-    function bhvPos(C, Rm, rho, a) {   // vị trí tinh thể: cùng mặt phẳng đĩa, ít dẹt hơn để thấy rõ
-      var dx = rho * Rm * Math.cos(a), dy = rho * Rm * Math.sin(a) * 0.5, ca = Math.cos(-0.18), sa = Math.sin(-0.18);
-      return { x: C.x + ca * dx - sa * dy, y: C.y + sa * dx + ca * dy };
+    // Hình học phễu: bán kính ngoài Rout, miệng hố Rth, độ sâu DEP, độ dẹt FL (nhìn chéo từ trên).
+    function bhvFunnel(C, Rb) {
+      var Rout = Math.min(W, H) * 0.5, Rth = Rb * 1.1, DEP = Rb * 2.3, FL = 0.3, top = C.y - Rb * 1.0;
+      bhv.fz = { Rout: Rout, Rth: Rth, DEP: DEP, FL: FL, top: top, T: { x: C.x, y: top + DEP } };
+      return bhv.fz;
+    }
+    // Điểm trên vách phễu: rho = r / Rout, góc a; càng vào trong càng sâu xuống (mũ 2,2).
+    function bhvPos(C, Rm, rho, a) {
+      var fz = bhv.fz || bhvFunnel(C, Math.min(W, H) * 0.1);
+      var r = Math.max(fz.Rth, rho * fz.Rout), k = clamp((fz.Rout - r) / (fz.Rout - fz.Rth), 0, 1);
+      return { x: C.x + r * Math.cos(a), y: fz.top + r * fz.FL * Math.sin(a) + fz.DEP * Math.pow(k, 2.2) };
     }
     function drawCrystal(c, x, y, s, rot, a, hot) {
       c.save(); c.translate(x, y); c.rotate(rot);
@@ -2020,42 +2048,71 @@
         g.addColorStop(0, "rgba(110,160,255,0.10)"); g.addColorStop(1, "rgba(110,160,255,0)");
         c.fillStyle = g; c.beginPath(); c.arc(x, y, rr, 0, 6.2832); c.fill();
       });
-      // đĩa bồi tụ: nửa sau, bóng đen + vành photon, nửa trước
-      var tilt = -0.18, ca = Math.cos(tilt), sa = Math.sin(tilt);
-      function diskPt(r, an) { var dx = r * Rb * Math.cos(an), dy = 0.26 * r * Rb * Math.sin(an); return { x: C.x + ca * dx - sa * dy, y: C.y + sa * dx + ca * dy }; }
-      function diskPass(front) {
-        c.lineCap = "round";
+      // PHỄU XOÁY NẰM NGANG (chủ góp ý 2026-10-08: hố đen phải nằm mặt ngang, bụi tinh thể xoáy
+      // vào rồi rơi xuống đáy; bản trước là đĩa tròn đen dựng đứng trước mặt). Nhìn chéo từ trên
+      // xuống: mỗi bán kính r là một vòng elip dẹt FL, càng vào trong càng SÂU xuống (DEP), miệng
+      // hố là elip dẹt ở đáy phễu. Nửa xa (sin < 0, phía trên màn) vẽ trước miệng hố, nửa gần vẽ sau.
+      var fz = bhvFunnel(C, Rb), T = fz.T;
+      // vách phễu: vài vòng mờ cho thấy hình phễu
+      for (var vr = 0; vr < 8; vr++) {
+        var rr0 = fz.Rth + (fz.Rout - fz.Rth) * Math.pow(vr / 7, 1.5), cy0 = bhvPos(C, Rm, rr0 / fz.Rout, Math.PI / 2).y - rr0 * fz.FL;
+        c.strokeStyle = "rgba(120,160,255," + (0.035 + 0.06 * (1 - vr / 7)) + ")"; c.lineWidth = 1;
+        c.beginPath(); c.ellipse(C.x, cy0, rr0, rr0 * fz.FL, 0, 0, 6.2832); c.stroke();
+      }
+      if (dt) bhv.quay = (bhv.quay || 0) + dt * 0.32 * spd;
+      // quầng nóng quanh miệng hố: nơi bụi bị nén lại trước khi rơi xuống
+      var qn = c.createRadialGradient(T.x, T.y, fz.Rth * 0.6, T.x, T.y, fz.Rth * 2.4);
+      qn.addColorStop(0, "rgba(170,205,255,0.32)"); qn.addColorStop(0.5, "rgba(120,160,255,0.12)"); qn.addColorStop(1, "rgba(90,120,255,0)");
+      c.save(); c.translate(T.x, T.y); c.scale(1, fz.FL); c.translate(-T.x, -T.y);
+      c.fillStyle = qn; c.beginPath(); c.arc(T.x, T.y, fz.Rth * 2.4, 0, 6.2832); c.fill();
+      c.restore();
+      function bui(gan) {   // bụi tinh thể nhiều cỡ cuộn theo 3 nhánh xoắn ốc xuống đáy phễu
         bhv.disk.forEach(function (p) {
-          var w = 0.9 / Math.pow(p.r, 1.3) * spd;
-          if (front && dt) { p.a += w * dt; p.r -= 0.04 * spd * dt; if (p.r < 1.3) { p.r = 4.4 + Math.random() * 0.3; p.a = Math.random() * 6.2832; } }
-          if ((Math.sin(p.a) > 0) !== front) return;   // sin > 0 = nửa GẦN (phía dưới trên màn) = vẽ đè lên hố
-          var P = diskPt(p.r, p.a), Q = diskPt(p.r, p.a - 0.12 - w * 0.15), k = clamp((p.r - 1.35) / 3.3, 0, 1);
-          var col = k < 0.25 ? [225, 242, 255] : k < 0.5 ? [120, 180, 255] : k < 0.75 ? [255, 140, 200] : [255, 175, 110];
-          var dop = 0.5 + 0.5 * Math.cos(p.a + 0.4);
-          c.strokeStyle = rgba(col, (0.55 - 0.3 * k) * (0.5 + 0.5 * dop)); c.lineWidth = 1.6 - k * 0.6;
-          c.beginPath(); c.moveTo(Q.x, Q.y); c.lineTo(P.x, P.y); c.stroke();
+          var r = fz.Rth + (fz.Rout - fz.Rth) * Math.pow(p.f, 1.3);
+          if (gan && dt) {
+            p.f -= (0.03 + 0.06 * (1 - p.f)) * spd * dt; p.rot += p.vs * dt;
+            if (p.f <= 0) p.f = 0.88 + Math.random() * 0.12;
+          }
+          // Góc = nhánh + độ cuộn theo bán kính (xoắn ốc) + quay chung, trong quay nhanh hơn ngoài.
+          p.a = p.base + 3.4 * (1 - p.f) + bhv.quay * (0.55 + 1.6 * (1 - p.f));
+          if ((Math.sin(p.a) > 0) !== gan) return;
+          var P = bhvPos(C, Rm, r / fz.Rout, p.a), k = p.f;
+          var col = k < 0.15 ? [240, 248, 255] : k < 0.5 ? [150, 195, 255] : [190, 205, 235];
+          var a = (gan ? 0.85 : 0.5) * (0.35 + 0.65 * (1 - k)) * (p.glint && Math.sin(t * 3 + p.rot * 4) > 0.92 ? 2 : 1);
+          var s = p.s * (0.75 + 0.35 * (1 - k)) * (gan ? 1 : 0.8);
+          c.fillStyle = rgba(col, Math.min(1, a));
+          if (p.shard) {   // mảnh đá tinh thể: tứ giác méo xoay
+            var cr = Math.cos(p.rot), sr = Math.sin(p.rot);
+            c.beginPath();
+            c.moveTo(P.x + cr * s * 1.6, P.y + sr * s * 1.6); c.lineTo(P.x - sr * s * 0.8, P.y + cr * s * 0.8);
+            c.lineTo(P.x - cr * s * 1.3, P.y - sr * s * 1.3); c.lineTo(P.x + sr * s * 0.7, P.y - cr * s * 0.7);
+            c.closePath(); c.fill();
+          } else c.fillRect(P.x - s / 2, P.y - s / 2, s, s);
         });
       }
-      diskPass(false);
-      // hai tia phản lực vuông góc với đĩa
-      var ja = tilt - Math.PI / 2, jx = Math.cos(ja), jy = Math.sin(ja), L = H * 0.42, fl = 0.8 + 0.2 * Math.sin(t * 7);
+      bui(false);
+      // hai tia phản lực thẳng đứng từ miệng hố (vuông góc với mặt phễu nằm ngang)
+      var jx = 0, jy = -1, L = H * 0.42, fl = 0.8 + 0.2 * Math.sin(t * 7);
       for (var s = -1; s <= 1; s += 2) {
-        var tx = C.x + jx * L * s, ty = C.y + jy * L * s, jg = c.createLinearGradient(C.x, C.y, tx, ty);
+        var tx = T.x + jx * L * s, ty = T.y + jy * L * s, jg = c.createLinearGradient(T.x, T.y, tx, ty);
         jg.addColorStop(0, "rgba(230,220,255," + 0.9 * fl + ")"); jg.addColorStop(0.35, "rgba(160,110,255," + 0.5 * fl + ")"); jg.addColorStop(1, "rgba(110,90,255,0)");
         c.strokeStyle = jg;
-        c.lineWidth = Rb * 0.5; c.globalAlpha = 0.25; c.beginPath(); c.moveTo(C.x, C.y); c.lineTo(tx, ty); c.stroke();
-        c.lineWidth = 2.4; c.globalAlpha = 1; c.beginPath(); c.moveTo(C.x, C.y); c.lineTo(tx, ty); c.stroke();
+        c.lineWidth = Rb * 0.4; c.globalAlpha = 0.22; c.beginPath(); c.moveTo(T.x, T.y); c.lineTo(tx, ty); c.stroke();
+        c.lineWidth = 2.2; c.globalAlpha = 1; c.beginPath(); c.moveTo(T.x, T.y); c.lineTo(tx, ty); c.stroke();
       }
+      // miệng hố: elip đen dẹt ở đáy phễu, viền photon sáng mảnh
       c.globalCompositeOperation = "source-over";
-      c.fillStyle = "#000"; c.beginPath(); c.arc(C.x, C.y, Rb, 0, 6.2832); c.fill();
+      var mg = c.createRadialGradient(T.x, T.y, 0, T.x, T.y, fz.Rth);
+      mg.addColorStop(0, "rgb(0,0,0)"); mg.addColorStop(0.8, "rgb(2,3,10)"); mg.addColorStop(1, "rgb(8,12,32)");
+      c.save(); c.translate(T.x, T.y); c.scale(1, fz.FL); c.translate(-T.x, -T.y);
+      c.fillStyle = mg; c.beginPath(); c.arc(T.x, T.y, fz.Rth, 0, 6.2832); c.fill();
+      c.restore();
       c.globalCompositeOperation = "lighter";
-      // Vành photon: gradient PHẢI bắt đầu từ tâm và trong suốt tới mép bóng. Bắt đầu từ 0,95Rb
-      // thì canvas tô màu điểm dừng đầu cho cả phần bên trong, lòng hố thành đĩa màu be (chụp thử).
-      var pr = c.createRadialGradient(C.x, C.y, 0, C.x, C.y, Rb * 1.35), r0 = 0.95 / 1.35;
-      pr.addColorStop(0, "rgba(255,240,215,0)"); pr.addColorStop(r0 - 0.01, "rgba(255,240,215,0)");
-      pr.addColorStop(r0, "rgba(255,240,215,0.85)"); pr.addColorStop(r0 + 0.08, "rgba(150,190,255,0.35)"); pr.addColorStop(1, "rgba(120,160,255,0)");
-      c.fillStyle = pr; c.beginPath(); c.arc(C.x, C.y, Rb * 1.35, 0, 6.2832); c.fill();
-      diskPass(true);
+      c.strokeStyle = "rgba(120,170,255,0.22)"; c.lineWidth = 8;
+      c.beginPath(); c.ellipse(T.x, T.y, fz.Rth * 1.04, fz.Rth * fz.FL * 1.1, 0, 0, 6.2832); c.stroke();
+      c.strokeStyle = "rgba(235,245,255,0.85)"; c.lineWidth = 1.6;
+      c.beginPath(); c.ellipse(T.x, T.y, fz.Rth, fz.Rth * fz.FL, 0, 0, 6.2832); c.stroke();
+      bui(true);
       // tinh thể dữ liệu thô xoáy vào + lịch va chạm
       if (now >= bhv.nextCol && bhv.crys.length >= 2) {
         var ds = bhv.crys.filter(function (q) { return !q.col; }).sort(function (p, q) { return p.rho - q.rho; });
@@ -2105,8 +2162,8 @@
         if (tb >= 0.5 && tb < 1.5) blueBurst(c, b, R1, (tb - 0.5) / 1.0);
         if (tb >= 0.7) {   // tia kiến thức: từ chỗ nổ vào tâm rồi vọt lên theo tia phản lực
           var u2 = clamp((tb - 0.7) / 1.5, 0, 1), px, py;
-          if (u2 < 0.4) { var v = u2 / 0.4; px = b.px + (C.x - b.px) * v; py = b.py + (C.y - b.py) * v; }
-          else { var v2 = (u2 - 0.4) / 0.6; px = C.x + jx * L * v2 * (b.axis > 1.57 ? 1 : -1); py = C.y + jy * L * v2 * (b.axis > 1.57 ? 1 : -1); }
+          if (u2 < 0.4) { var v = u2 / 0.4; px = b.px + (T.x - b.px) * v; py = b.py + (T.y - b.py) * v; }
+          else { var v2 = (u2 - 0.4) / 0.6; px = T.x + jx * L * v2 * (b.axis > 1.57 ? 1 : -1); py = T.y + jy * L * v2 * (b.axis > 1.57 ? 1 : -1); }
           c.save(); c.globalCompositeOperation = "lighter";
           var kg = c.createRadialGradient(px, py, 0, px, py, 9);
           kg.addColorStop(0, "rgba(240,252,255," + (1 - u2 * 0.5) + ")"); kg.addColorStop(1, "rgba(90,180,255,0)");

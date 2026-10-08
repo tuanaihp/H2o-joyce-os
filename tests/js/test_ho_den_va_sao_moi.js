@@ -57,7 +57,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext([hang("BH_TILT"), hang("BH_CAP"), hang("bhs"), hang("BHV_CAP"), hang("bhv"),
   ...["hashRnd", "bhPt", "bhInit", "bhStream", "drawBHSwirl", "onBlackHole", "bhvName", "bhvCrystal", "bhvInit",
-    "openBlackHole", "bhvPos", "drawCrystal", "drawBHView", "fireBurst", "blueBurst"].map(fn)].join("\n"), ctx);
+    "openBlackHole", "bhvFunnel", "bhvPos", "drawCrystal", "drawBHView", "fireBurst", "blueBurst"].map(fn)].join("\n"), ctx);
 
 // ---- hố đen luôn xoay ----
 ctx.drawBHSwirl(c, NOW, 0);
@@ -109,8 +109,21 @@ check("đang nhìn sâu thì lăn chuột không phóng quả cầu", /if \(bhv\
 check("xoáy bụi vẽ dưới thiên thể, cảnh nhìn sâu vẽ trên cùng",
   PLANET.indexOf("drawBHSwirl(c, now, ddt);") < PLANET.indexOf("drawKnowSky(c, now, ddt);")
   && PLANET.indexOf("drawBHView(c, now, reduced") > PLANET.indexOf("drawKnowFocus(c, now, reduced"));
-check("vành photon không tô kín lòng hố (gradient từ tâm, trong suốt tới mép bóng)",
-  /createRadialGradient\(C\.x, C\.y, 0, C\.x, C\.y, Rb \* 1\.35\), r0 = 0\.95 \/ 1\.35/.test(PLANET));
+// Chủ góp ý 2026-10-08: hố đen phải NẰM NGANG như phễu xoáy (bản trước là đĩa tròn đen đứng).
+const fz = ctx.bhv.fz;
+check("phễu nằm ngang: miệng hố là elip dẹt (FL < 0,4) nằm ở đáy phễu, sâu hơn vành ngoài",
+  fz && fz.FL < 0.4 && fz.T.y > fz.top && fz.Rth < fz.Rout);
+const pNgoai = ctx.bhvPos({ x: 400, y: 300 }, 0, 1, Math.PI / 2), pTrong = ctx.bhvPos({ x: 400, y: 300 }, 0, 0.3, Math.PI / 2);
+const pTrai = ctx.bhvPos({ x: 400, y: 300 }, 0, 1, Math.PI);
+check("càng vào trong càng sâu xuống (vách phễu)", pTrong.y - fz.top - 0.3 * fz.Rout * fz.FL > pNgoai.y - fz.top - fz.Rout * fz.FL);
+check("vòng phễu rộng ngang hơn cao (nhìn chéo từ trên)", Math.abs(pTrai.x - 400) > Math.abs(pNgoai.y - fz.top) * 2);
+check("bụi tinh thể nhiều cỡ, có mảnh đá, cuộn theo nhánh xoắn",
+  ctx.bhv.disk.some((p) => p.shard) && ctx.bhv.disk.some((p) => !p.shard)
+  && Math.max(...ctx.bhv.disk.map((p) => p.s)) / Math.min(...ctx.bhv.disk.map((p) => p.s)) > 2.5
+  && /p\.a = p\.base \+ 3\.4 \* \(1 - p\.f\) \+ bhv\.quay/.test(PLANET));
+check("không còn đĩa tròn đen đứng (arc tròn Rb tô đen)", !/c\.fillStyle = "#000"; c\.beginPath\(\); c\.arc\(C\.x, C\.y, Rb, 0, 6\.2832\)/.test(PLANET));
+check("bầu trời thường: bụi đá thay vệt neon; luồng xoắn shader nhạt màu bụi",
+  /bụi đá tinh thể nhiều cỡ/i.test(PLANET) && /arm\*flowM\*ing\*\.45\*bgK/.test(PLANET) && !/mix\(CYAN,MINT,\.5\+\.5\*sin\(bang/.test(PLANET));
 check("R.openBlackHole + R.blackHoleView lộ ra", /R\.openBlackHole = /.test(PLANET) && /R\.blackHoleView = /.test(PLANET));
 
 // ---- giai đoạn 3 ----

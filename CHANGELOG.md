@@ -1,5 +1,10 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.1.2] - 2026-10-08
+### Cải thiện
+- **Hố đen nằm ngang như phễu xoáy**: bấm vào hố đen giờ thấy một phễu nhìn chéo từ trên, bụi đá tinh thể nhiều cỡ cuộn theo nhánh xoắn ốc rơi xuống miệng hố ở đáy, tinh thể dữ liệu thô nằm trên vách phễu; hết cảnh đĩa tròn đen dựng đứng.
+- Quanh hố đen ở bầu trời thường là bụi và mảnh đá màu đá nhạt bị hút vào, không còn vệt xanh lam như đèn neon.
+
 ## [1.1.1] - 2026-10-08
 ### Sửa lỗi
 - **Tia tri thức chạy cả với bộ não Codex**: trước chỉ có vòng sóng quét mà không có sợi sáng, vì Codex đọc file bằng câu lệnh và nói một câu mở đầu trước khi đọc. Giờ nhận ra file trong câu lệnh, và tài liệu Joyce trích dẫn ở dòng "Nguồn" cũng thành sợi sáng về H2O và chip "Nguồn tri thức".

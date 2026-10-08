@@ -221,6 +221,22 @@ mở tròn từ hố đen ra cả khung. Trong đó:
 - Ra: bấm bất kỳ đâu, hoặc Esc. Đang mở thì lăn chuột không phóng quả cầu, rê chuột không hiện
   chú thích.
 
+**Bản 1.1.2: phễu xoáy nằm ngang** (chủ góp ý 2026-10-08: "hố đen phải nằm mặt ngang như đang
+có luồng bụi tinh thể hút vào xuống đáy", bản trước là đĩa tròn đen dựng đứng; và vệt xoáy xanh
+lam ở bầu trời thường trông như đèn neon):
+- Cảnh nhìn sâu thành PHỄU nhìn chéo từ trên (`bhvFunnel`, `bhvPos`): mỗi bán kính là một vòng
+  elip dẹt 0,3, càng vào trong càng sâu xuống (`DEP * k^2,2`), miệng hố là elip đen dẹt ở đáy
+  phễu có viền photon mảnh và quầng nóng. 8 vòng mờ vẽ vách phễu. Nửa xa vẽ trước miệng hố, nửa
+  gần vẽ sau. Hai tia phản lực thẳng đứng từ miệng hố.
+- Bụi: 1100/600/220 hạt nhiều cỡ (0,6-3,4px), 22% là mảnh đá tứ giác méo xoay, 12% thỉnh thoảng
+  loé; 80% nằm dọc 3 nhánh xoắn ốc. Góc = nhánh + `3,4 * (1 - f)` (cuộn theo bán kính) + quay
+  chung nhanh dần vào trong, nên nhánh tự cuộn xuống đáy như xoáy nước.
+- Tinh thể dữ liệu thô nằm trên vách phễu (cùng `bhvPos`); tia kiến thức sau vụ nổ đi vào miệng
+  hố rồi vọt theo tia phản lực.
+- Bầu trời thường: hạt xoáy quanh hố đen là bụi / mảnh đá màu đá nhạt, vệt đuôi rất mờ (thay vệt
+  sáng xanh lam). Luồng xoắn trong shader khi đang nạp giảm còn 0,45 và đổi sang màu bụi xanh
+  trắng nhạt (trước là CYAN/MINT x 1,6, chính là vệt "neon").
+
 Lỗi bắt được khi chụp thử bằng Chrome chạy ngầm (2026-10-08), ghi lại để khỏi lặp:
 - Gradient vành photon bắt đầu từ 0,95 bán kính thì canvas tô màu điểm dừng đầu cho cả phần
   bên trong: lòng hố thành đĩa màu be. Phải bắt đầu từ tâm và trong suốt tới mép bóng.
