@@ -1,5 +1,9 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.3.2] - 2026-10-08
+### Cải thiện
+- **Cẩm nang → Fanpage**: mỗi Trang giờ có nút ↗ mở thẳng sang trang Facebook tương ứng (tab mới), không phải copy ID dán lên trình duyệt nữa. Bấm vào tên Trang vẫn chọn để xem báo cáo như cũ.
+
 ## [1.3.1] - 2026-10-08
 ### Thêm mới
 - **Tab Kinh doanh** mới trong nhóm Năng lực, mở ra mục con **Xưởng content AI**: trung tâm tạo nội dung của H2O với 8 kiểu đầu ra chuẩn (trang bán hàng, ảnh ads, carousel, slide, bìa reel, ebook, banner, bộ nhận diện), bảng công việc theo trạng thái, hàng chờ duyệt, thư viện đầu ra và Brand Kit cho cả H2O Studio lẫn Thủy H2O Academy. Số liệu trong màn hình là mẫu minh hoạ; nối nguồn thật sẽ theo thiết kế.

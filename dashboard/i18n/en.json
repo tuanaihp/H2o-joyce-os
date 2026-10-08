@@ -184,6 +184,7 @@
   "camnang.fb_pages_none": "No Pages found - check the Pages you selected when connecting",
   "camnang.fb_hide": "Remove",
   "camnang.fb_hide_t": "Remove Page from Joyce",
+  "camnang.fb_open_t": "Open Page on Facebook",
   "camnang.fb_hide_q": "Remove \"{ten}\" from Joyce? Joyce and the AI will stop reading and posting to this Page. The Page on Facebook is not affected, and you can add it back any time.",
   "camnang.fb_hidden_ok": "Page removed from Joyce",
   "camnang.fb_shown_ok": "Page added back",

@@ -377,6 +377,9 @@
         + '<span class="cn-pmain"><b>' + esc(p.name) + '</b><span>' + esc(p.category || "") + '</span></span>'
         + '<span class="cn-pcell"><b class="cn-mono">' + esc(p.id) + '</b>'
         + '<span>' + (nq ? esc(tw("camnang.fb_tasks_n", { so: nq })) : "") + '</span></span>'
+        + '<button type="button" class="cn-popen" data-fbopen="' + esc(p.id) + '"'
+        + ' title="' + esc(tw("camnang.fb_open_t")) + '" aria-label="' + esc(tw("camnang.fb_open_t") + ": " + p.name) + '">'
+        + ic("external-link") + '</button>'
         + '<button type="button" class="cn-prm" data-hide="' + esc(p.id) + '" data-pname="' + esc(p.name) + '"'
         + ' title="' + esc(tw("camnang.fb_hide_t")) + '" aria-label="' + esc(tw("camnang.fb_hide_t") + ": " + p.name) + '">'
         + ic("x") + '<span>' + esc(tw("camnang.fb_hide")) + '</span></button>'
@@ -392,8 +395,15 @@
       napBaiDang(c.dataset.page);
       napTacVu();
     };
+    // Nút link mở thẳng Trang trên Facebook (facebook.com/<id> đổ về vanity URL nếu có).
+    // stopPropagation + lọc closest ở handler hàng: bấm icon không được thành "chọn Trang".
+    box.querySelectorAll("[data-fbopen]").forEach(b =>
+      b.onclick = (e) => {
+        e.stopPropagation();
+        window.open("https://www.facebook.com/" + encodeURIComponent(b.dataset.fbopen), "_blank", "noopener");
+      });
     box.querySelectorAll(".cn-page").forEach(c => {
-      c.onclick = (e) => { if (!e.target.closest(".cn-prm")) chon(c); };
+      c.onclick = (e) => { if (!e.target.closest(".cn-prm,.cn-popen")) chon(c); };
       c.onkeydown = (e) => {
         if (e.target !== c || (e.key !== "Enter" && e.key !== " ")) return;
         e.preventDefault(); chon(c);

@@ -184,6 +184,7 @@
   "camnang.fb_pages_none": "Chưa thấy Trang nào - kiểm tra lại các Trang đã chọn lúc kết nối",
   "camnang.fb_hide": "Gỡ",
   "camnang.fb_hide_t": "Gỡ Trang khỏi Joyce",
+  "camnang.fb_open_t": "Mở Trang trên Facebook",
   "camnang.fb_hide_q": "Gỡ \"{ten}\" khỏi Joyce? Joyce và AI sẽ thôi đọc, thôi đăng lên Trang này. Trang trên Facebook không bị ảnh hưởng, và thêm lại lúc nào cũng được.",
   "camnang.fb_hidden_ok": "Đã gỡ Trang khỏi Joyce",
   "camnang.fb_shown_ok": "Đã thêm lại Trang",
