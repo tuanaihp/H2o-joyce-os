@@ -34,6 +34,9 @@
     settings: "settings",
     workspace: "bot",
     camnang: "book-open",
+    // Kinh doanh = trang cha các công cụ bán hàng/marketing của H2O (Xưởng content AI...).
+    // trending-up vì trang này nói về doanh số và chiến dịch, không phải tài liệu tra cứu.
+    kinhdoanh: "trending-up",
     chatbots: "headset",
     conversations: "messages-square",
     skills: "puzzle",
@@ -105,7 +108,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports",
-    "home", "chat", "settings", "workspace", "camnang", "skills", "chatbots", "conversations", "files",
+    "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "projects", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -121,6 +124,14 @@
     .map(([id, ico]) => ({ id, get icon() { return ic(ico); }, get label() { return t(`camnang.tab_${id}`); } }));
   const _cnRailItem = RAIL_ITEMS.find(i => i.id === "camnang");
   if (_cnRailItem) _cnRailItem.subs = CN_SUBS;
+
+  // Tab con của Kinh doanh trên rail, y hệt cơ chế Cẩm nang: bấm sub mở trang kinhdoanh
+  // đúng tab đó qua window.__kdSub + JoyceKinhDoanh.openSub. Thêm công cụ kinh doanh mới
+  // = thêm 1 dòng ở đây + 1 entry trong KD_VIEWS của kinhdoanh.js.
+  const KD_SUBS = [["xuongcontent", "sparkles"]]
+    .map(([id, ico]) => ({ id, get icon() { return ic(ico); }, get label() { return t(`kinhdoanh.tab_${id}`); } }));
+  const _kdRailItem = RAIL_ITEMS.find(i => i.id === "kinhdoanh");
+  if (_kdRailItem) _kdRailItem.subs = KD_SUBS;
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
   // Nhóm cuối (foot:true) được ghim xuống ĐÁY rail; các nhóm còn lại cuộn ở giữa.
@@ -146,7 +157,7 @@
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal", "coding", "projects"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "workspace", "conversations", "skills", "plugins"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "workspace", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
@@ -221,7 +232,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace", "camnang", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -396,7 +407,7 @@
   function _ghiVetTrang(store, id) {
     if (_dangLuiTrang || store.active === id) return;
     const b = body();
-    store.navStack.push({ id: store.active, tab: store.settingsTab, cnSub: store.cnSub,
+    store.navStack.push({ id: store.active, tab: store.settingsTab, cnSub: store.cnSub, kdSub: store.kdSub,
                           cuon: store.active !== "home" && b ? b.scrollTop : 0 });
     try { history.pushState({ jvpg: store.navStack.length }, ""); } catch (e) {}
   }
@@ -409,6 +420,7 @@
     if (!muc) return;
     const store = Alpine.store("nav");
     if (muc.id === "camnang") { store.cnSub = muc.cnSub || "tongquan"; try { window.__cnSub = store.cnSub; } catch (e) {} }
+    if (muc.id === "kinhdoanh") { store.kdSub = muc.kdSub || "xuongcontent"; try { window.__kdSub = store.kdSub; } catch (e) {} }
     store.openGroup = groupLabelOf(muc.id) || store.openGroup;
     _cuonCho = { id: muc.id, y: muc.cuon || 0 };
     _dangLuiTrang = true;
@@ -631,7 +643,9 @@
     // Trang Chatbot (0.65.10) tự vẽ tiêu đề cùng hàng với tab và chiếm trọn khung, nên đầu trang chung phải ẩn. Lớp nằm trên
     // #cview (KHÔNG bị clone như cviewBody) nên phải bật/tắt ở MỌI lần đổi trang, không thì trang sau mất đầu trang.
     const cv = document.getElementById("cview");
-    if (cv) cv.classList.toggle("cview-hoi-thoai", id === "conversations" || id === "chatbots");
+    // Kinh doanh cũng chiếm trọn khung như Hội thoại: nội dung là workspace nhúng
+    // (Xưởng content AI) tự vẽ đầu trang riêng, hai đầu trang chồng nhau rất xấu.
+    if (cv) cv.classList.toggle("cview-hoi-thoai", id === "conversations" || id === "chatbots" || id === "kinhdoanh");
     _renderGen++;   // đổi trang → vô hiệu mọi render async đang dở (guard bổ sung cho renderer đã có)
     if (id === "chat")     return renderChat(el);
     if (id === "workspace") return renderWorkspace(el);
@@ -639,6 +653,12 @@
     if (id === "camnang") {
       if (window.JoyceCamNang) return window.JoyceCamNang.render(el);
       el.innerHTML = placeholder("camnang", window.t("cs.mod_not_ready", { ten: "camnang.js" }));
+      return;
+    }
+    // Trang Kinh doanh do kinhdoanh.js dựng (uỷ quyền y như camnang.js).
+    if (id === "kinhdoanh") {
+      if (window.JoyceKinhDoanh) return window.JoyceKinhDoanh.render(el);
+      el.innerHTML = placeholder("kinhdoanh", window.t("cs.mod_not_ready", { ten: "kinhdoanh.js" }));
       return;
     }
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
@@ -9209,6 +9229,13 @@
       get backMeta() { void this.i18nTick; const m = this.navStack[this.navStack.length - 1]; return m ? (VIEW_META[m.id] || VIEW_META.home) : null; },
       back() { luiTrang(); },
       cnSub: "tongquan",
+      // Tab con đang chọn của trang Kinh doanh (xuongcontent, ...). Tách state riêng
+      // khỏi cnSub vì hai trang cha độc lập; rail đọc qua activeSub/subDefault.
+      kdSub: "xuongcontent",
+      // Tab con "mặc định" của từng trang cha: khi đang đứng đúng sub này thì rail tô
+      // sáng mục CHA (active) thay vì mục con - trạng thái "vừa mở trang cha".
+      subDefault(pid) { return pid === "camnang" ? "tongquan" : "xuongcontent"; },
+      activeSub(pid) { return pid === "kinhdoanh" ? this.kdSub : this.cnSub; },
       // Nhóm tab con đang bung (mục cha có `subs`, hiện chỉ Cẩm nang). Chevron sổ
       // xuống trên mục cha bật/tắt; mặc định bung. Nhớ lựa chọn qua localStorage.
       subsOpen: (() => { try { return JSON.parse(localStorage.getItem("joyce_rail_subs") || "{}"); } catch (e) { return {}; } })(),
@@ -9219,6 +9246,18 @@
         try { localStorage.setItem("joyce_rail_subs", JSON.stringify(this.subsOpen)); } catch (e) {}
       },
       goSub(pid, sid) {
+        // Kinh doanh chạy kênh sub riêng (kdSub/__kdSub), không dùng chung cnSub của
+        // Cẩm nang - hai trang cha độc lập, gộp state là đổi sub này làm sub kia lệch.
+        if (pid === "kinhdoanh") {
+          this.kdSub = sid;
+          try { window.__kdSub = sid; } catch (e) {}
+          if (this.active === pid) {
+            if (window.JoyceKinhDoanh && window.JoyceKinhDoanh.openSub) window.JoyceKinhDoanh.openSub(sid);
+            return;
+          }
+          this.go(pid);
+          return;
+        }
         // Đang đứng trong Cẩm nang rồi thì chỉ đổi tab con tại chỗ, không render lại trang.
         this.cnSub = sid;
         try { window.__cnSub = sid; } catch (e) {}
@@ -9245,6 +9284,18 @@
           // Từ trang khác: GHI RÕ tab con cần mở. Không ghi thì camnang.js giữ tab con lần trước
           // (CN_STATE.tab sống qua các lần render), bấm "Cẩm nang" lại ra Fanpage thay vì Tổng quan.
           try { window.__cnSub = s; } catch (e) {}
+        }
+        // Bấm thẳng "Kinh doanh" → về tab con mặc định (Xưởng content AI); __kdSub do
+        // goSub đặt trước thì kinhdoanh.js mở đúng tab đó. Y hệt nhánh camnang phía trên.
+        if (id === "kinhdoanh") {
+          const s = window.__kdSub || "xuongcontent";
+          this.kdSub = s;
+          if (this.active === "kinhdoanh") {
+            try { window.__kdSub = null; } catch (e) {}
+            if (window.JoyceKinhDoanh && window.JoyceKinhDoanh.openSub) window.JoyceKinhDoanh.openSub(s);
+            return;
+          }
+          try { window.__kdSub = s; } catch (e) {}
         }
         navigateTo(id);
       },

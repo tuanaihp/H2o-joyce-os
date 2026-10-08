@@ -19,7 +19,7 @@ import unicodedata
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
     "command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace",
-    "camnang", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
+    "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
     "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account",
     "staff", "usage", "pet", "share",
 )
@@ -34,6 +34,9 @@ ALIASES = {
     "lich": "calendar", "lich va ke hoach": "calendar", "ke hoach": "calendar", "calendar": "calendar",
     "bao cao": "reports", "trung tam bao cao": "reports", "reports": "reports",
     "cam nang": "camnang", "du an": "projects", "nhan vien": "staff",
+    # Kinh doanh (0.65.5x): trang cha chứa Xưởng content AI - nói "xưởng content" cũng mở đúng.
+    "kinh doanh": "kinhdoanh", "business": "kinhdoanh", "xuong content": "kinhdoanh",
+    "xuong noi dung": "kinhdoanh", "content factory": "kinhdoanh",
     "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban", "task": "kanban", "tasks": "kanban",
     "tep": "files", "tep tin": "files", "file": "files", "thu muc": "files", "brain": "files",
     "cai dat": "settings", "setting": "settings", "thiet lap": "settings",

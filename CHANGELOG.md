@@ -1,5 +1,10 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.3.1] - 2026-10-08
+### Thêm mới
+- **Tab Kinh doanh** mới trong nhóm Năng lực, mở ra mục con **Xưởng content AI**: trung tâm tạo nội dung của H2O với 8 kiểu đầu ra chuẩn (trang bán hàng, ảnh ads, carousel, slide, bìa reel, ebook, banner, bộ nhận diện), bảng công việc theo trạng thái, hàng chờ duyệt, thư viện đầu ra và Brand Kit cho cả H2O Studio lẫn Thủy H2O Academy. Số liệu trong màn hình là mẫu minh hoạ; nối nguồn thật sẽ theo thiết kế.
+- Nói "mở kinh doanh" hay "mở xưởng content" với Joyce cũng tới đúng trang này.
+
 ## [1.3.0] - 2026-10-08
 ### Thêm mới
 - **Thiên hà phòng ban**: thu nhỏ tinh cầu (hoặc bấm nút **Thiên hà**) là thấy 44 tinh cầu phòng ban gom thành 11 cụm theo khối, xoắn quanh Trái Đất. Mỗi khối một kiểu: Kế Toán vàng có vành, Nhân Sự xanh lá, Marketing cam có bão, Sản Xuất dung nham, Nghiên Cứu tím tinh thể, CSKH đại dương, Vệ Sinh băng, ThuyH2O hồng kim tuyến...

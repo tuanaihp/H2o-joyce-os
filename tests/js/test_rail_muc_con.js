@@ -74,7 +74,13 @@ const subs = (CON.match(/const CN_SUBS = (\[[\s\S]*?\])\s*\.map/) || [])[1] || "
 const ids = JSON.parse(subs).map((x) => x[0]);
 check("Cẩm nang có bốn mục con đúng thứ tự: Tổng quan, Phòng ban, Fanpage, Zalo", JSON.stringify(ids) === '["tongquan","phongban","fanpage","zalo"]', ids.join(","));
 check("có chevron sổ xuống đóng/mở nhóm mục con", /class="rail-chev"/.test(HTML) && /@click\.stop="\$store\.nav\.toggleSubs\(it\.id\)"/.test(HTML));
-check("đang ở mục con thì chỉ mục con sáng, mục cha không tô nền", /'has-sub-active'/.test(HTML) && /\$store\.nav\.cnSub === 'tongquan'/.test(HTML));
+check("đang ở mục con thì chỉ mục con sáng, mục cha không tô nền", /'has-sub-active'/.test(HTML) && /\$store\.nav\.activeSub\(it\.id\) === \$store\.nav\.subDefault\(it\.id\)/.test(HTML));
+
+// Rail Kinh doanh (2026-10-08): cùng cơ chế Cẩm nang, sub đầu tiên là Xưởng content AI.
+const kdSubs = (CON.match(/const KD_SUBS = (\[[\s\S]*?\])\s*\.map/) || [])[1] || "[]";
+const kdIds = JSON.parse(kdSubs).map((x) => x[0]);
+check("Kinh doanh có mục con Xưởng content AI", kdIds[0] === "xuongcontent", kdIds.join(","));
+check("Kinh doanh nằm trong nhóm Năng lực", /"nang_luc"[^\n]*ids:\s*\[[^\]]*"kinhdoanh"/.test(CON));
 
 // go("camnang") chạy thật: từ trang khác phải ghi rõ tab con cần mở
 const start = CON.search(/ {6}go\(id\) \{\r?\n\s*const item = RAIL_ITEMS\.find/);   // go() của store nav (không phải bản một dòng cùng tên)
@@ -82,10 +88,10 @@ const goSrc = CON.slice(start, CON.indexOf("\n      },", start) + 9).replace(/^\
 function chay(active, preSub) {
   const nav = [];
   const ctx = { RAIL_ITEMS: [{ id: "camnang" }, { id: "workspace" }], groupLabelOf: () => null, recomputeGraph() {},
-    navigateTo: (id) => nav.push(id), window: { __cnSub: preSub || null } };
+    navigateTo: (id) => nav.push(id), window: { __cnSub: preSub || null, __kdSub: null } };
   vm.createContext(ctx);
   vm.runInContext(goSrc + "\nthis.go = go;", ctx);
-  const store = { active, cnSub: "fanpage", openGroup: null };
+  const store = { active, cnSub: "fanpage", kdSub: "xuongcontent", openGroup: null };
   ctx.go.call(store, "camnang");
   return { sub: ctx.window.__cnSub, nav, cnSub: store.cnSub };
 }
@@ -93,6 +99,22 @@ let r = chay("workspace", null);
 check("bấm \"Cẩm nang\" từ trang khác -> mở Tổng quan (không giữ tab con cũ)", r.sub === "tongquan" && r.cnSub === "tongquan" && r.nav[0] === "camnang", JSON.stringify(r));
 r = chay("workspace", "zalo");
 check("bấm mục con Zalo từ trang khác -> mở đúng Zalo", r.sub === "zalo" && r.nav[0] === "camnang");
+
+// go("kinhdoanh") y hệt: từ trang khác mở Xưởng content AI; sub đặt trước được tôn trọng
+function chayKd(active, preSub) {
+  const nav = [];
+  const ctx = { RAIL_ITEMS: [{ id: "kinhdoanh" }, { id: "workspace" }], groupLabelOf: () => null, recomputeGraph() {},
+    navigateTo: (id) => nav.push(id), window: { __cnSub: null, __kdSub: preSub || null } };
+  vm.createContext(ctx);
+  vm.runInContext(goSrc + "\nthis.go = go;", ctx);
+  const store = { active, cnSub: "tongquan", kdSub: "xuongcontent", openGroup: null };
+  ctx.go.call(store, "kinhdoanh");
+  return { sub: ctx.window.__kdSub, nav, kdSub: store.kdSub };
+}
+r = chayKd("workspace", null);
+check("bấm \"Kinh doanh\" từ trang khác -> mở Xưởng content AI", r.sub === "xuongcontent" && r.kdSub === "xuongcontent" && r.nav[0] === "kinhdoanh", JSON.stringify(r));
+r = chayKd("workspace", "xuongcontent");
+check("bấm mục con Xưởng content AI từ trang khác -> mở đúng tab đó", r.sub === "xuongcontent" && r.nav[0] === "kinhdoanh");
 
 if (fails.length) {
   console.log("\n" + fails.length + " FAIL");
