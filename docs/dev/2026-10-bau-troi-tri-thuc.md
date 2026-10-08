@@ -45,10 +45,18 @@ Trời gộp chỉ bật khi `_STAFF_SCOPE.get()` rỗng (admin) VÀ gốc là b
 | Thiên thể | Lấy từ | Ý nghĩa |
 |---|---|---|
 | **Đá vụn** (vành đai quanh hố đen, gần dải ngân hà) | `sources/**`, `inbox/**` (mọi file, kể cả .pdf/.docx) | Nguyên liệu thô, chưa chưng cất |
-| **Vành 1** (trong cùng, 1,42R) | `skills/*/SKILL.md` | Kỹ năng: Joyce biết làm gì |
-| **Vành 2** (giữa, 1,66R) | `workflows/*.md` + trang wiki là quy trình (tag `quy-trinh`, hoặc tên bắt đầu "Quy trình") | Quy trình vận hành |
+| **Vành 1** (trong cùng, 1,42R) | `skills/*/SKILL.md`, trừ 6 skill hệ thống | Kỹ năng riêng của brain |
+| **Vành 2** (giữa, 1,66R) | `workflows/*.md` | Quy trình Joyce tự chạy |
 | **Vành 3** (ngoài, 1,92R) | `memory/facts/*.md` | Trí nhớ về doanh nghiệp và người dùng |
-| **Sao** (vòm trời quanh địa cầu) | `wiki/**/*.md` còn lại | Kiến thức đã chưng cất |
+| **Sao** (vòm trời quanh địa cầu) | MỌI `wiki/**/*.md` | Kiến thức đã chưng cất. Trang là quy trình (tag `quy-trinh`, hoặc tên bắt đầu "Quy trình") mang cờ `proc` và vẽ thành sao bốn cánh |
+
+Hai điều chỉnh sau khi chạy thử trên dữ liệu thật (2026-10-08, 47 brain, 1010 tài liệu):
+
+- **Skill hệ thống không tính** (`system_sync.is_system_skill`): mỗi brain mang một bản sao của
+  6 skill hệ thống, tính vào thì thành 276 chấm giống hệt nhau trên vành 1.
+- **Wiki quy trình vẫn là sao**: wiki H2O lúc viết có 214 trên 222 trang là quy trình. Đưa chúng
+  lên vành 2 như bản nháp đầu thì vòm trời chỉ còn 8 sao và vành 2 chật cứng. Hình bốn cánh đủ
+  để phân biệt mà không làm trống bầu trời.
 
 Bỏ qua: file và thư mục ẩn, `Joyce/` (file hệ thống tự sinh), và các trang quản trị wiki
 (`index.md`, `log.md`, `_open-questions.md`, `_session-handoff.md`, mọi tên bắt đầu bằng `_`).
@@ -181,15 +189,21 @@ opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
 
 - Vẽ trong `frame()`: sao và đá vụn ngay sau `drawMoonPath` (nằm sau mọi thứ), chấm tri thức
   trên vành vẽ cùng nhịp `drawParticles` (nửa sau rồi nửa trước) để bị hành tinh che đúng.
-- Bắt chuột: sau `hitSat` (vệ tinh ưu tiên), tìm thiên thể gần nhất trong 9px. Lưới ô 32px dựng
-  lại mỗi khung cho phần tử đang hiện, để rê chuột không quét cả nghìn thiên thể.
+- Bắt chuột: sau `hitSat` (vệ tinh ưu tiên), tìm thiên thể gần nhất trong 9px (`hitKnow`). Mỗi
+  khung dựng lại danh sách điểm ĐANG HIỆN (`know.hits`) rồi quét thẳng: trần 2700 điểm là vài
+  nghìn phép so, dưới 0,1ms mỗi lần rê. Lưới ô chỉ đáng làm nếu trần vượt cỡ 10 nghìn.
+- Bấm thiên thể được xét TRƯỚC bấm hành tinh: chấm vành nằm đè lên đĩa hành tinh, xét sau thì
+  bấm chấm thành gọi Joyce.
 - Công tắc `look.knowledge` (mặc định bật) trong thẻ Khác của tab Quả tinh cầu; tắt thì bầu
   trời trở về như cũ. Thêm khoá thì thêm cả `_PLANET_BAT` trong `main.py` (test canh hai bên).
 
 ### 8.3 Người nuôi (`dashboard/hud.js`)
 
 - Nạp `/knowledge/sky` khi mount, khi đổi brain, và mỗi 5 phút; đẩy vào `planet.setKnowledge`.
-- Dựng thẻ Đọc nhanh (DOM, lớp `.ks-card`, màu theo token theme, không màu cứng).
+- Thẻ Đọc nhanh (`openKnow`) dùng lại ngăn kéo `#planetCtx` của vệ tinh: cùng chỗ đứng, cùng
+  cách đóng (nút x, Esc, bấm khoảng trống), lớp `.pc-know-*` theo token theme.
+- Đổi brain: nghe `change` của ô `#graphSource`, và `refresh()` 45 giây gọi `loadKnow(false)`
+  (chỉ nạp lại khi brain khác) để bắt cả đường đổi brain không qua ô chọn.
 - Giai đoạn 2: nghe ô `#vaultSearch` (console.js phơi kết quả qua sự kiện `joyce:vault-search`).
 
 ---
@@ -198,11 +212,19 @@ opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
 
 | Giai đoạn | Nội dung | Xong khi |
 |---|---|---|
-| **1. Bản đồ sao thật** | Endpoint `/knowledge/sky` + `/knowledge/quick`, vẽ sao, chấm vành, đá vụn từ dữ liệu thật, rê chuột hiện tên, bấm hiện thẻ Đọc nhanh, công tắc trong Cài đặt. | Admin ở Brain Default thấy trời gộp, mở brain phòng thì thấy trời phòng đó; bấm một sao đọc được đầu mục. |
+| **1. Bản đồ sao thật** (code xong 1.0.4, 2026-10-08) | Endpoint `/knowledge/sky` + `/knowledge/quick`, vẽ sao, chấm vành, đá vụn từ dữ liệu thật, rê chuột hiện tên, bấm hiện thẻ Đọc nhanh, công tắc trong Cài đặt. | Admin ở Brain Default thấy trời gộp, mở brain phòng thì thấy trời phòng đó; bấm một sao đọc được đầu mục. |
 | **2. Big Bang** | `focusKnowledge`, biên đạo mục 6, đồng bộ hai chiều với ô VAULT. | Gõ "Báo giá" + Enter thấy nổ và chòm sao, bấm chọn được. |
 | **3. Khép vòng** | Tia sáng về ghim H2O Studio, sao mới sinh sau khi nạp. | Nạp một tài liệu, thấy sao mới bay lên chỗ của nó. |
 
 ---
+
+### 9.1 Phát hiện khi chạy giai đoạn 1 trên dữ liệu thật (2026-10-08)
+
+47 brain, 1010 tài liệu: 477 đá vụn, 222 sao (214 là quy trình), 15 kỹ năng, 14 trí nhớ, 0
+workflow. Đo đầu mục trên 222 trang wiki: 158 trang có từ 2 đầu mục trở lên, **73 trang chỉ còn
+trang bìa** (dưới 60 từ: mã hiệu, lần ban hành, ngày ban hành, số trang) và 10 trang không rút
+được đầu mục nào. 73 trang đó bị mất nội dung lúc chuyển .docx sang wiki, không phải lỗi của
+bầu trời: cần chưng cất lại từ file gốc trong `sources/` thì Đọc nhanh mới có gì để hiện.
 
 ## 10. Rủi ro và cách giữ
 

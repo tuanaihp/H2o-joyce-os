@@ -545,7 +545,7 @@
     orbitDot: [0.5, 3, 1],
   };
   var LOOK_COLOR = { sunColor: "#ffd46b", seaColor: "#064cff", rimColor: "#00e7ff" };
-  var LOOK_BOOL = { rain: false, lightning: false, wind: false, tornado: false, eruption: false, orbits: true };
+  var LOOK_BOOL = { rain: false, lightning: false, wind: false, tornado: false, eruption: false, orbits: true, knowledge: true };
   // Concept màu bề mặt: deep = đáy biển, sea = biển, rim = viền sáng + khí quyển, mint = điểm
   // nhấn của dòng hải lưu. "ocean" là bảng gốc (đúng các hằng OCEAN/CYAN/MINT trong shader).
   var PALETTES = {
@@ -860,8 +860,9 @@
     var light = false;
     // Hiệu ứng bật/tắt của tab Quả tinh cầu: cường độ 0..1 trôi mềm về công tắc (bật/tắt không
     // giật). windT = pha gió tích luỹ: gió mạnh làm mây trôi nhanh hơn mà không nhảy cóc.
-    var FX_KEYS = ["rain", "lightning", "wind", "tornado", "eruption", "orbits"];
-    var fx = { rain: 0, lightning: 0, wind: 0, tornado: 0, eruption: 0, orbits: look.orbits ? 1 : 0 };
+    var FX_KEYS = ["rain", "lightning", "wind", "tornado", "eruption", "orbits", "knowledge"];
+    var fx = { rain: 0, lightning: 0, wind: 0, tornado: 0, eruption: 0, orbits: look.orbits ? 1 : 0,
+               knowledge: look.knowledge ? 1 : 0 };
     var windT = 0;
     var cells = [], splashes = [], streaks = [], bolts = [], bolt = { g: [0, 1, 0], k: 0 };
     var rcBuf = new Float32Array(16);   // 4 ô bão -> uniform uRc
@@ -1651,6 +1652,165 @@
       }
       c.restore();
     }
+    // ---------------------------------------------------------------------------
+    // BẦU TRỜI TRI THỨC (docs/dev/2026-10-bau-troi-tri-thuc.md). Mỗi tài liệu kiến thức là một
+    // thiên thể: sao (wiki đã chưng cất; quy trình là sao bốn cánh), chấm trên vành (kỹ năng /
+    // quy trình Joyce / trí nhớ), đá vụn quanh hố đen (tài liệu thô chưa chưng cất). Vị trí suy
+    // từ id (băm cố định phía máy chủ): cùng tài liệu luôn nằm một chỗ, nạp lại không nhảy.
+    // ---------------------------------------------------------------------------
+    // Trần [sao, chấm vành, đá vụn] theo hồ sơ máy. Máy chủ xếp theo cỡ giảm dần nên cắt đầu
+    // danh sách là giữ thiên thể quan trọng nhất.
+    var KNOW_CAP = { high: [1500, 600, 600], balanced: [900, 400, 350], safe: [300, 150, 120], reduced: [300, 150, 120] };
+    var KNOW_DUST = [150, 160, 175];   // đá vụn: màu thương hiệu pha xám đá
+    var know = { stars: [], orbit: [], debris: [], hits: [], hover: null, counts: null, scope: "" };
+    function hashRnd(seed) {   // mulberry32: dãy giả ngẫu nhiên cố định theo id
+      var s = seed >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        var q = Math.imul(s ^ (s >>> 15), 1 | s);
+        q = (q + Math.imul(q ^ (q >>> 7), 61 | q)) ^ q;
+        return ((q ^ (q >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    // Xoay một điểm khung nhìn theo camera, cùng phép như cuối ringPt (yaw rồi pitch).
+    function camRot(x, y, z) {
+      var cyw = Math.cos(cam.yaw), syw = Math.sin(cam.yaw);
+      var x3 = x * cyw + z * syw, z3 = -x * syw + z * cyw;
+      var cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+      return [x3, y * cp - z3 * sp, y * sp + z3 * cp];
+    }
+    function setKnowledge(d) {
+      d = d || {};
+      var bi = {}, list = Array.isArray(d.brains) ? d.brains : [];
+      list.forEach(function (b, i) { bi[b.key] = { i: i, name: b.name || b.key, col: PAL[b.color] || PAL.gold }; });
+      var nB = Math.max(1, list.length);
+      var stars = [], orbit = [], debris = [];
+      (Array.isArray(d.bodies) ? d.bodies : []).forEach(function (b) {
+        if (!b || !b.id) return;
+        var rnd = hashRnd(parseInt(b.id, 16) || 0);
+        var br = bi[b.brain] || { i: 0, name: b.brain || "", col: PAL.gold };
+        var k = { b: b, col: br.col, brainName: br.name, size: clamp(+b.size || 0, 0, 1),
+                  ph: rnd() * 6.2832, tw: 0.6 + rnd() * 1.4 };
+        if (b.kind === "star") {
+          // Kinh độ theo CUNG của brain: kiến thức một phòng tụ thành một vùng trời. Vĩ độ ưu
+          // tiên nửa trên ("bên trên địa cầu là các vì sao").
+          var lon = (br.i + 0.08 + rnd() * 0.84) / nB * 6.2832, lat = -0.35 + rnd() * 1.55;
+          var dist = 1.55 + rnd() * 1.05;
+          k.v = [Math.cos(lat) * Math.sin(lon) * dist, Math.sin(lat) * dist, Math.cos(lat) * Math.cos(lon) * dist];
+          stars.push(k);
+        } else if (b.kind === "orbit") {
+          k.ring = clamp(b.ring | 0, 0, 2); k.a = rnd() * 6.2832;
+          k.sp = (0.025 + rnd() * 0.04) * (k.ring % 2 ? -1 : 1);
+          orbit.push(k);
+        } else {
+          k.rho = 0.10 + rnd() * 0.14; k.a = rnd() * 6.2832; k.sp = 0.03 + rnd() * 0.05;
+          k.spin = (rnd() - 0.5) * 1.2; k.rot = rnd() * 6.2832;
+          k.dcol = [0, 1, 2].map(function (j) { return Math.round(br.col[j] * 0.45 + KNOW_DUST[j] * 0.55); });
+          var nv = 5 + ((rnd() * 3) | 0);
+          k.poly = [];
+          for (var j = 0; j < nv; j++) k.poly.push(0.65 + rnd() * 0.5);
+          debris.push(k);
+        }
+      });
+      know.stars = stars; know.orbit = orbit; know.debris = debris;
+      know.counts = d.counts || null; know.scope = d.scope || ""; know.hover = null;
+    }
+    function knowCap(i) { return (KNOW_CAP[profile] || KNOW_CAP.balanced)[i]; }
+    // Sao + đá vụn: vẽ ĐẦU TIÊN (sau quỹ đạo trăng), nằm sau mọi thứ. Đồng thời dựng lại danh
+    // sách điểm bấm của khung này (know.hits); chấm vành tự thêm vào ở drawKnowOrbit.
+    function drawKnowSky(c, now, dt) {
+      know.hits = [];
+      var kf = fx.knowledge;
+      if (kf < 0.02) return;
+      var t = now / 1000, R0 = geo.R, hv = know.hover;
+      var ns = Math.min(know.stars.length, knowCap(0));
+      for (var i = 0; i < ns; i++) {
+        var s = know.stars[i], p = camRot(s.v[0], s.v[1], s.v[2]);
+        var x = geo.cx + p[0] * R0, y = geo.cy - p[1] * R0;
+        if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
+        if (p[2] < 0 && Math.hypot(x - geo.cx, y - geo.cy) < R0) continue;   // khuất sau hành tinh
+        var on = hv === s ? 1 : 0;
+        var a = (0.35 + 0.4 * (0.55 + 0.45 * Math.sin(t * s.tw + s.ph)) * 0.8 + 0.25 * s.size) * (p[2] < 0 ? 0.6 : 1);
+        if (s.b.recent) a += 0.25 * (0.5 + 0.5 * Math.sin(t * 3 + s.ph));   // sửa trong 7 ngày: nháy
+        var r = (0.8 + s.size * 1.6) * (1 + on * 0.8);
+        c.fillStyle = rgba(s.col, Math.min(1, a * kf + on * 0.4));
+        if (s.b.proc) {   // quy trình: sao bốn cánh
+          c.fillRect(x - r * 2.2, y - 0.5, r * 4.4, 1);
+          c.fillRect(x - 0.5, y - r * 2.2, 1, r * 4.4);
+        }
+        c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+        if (on) { c.strokeStyle = rgba(s.col, 0.8); c.lineWidth = 1; c.beginPath(); c.arc(x, y, r + 4, 0, 6.2832); c.stroke(); }
+        know.hits.push({ x: x, y: y, k: s });
+      }
+      var B = geo.bh;
+      if (!B) return;
+      var m = Math.min(W, H), nd = Math.min(know.debris.length, knowCap(2));
+      for (var j = 0; j < nd; j++) {
+        var d = know.debris[j];
+        if (dt) { d.a += d.sp * dt; d.rot += d.spin * dt; }
+        var rr = d.rho * m, dx = B.x + Math.cos(d.a) * rr, dy = B.y + Math.sin(d.a) * rr * 0.55;
+        if (dx < -10 || dy < -10 || dx > W + 10 || dy > H + 10) continue;
+        var on2 = hv === d ? 1 : 0, sz = (1.3 + d.size * 2.2) * (1 + on2 * 0.7);
+        c.fillStyle = rgba(on2 ? d.col : d.dcol, Math.min(1, (0.5 + 0.2 * d.size) * kf + on2 * 0.4));
+        c.beginPath();
+        for (var q = 0; q < d.poly.length; q++) {
+          var ang = d.rot + q / d.poly.length * 6.2832, pr = sz * d.poly[q];
+          if (q) c.lineTo(dx + Math.cos(ang) * pr, dy + Math.sin(ang) * pr);
+          else c.moveTo(dx + Math.cos(ang) * pr, dy + Math.sin(ang) * pr);
+        }
+        c.closePath(); c.fill();
+        know.hits.push({ x: dx, y: dy, k: d });
+      }
+    }
+    // Chấm tri thức trên vành: vẽ cùng nhịp drawParticles (nửa sau rồi nửa trước) để hành tinh
+    // che đúng; hưởng luôn thanh Cỡ vành quỹ đạo (ringPt) và Cỡ chấm trên vành (orbitDot).
+    function drawKnowOrbit(c, front, dt) {
+      var kf = fx.knowledge * ringFade();
+      if (kf < 0.02) return;
+      var n = Math.min(know.orbit.length, knowCap(1)), hv = know.hover;
+      for (var i = 0; i < n; i++) {
+        var k = know.orbit[i];
+        if (dt) k.a += k.sp * dt * cur[9];
+        var pt = ringPt(k.ring, k.a);
+        if ((pt.z >= 0) !== front || pt.hidden) continue;
+        var on = hv === k ? 1 : 0;
+        var r = (1.5 + k.size * 1.5) * look.orbitDot * (front ? 1 : 0.8) * (1 + on * 0.7);
+        c.fillStyle = rgba(k.col, Math.min(1, (front ? 0.75 + 0.25 * pt.z : 0.35) * kf + on * 0.3));
+        c.beginPath(); c.arc(pt.x, pt.y, r, 0, 6.2832); c.fill();
+        if (front) {
+          c.strokeStyle = rgba(k.col, 0.35 * kf); c.lineWidth = 1;
+          c.beginPath(); c.arc(pt.x, pt.y, r + 1.8, 0, 6.2832); c.stroke();
+        }
+        know.hits.push({ x: pt.x, y: pt.y, k: k });
+      }
+    }
+    function hitKnow(x, y) {
+      var best = null, bd = 81;   // trong 9px
+      for (var i = know.hits.length - 1; i >= 0; i--) {
+        var h = know.hits[i], d = (h.x - x) * (h.x - x) + (h.y - y) * (h.y - y);
+        if (d < bd) { bd = d; best = h.k; }
+      }
+      return best;
+    }
+    function knowKindKey(b) {
+      if (b.kind === "star") return b.proc ? "planet.k_proc" : "planet.k_star";
+      if (b.kind === "orbit") return ["planet.k_skill", "planet.k_workflow", "planet.k_memory"][b.ring | 0] || "planet.k_skill";
+      return "planet.k_debris";
+    }
+    function showKnowTip(k, x, y) {
+      if (!k || opts.tips === false) { tip.hidden = true; return; }
+      var t = (window.t || function (s) { return s; });
+      tip.innerHTML = "";
+      var n = document.createElement("div"); n.className = "pt-name"; n.textContent = k.b.title || k.b.path;
+      var ro = document.createElement("div"); ro.className = "pt-know";
+      ro.textContent = t(knowKindKey(k.b)) + (k.brainName ? " · " + k.brainName : "");
+      tip.appendChild(n); tip.appendChild(ro);
+      tip.hidden = false;
+      var tw = tip.offsetWidth || 140;
+      tip.style.left = clamp(x + 14, 6, W - tw - 6) + "px";
+      tip.style.top = clamp(y - 10, 6, H - 50) + "px";
+    }
+
     // ---------------------------------------------------------------------------
     // HIỆU ỨNG CỦA TAB QUẢ TINH CẦU (lớp 2D). Vẽ SAU những thứ nằm sau hành tinh và TRƯỚC vành
     // + mặt trăng phía trước, nên vành/trăng trước mặt vẫn che đúng. Mọi điểm neo trên bề mặt
@@ -2693,13 +2853,16 @@
       var ddt = reduced ? 0 : dt;
       if (profile === "safe" || !gl) drawSafePlanet(c, now);
       drawMoonPath(c);
+      drawKnowSky(c, now, ddt);
       drawRings(c, false);
       drawParticles(c, false, ddt);
+      drawKnowOrbit(c, false, ddt);
       drawSatDots(c, false, ddt);
       drawMoon(c, false, ddt);
       drawLookFx(c, now, ddt);
       drawRings(c, true);
       drawParticles(c, true, 0);
+      drawKnowOrbit(c, true, 0);
       drawSatDots(c, true, 0);
       drawMoon(c, true, 0);
       drawGlyphs(c, now);
@@ -2814,10 +2977,12 @@
       if (profile !== "reduced" && W) { par.tx = (p.x / W - 0.5) * 2; par.ty = (p.y / H - 0.5) * 2; }
       var s = hitSat(p.x, p.y);
       hoverSat = s;
-      var onP = !s && onPlanet(p.x, p.y);
+      var kh = s ? null : hitKnow(p.x, p.y);
+      know.hover = kh;
+      var onP = !s && !kh && onPlanet(p.x, p.y);
       hoverT = onP ? 1 : 0;
-      ovCv.style.cursor = s || onP ? "pointer" : "default";
-      showTip(s, p.x, p.y);
+      ovCv.style.cursor = s || kh || onP ? "pointer" : "default";
+      if (kh) showKnowTip(kh, p.x, p.y); else showTip(s, p.x, p.y);
     }
     function onDown(e) {
       if (e.button !== 0) return;
@@ -2850,6 +3015,8 @@
       }
       var s = hitSat(p.x, p.y);
       if (s) { try { opts.onSatelliteClick && opts.onSatelliteClick(s.p, { x: p.x, y: p.y }); } catch (_) {} return; }
+      var kh = hitKnow(p.x, p.y);
+      if (kh) { try { opts.onKnowledgeClick && opts.onKnowledgeClick(kh.b, { x: p.x, y: p.y }); } catch (_) {} return; }
       if (!onPlanet(p.x, p.y)) {   // bấm khoảng trống trên vũ trụ: hud.js đóng khung thông tin đang mở
         try { opts.onBackgroundClick && opts.onBackgroundClick(); } catch (_) {}
         return;
@@ -2880,7 +3047,7 @@
       var stp = cam.tzoom > 2 ? 1.14 : 1.087;
       cam.tzoom = clamp(cam.tzoom * (e.deltaY > 0 ? 1 / stp : stp), ZMIN, ZMAX);
     }
-    function onLeave() { hoverSat = null; hoverT = 0; par.tx = par.ty = 0; tip.hidden = true; }
+    function onLeave() { hoverSat = null; know.hover = null; hoverT = 0; par.tx = par.ty = 0; tip.hidden = true; }
 
     function onVis() { if (document.hidden) stopLoop(); else if (!paused) startLoop(); }
     function onLost(e) {
@@ -2986,6 +3153,13 @@
     R.setIngest = function (st) {
       ing.on = !!(st && st.active);
       if (st && Array.isArray(st.items) && st.items.length) ing.items = st.items.slice(0, 8);
+    };
+    // Bầu trời tri thức (hud.js đọc /knowledge/sky): {scope, brains, bodies, counts}.
+    R.setKnowledge = setKnowledge;
+    R.knowledgeInfo = function () {
+      return { stars: know.stars.length, orbit: know.orbit.length, debris: know.debris.length,
+               drawn: know.hits.length, scope: know.scope, counts: know.counts,
+               hover: know.hover ? know.hover.b.id : null };
     };
     R.zoom = function (z) { if (z != null) { cam.tzoom = clamp(+z || 1, ZMIN, ZMAX); cam.zoom = cam.tzoom; } return cam.zoom; };
     // Đích camera (zoom/xoay đang hướng tới, trước khi nội suy mềm) - cho test cử chỉ cảm ứng.

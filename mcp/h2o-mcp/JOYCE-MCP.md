@@ -1,12 +1,12 @@
-# H2O MCP — cổng đọc dữ liệu chung cho mọi webapp H2O
+# H2O MCP - cổng đọc dữ liệu chung cho mọi webapp H2O
 
 Một file `index.ts` duy nhất. Deploy nó vào project Supabase của webapp nào,
-Joyce đọc được **toàn bộ bảng + file R2** của webapp đó qua lệnh chat —
+Joyce đọc được **toàn bộ bảng + file R2** của webapp đó qua lệnh chat -
 không cần viết thêm code cho từng app.
 
-## Webapp mới — 3 bước (không code)
+## Webapp mới - 3 bước (không code)
 
-**Bước 1 — Đưa file vào project**
+**Bước 1 - Đưa file vào project**
 
 Copy `index.ts` (file nằm cạnh tài liệu này) vào:
 
@@ -14,7 +14,7 @@ Copy `index.ts` (file nằm cạnh tài liệu này) vào:
 <project-webapp>/supabase/functions/h2o-mcp/index.ts
 ```
 
-**Bước 2 — Deploy + đặt token**
+**Bước 2 - Deploy + đặt token**
 
 ```bash
 cd <project-webapp>
@@ -32,7 +32,7 @@ supabase secrets set H2O_MCP_DENY=bang1,bang2        # chan them bang nhay cam
 supabase secrets set H2O_MCP_ALLOW=bang1,bang2       # neu dat: CHI cho doc cac bang nay
 ```
 
-**Bước 3 — Cắm vào Joyce (ô nhập trên giao diện, không sửa file)**
+**Bước 3 - Cắm vào Joyce (ô nhập trên giao diện, không sửa file)**
 
 Vào Joyce → trang **Kết nối** → **Thêm MCP** → transport **HTTP**:
 
@@ -41,9 +41,9 @@ Vào Joyce → trang **Kết nối** → **Thêm MCP** → transport **HTTP**:
 | Tên | `h2o-<ten-app>` (vd `h2o-legacy`) | Tự đặt cho dễ nhớ |
 | URL | `https://<ref>.supabase.co/functions/v1/h2o-mcp` | `<ref>` = Project Reference ID: supabase.com/dashboard → project → **Settings → General → Reference ID** (hoặc Project URL ở Settings → Data API) |
 | Header trái | `Authorization` | Cố định |
-| Header phải | `Bearer <H2O_MCP_TOKEN>` | Token ngẫu nhiên ≥24 ký tự do người deploy tạo lúc `supabase secrets set H2O_MCP_TOKEN=...` — hỏi admin. Supabase không cho xem lại secret sau khi set, admin phải tự lưu |
+| Header phải | `Bearer <H2O_MCP_TOKEN>` | Token ngẫu nhiên ≥24 ký tự do người deploy tạo lúc `supabase secrets set H2O_MCP_TOKEN=...` - hỏi admin. Supabase không cho xem lại secret sau khi set, admin phải tự lưu |
 
-Bấm Lưu → Kết nối. Xong — Joyce tự thấy 6 tool `h2o_*` và dùng được ngay.
+Bấm Lưu → Kết nối. Xong - Joyce tự thấy 6 tool `h2o_*` và dùng được ngay.
 
 ## Giữ song song: cổng riêng + cổng chung
 
@@ -62,20 +62,20 @@ Deploy song song trong cùng project Supabase:
 supabase functions deploy h2o-mcp-open --no-verify-jwt
 ```
 
-`H2O_MCP_TOKEN` là secret mức project nên **hai function dùng chung một token** —
+`H2O_MCP_TOKEN` là secret mức project nên **hai function dùng chung một token** -
 không cần set lại. Trong Joyce thêm connection thứ hai trỏ URL
 `.../functions/v1/h2o-mcp-open`, header Bearer giữ nguyên.
 
 Khuyến nghị: cổng riêng đặt tên kết nối `h2o-<app>` (tool chuẩn cho staff), cổng
-chung `h2o-<app>-open` (admin/query tự do) — có thể gỡ `-open` khỏi quyền nhân
+chung `h2o-<app>-open` (admin/query tự do) - có thể gỡ `-open` khỏi quyền nhân
 viên nếu muốn giới hạn ai được query tự do.
 
 ## Tool Joyce nhận được
 
 | Tool | Dùng | Args |
 |---|---|---|
-| `h2o_ping` | Check sống: tên app, số bảng, có R2 không | — |
-| `h2o_tables` | Liệt kê mọi bảng + cột đọc được | — |
+| `h2o_ping` | Check sống: tên app, số bảng, có R2 không | - |
+| `h2o_tables` | Liệt kê mọi bảng + cột đọc được | - |
 | `h2o_count` | Đếm dòng 1 bảng | `table`, `filters` |
 | `h2o_query` | Đọc dòng bất kỳ bảng | `table`, `select`, `filters`, `order`, `limit` (≤200), `offset` |
 | `h2o_r2_ls` | Liệt kê file R2 | `prefix` |
@@ -95,18 +95,18 @@ Ví dụ Joyce sẽ tự dịch lệnh anh: *"liệt kê concept tạo hôm nay"
 
 ## Bảo mật
 
-- Xác thực `Authorization: Bearer <H2O_MCP_TOKEN>` — token riêng, không phải
+- Xác thực `Authorization: Bearer <H2O_MCP_TOKEN>` - token riêng, không phải
   Supabase JWT, đặt bằng `supabase secrets` (không bao giờ nằm trong code/git).
 - Đọc **toàn bộ** = service-level. Vì vậy mặc định chặn `staff`,
   `staff_sessions`, `profiles`, `id_counters` (PIN/hash). Chỉnh bằng
   `H2O_MCP_DENY`/`H2O_MCP_ALLOW`.
-- **Chỉ đọc.** Không có tool ghi/xoá — muốn Joyce ghi vào app phải làm MCP
+- **Chỉ đọc.** Không có tool ghi/xoá - muốn Joyce ghi vào app phải làm MCP
   riêng có kiểm soát (mẫu tool `crm_*`/`legacy_*` trong các app hiện có).
 
 ## App KHÔNG dùng Supabase?
 
 Mẫu này chỉ áp cho app lưu trên Supabase (+ R2). App backend riêng thì vẫn
-phải viết route MCP riêng một lần — mẫu: `JOYCE-MCP.md` trong từng project
+phải viết route MCP riêng một lần - mẫu: `JOYCE-MCP.md` trong từng project
 (H2O-QUAN-TRI-CRM dùng `/api/mcp` Next.js, H2O-VIDEO-EDIT dùng Vercel route).
 
 ## Kiểm thử tay

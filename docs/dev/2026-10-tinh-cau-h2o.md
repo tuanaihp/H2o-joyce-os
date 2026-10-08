@@ -32,6 +32,8 @@ Mã nguồn là sự thật cuối cùng. Tên hàm và tên biến trong tài l
 | `tests/js/test_song_dung_nham.js` | Sông dung nham: tốc độ chảy, thanh tốc độ, khói bám đường dung nham vừa chảy qua. |
 | `tests/js/test_mat_trang.js` | Bề mặt trăng: hình chú Cuội + cây đa, ánh đất ở phần tối, hướng sáng theo pha, tốc độ. |
 | `tests/python/test_tinh_cau_tuy_bien.py` | Lưu/đọc lại qua `/settings`, chặn rác, bảng khoá máy chủ khớp renderer. |
+| `server/knowledge_sky.py` | Bầu trời tri thức: `/knowledge/sky`, `/knowledge/quick`. Thiết kế riêng ở `docs/dev/2026-10-bau-troi-tri-thuc.md`. |
+| `tests/js/test_bau_troi_tri_thuc.js`, `tests/python/test_bau_troi_tri_thuc.py` | Bầu trời tri thức hai phía. |
 
 Thứ tự nạp trong `index.html`: `vn-geo.js` -> `brain-planet.js` -> `hud.js` (test canh việc
 `brain-planet.js` đứng trước `hud.js`). Mỗi lần sửa file, tăng `?v=` của nó trong `index.html` để
@@ -76,6 +78,7 @@ r.setProjects([{id, name, status, role: "sun"|"moon"|undefined, url, ms, ...}]);
 r.setInCall(true|false);            // tinh cầu hạ xuống nhường chỗ khung hologram
 r.setWeather("nang"|"nang_nhe"|"nhieu_may"|"mua"|"giong"|"bao"|"loc_xoay");
 r.setIngest({active, items:[tên file]});   // hố đen hút tài liệu
+r.setKnowledge({scope, brains, bodies});   // bầu trời tri thức, xem 2026-10-bau-troi-tri-thuc.md
 r.setQuality("high"|"balanced"|"safe"|"reduced"|null);
 r.zoom(z); r.pause(); r.resume(); r.resize(); r.destroy();
 r.planetGeom();  r.moonInfo();  r.quality();  r.state();

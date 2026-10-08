@@ -19,7 +19,7 @@
   var host = null;                    // .hud-center
   var view = null;                    // #hudView
   var waveCv = null;
-  var rafId = 0, clockId = 0, dataId = 0, napId = 0;
+  var rafId = 0, clockId = 0, dataId = 0, napId = 0, knowId = 0;
   var _lvl = 0;                       // mức âm đã làm trơn (vẽ orb + sóng)
   var _waveHist = [];                 // lịch sử mức âm cho dải sóng
   // H2O Alien Intelligence Planet (brain-planet.js). null = đang dùng quả cầu 2D cũ
@@ -87,6 +87,7 @@
   }
   function refresh() {
     var b = encodeURIComponent(brainPath());
+    if (planet) loadKnow(false);   // đổi brain bằng đường khác ô chọn: bắt kịp trong 45 giây
     Promise.all([
       jget("/ollama-local/installed"),
       jgetTimed("/memory/stats?brain=" + b),
@@ -251,6 +252,79 @@
       D.nap = r;
       if (planet) planet.setIngest(r);
       paintNap();
+    });
+  }
+
+  // ---------- Bầu trời tri thức (docs/dev/2026-10-bau-troi-tri-thuc.md) ----------
+  // Máy chủ quyết phạm vi (admin ở brain chủ = gộp mọi phòng, còn lại = brain đang mở) và tự
+  // cache 60 giây; ở đây chỉ nạp khi dựng tinh cầu, khi đổi brain và mỗi 5 phút.
+  var _knowBrain = null, _knowNghe = false;
+  function loadKnow(force) {
+    var b = brainPath();
+    if (!force && _knowBrain === b && D.know) { if (planet) planet.setKnowledge(D.know); return; }
+    _knowBrain = b;
+    jget("/knowledge/sky?brain=" + encodeURIComponent(b)).then(function (r) {
+      if (!r || r.ok === false || _knowBrain !== b) return;
+      D.know = r;
+      if (planet) planet.setKnowledge(r);
+    });
+  }
+  function tenBrainDangMo() {
+    var b = brainPath();
+    return b === "brain" ? "Brain Default" : b.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+  }
+  var KNOW_KIND = { star: "planet.k_star", proc: "planet.k_proc", debris: "planet.k_debris" };
+  var KNOW_RING = ["planet.k_skill", "planet.k_workflow", "planet.k_memory"];
+  function knowKind(b) {
+    if (b.kind === "orbit") return t(KNOW_RING[b.ring | 0] || KNOW_RING[0]);
+    return t(b.kind === "star" && b.proc ? KNOW_KIND.proc : (KNOW_KIND[b.kind] || KNOW_KIND.star));
+  }
+  // Thẻ Đọc nhanh: dùng lại ngăn kéo #planetCtx của vệ tinh (cùng chỗ, cùng cách đóng: nút x,
+  // Esc, bấm khoảng trống). Đầu mục do máy chủ rút từ tài liệu, không gọi AI.
+  function openKnow(b) {
+    var box = view && view.querySelector("#planetCtx");
+    if (!box || !b) return;
+    _ctxId = "know:" + b.id;
+    var cungBrain = !D.know || D.know.scope !== "all" || b.brain === tenBrainDangMo();
+    box.innerHTML =
+      '<div class="pc-head"><span class="pc-dot pc-know-dot"></span>' +
+        '<span class="pc-name">' + esc(b.title || b.path) + '</span>' +
+        '<button class="pc-x" type="button" aria-label="' + esc(t("planet.close")) + '">&times;</button></div>' +
+      '<div class="pc-st pc-know-st">' + esc(knowKind(b)) + '</div>' +
+      '<div class="pc-know-brain">' + esc(b.brain || "") + '</div>' +
+      '<div class="pc-know-body"><div class="pc-know-note">' + esc(t("planet.k_loading")) + '</div></div>' +
+      '<div class="pc-acts">' +
+        (cungBrain ? '<button class="pc-btn pc-open" type="button" data-k="open">' + esc(t("planet.k_open")) + '</button>' : '') +
+        '<button class="pc-btn" type="button" data-k="ask">' + esc(t("planet.k_ask")) + '</button>' +
+      '</div>';
+    box.hidden = false;
+    box.querySelector(".pc-x").addEventListener("click", closeCtx);
+    var mo = box.querySelector('[data-k="open"]');
+    if (mo) mo.addEventListener("click", function () {
+      if (typeof window.JoyceOpenVaultPath === "function") window.JoyceOpenVaultPath(b.path);
+    });
+    box.querySelector('[data-k="ask"]').addEventListener("click", function () {
+      var cau = t("planet.k_ask_q", { ten: b.title || b.path, path: b.path, brain: b.brain || "" });
+      try { if (window.Alpine) window.Alpine.store("nav").go("chat"); } catch (e) {}
+      setTimeout(function () {
+        var inp = document.getElementById("chatInput");
+        if (!inp) return;
+        inp.value = cau;
+        try { inp.dispatchEvent(new Event("input", { bubbles: true })); inp.focus(); } catch (e) {}
+      }, 80);
+    });
+    var x = box.querySelector(".pc-x"); if (x) x.focus();
+    var u = "/knowledge/quick?brain=" + encodeURIComponent(brainPath()) +
+            "&src=" + encodeURIComponent(b.brain || "") + "&path=" + encodeURIComponent(b.path);
+    jget(u).then(function (r) {
+      if (_ctxId !== "know:" + b.id) return;   // người dùng đã bấm sang thiên thể khác
+      var body = box.querySelector(".pc-know-body");
+      if (!body) return;
+      if (!r || r.ok === false) { body.innerHTML = '<div class="pc-know-note">' + esc(t("planet.k_err")) + '</div>'; return; }
+      var ds = r.bullets || [];
+      body.innerHTML = ds.length
+        ? '<ul class="pc-know-list">' + ds.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ul>"
+        : '<div class="pc-know-note">' + esc(t(r.text_file ? "planet.k_no_heads" : "planet.k_raw")) + '</div>';
     });
   }
 
@@ -581,6 +655,7 @@
         insets: planetInsets,
         onPlanetClick: function () { var vb = document.getElementById("voiceBtn"); if (vb) vb.click(); },
         onSatelliteClick: function (p) { openCtx(p); },
+        onKnowledgeClick: function (b) { openKnow(b); },
         onBackgroundClick: function () { if (_ctxId != null) closeCtx(); },
       });
       planet.mount(stage);
@@ -595,6 +670,7 @@
     if (D.projItems.length) planet.setProjects(healthList());
     if (wxKey()) planet.setWeather(wxKey());
     if (D.nap) planet.setIngest(D.nap);
+    loadKnow(false);
     if (!active) planet.pause();
   }
   function unmountPlanet() {
@@ -775,6 +851,14 @@
     dataId = setInterval(refresh, 45000);
     pollNap();
     napId = setInterval(pollNap, 3000);
+    loadKnow(false);
+    if (!_knowNghe) {   // đổi brain ở ô chọn: bầu trời đổi theo ngay
+      _knowNghe = true;
+      document.addEventListener("change", function (e) {
+        if (e.target && e.target.id === "graphSource" && active) loadKnow(false);
+      });
+    }
+    knowId = setInterval(function () { loadKnow(true); }, 300000);
     rafId = requestAnimationFrame(loop);
     window.addEventListener("resize", sizeCanvases);
     localStorage.setItem(KEY, "1");
@@ -789,7 +873,7 @@
     if (planet) planet.pause();
     closeCtx();
     cancelAnimationFrame(rafId);
-    clearInterval(clockId); clearInterval(dataId); clearInterval(napId);
+    clearInterval(clockId); clearInterval(dataId); clearInterval(napId); clearInterval(knowId);
     window.removeEventListener("resize", sizeCanvases);
     localStorage.setItem(KEY, "0");
     var btn = document.getElementById("hudViewBtn");

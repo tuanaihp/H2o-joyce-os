@@ -1,5 +1,11 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.4] - 2026-10-08
+### Thêm mới
+- **Bầu trời tri thức quanh quả tinh cầu**: mỗi tài liệu trong brain là một thiên thể. Trang wiki là **vì sao** (quy trình là sao bốn cánh), kỹ năng và trí nhớ là **chấm trên vành quỹ đạo**, tài liệu thô chưa chưng cất là **đá vụn** quanh hố đen. Màu theo thương hiệu: H2O Studio xanh, ThuyH2O hồng.
+- Rê chuột lên thiên thể thấy tên và thuộc phòng nào; bấm vào hiện thẻ **Đọc nhanh** gồm các đầu mục có sẵn trong tài liệu, kèm nút Mở và Hỏi Joyce.
+- Admin ở Brain Default thấy bầu trời **gộp mọi phòng ban**; mở brain một phòng thì chỉ trời phòng đó; nhân viên thấy trời brain của mình. Tắt được ở Cài đặt → Giao diện Joyce → thẻ Khác.
+
 ## [1.0.3] - 2026-10-08
 ### Cải thiện
 - **Nút Quay lại trên đầu mọi trang**: bấm mũi tên sang trang khác xong, nút ghi rõ "Quay lại Bảng điều hành" (hay trang vừa rời) đưa về đúng chỗ đang xem, kể cả vị trí đã cuộn tới.

@@ -1,4 +1,4 @@
-// H2O MCP GENERIC — Edge Function mau dung cho MOI webapp H2O tren Supabase.
+// H2O MCP GENERIC - Edge Function mau dung cho MOI webapp H2O tren Supabase.
 // Copy file nay vao <project>/supabase/functions/h2o-mcp/index.ts roi deploy,
 // Joyce doc duoc TOAN BO bang + file R2 cua project do, khong can viet them gi.
 //

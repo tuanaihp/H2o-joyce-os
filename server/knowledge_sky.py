@@ -2,8 +2,8 @@
 
 Mỗi tài liệu kiến thức trong brain là một thiên thể:
 - đá vụn (`debris`): sources/, inbox/ - tài liệu thô chưa chưng cất;
-- chấm trên vành (`orbit`, ring 0/1/2): kỹ năng / quy trình / trí nhớ doanh nghiệp;
-- sao (`star`): trang wiki đã chưng cất.
+- chấm trên vành (`orbit`, ring 0/1/2): kỹ năng / quy trình Joyce (workflows) / trí nhớ doanh nghiệp;
+- sao (`star`): trang wiki đã chưng cất; trang là quy trình mang cờ `proc` (vẽ sao bốn cánh).
 
 Phạm vi (chốt 2026-10-08): admin đứng ở brain chủ (Brain Default) thấy trời GỘP mọi brain;
 admin mở brain một phòng thì chỉ phòng đó; nhân viên thì brain đang mở. Phạm vi nhân viên KHÔNG
@@ -157,14 +157,17 @@ def _quet_brain(root: Path, key: str) -> list:
     """Danh sách thiên thể của MỘT brain: (id, kind, ring, path, title, links_out, stem, mtime)."""
     out = []
 
-    def them(p: Path, kind: str, ring: int, title: str, info: dict):
+    def them(p: Path, kind: str, ring: int, title: str, info: dict, proc: bool = False):
         try:
             rel = p.relative_to(root).as_posix()
         except ValueError:
             return
-        out.append({"id": _id_of(key, rel), "kind": kind, "ring": ring, "brain": key, "path": rel,
-                    "title": title or p.stem, "_links": info.get("links") or [],
-                    "_stem": p.stem.lower(), "_mtime": info.get("mtime") or 0})
+        b = {"id": _id_of(key, rel), "kind": kind, "ring": ring, "brain": key, "path": rel,
+             "title": title or p.stem, "_links": info.get("links") or [],
+             "_stem": p.stem.lower(), "_mtime": info.get("mtime") or 0}
+        if proc:
+            b["proc"] = True
+        out.append(b)
 
     # Đá vụn: nguyên liệu thô, mọi loại file.
     for thu_muc in ("sources", "inbox"):
@@ -179,15 +182,16 @@ def _quet_brain(root: Path, key: str) -> list:
                 p = Path(dp) / fn
                 info = _info(p) if fn.lower().endswith(".md") else {"mtime": _mtime(p)}
                 them(p, "debris", 0, info.get("title") or "", info)
-    # Vành 0: kỹ năng.
+    # Vành 0: kỹ năng của brain. Bỏ skill HỆ THỐNG (joyce-builder, notes...): mỗi brain đều mang
+    # một bản sao, tính vào thì 46 brain thành 276 chấm giống hệt nhau, không phải kiến thức.
     sk = root / "skills"
     if sk.is_dir():
         for d in sorted(sk.iterdir()):
             f = d / "SKILL.md"
-            if d.is_dir() and not _bo_qua(d.name) and f.is_file():
+            if d.is_dir() and not _bo_qua(d.name) and f.is_file() and not _skill_he_thong(d.name):
                 info = _info(f)
                 them(f, "orbit", 0, info.get("title") or d.name, info)
-    # Vành 1: quy trình (workflows + wiki quy trình); vành 2: trí nhớ doanh nghiệp.
+    # Vành 1: quy trình Joyce (workflows); vành 2: trí nhớ doanh nghiệp.
     wf = root / "workflows"
     if wf.is_dir():
         for f in sorted(wf.glob("*.md")):
@@ -200,7 +204,9 @@ def _quet_brain(root: Path, key: str) -> list:
             if not _bo_qua(f.name):
                 info = _info(f)
                 them(f, "orbit", 2, info.get("title") or "", info)
-    # Sao: wiki đã chưng cất (trừ quy trình, đã lên vành 1).
+    # Sao: MỌI trang wiki đã chưng cất. Wiki của H2O phần lớn là quy trình (214/222 lúc viết),
+    # đưa chúng lên vành thì bầu trời trống trơn và một vành chật cứng; nên quy trình vẫn là
+    # sao, chỉ mang cờ `proc` để vẽ khác hình.
     wk = root / "wiki"
     if wk.is_dir():
         for dp, dns, fns in os.walk(wk):
@@ -210,11 +216,16 @@ def _quet_brain(root: Path, key: str) -> list:
                     continue
                 p = Path(dp) / fn
                 info = _info(p)
-                if _la_quy_trinh(p.stem, info):
-                    them(p, "orbit", 1, info.get("title") or "", info)
-                else:
-                    them(p, "star", 0, info.get("title") or "", info)
+                them(p, "star", 0, info.get("title") or "", info, proc=_la_quy_trinh(p.stem, info))
     return out
+
+
+def _skill_he_thong(slug: str) -> bool:
+    try:
+        import system_sync
+        return system_sync.is_system_skill(slug)
+    except Exception:
+        return slug in {"joyce-builder", "ingest-source", "query-wiki", "lint-wiki", "notes", "html-to-webcake"}
 
 
 def _mtime(p: Path) -> float:
@@ -320,11 +331,22 @@ def _cat(s: str, n: int = 90) -> str:
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
 
 
+def _co_nghia(s: str) -> bool:
+    """Ít nhất hai từ có chữ cái thật: loại "01/ KHCN", "Trang 01", mã hiệu."""
+    return sum(1 for w in s.split() if sum(ch.isalpha() for ch in w) >= 2) >= 2
+
+
+def _khoa_so(s: str) -> str:
+    """Khoá so trùng: bỏ dấu, bỏ số thứ tự đầu, mọi ký tự không phải chữ/số thành một dấu cách.
+    Để "Bảng giá" trùng tên file `bang-gia.md`, "Quy Trình X" trùng `1. Quy Trình X.md`."""
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", _fold(_RE_SO_DAU.sub("", s))).split())
+
+
 def _them_muc(out: list, s: str, ten_file: str):
     s = _cat(s)
-    if len(s) < 3 or _fold(s) == _fold(ten_file) or _RE_RAC.match(s):
+    if len(s) < 3 or _khoa_so(s) == _khoa_so(ten_file) or _RE_RAC.match(s) or not _co_nghia(s):
         return
-    if _fold(s) not in {_fold(x) for x in out}:
+    if _khoa_so(s) not in {_khoa_so(x) for x in out}:
         out.append(s)
 
 
@@ -370,12 +392,13 @@ def dau_muc(txt: str, ten_file: str = "", toi_da: int = 6) -> list:
             break
     if len(out) >= 2:
         return out[:toi_da]
-    # 5. ba câu đầu
-    van = re.sub(r"\s+", " ", " ".join(x for x in dong if x.strip() and not x.lstrip().startswith(">")))
-    out = []
-    for c in re.split(r"(?<=[.!?])\s+", van)[:3]:
-        _them_muc(out, c, ten_file)
-    return out[:toi_da]
+    # 5. ba câu đầu - chỉ từ dòng ra câu (>= 5 từ). Ghép mọi dòng lại như bản đầu thì trang bìa
+    # .docx (mã hiệu, ngày ban hành, số trang) thành một "câu" rác dài.
+    van = " ".join(x.strip() for x in dong if len(x.split()) >= 5 and not x.lstrip().startswith((">", "|")))
+    out2 = list(out)
+    for c in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", van))[:3]:
+        _them_muc(out2, c, ten_file)
+    return out2[:toi_da]
 
 
 @router.get("/knowledge/quick")

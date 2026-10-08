@@ -8240,7 +8240,8 @@
           `<div class="look-fxs">${congTac("eruption", "zap", "look.fx_eruption", "look.fx_eruption_d")}</div>` +
           truot("lavaSpeed", "look.lava_speed", "look.slow", "look.fast"))}
         ${the("layers", "look.other", "",
-          `<div class="look-fxs">${congTac("orbits", "circle", "look.fx_orbits", "look.fx_orbits_d")}</div>` +
+          `<div class="look-fxs">${congTac("orbits", "circle", "look.fx_orbits", "look.fx_orbits_d")}
+            ${congTac("knowledge", "sparkles", "look.fx_knowledge", "look.fx_knowledge_d")}</div>` +
           truot("orbitSize", "look.orbit_size", "look.small", "look.big") +
           truot("orbitDot", "look.orbit_dot", "look.small", "look.big"))}
       </div>

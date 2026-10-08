@@ -4708,7 +4708,7 @@ _PLANET_SO = {
     "orbitDot": (0.5, 3),
 }
 _PLANET_MAU = ("sunColor", "seaColor", "rimColor")
-_PLANET_BAT = ("rain", "lightning", "wind", "tornado", "eruption", "orbits")
+_PLANET_BAT = ("rain", "lightning", "wind", "tornado", "eruption", "orbits", "knowledge")
 _PLANET_CHON = {
     "moonMode": ("auto", "manual"),
     "palette": ("ocean", "emerald", "amethyst", "sunset", "ice", "lava", "gold", "abyss", "custom"),
