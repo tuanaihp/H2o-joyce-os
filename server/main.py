@@ -6403,6 +6403,30 @@ def _ghi_bai_hoc(brain, slug, lessons):
     except Exception as e:
         print(f"[agent-memory] ghi bài học lỗi ({slug}): {e}", file=sys.stderr)
 
+def _xep_cho_bai_hoc(brain, slug, lessons):
+    """Bài học tự học KHÔNG ghi thẳng vào MEMORY.md - xếp thành task vào cột 'Chờ
+    duyệt' (review) của Kanban đúng brain, route='bai-hoc'. Chủ bấm Duyệt trên trang
+    Việc thì _task_move_today mới gọi _ghi_bai_hoc nạp thật; Từ chối thì task archive,
+    bài học không bao giờ chạm vào bộ nhớ. Nội dung đầy đủ nằm trong intent theo dạng
+    'bai-hoc|<slug>|<bài học>' vì title bị cắt 160 ký tự."""
+    if not lessons or tasks_feature is None:
+        return
+    try:
+        root = tasks_feature._ensure(brain)
+        for les in lessons:
+            tasks_feature.store.enqueue(
+                root,
+                f"[Bài học chờ duyệt] {slug}: {les}",
+                f"bai-hoc|{slug}|{les}",
+                route="bai-hoc",
+                needs_approval=True,
+                created_by="lesson",
+                status="review",
+            )
+        tasks_feature._snapshot(root)
+    except Exception as e:
+        print(f"[agent-memory] xếp chờ bài học lỗi ({slug}): {e}", file=sys.stderr)
+
 def _log_agent_run(brain, slug, task, out):
     try:
         d = _brain_memory_dir(brain) / "agents" / slug / "runs"
@@ -9138,7 +9162,8 @@ def _workflow_agent_helpers(brain, tools):
             + "\n# Tự bồi đắp lúc dùng: nếu cuối nhiệm vụ rút ra được bài học TÁI DÙNG cho vai này "
               "(cách làm tốt hơn, lỗi cần tránh, ngữ cảnh riêng đã học được), KẾT THÚC câu trả lời "
               "bằng tối đa 2 dòng riêng, mỗi dòng đúng dạng `JOYCE_LESSON: <bài học một câu>`. "
-              "Joyce tự ghi vào mục `## Bài học (tự học)` của file bộ nhớ trên (tự loại trùng, giữ "
+              "Joyce xếp bài học vào hàng CHỜ DUYỆT trên trang Việc; khi chủ bấm Duyệt nó mới vào "
+              f"mục `## Bài học (tự học)` của file bộ nhớ trên (tự loại trùng, giữ "
               f"{_BAI_HOC_TRAN} dòng mới nhất). KHÔNG tự sửa file bộ nhớ trực tiếp - phần ngoài mục "
               "đó là của chủ. Lượt chạy không có gì đáng nhớ thì ĐỪNG phát JOYCE_LESSON, và đừng "
               "lặp lại bài học đã có trong bộ nhớ.\n"
@@ -9158,7 +9183,7 @@ def _workflow_agent_helpers(brain, tools):
         lessons, sach = _boc_bai_hoc(out or "")
         if not lessons:
             return out
-        _ghi_bai_hoc(brain, aslug, lessons)
+        _xep_cho_bai_hoc(brain, aslug, lessons)
         return sach
 
     return _mk, _agent_sysprompt, _log_run, _learn
@@ -16825,6 +16850,16 @@ async def _task_move_today(tid: str, status: str, brain: str, reason: str) -> di
         task = tasks_feature.store.get_task(tid)
         if not task or task.get("brain_root") != root:
             return {"ok": False, "error": "not found"}
+        if task.get("route") == "bai-hoc":
+            # Bài học tự học chờ duyệt (Operating Loop 2.0): Duyệt -> nạp thật vào
+            # MEMORY.md của đúng agent rồi đóng task; Từ chối -> archive luôn, tuyệt
+            # đối không về todo (dispatcher sẽ nhặt chạy nếu về todo).
+            if status == "done":
+                parts = (task.get("intent") or "").split("|", 2)
+                if len(parts) == 3 and parts[0] == "bai-hoc":
+                    _ghi_bai_hoc(brain, parts[1], [parts[2]])
+            elif status in ("todo", "cancelled"):
+                status = "archived"
         if not tasks_feature.store.move(tid, status, reason=reason):
             return {"ok": False, "error": "không thể chuyển task đang chạy"}
         await tasks_feature._asnapshot(root)
