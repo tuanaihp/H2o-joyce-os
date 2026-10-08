@@ -378,12 +378,14 @@ async def knowledge_search(brain: str = Query("brain"), q: str = Query("")):
 
 
 @router.get("/knowledge/sky")
-async def knowledge_sky(brain: str = Query("brain")):
+async def knowledge_sky(brain: str = Query("brain"), fresh: bool = Query(False)):
+    """`fresh=1`: bỏ qua cache 60 giây - hud.js gọi ngay sau khi nạp dữ liệu xong để tài liệu vừa
+    chưng cất hiện thành sao mới liền, không phải chờ cache hết hạn."""
     from starlette.concurrency import run_in_threadpool
     root = str(Path(_deps["brain_root"](brain)).resolve())
     ck = (root, bool(_deps["is_staff"]()))
     hit = _cache_troi.get(ck)
-    if hit and time.time() - hit[0] < _HAN_CACHE:
+    if hit and not fresh and time.time() - hit[0] < _HAN_CACHE:
         return hit[1]
     data = await run_in_threadpool(_dung_troi, brain)
     _cache_troi[ck] = (time.time(), data)

@@ -133,35 +133,87 @@ admin ở brain chủ là mọi phòng. hud.js hỏi `/knowledge/search` (cùng 
 dòng ở ô VAULT vẫn là của brain đang mở; rê chuột hai chiều chỉ nối được những dòng thuộc brain đó
 (sự kiện `joyce:vault-hover` / `joyce:sky-hover`, khớp theo đường dẫn trong brain).
 
-Biên đạo khoảng 2,5 giây:
+Biên đạo (bản 1.0.6). Bản 1.0.5 đầu tiên kéo mọi kết quả về MỘT điểm rồi nở thành vòng cung
+tinh cầu xanh trơn; chủ xem xong (2026-10-08) đổi lại: tinh cầu **giữ nguyên chỗ** và phóng to
+tại chỗ, bề mặt là **đá lồi lõm** có màu dải ngân hà, nổ **tại chỗ** khi các thiên thể quanh nó lao
+vào, nổ **lửa vàng** trước rồi **xanh chưng cất** có tia sáng (hai ảnh mẫu chủ gửi), và **ánh Mặt
+Trời** chiếu dần: khớp nhất sáng nhất.
 
-| Thời điểm | Diễn ra |
+| Thời điểm (giây) | Diễn ra |
 |---|---|
-| 0 đến 0,3s | Bầu trời tối lại 60%, thiên thể không liên quan mờ còn 15%. |
-| 0,3 đến 1,1s | Thiên thể liên quan (đá vụn, chấm, sao) bị kéo theo đường cong về **điểm hội tụ** phía trước-trên hành tinh, nhanh dần. |
-| 1,1 đến 1,4s | **Va chạm**: loé trắng ở điểm hội tụ, vòng sóng xung kích lan ra, 40 đến 80 mảnh văng (dùng lại bộ hạt nóng `launch`). |
-| 1,4 đến 2,5s | **Nở thành chòm sao**: tối đa 12 kết quả đầu thành tinh cầu nhỏ (bán kính 6 đến 18px theo độ khớp) xếp vòng cung quanh địa cầu, nhấp nháy theo màu concept bề mặt (`look.palette`). Tài liệu nào `[[liên kết]]` tới nhau thì nối bằng vệt sáng mảnh. Phần còn lại là chấm lấp lánh, kèm dòng "và N tài liệu nữa". |
-| Sau đó | Đứng yên chờ chọn. Rê chuột lên dòng kết quả ở ô VAULT thì tinh cầu tương ứng sáng lên, và ngược lại. |
-| Xoá ô tìm / Esc | Chòm sao thu nhỏ rồi bay ngược về chỗ cũ trong 0,8s. |
+| 0 đến 0,3 | Bầu trời tối lại, thiên thể không liên quan mờ đi. |
+| 0,3 đến 1,1 | Mỗi kết quả: tối đa 5 thiên thể ĐANG HIỆN gần nó nhất (trong 140px) lao vào theo đường cong, nóng đỏ dần; thiếu thì thêm mảnh đá cho đủ 4. Thiên thể đã lao vào bị ẩn khỏi trời nền tới khi thu về. |
+| 1,1 đến 1,7 | **Nổ lửa** tại chỗ: lõi trắng, vàng, cam, mép đỏ sẫm, 7 cụm lửa cuộn, 26 tia lửa văng. Chế độ hoà màu `lighter`. |
+| 1,6 đến 2,6 | **Nổ xanh chưng cất**: loé trắng xanh, vành đĩa hồng-xanh nghiêng, **hai tia sáng ngược chiều** như chuẩn tinh, sóng xung kích xanh. |
+| 1,6 đến 2,7 | Tinh cầu **đá** lớn dần tại chỗ (bán kính 7 đến 24px theo hạng, `easeBack`). Hạng sau trễ 0,035 giây/hạng. |
+| 2,0 đến 3,6 | **Nắng chiếu dần**: phía hướng Mặt Trời sáng ấm, phía kia chìm vào đêm; hạng 1 sáng 100%, hạng sau giảm dần (sàn 35%). Một tia nắng từ Mặt Trời tới tinh cầu hạng 1. |
+| Sau đó | Đứng chờ chọn. Nhãn chữ cho 3 hạng đầu và cái đang trỏ. Vệt nối tài liệu `[[liên kết]]` nhau. Hạng 13 trở đi là chấm lấp lánh tại chỗ thật, kèm dòng "và N tài liệu nữa". |
+| Xoá ô tìm / Esc | Tinh cầu co lại và tan tại chỗ trong 0,8 giây; thiên thể đã lao vào hiện lại. |
+
+Giữ chỗ: vị trí mỗi khung = chỗ THẬT (`knowPos`, trôi theo vành/camera) + độ lệch giãn chỗ tính
+một lần lúc bắt đầu (40 vòng đẩy nhau cho đủ khoảng trống `rF + rF + 16`). Chỗ thật rơi vào đĩa
+địa cầu (thiên thể sau lưng địa cầu) thì đẩy ra sát mép (`focAvoidEarth`), vì chụp thử thấy vụ nổ
+nằm đè lên mặt địa cầu.
+
+Mặt đá: 6 mẫu 96x96 dựng bằng nhiễu giá trị 3D (bảng hoán vị, không dùng `Math.sin`) + 9 miệng
+hố (lòng lõm + vành nổi) + nổi khối nướng sẵn + hai mảng màu hồng/xanh của dải ngân hà. Dựng
+MỖI KHUNG MỘT MẪU (`foc.toBuild`) trong lúc trời đang tối: đo trong closure khoảng 9ms một mẫu,
+dựng cả 6 cùng lúc là khựng một nhịp. Ánh nắng thật phủ lên lúc vẽ bằng gradient theo hướng
+Mặt Trời.
 
 Độ khớp: khớp tên file > khớp tiêu đề wiki > khớp nội dung; cùng loại thì tài liệu nhiều liên
-kết hơn đứng trước. Máy yếu (`safe`, `reduced`) bỏ hội tụ và vụ nổ, chỉ làm sáng kết quả.
+kết hơn đứng trước. Máy yếu (`safe`, `reduced`) bỏ va chạm và vụ nổ: tinh cầu lớn lên và được
+nắng chiếu ngay.
 
-Kết quả tìm được ngoài phần đang vẽ (vượt trần mục 4) vẫn được nở thành tinh cầu: chòm sao lấy
-từ danh sách kết quả chứ không chỉ từ thiên thể đang hiện.
-
----
-
-## 7. Khép vòng với hố đen (giai đoạn 3)
-
-- Nạp xong (`ing.beam`), tia sáng hiện đang bắn về mép hành tinh gần hố đen nhất. Đổi đích về
-  **ghim H2O Studio** (`JoyceVNGeo.studio`, Hải Phòng) khi ghim đang ở nửa thấy được; khuất thì
-  giữ mép như cũ.
-- Khi tia chạm đất, các tài liệu vừa chưng cất (so danh sách thiên thể trước và sau khi nạp) hiện
-  thành sao mới: loé, rồi bay từ điểm chạm lên đúng vị trí cố định của chúng trên vòm trời.
-- Đá vụn tương ứng tài liệu nguồn đã chưng cất mờ đi và biến mất ở lần nạp bầu trời kế tiếp.
+Kết quả ngoài phần đang vẽ (vượt trần mục 4) vẫn hiện: chỗ của nó lấy từ băm id như một ngôi sao.
 
 ---
+
+## 7. Khép vòng với hố đen (giai đoạn 3, code xong 1.0.6)
+
+- Nạp xong (`ing.beam`), tia sáng bắn từ hố đen về **ghim H2O Studio · ThuyH2O Makeup**
+  (`JoyceVNGeo.studio`, Đại Bản, An Dương, Hải Phòng) khi ghim ở nửa thấy được (`studioPt`);
+  khuất thì về mép hành tinh gần hố đen nhất như trước.
+- hud.js thấy `/brain/nap-status` chuyển từ đang nạp sang xong thì 1,2 giây sau nạp lại bầu trời
+  với `fresh=1` (bỏ cache 60 giây). `setKnowledge` so với bầu trời trước: id sao chưa từng có là
+  tài liệu VỪA CHƯNG CẤT, mang `born`; mỗi sao mới trễ 0,22 giây sau sao trước.
+- Sao mới bay từ ghim H2O Studio lên đúng chỗ cố định của nó trong 1,8 giây (kéo vệt xanh bạc
+  hà), loé vòng sáng khi tới nơi rồi thành sao thường. Có sao mới mà tia sáng đã tắt thì bắn lại.
+- Nạp lại bầu trời giữ góc đang chạy của chấm vành và đá vụn cũ, không giật về góc ban đầu.
+- Lần nạp bầu trời ĐẦU TIÊN không coi gì là sao mới.
+
+## 7b. Hố đen luôn xoay và nhìn sâu vào hố đen (1.0.6)
+
+Chủ yêu cầu 2026-10-08, kèm ảnh mẫu (xoáy bụi xanh có luồng bụi bị hút; đĩa bồi tụ trong xanh
+ngoài hồng cam với hai tia phản lực).
+
+**Luôn xoay** (`drawBHSwirl`, vẽ trước thiên thể): 260/150/70 hạt bụi trong ĐÚNG mặt phẳng đĩa bồi
+tụ của shader (nghiêng 0,32 rad, dẹt 0,3), góc tốc `0,42 / r^1,2` (trong nhanh, ngoài chậm), trôi
+vào tâm 0,05 bán kính/giây rồi sinh lại ở rìa. 90/50/24 hạt chảy theo một luồng cong từ trên-trái
+xa vào rìa đĩa, tới nơi thì kéo một hạt xoáy về rìa. Ba cung sáng quanh miệng hố xoay chậm để
+mắt thấy rõ hố đang quay. Hạt nửa xa rơi vào bóng hố thì bỏ (lớp 2D nằm trên shader). Đang nạp
+dữ liệu: nhanh gấp 3,5, trôi vào nhanh hơn, sáng hơn.
+
+**Nhìn sâu** (`openBlackHole`, `drawBHView`, vẽ trên cùng): bấm trong 1,8 bán kính hố đen. Màn
+mở tròn từ hố đen ra cả khung. Trong đó:
+- Hố đen lớn (bán kính 0,1 cạnh ngắn), vành photon, đĩa bồi tụ 700/400/160 vệt (trong trắng xanh,
+  ra ngoài hồng rồi cam), nửa gần đè lên bóng hố, nửa xa bị che. Hai tia phản lực tím xanh vuông
+  góc với đĩa. Dải tinh vân xanh bị hút vào từ góc trên-trái.
+- 26/20/12 tinh thể dữ liệu thô mang đúng tên file trong `sources/`, `inbox/` (đang nạp thì ưu
+  tiên tên file đang nạp) xoáy dần vào, sàn 0,36 để không lọt vào bóng hố. Cứ 1,4-2,2 giây (nhanh
+  hơn khi đang nạp) hai tinh thể trong cùng lao vào nhau trong 0,45 giây rồi **nổ lửa** (0,6 giây),
+  **nổ xanh** (1 giây), rồi một **tia kiến thức** đã chưng cất bay vào tâm và vọt theo tia phản lực.
+  Tinh thể mới thay chỗ ở vòng ngoài.
+- Chữ: tiêu đề, số tài liệu thô đang chờ (hoặc tên file đang chưng cất), lối ra. Nhãn tên tinh
+  thể thưa (vòng ngoài, tối đa 6, cách nhau đủ xa).
+- Ra: bấm bất kỳ đâu, hoặc Esc. Đang mở thì lăn chuột không phóng quả cầu, rê chuột không hiện
+  chú thích.
+
+Lỗi bắt được khi chụp thử bằng Chrome chạy ngầm (2026-10-08), ghi lại để khỏi lặp:
+- Gradient vành photon bắt đầu từ 0,95 bán kính thì canvas tô màu điểm dừng đầu cho cả phần
+  bên trong: lòng hố thành đĩa màu be. Phải bắt đầu từ tâm và trong suốt tới mép bóng.
+- Nửa gần của đĩa là nửa PHÍA DƯỚI trên màn (sin > 0 khi y hướng xuống); lấy ngược thì nửa xa
+  vẽ đè lên hố.
 
 ## 8. Kiến trúc và API
 
@@ -226,7 +278,7 @@ opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
 |---|---|---|
 | **1. Bản đồ sao thật** (code xong 1.0.4, 2026-10-08) | Endpoint `/knowledge/sky` + `/knowledge/quick`, vẽ sao, chấm vành, đá vụn từ dữ liệu thật, rê chuột hiện tên, bấm hiện thẻ Đọc nhanh, công tắc trong Cài đặt. | Admin ở Brain Default thấy trời gộp, mở brain phòng thì thấy trời phòng đó; bấm một sao đọc được đầu mục. |
 | **2. Big Bang** (code xong 1.0.5, 2026-10-08) | `focusKnowledge`, biên đạo mục 6, đồng bộ hai chiều với ô VAULT. | Gõ "Báo giá" + Enter thấy nổ và chòm sao, bấm chọn được. |
-| **3. Khép vòng** | Tia sáng về ghim H2O Studio, sao mới sinh sau khi nạp. | Nạp một tài liệu, thấy sao mới bay lên chỗ của nó. |
+| **3. Khép vòng** (code xong 1.0.6) | Tia sáng về ghim H2O Studio, sao mới sinh sau khi nạp. | Nạp một tài liệu, thấy sao mới bay lên chỗ của nó. |
 
 ---
 

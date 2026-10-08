@@ -246,9 +246,14 @@
         '</span><span class="hp-nap-v">' + esc(what) + "</span></div>";
     } else el.innerHTML = "";
   }
+  var _napDangChay = false;
   function pollNap() {
     jget("/brain/nap-status?brain=" + encodeURIComponent(brainPath())).then(function (r) {
       if (!r) return;
+      // Vừa nạp xong: nạp lại bầu trời (bỏ cache) để tài liệu vừa chưng cất sinh thành sao mới,
+      // bay từ ghim H2O Studio lên chỗ của nó (giai đoạn 3 của bầu trời tri thức).
+      if (_napDangChay && !r.active) setTimeout(function () { loadKnow(true, true); }, 1200);
+      _napDangChay = !!r.active;
       D.nap = r;
       if (planet) planet.setIngest(r);
       paintNap();
@@ -259,11 +264,11 @@
   // Máy chủ quyết phạm vi (admin ở brain chủ = gộp mọi phòng, còn lại = brain đang mở) và tự
   // cache 60 giây; ở đây chỉ nạp khi dựng tinh cầu, khi đổi brain và mỗi 5 phút.
   var _knowBrain = null, _knowNghe = false;
-  function loadKnow(force) {
+  function loadKnow(force, fresh) {
     var b = brainPath();
     if (!force && _knowBrain === b && D.know) { if (planet) planet.setKnowledge(D.know); return; }
     _knowBrain = b;
-    jget("/knowledge/sky?brain=" + encodeURIComponent(b)).then(function (r) {
+    jget("/knowledge/sky?brain=" + encodeURIComponent(b) + (fresh ? "&fresh=1" : "")).then(function (r) {
       if (!r || r.ok === false || _knowBrain !== b) return;
       D.know = r;
       if (planet) planet.setKnowledge(r);

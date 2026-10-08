@@ -32,6 +32,7 @@ const ctx = {
   PAL: { cyan: [0, 231, 255], magenta: [255, 62, 200], gold: [255, 211, 106] },
   clamp: (v, a, b) => (v < a ? a : v > b ? b : v),
   KNOW_DUST: [150, 160, 175],
+  performance: { now: () => 0 }, ing: { beam: 0 },
   know: { stars: [], orbit: [], debris: [], hits: [], hover: null, counts: null, scope: "" },
 };
 vm.createContext(ctx);

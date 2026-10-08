@@ -1,5 +1,12 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.6] - 2026-10-08
+### Cải thiện
+- **Big Bang làm lại theo góp ý**: tinh cầu kiến thức giữ nguyên chỗ trên bầu trời và phóng to tại chỗ, mặt đá lồi lõm có miệng hố và quầng màu dải ngân hà. Các thiên thể quanh nó lao vào, nổ lửa vàng rồi nổ xanh chưng cất có hai tia sáng; Mặt Trời chiếu dần, tài liệu khớp nhất sáng nhất.
+- **Hố đen luôn xoay chậm**, có luồng bụi bị hút vào và tài liệu thô chờ quanh đó; đang nạp dữ liệu thì xoáy nhanh hơn.
+- **Bấm giữa hố đen để nhìn sâu vào**: đĩa bồi tụ, tia phản lực, tinh thể dữ liệu thô mang đúng tên file va vào nhau, nổ và chưng cất. Bấm bất kỳ đâu hoặc Esc để ra.
+- **Nạp xong**, tia sáng bắn đúng vào ghim H2O Studio ở Hải Phòng, và tài liệu vừa chưng cất sinh thành sao mới bay từ đó lên trời.
+
 ## [1.0.5] - 2026-10-08
 ### Thêm mới
 - **Big Bang khi tìm kiếm**: gõ từ khoá ở ô VAULT rồi bấm Enter (hoặc ngừng gõ một chút), bầu trời tối lại, các thiên thể liên quan bay về một điểm, va vào nhau thành vụ nổ, rồi nở ra thành **chòm sao tinh cầu nhỏ** quanh địa cầu để chọn.
