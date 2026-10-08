@@ -1662,7 +1662,9 @@
     // danh sách là giữ thiên thể quan trọng nhất.
     var KNOW_CAP = { high: [1500, 600, 600], balanced: [900, 400, 350], safe: [300, 150, 120], reduced: [300, 150, 120] };
     var KNOW_DUST = [150, 160, 175];   // đá vụn: màu thương hiệu pha xám đá
-    var know = { stars: [], orbit: [], debris: [], hits: [], hover: null, counts: null, scope: "" };
+    var know = { stars: [], orbit: [], debris: [], hits: [], hover: null, counts: null, scope: "",
+                 bi: {}, byId: {}, hl: null };
+    var foc = null;   // Big Bang khi tìm kiếm đang diễn (xem focusKnowledge)
     function hashRnd(seed) {   // mulberry32: dãy giả ngẫu nhiên cố định theo id
       var s = seed >>> 0;
       return function () {
@@ -1714,6 +1716,8 @@
       });
       know.stars = stars; know.orbit = orbit; know.debris = debris;
       know.counts = d.counts || null; know.scope = d.scope || ""; know.hover = null;
+      know.bi = bi; know.byId = {};
+      stars.concat(orbit, debris).forEach(function (k) { know.byId[k.b.id] = k; });
     }
     function knowCap(i) { return (KNOW_CAP[profile] || KNOW_CAP.balanced)[i]; }
     // Sao + đá vụn: vẽ ĐẦU TIÊN (sau quỹ đạo trăng), nằm sau mọi thứ. Đồng thời dựng lại danh
@@ -1723,12 +1727,15 @@
       var kf = fx.knowledge;
       if (kf < 0.02) return;
       var t = now / 1000, R0 = geo.R, hv = know.hover;
+      kf *= focDim();
       var ns = Math.min(know.stars.length, knowCap(0));
       for (var i = 0; i < ns; i++) {
         var s = know.stars[i], p = camRot(s.v[0], s.v[1], s.v[2]);
         var x = geo.cx + p[0] * R0, y = geo.cy - p[1] * R0;
         if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
         if (p[2] < 0 && Math.hypot(x - geo.cx, y - geo.cy) < R0) continue;   // khuất sau hành tinh
+        s.sx = x; s.sy = y; s.seen = now;
+        if (foc && foc.ids[s.b.id]) continue;   // đã bay vào vụ nổ
         var on = hv === s ? 1 : 0;
         var a = (0.35 + 0.4 * (0.55 + 0.45 * Math.sin(t * s.tw + s.ph)) * 0.8 + 0.25 * s.size) * (p[2] < 0 ? 0.6 : 1);
         if (s.b.recent) a += 0.25 * (0.5 + 0.5 * Math.sin(t * 3 + s.ph));   // sửa trong 7 ngày: nháy
@@ -1750,6 +1757,8 @@
         if (dt) { d.a += d.sp * dt; d.rot += d.spin * dt; }
         var rr = d.rho * m, dx = B.x + Math.cos(d.a) * rr, dy = B.y + Math.sin(d.a) * rr * 0.55;
         if (dx < -10 || dy < -10 || dx > W + 10 || dy > H + 10) continue;
+        d.sx = dx; d.sy = dy; d.seen = now;
+        if (foc && foc.ids[d.b.id]) continue;
         var on2 = hv === d ? 1 : 0, sz = (1.3 + d.size * 2.2) * (1 + on2 * 0.7);
         c.fillStyle = rgba(on2 ? d.col : d.dcol, Math.min(1, (0.5 + 0.2 * d.size) * kf + on2 * 0.4));
         c.beginPath();
@@ -1765,14 +1774,16 @@
     // Chấm tri thức trên vành: vẽ cùng nhịp drawParticles (nửa sau rồi nửa trước) để hành tinh
     // che đúng; hưởng luôn thanh Cỡ vành quỹ đạo (ringPt) và Cỡ chấm trên vành (orbitDot).
     function drawKnowOrbit(c, front, dt) {
-      var kf = fx.knowledge * ringFade();
+      var kf = fx.knowledge * ringFade() * focDim();
       if (kf < 0.02) return;
-      var n = Math.min(know.orbit.length, knowCap(1)), hv = know.hover;
+      var n = Math.min(know.orbit.length, knowCap(1)), hv = know.hover, now = performance.now();
       for (var i = 0; i < n; i++) {
         var k = know.orbit[i];
         if (dt) k.a += k.sp * dt * cur[9];
         var pt = ringPt(k.ring, k.a);
         if ((pt.z >= 0) !== front || pt.hidden) continue;
+        k.sx = pt.x; k.sy = pt.y; k.seen = now;
+        if (foc && foc.ids[k.b.id]) continue;
         var on = hv === k ? 1 : 0;
         var r = (1.5 + k.size * 1.5) * look.orbitDot * (front ? 1 : 0.8) * (1 + on * 0.7);
         c.fillStyle = rgba(k.col, Math.min(1, (front ? 0.75 + 0.25 * pt.z : 0.35) * kf + on * 0.3));
@@ -1809,6 +1820,203 @@
       var tw = tip.offsetWidth || 140;
       tip.style.left = clamp(x + 14, 6, W - tw - 6) + "px";
       tip.style.top = clamp(y - 10, 6, H - 50) + "px";
+    }
+
+    // ---- Big Bang khi tìm kiếm (giai đoạn 2, mục 6 của docs/dev/2026-10-bau-troi-tri-thuc.md) ----
+    // Nhịp (giây từ lúc có kết quả): 0-0,3 trời tối; 0,3-1,1 thiên thể liên quan hội tụ theo
+    // đường cong về điểm F trước-trên hành tinh; 1,1 va chạm (loé + sóng xung kích + mảnh văng);
+    // 1,4-2,5 nở thành chòm sao tinh cầu nhỏ quanh địa cầu. Máy yếu bỏ hội tụ và vụ nổ.
+    var FOC_MAX = 12, FOC_MORE = 30;
+    var FOC_T = { dim: 0.3, boom: 1.1, bloom0: 1.4, bloom1: 2.5, close: 0.8 };
+    function focDim() { return foc ? 1 - 0.7 * (foc.dark || 0) : 1; }
+    function focusKnowledge(d) {
+      var now = performance.now();
+      if (!d || !d.hits || !d.hits.length) {
+        if (foc && !foc.closing) { foc.closing = true; foc.tc = now; }
+        return;
+      }
+      var items = [], more = [], ids = {};
+      d.hits.forEach(function (h, i) {
+        if (!h || !h.id) return;
+        ids[h.id] = 1;
+        var k = know.byId[h.id], br = know.bi[h.brain];
+        // Kết quả ngoài phần đang vẽ (vượt trần) vẫn nở: dựng tạm vật thể vẽ từ chính kết quả.
+        var obj = k || { b: h, col: br ? br.col : PAL.gold, brainName: br ? br.name : (h.brain || ""),
+                         size: clamp(+h.size || 0, 0, 1), ph: 0 };
+        var rnd = hashRnd((parseInt(h.id, 16) || 0) ^ 0x5bd1e995);
+        var seen = k && k.seen && now - k.seen < 500;
+        var it = { k: obj, h: h, rank: i, x0: seen ? k.sx : null, y0: seen ? k.sy : null,
+                   ang: rnd() * 6.2832, bend: (rnd() - 0.5) * 0.9, del: rnd() * 0.25, tw: 0.8 + rnd() * 1.6 };
+        if (items.length < FOC_MAX) items.push(it); else if (more.length < FOC_MORE) more.push(it);
+      });
+      if (!items.length) return;
+      // Vị trí trên cung: hạng 1 ở đỉnh giữa, các hạng sau toả dần ra hai bên.
+      var n = items.length, mid = (n - 1) / 2;
+      items.forEach(function (it, i) { it.slot = mid + (i % 2 ? -1 : 1) * Math.ceil(i / 2); });
+      items.forEach(function (it) { it.slot = clamp(Math.round(it.slot), 0, n - 1); });
+      var dung = {};   // hai hạng cùng rơi một ô (n chẵn) thì dồn sang ô trống
+      items.forEach(function (it) {
+        while (dung[it.slot]) it.slot = (it.slot + 1) % n;
+        dung[it.slot] = 1;
+      });
+      var lite = profile === "safe" || profile === "reduced";
+      foc = { t0: now, q: d.q || "", items: items, more: more, total: d.total || d.hits.length, ids: ids,
+              shards: [], boom: false, lite: lite, closing: false, tc: 0, dark: 0 };
+    }
+    function focPal() {
+      var p = PALETTES[look.palette];
+      var to = function (a) { return a.map(function (v) { return Math.round(v * 255); }); };
+      if (!p) {
+        var sea = to(hexRGB(look.seaColor || "#064cff")), rim = to(hexRGB(look.rimColor || "#00e7ff"));
+        return { sea: sea, rim: rim, deep: sea.map(function (v) { return Math.round(v * 0.18); }) };
+      }
+      return { sea: to(p.sea), rim: to(p.rim), deep: to(p.deep) };
+    }
+    function drawMiniPlanet(c, x, y, r, P, col, a, pulse, hot) {
+      if (r < 0.5 || a < 0.01) return;
+      var gl = r * (1.7 + 0.6 * pulse + (hot ? 0.5 : 0));
+      var h = c.createRadialGradient(x, y, r * 0.8, x, y, gl);
+      h.addColorStop(0, rgba(P.rim, (0.35 + 0.35 * pulse) * a)); h.addColorStop(1, rgba(P.rim, 0));
+      c.fillStyle = h; c.beginPath(); c.arc(x, y, gl, 0, 6.2832); c.fill();
+      var g = c.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.08, x, y, r);
+      g.addColorStop(0, rgba(P.rim, a)); g.addColorStop(0.5, rgba(P.sea, a)); g.addColorStop(1, rgba(P.deep, a));
+      c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+      c.strokeStyle = rgba(col, 0.85 * a); c.lineWidth = hot ? 2.2 : 1.2;   // vòng màu thương hiệu
+      c.beginPath(); c.arc(x, y, r + 2.5, 0, 6.2832); c.stroke();
+    }
+    function focStart(it, F) {
+      if (it.x0 != null) return { x: it.x0, y: it.y0 };
+      var rr = Math.max(W, H) * 0.55;
+      return { x: F.x + Math.cos(it.ang) * rr, y: F.y + Math.sin(it.ang) * rr };
+    }
+    function bez(a, b, bend, e) {   // đường cong bậc hai, điểm điều khiển lệch vuông góc
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y;
+      var cx = mx - dy * bend, cy = my + dx * bend, u = 1 - e;
+      return { x: u * u * a.x + 2 * u * e * cx + e * e * b.x, y: u * u * a.y + 2 * u * e * cy + e * e * b.y };
+    }
+    function easeBack(x) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
+    function drawKnowFocus(c, now, dt) {
+      if (!foc) return;
+      var t = (now - foc.t0) / 1000;
+      var close = foc.closing ? clamp((now - foc.tc) / 1000 / FOC_T.close, 0, 1) : 0;
+      if (close >= 1) { foc = null; return; }
+      foc.dark = smooth(0, FOC_T.dim, t) * (1 - close);
+      var lite = foc.lite, R0 = geo.R, F = { x: geo.cx, y: geo.cy - R0 * 0.62 };
+      var tBoom = lite ? 0 : FOC_T.boom, tB0 = lite ? 0 : FOC_T.bloom0, tB1 = lite ? 0.5 : FOC_T.bloom1;
+      var P = focPal(), all = foc.items.concat(foc.more);
+      c.save();
+      c.fillStyle = "rgba(2,8,23," + 0.5 * foc.dark + ")";   // bầu trời tối lại
+      c.fillRect(0, 0, W, H);
+      // 1. Hội tụ
+      if (!lite && !foc.closing && t < tBoom) {
+        c.lineCap = "round";
+        all.forEach(function (it) {
+          var d0 = FOC_T.dim + it.del * 0.5;
+          var u = clamp((t - d0) / (tBoom - d0), 0, 1), e = Math.pow(u, 2.2), A = focStart(it, F);
+          var p = bez(A, F, it.bend, e), q = bez(A, F, it.bend, Math.max(0, e - 0.12));
+          var tg = c.createLinearGradient(q.x, q.y, p.x, p.y);
+          tg.addColorStop(0, rgba(it.k.col, 0)); tg.addColorStop(1, rgba(it.k.col, 0.85));
+          c.strokeStyle = tg; c.lineWidth = 1.6 + 1.4 * u;
+          c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(p.x, p.y); c.stroke();
+          c.fillStyle = rgba(it.k.col, 0.95); c.beginPath(); c.arc(p.x, p.y, 1.6 + 1.6 * u, 0, 6.2832); c.fill();
+        });
+      }
+      // 2. Va chạm: loé trắng + sóng xung kích + mảnh văng
+      if (!lite && t >= tBoom && !foc.boom) {
+        foc.boom = true;
+        for (var si = 0; si < 64; si++) {
+          var it0 = all[si % all.length], ag = Math.random() * 6.2832, v = 90 + Math.random() * 260;
+          foc.shards.push({ x: F.x, y: F.y, vx: Math.cos(ag) * v, vy: Math.sin(ag) * v, life: 0.6 + Math.random() * 0.6, t: 0,
+                            col: Math.random() < 0.3 ? PAL.gold : it0.k.col });
+        }
+      }
+      if (!lite && t >= tBoom && t < tBoom + 1) {
+        var bu = t - tBoom;
+        var fr = R0 * (0.3 + 1.2 * bu), fa = clamp(1 - bu / 0.4, 0, 1);
+        if (fa > 0) {
+          var fg = c.createRadialGradient(F.x, F.y, 0, F.x, F.y, fr);
+          fg.addColorStop(0, "rgba(255,255,255," + fa + ")"); fg.addColorStop(0.35, rgba(P.rim, 0.7 * fa)); fg.addColorStop(1, rgba(P.rim, 0));
+          c.fillStyle = fg; c.beginPath(); c.arc(F.x, F.y, fr, 0, 6.2832); c.fill();
+        }
+        c.strokeStyle = rgba(P.rim, 0.7 * (1 - bu)); c.lineWidth = 0.5 + 3 * (1 - bu);
+        c.beginPath(); c.arc(F.x, F.y, R0 * (0.2 + 2.4 * bu), 0, 6.2832); c.stroke();
+      }
+      if (foc.shards.length) {
+        c.lineCap = "round";
+        foc.shards = foc.shards.filter(function (s) {
+          s.t += dt; if (s.t >= s.life) return false;
+          var dmp = Math.pow(0.05, dt);
+          s.vx *= dmp; s.vy *= dmp; s.x += s.vx * dt; s.y += s.vy * dt;
+          var al = 1 - s.t / s.life;
+          c.strokeStyle = rgba(s.col, al); c.lineWidth = 1.4;
+          c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(s.x - s.vx * 0.04, s.y - s.vy * 0.04); c.stroke();
+          return true;
+        });
+      }
+      // 3. Nở thành chòm sao
+      if (t >= tB0) {
+        var bu2 = clamp((t - tB0) / (tB1 - tB0), 0, 1), n = foc.items.length, rad = R0 * 2.0;
+        var sc = clamp(R0 / 150, 0.7, 1.4), pos = [];
+        foc.items.forEach(function (it, i) {
+          var ang = -Math.PI + 0.35 + (Math.PI - 0.7) * (n === 1 ? 0.5 : it.slot / (n - 1));
+          var S = { x: geo.cx + Math.cos(ang) * rad, y: geo.cy + Math.sin(ang) * rad };
+          var ui = clamp(bu2 * 1.4 - (i / Math.max(1, n)) * 0.4, 0, 1);
+          var p = lite ? S : { x: F.x + (S.x - F.x) * easeBack(ui), y: F.y + (S.y - F.y) * easeBack(ui) };
+          var r = (6 + 12 * Math.pow(1 - it.rank / (FOC_MAX - 1), 1.2)) * sc * Math.min(1, ui * 1.4);
+          var a = lite ? ui : Math.min(1, ui * 2);
+          if (close) {   // thu về: bay ngược về chỗ cũ trên bầu trời rồi tan
+            var B2 = it.x0 != null ? { x: it.x0, y: it.y0 } : F, ce = close * close * (3 - 2 * close);
+            p = { x: p.x + (B2.x - p.x) * ce, y: p.y + (B2.y - p.y) * ce };
+            r *= 1 - 0.75 * close; a *= 1 - close;
+          }
+          pos.push(p);
+          it.px = p.x; it.py = p.y;
+          var hot = know.hover === it.k || know.hl === it.h.id;
+          drawMiniPlanet(c, p.x, p.y, r * (hot ? 1.2 : 1), P, it.k.col, a, 0.5 + 0.5 * Math.sin(now / 1000 * 3.2 + i), hot);
+          if (!close && ui > 0.6) know.hits.push({ x: p.x, y: p.y, k: it.k });
+          if ((it.rank < 3 || hot) && a > 0.3) {   // nhãn: ba kết quả đầu + cái đang trỏ
+            var ttl = String(it.h.title || it.h.path || "");
+            if (ttl.length > 26) ttl = ttl.slice(0, 25) + "…";
+            c.font = (hot ? "700 " : "600 ") + "10px 'Segoe UI', system-ui, sans-serif";
+            c.textAlign = "center"; c.textBaseline = "top";
+            c.fillStyle = "rgba(225,245,255," + 0.9 * a + ")";
+            c.fillText(ttl, p.x, p.y + r + 6);
+          }
+        });
+        // Chòm sao: tài liệu [[liên kết]] tới nhau thì nối vệt sáng.
+        var linkA = 0.35 * Math.min(1, bu2 * 1.5) * (1 - close);
+        if (linkA > 0.02) {
+          c.strokeStyle = rgba(P.rim, linkA); c.lineWidth = 1;
+          for (var i1 = 0; i1 < n; i1++) for (var j1 = i1 + 1; j1 < n; j1++) {
+            var h1 = foc.items[i1].h, h2 = foc.items[j1].h;
+            if ((h1.links || []).indexOf(h2.stem) >= 0 || (h2.links || []).indexOf(h1.stem) >= 0) {
+              c.beginPath(); c.moveTo(pos[i1].x, pos[i1].y); c.lineTo(pos[j1].x, pos[j1].y); c.stroke();
+            }
+          }
+        }
+        // Phần còn lại: chấm lấp lánh trên cung ngoài + dòng "và N tài liệu nữa".
+        var mA = clamp(bu2 * 1.6 - 0.6, 0, 1) * (1 - close), m = foc.more.length;
+        if (mA > 0.02) {
+          foc.more.forEach(function (it, i) {
+            var ang = -Math.PI + 0.25 + (Math.PI - 0.5) * (m === 1 ? 0.5 : i / (m - 1));
+            var x = geo.cx + Math.cos(ang) * R0 * 2.45, y = geo.cy + Math.sin(ang) * R0 * 2.45;
+            var hot = know.hover === it.k || know.hl === it.h.id;
+            c.fillStyle = rgba(it.k.col, mA * (0.55 + 0.45 * Math.sin(now / 1000 * it.tw + i)));
+            c.beginPath(); c.arc(x, y, hot ? 3.4 : 1.9, 0, 6.2832); c.fill();
+            it.px = x; it.py = y;
+            if (!close) know.hits.push({ x: x, y: y, k: it.k });   // đang thu về: không bấm nữa
+          });
+          var con = foc.total - n;
+          if (con > 0) {
+            var tt = (window.t || function (s) { return s; })("planet.k_more", { n: con });
+            if (tt === "planet.k_more") tt = "+" + con;
+            c.font = "600 10.5px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "top";
+            c.fillStyle = "rgba(200,225,245," + 0.8 * mA + ")";
+            c.fillText(tt, geo.cx, geo.cy + R0 * 1.15);
+          }
+        }
+      }
+      c.restore();
     }
 
     // ---------------------------------------------------------------------------
@@ -2869,6 +3077,7 @@
       drawVN(c, now);
       drawIngest(c, now, ddt);
       if (opts.labels !== false) drawLabels(c);
+      drawKnowFocus(c, now, reduced ? 0.12 : dt);   // Big Bang đè lên trên cùng (kể cả nhãn)
     }
     function loopFn(now) { frame(now, false); }
 
@@ -2978,6 +3187,7 @@
       var s = hitSat(p.x, p.y);
       hoverSat = s;
       var kh = s ? null : hitKnow(p.x, p.y);
+      if (kh !== know.hover) { try { opts.onKnowledgeHover && opts.onKnowledgeHover(kh ? kh.b : null); } catch (_) {} }
       know.hover = kh;
       var onP = !s && !kh && onPlanet(p.x, p.y);
       hoverT = onP ? 1 : 0;
@@ -3156,6 +3366,13 @@
     };
     // Bầu trời tri thức (hud.js đọc /knowledge/sky): {scope, brains, bodies, counts}.
     R.setKnowledge = setKnowledge;
+    // Big Bang khi tìm kiếm (hud.js đọc /knowledge/search): {q, hits, total}; null = thu về.
+    R.focusKnowledge = focusKnowledge;
+    R.highlightKnowledge = function (id) { know.hl = id || null; };
+    R.knowledgeFocus = function () {
+      return foc ? { q: foc.q, n: foc.items.length, more: foc.more.length, total: foc.total,
+                     closing: foc.closing, lite: foc.lite, t: (performance.now() - foc.t0) / 1000 } : null;
+    };
     R.knowledgeInfo = function () {
       return { stars: know.stars.length, orbit: know.orbit.length, debris: know.debris.length,
                drawn: know.hits.length, scope: know.scope, counts: know.counts,

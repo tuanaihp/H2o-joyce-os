@@ -281,11 +281,18 @@ def _thong_tin_brain(key: str) -> dict:
     return {"key": key, "name": key, "brand": "", "color": _MAU_CHU}
 
 
-def _dung_troi(brain: str) -> dict:
+def _tat_ca(brain: str):
+    """(scope, [(key, gốc)], thiên thể ĐẦY ĐỦ kể cả trường nội bộ `_*`) - dùng chung cho dựng
+    bầu trời và tìm kiếm, để hai bên luôn cùng phạm vi, cùng phân loại."""
     scope, ds = _pham_vi(brain)
     bodies = []
     for key, root in ds:
         bodies.extend(_quet_brain(root, key))
+    return scope, ds, bodies
+
+
+def _dung_troi(brain: str) -> dict:
+    scope, ds, bodies = _tat_ca(brain)
     # Cỡ theo liên kết THẬT trong phạm vi: liên kết vào + liên kết đi, kẹp log.
     vao = {}
     for b in bodies:
@@ -305,6 +312,69 @@ def _dung_troi(brain: str) -> dict:
     gon = [{k: v for k, v in b.items() if not k.startswith("_")} for b in bodies[:_TOI_DA_THIEN_THE]]
     return {"ok": True, "scope": scope, "brains": [_thong_tin_brain(k) for k, _ in ds],
             "bodies": gon, "counts": counts, "truncated": tong > len(gon)}
+
+
+# ---------------------------------------------------------------- tìm kiếm (giai đoạn 2)
+_cache_chu: dict = {}   # đường dẫn tuyệt đối -> (mtime, size, nội dung đã gấp về khoá so)
+_TOI_DA_KQ = 60
+
+
+def _chu_gap(p: Path) -> str:
+    """Nội dung file văn bản, gấp bằng _khoa_so (bỏ dấu, chỉ chữ/số) - cache theo mtime+size."""
+    try:
+        st = p.stat()
+    except OSError:
+        return ""
+    hit = _cache_chu.get(str(p))
+    if hit and hit[0] == st.st_mtime and hit[1] == st.st_size:
+        return hit[2]
+    chu = " " + _khoa_so(_doc_text(p)) + " "
+    _cache_chu[str(p)] = (st.st_mtime, st.st_size, chu)
+    return chu
+
+
+def tim(brain: str, q: str) -> dict:
+    """Tìm trong CÙNG phạm vi bầu trời (admin ở brain chủ = mọi phòng). Khớp cả CỤM từ khoá
+    (không dấu): tên/tiêu đề được 3 điểm, nội dung được 1 điểm cộng theo số lần xuất hiện,
+    rồi cộng nửa cỡ thiên thể để tài liệu nhiều liên kết đứng trước khi ngang điểm."""
+    cum = _khoa_so(q)
+    scope, ds, bodies = _tat_ca(brain)
+    if not cum:
+        return {"ok": True, "q": q, "scope": scope, "hits": [], "total": 0}
+    goc = dict(ds)
+    vao = {}
+    for b in bodies:
+        for ln in b["_links"]:
+            vao[ln] = vao.get(ln, 0) + 1
+    import math
+    kq = []
+    for b in bodies:
+        ten = " " + _khoa_so(b["title"] + " " + Path(b["path"]).stem) + " "
+        diem = 0.0
+        if cum in ten:
+            diem = 3.0 + (0.5 if (" " + cum + " ") in ten else 0.0)
+        elif b["path"].lower().endswith((".md", ".txt")) and b["brain"] in goc:
+            n = _chu_gap(goc[b["brain"]] / b["path"]).count(cum)
+            if n:
+                diem = 1.0 + min(1.0, n / 10)
+        if diem:
+            co = min(1.0, math.log1p(vao.get(b["_stem"], 0) * 2 + len(b["_links"])) / math.log1p(40))
+            kq.append((diem + co * 0.5, co, b))
+    kq.sort(key=lambda x: (-x[0], x[2]["id"]))
+    hits = []
+    for diem, co, b in kq[:_TOI_DA_KQ]:
+        h = {k: v for k, v in b.items() if not k.startswith("_")}
+        h.update(score=round(diem, 3), size=round(co, 3), stem=b["_stem"], links=b["_links"][:30])
+        hits.append(h)
+    return {"ok": True, "q": q, "scope": scope, "hits": hits, "total": len(kq)}
+
+
+@router.get("/knowledge/search")
+async def knowledge_search(brain: str = Query("brain"), q: str = Query("")):
+    from starlette.concurrency import run_in_threadpool
+    if len(q or "") > 200:
+        return _err("từ khoá quá dài")
+    return await run_in_threadpool(tim, brain, q or "")
 
 
 @router.get("/knowledge/sky")

@@ -328,6 +328,35 @@
     });
   }
 
+  // ---------- Big Bang khi tìm kiếm (giai đoạn 2) ----------
+  // console.js (ô VAULT) bắn "joyce:vault-search" khi bấm Enter hoặc ngừng gõ 0,7 giây; ở đây
+  // hỏi /knowledge/search (cùng phạm vi bầu trời, admin ở brain chủ = mọi phòng) rồi đẩy kết
+  // quả cho tinh cầu. Rê chuột hai chiều: dòng kết quả <-> tinh cầu nhỏ.
+  var _timQ = "", _timHits = [];
+  function timTriThuc(q) {
+    _timQ = q;
+    if (!q) { _timHits = []; if (planet) planet.focusKnowledge(null); return; }
+    jget("/knowledge/search?brain=" + encodeURIComponent(brainPath()) + "&q=" + encodeURIComponent(q)).then(function (r) {
+      if (_timQ !== q || !planet) return;   // đã gõ tiếp sang từ khác
+      _timHits = (r && r.hits) || [];
+      planet.focusKnowledge(_timHits.length ? { q: q, hits: _timHits, total: r.total } : null);
+    });
+  }
+  window.addEventListener("joyce:vault-search", function (e) {
+    if (!active) return;
+    timTriThuc(String((e.detail && e.detail.q) || "").trim());
+  });
+  window.addEventListener("joyce:vault-hover", function (e) {
+    if (!planet) return;
+    var p = e.detail && e.detail.path, ten = tenBrainDangMo();
+    var h = p ? _timHits.filter(function (x) { return x.path === p && x.brain === ten; })[0] : null;
+    planet.highlightKnowledge(h ? h.id : null);
+  });
+  function baoRePhiaVault(b) {
+    var p = b && b.brain === tenBrainDangMo() ? b.path : null;
+    try { window.dispatchEvent(new CustomEvent("joyce:sky-hover", { detail: { path: p } })); } catch (e) {}
+  }
+
   function paintPanels() {
     repaintTitles();
     paintWx();
@@ -656,6 +685,7 @@
         onPlanetClick: function () { var vb = document.getElementById("voiceBtn"); if (vb) vb.click(); },
         onSatelliteClick: function (p) { openCtx(p); },
         onKnowledgeClick: function (b) { openKnow(b); },
+        onKnowledgeHover: baoRePhiaVault,
         onBackgroundClick: function () { if (_ctxId != null) closeCtx(); },
       });
       planet.mount(stage);

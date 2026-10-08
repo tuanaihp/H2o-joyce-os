@@ -119,6 +119,23 @@ check("gạch đầu dòng cấp 1", ks.dau_muc("Mở đầu\n- Chào khách th�
       == ["Chào khách thân thiện", "Hỏi ngày cưới"])
 check("mỗi mục tối đa 90 ký tự", all(len(s) <= 90 for s in ks.dau_muc("# " + "dài " * 60 + "\n# Mục hai ngắn\n", "x")))
 
+# ---- tìm kiếm (giai đoạn 2: Big Bang) ----
+viet(phong / "wiki" / "bao-gia-cuoi.md", "# Gói cưới\nBáo giá trọn gói, báo giá theo buổi. [[bang-gia]]\n")
+r = ks.tim("brain", "Báo giá")
+ten = [(h["brain"], h["path"]) for h in r["hits"]]
+check("tìm: cùng phạm vi trời gộp (thấy cả brain phòng)", (phong.name, "wiki/bao-gia-cuoi.md") in ten)
+check("tìm: gõ không dấu vẫn ra", [h["id"] for h in ks.tim("brain", "bao gia")["hits"]] == [h["id"] for h in r["hits"]])
+check("tìm: khớp tên/tiêu đề đứng trước khớp nội dung",
+      ten.index(("Brain Default", "sources/bao-gia-2026.pdf")) < ten.index(("Brain Default", "wiki/bang-gia.md")))
+check("tìm: kết quả mang stem + links để nối chòm sao",
+      next(h for h in r["hits"] if h["path"] == "wiki/bao-gia-cuoi.md")["links"] == ["bang-gia"])
+check("tìm: không lộ đường dẫn tuyệt đối", not any(str(goc) in str(v) for h in r["hits"] for v in h.values()))
+check("tìm: từ khoá rỗng / không khớp", ks.tim("brain", "  ")["hits"] == [] and ks.tim("brain", "zzqx")["total"] == 0)
+dang_la_nhan_vien["v"] = True
+check("tìm: nhân viên chỉ trong brain của mình",
+      all(h["brain"] == "Brain Default" for h in ks.tim("brain", "báo giá")["hits"]))
+dang_la_nhan_vien["v"] = False
+
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")
     sys.exit(1)

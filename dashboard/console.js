@@ -9508,6 +9508,10 @@
         + (sub ? `<div class="vr-snip">${esc(sub)}</div>` : "");
       el.onclick = () => isDir ? _vtRevealInTree(it.path, true) : openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
       el.querySelector(".vr-loc").onclick = (e) => { e.stopPropagation(); _vtRevealInTree(it.path, isDir); };
+      // Rê lên dòng kết quả: tinh cầu nhỏ tương ứng trên bầu trời tri thức sáng lên (hud.js).
+      el.dataset.brel = _vtRelHome(it.path);
+      el.onmouseenter = () => _vtSkyHover(el.dataset.brel);
+      el.onmouseleave = () => _vtSkyHover(null);
       box.appendChild(el);
     });
   }
@@ -9565,6 +9569,15 @@
     _vtRenderResults(box, items, true);
   }
 
+  function _vtSkyHover(path) {
+    try { window.dispatchEvent(new CustomEvent("joyce:vault-hover", { detail: { path } })); } catch (e) {}
+  }
+  // Chiều ngược lại: rê lên tinh cầu nhỏ thì dòng kết quả tương ứng sáng lên.
+  if (typeof window !== "undefined") window.addEventListener("joyce:sky-hover", (e) => {
+    const p = e.detail && e.detail.path;
+    document.querySelectorAll("#vaultResults .vr-item").forEach(n => n.classList.toggle("vr-sky", !!p && n.dataset.brel === p));
+  });
+
   function _vtWire() {
     if (_vtWired) return; _vtWired = true;
     const input = document.getElementById("vaultSearch");
@@ -9583,12 +9596,28 @@
       if (mode === "name") _vtNameSearch(q); else _vtSearchContent(q);
     };
     const deb = () => { clearTimeout(t); t = setTimeout(apply, mode === "name" ? 150 : 280); };
+    // Bầu trời tri thức (giai đoạn 2): Big Bang chỉ nổ khi bấm Enter hoặc ngừng gõ 0,7 giây,
+    // không nổ theo từng chữ. Cùng từ khoá thì không nổ lại; xoá ô thì chòm sao thu về.
+    let skyT = null, skyQ = "";
+    const bauTroi = (q) => {
+      clearTimeout(skyT);
+      if (q === skyQ) return;
+      skyQ = q;
+      try { window.dispatchEvent(new CustomEvent("joyce:vault-search", { detail: { q } })); } catch (e) {}
+    };
+    const skyDeb = () => {
+      clearTimeout(skyT);
+      const q = input.value.trim();
+      if (!q) { bauTroi(""); return; }
+      skyT = setTimeout(() => bauTroi(input.value.trim()), 700);
+    };
     input.addEventListener("input", deb);
+    input.addEventListener("input", skyDeb);
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { clearTimeout(t); apply(); }
-      else if (e.key === "Escape") { input.value = ""; apply(); }
+      if (e.key === "Enter") { clearTimeout(t); apply(); bauTroi(input.value.trim()); }
+      else if (e.key === "Escape") { input.value = ""; apply(); bauTroi(""); }
     });
-    if (clearBtn) clearBtn.onclick = () => { input.value = ""; apply(); input.focus(); };
+    if (clearBtn) clearBtn.onclick = () => { input.value = ""; apply(); bauTroi(""); input.focus(); };
     const setMode = (m) => { mode = m; chipName.classList.toggle("active", m === "name"); chipContent.classList.toggle("active", m === "content"); apply(); };
     chipName.onclick = () => setMode("name");
     chipContent.onclick = () => setMode("content");

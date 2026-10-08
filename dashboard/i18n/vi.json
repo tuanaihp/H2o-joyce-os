@@ -3946,6 +3946,7 @@
   "planet.k_open": "Mở",
   "planet.k_ask": "Hỏi Joyce",
   "planet.k_ask_q": "Tóm tắt giúp tôi tài liệu \"{ten}\" ({path}, brain {brain}): những điểm chính và việc cần làm.",
+  "planet.k_more": "và {n} tài liệu nữa",
   "look.fx_knowledge": "Bầu trời tri thức",
   "look.fx_knowledge_d": "Mỗi tài liệu là một vì sao, chấm trên vành hay đá vụn quanh hố đen",
   "look.saving": "Đang lưu...",

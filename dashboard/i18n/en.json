@@ -3946,6 +3946,7 @@
   "planet.k_open": "Open",
   "planet.k_ask": "Ask Joyce",
   "planet.k_ask_q": "Summarize the document \"{ten}\" ({path}, brain {brain}) for me: key points and actions.",
+  "planet.k_more": "and {n} more documents",
   "look.fx_knowledge": "Knowledge sky",
   "look.fx_knowledge_d": "Every document is a star, a dot on a ring or a rock around the black hole",
   "look.saving": "Saving...",

@@ -1,5 +1,11 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.0.5] - 2026-10-08
+### Thêm mới
+- **Big Bang khi tìm kiếm**: gõ từ khoá ở ô VAULT rồi bấm Enter (hoặc ngừng gõ một chút), bầu trời tối lại, các thiên thể liên quan bay về một điểm, va vào nhau thành vụ nổ, rồi nở ra thành **chòm sao tinh cầu nhỏ** quanh địa cầu để chọn.
+- Admin ở Brain Default tìm được kiến thức của **mọi phòng ban**, không chỉ brain đang mở. Kết quả khớp nhất to nhất, nằm giữa; tài liệu nào liên kết tới nhau thì có vệt sáng nối.
+- Rê chuột lên dòng kết quả là tinh cầu tương ứng sáng lên, và ngược lại. Bấm tinh cầu để Đọc nhanh; xoá ô tìm thì chòm sao bay về chỗ cũ.
+
 ## [1.0.4] - 2026-10-08
 ### Thêm mới
 - **Bầu trời tri thức quanh quả tinh cầu**: mỗi tài liệu trong brain là một thiên thể. Trang wiki là **vì sao** (quy trình là sao bốn cánh), kỹ năng và trí nhớ là **chấm trên vành quỹ đạo**, tài liệu thô chưa chưng cất là **đá vụn** quanh hố đen. Màu theo thương hiệu: H2O Studio xanh, ThuyH2O hồng.

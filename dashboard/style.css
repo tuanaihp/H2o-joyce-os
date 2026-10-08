@@ -2411,6 +2411,8 @@ body.jv-artpanel-open { overflow: hidden; }
 .vt-hidden { display: none !important; }
 .vr-item { padding: 7px 8px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: stretch; min-width: 0; gap: 2px; }
 .vr-item:hover { background: var(--info-wash); }
+/* Dòng kết quả ứng với tinh cầu nhỏ đang trỏ trên bầu trời tri thức (hud.js joyce:sky-hover). */
+.vr-item.vr-sky { background: var(--info-wash); box-shadow: inset 2px 0 0 var(--accent); }
 .vr-main { min-width: 0; flex: 1; }
 .vr-name { font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .vr-label { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

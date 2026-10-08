@@ -123,9 +123,15 @@ Joyce chưng cất".
 
 ## 6. Tìm kiếm: Big Bang và chòm sao (giai đoạn 2)
 
-Nguồn kết quả: chính ô VAULT ở cột trái (`#vaultSearch`). Tìm xong (bấm Enter, hoặc ngừng gõ
-700ms) thì danh sách kết quả đẩy sang tinh cầu bằng `R.focusKnowledge({q, ids})`. Không nổ theo
-từng chữ gõ.
+Từ khoá lấy từ ô VAULT ở cột trái (`#vaultSearch`): bấm Enter hoặc ngừng gõ 700ms thì
+console.js bắn sự kiện `joyce:vault-search {q}` (cùng từ khoá không bắn lại; xoá ô / Esc bắn
+`q` rỗng). Không nổ theo từng chữ gõ.
+
+Kết quả KHÔNG lấy từ danh sách của ô VAULT: ô đó chỉ tìm trong brain đang mở, còn bầu trời của
+admin ở brain chủ là mọi phòng. hud.js hỏi `/knowledge/search` (cùng phạm vi, cùng phân loại với
+`/knowledge/sky` vì dùng chung `_tat_ca`) rồi gọi `R.focusKnowledge({q, hits, total})`. Danh sách
+dòng ở ô VAULT vẫn là của brain đang mở; rê chuột hai chiều chỉ nối được những dòng thuộc brain đó
+(sự kiện `joyce:vault-hover` / `joyce:sky-hover`, khớp theo đường dẫn trong brain).
 
 Biên đạo khoảng 2,5 giây:
 
@@ -168,6 +174,8 @@ GET /knowledge/sky?brain=<gốc brain>
      counts: {star, orbit, debris, total}}
 GET /knowledge/quick?brain=<gốc>&src=<key brain>&path=<đường dẫn trong brain>
  -> {ok, title, kind, brain_name, path, updated, bullets: [...], text_file: bool}
+GET /knowledge/search?brain=<gốc>&q=<từ khoá>
+ -> {ok, q, scope, total, hits: [{...thiên thể, score, stem, links}]}   (tối đa 60, xếp theo điểm)
 ```
 
 - `kind`: `star` | `orbit` | `debris`; `ring` 0, 1, 2 cho `orbit`.
@@ -183,7 +191,10 @@ GET /knowledge/quick?brain=<gốc>&src=<key brain>&path=<đường dẫn trong b
 
 ```js
 r.setKnowledge({brains, bodies});      // thay cả bầu trời; giữ vị trí cố định theo id
-r.focusKnowledge({q, ids} | null);     // giai đoạn 2: Big Bang + chòm sao; null = thu về
+r.focusKnowledge({q, hits, total} | null);   // giai đoạn 2: Big Bang + chòm sao; null = thu về
+r.highlightKnowledge(id | null);             // dòng kết quả ở ô VAULT đang được trỏ
+r.knowledgeFocus();                          // trạng thái Big Bang (cho test)
+opts.onKnowledgeHover(body | null);          // rê lên thiên thể / tinh cầu nhỏ
 opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
 ```
 
@@ -204,7 +215,8 @@ opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
   cách đóng (nút x, Esc, bấm khoảng trống), lớp `.pc-know-*` theo token theme.
 - Đổi brain: nghe `change` của ô `#graphSource`, và `refresh()` 45 giây gọi `loadKnow(false)`
   (chỉ nạp lại khi brain khác) để bắt cả đường đổi brain không qua ô chọn.
-- Giai đoạn 2: nghe ô `#vaultSearch` (console.js phơi kết quả qua sự kiện `joyce:vault-search`).
+- Giai đoạn 2: nghe `joyce:vault-search`, hỏi `/knowledge/search`, bỏ kết quả về muộn của từ
+  khoá cũ (`_timQ`); nối rê chuột hai chiều với ô VAULT.
 
 ---
 
@@ -213,10 +225,20 @@ opts.onKnowledgeClick(body, {x, y});   // bấm một thiên thể
 | Giai đoạn | Nội dung | Xong khi |
 |---|---|---|
 | **1. Bản đồ sao thật** (code xong 1.0.4, 2026-10-08) | Endpoint `/knowledge/sky` + `/knowledge/quick`, vẽ sao, chấm vành, đá vụn từ dữ liệu thật, rê chuột hiện tên, bấm hiện thẻ Đọc nhanh, công tắc trong Cài đặt. | Admin ở Brain Default thấy trời gộp, mở brain phòng thì thấy trời phòng đó; bấm một sao đọc được đầu mục. |
-| **2. Big Bang** | `focusKnowledge`, biên đạo mục 6, đồng bộ hai chiều với ô VAULT. | Gõ "Báo giá" + Enter thấy nổ và chòm sao, bấm chọn được. |
+| **2. Big Bang** (code xong 1.0.5, 2026-10-08) | `focusKnowledge`, biên đạo mục 6, đồng bộ hai chiều với ô VAULT. | Gõ "Báo giá" + Enter thấy nổ và chòm sao, bấm chọn được. |
 | **3. Khép vòng** | Tia sáng về ghim H2O Studio, sao mới sinh sau khi nạp. | Nạp một tài liệu, thấy sao mới bay lên chỗ của nó. |
 
 ---
+
+### 9.0 Ghi chú cài đặt giai đoạn 2
+
+- Tìm theo CỤM từ khoá đã gấp (`_khoa_so`: bỏ dấu, chỉ chữ/số): khớp tên/tiêu đề 3 điểm (+0,5
+  nếu trọn từ), khớp nội dung 1 điểm + tối đa 1 theo số lần xuất hiện, cộng nửa cỡ thiên thể.
+  Nội dung gấp sẵn cache theo mtime: "Báo giá" trên 47 brain mất 1 giây lần đầu, 0,14 giây sau đó.
+- Vị trí trên cung: hạng 1 ở đỉnh giữa, các hạng sau toả xen kẽ hai bên. Nhãn chữ chỉ cho 3 hạng
+  đầu và tinh cầu đang trỏ, vì 12 nhãn trên một cung 2R chồng lên nhau.
+- Đang nổ thì chưa bấm được gì; tinh cầu bấm được khi đã nở quá 60%; đang thu về thì không
+  bấm được nữa (test canh cả ba).
 
 ### 9.1 Phát hiện khi chạy giai đoạn 1 trên dữ liệu thật (2026-10-08)
 
