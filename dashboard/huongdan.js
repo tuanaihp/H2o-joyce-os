@@ -15,6 +15,7 @@
     { slug: "50-ky-nang-va-bai-hoc",      title: "Kỹ năng & bài học tự học", icon: "graduation-cap", hook: "Skill chuyên môn từng phòng và luồng bài học chờ duyệt JOYCE_LESSON." },
     { slug: "60-kenh-mcp-du-lieu-song",   title: "Kênh & MCP dữ liệu sống",  icon: "plug",           hook: "Chat/Telegram/Zalo/Fanpage và dữ liệu sống qua MCP các webapp H2O." },
     { slug: "70-tai-khoan-nhan-vien",     title: "Tài khoản & phân quyền",   icon: "key-round",      hook: "Đăng nhập SĐT + PIN, workspace riêng, phân quyền staff/admin." },
+    { slug: "80-kien-truc-bo-nao-cong-ty",title: "Kiến trúc bộ não công ty", icon: "share-2",        hook: "Sơ đồ Javis/Second Brain/MCP Hub ánh xạ sang Joyce, bảng định tuyến ngữ cảnh, quy trình 6 bước." },
   ];
   const css = `
     .hd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
