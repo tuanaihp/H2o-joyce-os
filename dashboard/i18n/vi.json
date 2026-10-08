@@ -3964,6 +3964,9 @@
   "planet.k_ask": "Hỏi Joyce",
   "planet.k_ask_q": "Tóm tắt giúp tôi tài liệu \"{ten}\" ({path}, brain {brain}): những điểm chính và việc cần làm.",
   "planet.k_more": "và {n} tài liệu nữa",
+  "planet.fv_sky": "Bầu trời",
+  "planet.fv_orbit": "Quỹ đạo",
+  "planet.fv_tri": "Chòm sao",
   "planet.gx_btn": "Thiên hà",
   "planet.gx_back_earth": "← Trái Đất",
   "planet.gx_here": "Bạn đang ở đây",
@@ -4182,5 +4185,6 @@
   "ov.rq_usage": "Báo cáo mức dùng AI 7 ngày qua: token, lượt gọi, chi phí theo bộ não, và gợi ý tiết kiệm.",
   "look.lava_speed": "Tốc độ dòng dung nham",
   "look.slow": "Chậm",
-  "look.fast": "Nhanh"
+  "look.fast": "Nhanh",
+  "settings.tab.huongdan": "Hướng dẫn vận hành Joyce"
 }

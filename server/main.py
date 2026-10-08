@@ -6345,6 +6345,30 @@ def _agent_memory(brain, slug):
     except Exception:
         return ""
 
+_ORG_MEMORY_MAX = 6000
+def _org_memory(brain):
+    """Tri thức CHUNG toàn hệ = MEMORY.md + memory/facts/*.md của Brain Default.
+    Inject vào mọi agent theo mô hình 4 lớp: session=runs/, workspace=MEMORY.md
+    của agent, project/org = lớp này. Bỏ qua khi agent ĐANG ở Brain Default
+    (facts đó đã là của nó) hoặc khi thư mục trống."""
+    try:
+        droot = str(_default_brain_dir())
+        if os.path.abspath(str(_brain_root(brain))) == os.path.abspath(droot):
+            return ""
+        mem = _thu_muc_bo_nho(Path(droot))
+        parts = []
+        idx = mem / "MEMORY.md"
+        if idx.exists():
+            parts.append(idx.read_text(encoding="utf-8"))
+        fd = mem / "facts"
+        if fd.is_dir():
+            for f in sorted(fd.glob("*.md")):
+                parts.append(f"### {f.stem}\n" + f.read_text(encoding="utf-8"))
+        out = "\n\n".join(p.strip() for p in parts if p.strip())
+        return out[:_ORG_MEMORY_MAX]
+    except Exception:
+        return ""
+
 # ---- Agent tự bồi đắp: "model ĐỀ XUẤT, code GHI" (đúng nguyên tắc docs/22-tu-hoc) ----
 # Bản đầu (0.35.3) cho agent tự Edit MEMORY.md, rào bằng lời "chỉ thêm dòng". Rào bằng
 # lời thì model yếu có ngày Write đè cả file, và luật cấm-xoá làm bài học sai nằm vĩnh
@@ -9171,6 +9195,7 @@ def _workflow_agent_helpers(brain, tools):
             f"Skills khả dụng: {', '.join(ameta.get('skills', []) or []) or '(không)'}. Dùng skill khi cần.\n"
             + _agent_assets_block(brain, ameta)
             + f"\n# Bộ nhớ của bạn (file: {mem_path}):\n{amem or '(chưa có ký ức nào)'}\n"
+            + (f"\n# Tri thức chung toàn H2O (Brain Default):\n{_org}\n" if (_org := _org_memory(abrain)) else "")
             + "\n# Tự bồi đắp lúc dùng: nếu cuối nhiệm vụ rút ra được bài học TÁI DÙNG cho vai này "
               "(cách làm tốt hơn, lỗi cần tránh, ngữ cảnh riêng đã học được), KẾT THÚC câu trả lời "
               "bằng tối đa 2 dòng riêng, mỗi dòng đúng dạng `JOYCE_LESSON: <bài học một câu>`. "

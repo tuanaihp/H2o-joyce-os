@@ -8447,7 +8447,7 @@
       _wireStaffSelfAv(el);
       return;
     }
-    const tabs = ["general", "voice", "appearance", "pet", "usage", "updates"];
+    const tabs = ["general", "huongdan", "voice", "appearance", "pet", "usage", "updates"];
     let tab = Alpine.store("nav").settingsTab || "general";
     // Tab đã dời thành trang riêng ("staff") hoặc tab cũ không còn → về "general"
     // thay vì render panel trống.
@@ -8478,7 +8478,8 @@
     });
     const panel = el.querySelector("#settings-panel");
     try {
-      if (tab === "pet") await renderPetPage(panel);
+      if (tab === "huongdan" && typeof window.renderHuongDan === "function") await window.renderHuongDan(panel);
+      else if (tab === "pet") await renderPetPage(panel);
       else if (tab === "appearance") await renderAppearancePage(panel);
       else if (tab === "usage") await renderUsage(panel);
       else if (tab === "updates") await renderLogs(panel);

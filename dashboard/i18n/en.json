@@ -3964,6 +3964,9 @@
   "planet.k_ask": "Ask Joyce",
   "planet.k_ask_q": "Summarize the document \"{ten}\" ({path}, brain {brain}) for me: key points and actions.",
   "planet.k_more": "and {n} more documents",
+  "planet.fv_sky": "Sky",
+  "planet.fv_orbit": "Orbits",
+  "planet.fv_tri": "Constellation",
   "planet.gx_btn": "Galaxy",
   "planet.gx_back_earth": "← Earth",
   "planet.gx_here": "You are here",
@@ -4182,5 +4185,6 @@
   "ov.rq_usage": "AI usage report for the last 7 days: tokens, calls, cost per engine, and saving tips.",
   "look.lava_speed": "Lava flow speed",
   "look.slow": "Slow",
-  "look.fast": "Fast"
+  "look.fast": "Fast",
+  "settings.tab.huongdan": "Joyce Operations Guide"
 }
