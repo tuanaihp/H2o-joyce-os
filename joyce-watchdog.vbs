@@ -40,7 +40,19 @@ On Error GoTo 0
 
 If alive Then WScript.Quit
 
-' Chet -> song lai. Ghi mot dong vao watchdog.log de con vet chan duoc.
+If alive Then
+  ' Server song nhung tunnel co the da chet rieng -> mo lai de link con dung duoc.
+  ' tunnel_notify.py tu phat hien cloudflared mat, mo lai va gui link moi qua Telegram.
+  On Error Resume Next
+  Set sh0 = CreateObject("WScript.Shell")
+  Dim out : out = sh0.Exec("cmd /c tasklist /FI ""IMAGENAME eq cloudflared.exe"" /NH").StdOut.ReadAll
+  If InStr(out, "cloudflared.exe") = 0 Then
+    sh0.Run """" & root & "\.venv\Scripts\python.exe"" """ & root & "\tools\tunnel_notify.py""", 0, False
+  End If
+  WScript.Quit
+End If
+
+' Server chet -> song lai. Ghi mot dong vao watchdog.log de con vet chan duoc.
 CreateObject("WScript.Shell").Run _
   "wscript.exe //nologo """ & root & "\start-joyce.vbs""", 0, False
 On Error Resume Next

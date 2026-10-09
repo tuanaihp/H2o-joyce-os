@@ -123,13 +123,28 @@ def main() -> int:
         cu = json.loads(LAST.read_text(encoding="utf-8")).get("link", "")
     except Exception:
         pass
+
+    # LUON ghi state moi nhat ngay khi thay link, ke ca khi gui telegram xit:
+    # day la so nho ma tool joyce_access doc de tra lai link khi nguoi dung doi
+    # ("gui lai link"), thay vi chi nho link sau khi gui thanh cong nhu truoc.
+    state = {"link": link, "local": "http://127.0.0.1:7777", "at": time.time(),
+             "telegram_sent": link == cu}
+    try:
+        LAST.write_text(json.dumps(state), encoding="utf-8")
+    except Exception:
+        pass
+
     if link == cu:
         print("link cu da gui roi, khong gui lai:", link, flush=True)
         return 0
 
     msg = "Link Joyce tu may tinh:\n\n" + link + "\n\nMo tren dien thoai de vao dashboard."
     if gui_telegram(msg):
-        LAST.write_text(json.dumps({"link": link, "at": time.time()}), encoding="utf-8")
+        state["telegram_sent"] = True
+        try:
+            LAST.write_text(json.dumps(state), encoding="utf-8")
+        except Exception:
+            pass
         print("da gui link:", link, flush=True)
         return 0
     return 1
