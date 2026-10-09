@@ -3625,3 +3625,68 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
   .ovw-khoi { flex-basis: auto; }
   .ovw-arrow { transform: rotate(90deg); width: 100%; padding: 4px 0; }
 }
+
+/* ---- Khong gian brain (moBrainWs) ------------------------------------------
+   Phu LEN TREN drawer phong (ov-backdrop 60 / ov-drawer 61) nhung DUOI trinh sua
+   file (z 3000): truong phong dung khong gian nay thay vi phai doc cay thu muc. */
+#ovBrainWs .ov-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .5); }
+.ov-drawer.ovw-ws { z-index: 71; width: min(880px, 96vw); }
+#ovBrainWs.ovw-fullscreen .ov-drawer { width: 100vw; max-width: 100vw; border-radius: 0; }
+#ovBrainWs.ovw-fullscreen .ov-drawer-body { max-width: 1200px; margin: 0 auto; width: 100%; }
+.ovw-sec { width: 100%; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--wash); padding: 12px 14px; }
+.ovw-sec > h4 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+.ovw-sec > h4 svg { width: 15px; height: 15px; color: var(--accent-ink); }
+.ovw-sec-d { margin: -4px 0 8px; font-size: 12px; }
+.ovw-ichips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ovw-sec textarea, .ovw-sec input[type="text"] { font: inherit; font-size: 13px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); width: 100%; }
+.ovw-route { font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+.ovw-route select { font: inherit; font-size: 12.5px; padding: 4px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text); max-width: 240px; }
+
+/* Doi hinh: hang agent co ten+vai tro, nut mo file, nut giao viec 1-1. */
+.ovw-agents { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+.ovw-agent { display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+  border-radius: 8px; border: 1px solid transparent; }
+.ovw-agent:hover { border-color: var(--line); background: var(--card); }
+.ovw-agent-n { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ovw-agent-n b { font-size: 13px; font-weight: 600; }
+.ovw-agent-n i { font-style: normal; color: var(--text3); font-size: 12px; }
+.ovw-icbtn { flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+  padding: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--card);
+  color: var(--text3); cursor: pointer; transition: color .12s, border-color .12s; }
+.ovw-icbtn svg { width: 13px; height: 13px; }
+.ovw-icbtn:hover { color: var(--accent-ink); border-color: var(--accent-line); }
+.ovw-agent-ask { color: var(--accent-ink); background: var(--accent-wash-2); border-color: var(--accent-line); }
+.ovw-capline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.ovw-capline > .ov-dim { font-size: 11.5px; margin-right: 2px; }
+
+/* Viec cua phong: danh sach gom theo nhom trang thai, bam vao mo task o trang Viec. */
+.ovw-tgrp { margin-bottom: 8px; }
+.ovw-tgrp:last-child { margin-bottom: 0; }
+.ovw-tgrp > b { font-size: 11.5px; display: block; margin-bottom: 4px; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .04em; }
+.ovw-tgrp.run > b { color: var(--green); }
+.ovw-tgrp.rev > b { color: var(--warn-ink); }
+.ovw-tgrp.blk > b { color: var(--err, #d64545); }
+.ovw-task { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+  font: inherit; font-size: 12.5px; color: var(--text); padding: 5px 9px; margin: 3px 0;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer; }
+.ovw-task:hover { border-color: var(--accent-line); }
+.ovw-task span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovw-task i { display: grid; place-items: center; color: var(--warn-ink); }
+.ovw-task i svg { width: 13px; height: 13px; }
+
+/* Vong lap cua brain phong. */
+.ovw-loop { display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  border-bottom: 1px dashed var(--line); }
+.ovw-loop:last-of-type { border-bottom: none; }
+.ovw-loop-s { flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 7px; border: 1px solid var(--line); color: var(--text3); }
+.ovw-loop-s svg { width: 13px; height: 13px; }
+.ovw-loop-s.on { color: var(--green); border-color: var(--ok-line); background: var(--ok-wash); }
+.ovw-loop-n { flex: 1; min-width: 0; }
+.ovw-loop-n b { font-size: 13px; font-weight: 600; }
+.ovw-loop-n i { display: block; font-style: normal; color: var(--text3); font-size: 11.5px; }
+.ovw-loop-r { color: var(--text3); font-size: 11.5px; text-align: right; }
