@@ -443,13 +443,17 @@
           const ag = (rs[0].data && rs[0].data.agents) || [];
           const wf = ((rs[1].data && rs[1].data.workflows) || []);
           const sk = ((rs[2].data && rs[2].data.skills) || []);
+          const capBtn = (rel, ten) => `<button type="button" class="ovw-cap ovw-cap-lk" data-file="${esc(rel)}" title="${esc(rel)}">${esc(ten)}</button>`;
           const nhom = (icon, nhan, arr, lay) => arr.length
             ? `<div class="ovw-capgrp"><span>${ic(icon)} ${esc(nhan)} <b>${arr.length}</b></span><div>${arr.slice(0, 8).map(lay).join("")}</div></div>` : "";
           cap.innerHTML =
-            nhom("bot", t("ov.dw_agents"), ag, (a) => `<span class="ovw-cap">${esc(a.name || a.slug)}</span>`) +
-            nhom("git-branch", t("ov.dw_workflows"), wf, (x) => `<span class="ovw-cap">${esc(x.name || x.slug)}</span>`) +
-            nhom("zap", t("ov.dw_skills"), sk, (x) => `<span class="ovw-cap">${esc(x.name || x.slug)}</span>`) ||
+            nhom("bot", t("ov.dw_agents"), ag, (a) => capBtn("agents/" + a.slug + ".md", a.name || a.slug)) +
+            nhom("git-branch", t("ov.dw_workflows"), wf, (x) => capBtn("workflows/" + x.slug + ".md", x.name || x.slug)) +
+            nhom("zap", t("ov.dw_skills"), sk, (x) => capBtn((x.enabled === false ? "skills/.disabled/" : "skills/") + x.slug + "/SKILL.md", x.name || x.slug)) ||
             `<span class="ov-dim">${esc(t("ov.dw_cap_empty"))}</span>`;
+          cap.querySelectorAll("[data-file]").forEach((b) => (b.onclick = () => {
+            if (window.JoyceFileEditor) window.JoyceFileEditor.open(b.dataset.file, { brain: p.brain_path });
+          }));
           const s3 = w.querySelector("#ovwStep3");
           if (s3) { s3.className = ag.length || sk.length ? "done" : "todo"; s3.innerHTML = `${ic(ag.length || sk.length ? "circle-check" : "circle")}<span>${esc(t("ov.dw_s3"))}</span>`; }
         }).catch(() => { if (w.isConnected) cap.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; });
@@ -468,9 +472,15 @@
 
     // QUY TRÌNH THẬT của phòng, xếp vào đúng cột Trước / Trong / Sau. Ba cột này trước đây
     // chỉ là chữ mô tả vai trò - không nối vào tài liệu nào, nên trưởng phòng đọc xong vẫn
-    // phải tự đi tìm file. Bấm một quy trình = nhảy sang chat, đã đổi sẵn sang brain phòng
-    // và điền sẵn câu lệnh kèm đường dẫn file, chỉ việc bảo Joyce sửa gì.
+    // phải tự đi tìm file. Bấm một quy trình = MỞ THẲNG file .md trong trình sửa nổi
+    // (file-editor.js, z-3000 nằm trên drawer z-61): xem và sửa tay ngay, đóng file là quay
+    // lại workspace. Editor bắt Esc ở pha capture nên không đóng nhầm drawer bên dưới.
+    // Nút "Nâng cấp quy trình" vẫn lo phần nhờ Joyce sửa hộ qua chat.
     const moQuyTrinh = (it) => {
+      if (p.brain_path && window.JoyceFileEditor && typeof window.JoyceFileEditor.open === "function") {
+        window.JoyceFileEditor.open(it.rel, { brain: p.brain_path });
+        return;
+      }
       dong();
       if (p.brain_path) moBrain(p.brain_path, p.ten);
       setTimeout(() => hoiJoyce(t("ov.dw_qt_prompt", { ten: it.ten, file: it.rel, phong: p.ten })), 120);

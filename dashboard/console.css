@@ -3554,6 +3554,8 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ovw-capgrp > div { display: flex; flex-wrap: wrap; gap: 5px; }
 .ovw-cap { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--card); color: var(--text2); }
+button.ovw-cap-lk { font: inherit; cursor: pointer; transition: border-color .15s, color .15s; }
+button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-ink); }
 .ovw-steps { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 12px; width: 100%; }
 .ovw-steps h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
 .ovw-steps ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }

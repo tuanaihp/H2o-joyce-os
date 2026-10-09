@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -93,11 +94,23 @@ def _status(c: dict) -> str:
 # ---------------------------------------------------------------------------------------
 # Quy trình của một phòng, xếp theo giai đoạn Trước / Trong / Sau dịch vụ
 # ---------------------------------------------------------------------------------------
-# Quy ước đặt tên có sẵn trong vault của chủ: tên file kết thúc bằng "- Trước dịch vụ.md",
-# "- Trong dịch vụ.md", "- Sau dịch vụ.md" (108 file đang dùng khi viết hàm này). Phân loại
-# theo TÊN FILE chứ không đọc nội dung: rẻ, và chủ đổi giai đoạn chỉ bằng đổi tên file.
-_GIAI_DOAN = (("truoc", "truoc dich vu"), ("trong", "trong dich vu"), ("sau", "sau dich vu"))
+# Quy ước đặt tên có sẵn trong vault của chủ: hậu tố "- Trước/Trong/Sau dịch vụ.md" (108
+# file). Nhưng còn tên tự do kiểu "Quy Trình Tư Vấn Trước Khi Chụp" - có "trước" mà không có
+# "dịch vụ" - bản đầu soi đúng cụm ba từ nên file đó rơi xuống nhóm "khác". Nới thành từ
+# khoá giai đoạn, khớp theo RANH GIỚI TỪ trên tên đã bỏ dấu. Thứ tự truoc -> trong -> sau:
+# file chứa từ khoá của nhiều giai đoạn ("ngay chup den ban giao hau ky" có cả hai) về cột
+# được khớp trước.
+_GIAI_DOAN = (
+    ("truoc", ("truoc", "chuan bi", "tiep nhan", "tu van", "len lich")),
+    # "dich vu" KHÔNG là từ khoá riêng: "- Sau dịch vụ" cũng chứa nó, để "trong" tự lo.
+    ("trong", ("trong", "ngay chup", "thi cong", "thuc hien")),
+    ("sau", ("sau", "hau ky", "ban giao", "cham soc")),
+)
 _QT_MAX = 40          # trần mỗi giai đoạn, tránh phòng có vài trăm trang làm nặng drawer
+# workflows/ xu-ly-y-tuong-moi.md là pipeline mẫu CÀI SẴN cho mọi brain, không phải quy trình
+# riêng của phòng; wiki/y-tuong/ là KẾT QUẢ ý tưởng đã xử, cũng không phải quy trình.
+_QT_BO_FILE = {"xu-ly-y-tuong-moi.md"}
+_QT_BO_DIR = {"y-tuong"}
 
 
 def _bo_dau(s: str) -> str:
@@ -112,7 +125,13 @@ def _tieu_de_qt(ten: str) -> str:
     import re as _re
     t = _re.sub(r"\.md$", "", str(ten or ""), flags=_re.I)
     t = _re.sub(r"\s*[-–]\s*(trước|trong|sau)\s+dịch\s+vụ\s*$", "", t, flags=_re.I)
-    return _re.sub(r"^\s*\d+[.)]\s*", "", t).strip() or t.strip()
+    t = _re.sub(r"^\s*\d+[.)]\s*", "", t).strip() or t.strip()
+    # Tên slug của workflows/ ("ngay-chup-den-ban-giao-hau-ky") hiện thô khó đọc - đổi
+    # gạch ngang thành khoảng trắng và viết hoa chữ cái đầu.
+    if " " not in t and "-" in t:
+        t = t.replace("-", " ").strip()
+        t = t[:1].upper() + t[1:]
+    return t
 
 
 def _quy_trinh(brain_path: str) -> dict:
@@ -123,17 +142,23 @@ def _quy_trinh(brain_path: str) -> dict:
     if not root or not os.path.isdir(root):
         return {"giai_doan": out, "tong": 0}
     tong = 0
-    for sub in ("wiki", "07 - Wiki"):
+    # workflows/ cũng là quy trình của phòng (file định nghĩa vận hành), không chỉ wiki/.
+    for sub in ("wiki", "07 - Wiki", "workflows"):
         d = os.path.join(root, sub)
         if not os.path.isdir(d):
             continue
         for dp, dns, fns in os.walk(d):
-            dns[:] = [x for x in dns if not x.startswith(".")]
+            dns[:] = [x for x in dns if not x.startswith(".") and x not in _QT_BO_DIR]
             for f in sorted(fns):
-                if not f.lower().endswith(".md") or f.startswith("_") or f in ("index.md", "log.md"):
+                if not f.lower().endswith(".md") or f.startswith("_") or f in ("index.md", "log.md") \
+                        or f.lower() in _QT_BO_FILE:
                     continue
-                kho = _bo_dau(f)
-                nhom = next((k for k, dau in _GIAI_DOAN if dau in kho), "khac")
+                # Workflow đặt tên slug bằng gạch ngang ("ban-giao-khach") - đổi thành khoảng
+                # trắng để từ khoá giai đoạn vẫn khớp như tên wiki viết thường.
+                kho = _bo_dau(f).replace("-", " ").replace("_", " ")
+                nhom = next((k for k, daus in _GIAI_DOAN
+                             for w in daus
+                             if re.search(r"(?<![a-z0-9])" + re.escape(w) + r"(?![a-z0-9])", kho)), "khac")
                 if len(out[nhom]) >= _QT_MAX:
                     continue
                 rel = os.path.relpath(os.path.join(dp, f), root).replace("\\", "/")
