@@ -1535,6 +1535,24 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   min-height: 34px;
 }
 .bg-open:hover { color: var(--accent); border-color: var(--accent); }
+/* Nút hành động ngay trong dải (Chạy ngay / Bật tự vận hành): cùng họ .bg-open nhưng nhỏ
+   hơn một nấc + kèm icon. .pri = việc nên làm trước theo chế độ hiện tại. */
+.bg-act {
+  flex: none; display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: 1px solid var(--border); color: var(--text2);
+  border-radius: 8px; padding: 4px 9px; font-size: 14px; cursor: pointer;
+  font-family: inherit; min-height: 30px; white-space: nowrap;
+}
+.bg-act:hover { color: var(--accent); border-color: var(--accent); }
+.bg-act.pri { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.bg-act:disabled { opacity: .5; cursor: default; }
+.bg-act svg { width: 13px; height: 13px; }
+/* Pill chế độ điều phối ("manual"/"off"): liếc là biết vì sao việc nằm im; rê chuột vào
+   để đọc lời giải thích đầy đủ thay vì chiếm nguyên một dòng như trước. */
+.bg-mode {
+  flex: none; font-size: 12px; color: var(--warn-ink); border: 1px dashed var(--warn-line);
+  border-radius: 999px; padding: 1px 7px; cursor: help; white-space: nowrap;
+}
 .bg-x {
   flex: none; width: 34px; height: 34px; display: grid; place-items: center;
   background: none; border: none; border-radius: 8px; color: var(--text2);

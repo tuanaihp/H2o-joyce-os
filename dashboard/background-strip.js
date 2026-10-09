@@ -88,11 +88,11 @@
     for (var i = 0; i < chips.length; i++) if (chips[i].mine) cua_toi++;
     if (cua_toi) dau += " · " + tw("bgs.cua_hoi_thoai", { count: cua_toi });
 
-    var warn = "";
+    var warn = "", orch = data.orchestration || "off";
     if (muc === "stall") {
-      warn = tw("bgs.warn_xep_hang", { muc: data.orchestration || "off" });
+      warn = tw("bgs.warn_xep_hang", { muc: orch });
     }
-    return { hien: true, muc: muc, dau: dau, chips: chips, them: them, warn: warn };
+    return { hien: true, muc: muc, dau: dau, chips: chips, them: them, warn: warn, orch: orch };
   }
 
   if (typeof module !== "undefined" && module.exports) module.exports = { quyetDinh: quyetDinh };
@@ -115,6 +115,17 @@
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  // POST form như console.js (FormData + brain) - nudge/orchestration đều nhận kiểu này.
+  function postAct(url, fields) {
+    try {
+      var f = new FormData();
+      f.append("brain", brain());
+      if (fields) for (var k in fields) f.append(k, fields[k]);
+      return fetch(url, { method: "POST", body: f, credentials: "same-origin" })
+        .then(function (r) { return r.json(); });
+    } catch (err) { return null; }
+  }
+
   function hide() {
     var e = el();
     if (e) { e.hidden = true; e.innerHTML = ""; }
@@ -135,7 +146,7 @@
 
     // Khoá so sánh: không vẽ lại DOM khi không có gì đổi. Vẽ lại mỗi nhịp làm nháy chấm nhấp
     // nháy và làm mất selection nếu người dùng đang bôi đen tên việc.
-    var key = JSON.stringify([q.muc, q.dau, q.them, q.chips.map(function (x) {
+    var key = JSON.stringify([q.muc, q.dau, q.them, q.orch, q.chips.map(function (x) {
       return [x.kind, x.id, x.status, x.mine].join("|");
     })]);
     if (key === dismissedKey) return;   // đã bấm × đúng trạng thái này rồi
@@ -156,13 +167,28 @@
     e.hidden = false;
     e.className = "bg-strip bg-" + q.muc;
     var xIco = (typeof ic === "function") ? ic("x") : "&times;";
+    // Stall: dải tự xử được - "Chạy ngay" nhặt việc kế tiếp (giữ nguyên chế độ), "Bật tự vận
+    // hành" đổi orchestration sang auto. Lời giải thích dài gọn vào tooltip của pill mode.
+    var modePill = "", actBtns = "";
+    if (q.muc === "stall") {
+      modePill = '<span class="bg-mode" title="' + esc(q.warn) + '">' + esc(q.orch) + '</span>';
+      var playIco = (typeof ic === "function") ? ic("play") : "";
+      var zapIco = (typeof ic === "function") ? ic("zap") : "";
+      var runPri = (q.orch === "manual") ? " pri" : "";
+      var autoPri = (q.orch === "manual") ? "" : " pri";
+      actBtns =
+        '<button type="button" class="bg-act' + runPri + '" data-act="run" title="' +
+        esc(tw("bgs.act_run_now_title")) + '">' + playIco + esc(tw("bgs.act_run_now")) + '</button>' +
+        '<button type="button" class="bg-act' + autoPri + '" data-act="auto" title="' +
+        esc(tw("bgs.act_auto_title")) + '">' + zapIco + esc(tw("bgs.act_auto")) + '</button>';
+    }
     e.innerHTML =
       '<div class="bg-head"><span class="bg-dot"></span><span class="bg-title">' + esc(q.dau) +
-      '</span><button type="button" class="bg-open">' + esc(tw("bgs.open_kanban")) +
+      '</span>' + modePill + actBtns +
+      '<button type="button" class="bg-open">' + esc(tw("bgs.open_kanban")) +
       '</button><button type="button" class="bg-x" aria-label="' + esc(tw("bgs.close")) +
       '" title="' + esc(tw("bgs.close")) + '">' + xIco + '</button></div>' +
-      '<div class="bg-chips">' + chips + '</div>' +
-      (q.warn ? '<div class="bg-warn">' + esc(q.warn) + '</div>' : "");
+      '<div class="bg-chips">' + chips + '</div>';
 
     var btn = e.querySelector(".bg-open");
     if (btn) btn.onclick = function () {
@@ -170,6 +196,14 @@
     };
     var nutX = e.querySelector(".bg-x");
     if (nutX) nutX.onclick = function () { dismissedKey = lastKey; hide(); };
+    e.querySelectorAll(".bg-act").forEach(function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        var p = postAct(b.dataset.act === "run" ? "/kanban/nudge"
+          : "/kanban/orchestration", b.dataset.act === "run" ? null : { mode: "auto" });
+        (p || Promise.resolve()).then(refresh, refresh);
+      };
+    });
   }
 
   function refresh() {
