@@ -307,7 +307,7 @@
         <span class="ov-synced">${esc(t("ov.synced", { gio: gioCapNhat(d.generated_at) }))}</span></div>
       <div class="ov-unitsum">${units.filter((u) => _deptBrand === "all" || u.id === _deptBrand).map((u, i) => {
         const tk = u.tasks || {};
-        return `<div class="ov-usum" data-unit="${i}"><div class="ov-usum-ico">${ic("building-2")}</div><div class="ov-usum-body"><b>${esc(u.ten)}</b>${pill(STATUS_TONE[u.status], t(ST_KEY[u.status]))}<span>${esc(t("ov.unit_line", { phong: u.phong, dulieu: u.co_du_lieu, xong: tk.done24 || 0, mo: tk.open || 0, ket: tk.blocked || 0 }))}</span>
+        return `<div class="ov-usum" data-unit="${i}"><div class="ov-usum-ico">${ic("layers")}</div><div class="ov-usum-body"><b>${esc(u.ten)}</b>${pill(STATUS_TONE[u.status], t(ST_KEY[u.status]))}<span>${esc(t("ov.unit_line", { phong: u.phong, dulieu: u.co_du_lieu, xong: tk.done24 || 0, mo: tk.open || 0, ket: tk.blocked || 0 }))}</span>
         <div class="ov-usum-nums"><span><strong>${so(tk.done24 || 0)}</strong> ${esc(t("ov.ds_done"))}</span><span><strong>${so(tk.open || 0)}</strong> ${esc(t("ov.ds_open"))}</span><span><strong>${so(tk.blocked || 0)}</strong> ${esc(t("ov.ds_blocked"))}</span></div></div></div>`;
       }).join("")}</div>
       ${panel(t("ov.dw_flow"), t("ov.dw_flow_d"), `<div class="ovw-flow">${flowHtml}</div>`)}
