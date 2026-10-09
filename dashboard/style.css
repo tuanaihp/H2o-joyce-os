@@ -270,6 +270,10 @@ body {
   touch-action: pan-x pan-y;
 }
 button, input, select, textarea { font-family: inherit; }
+/* Popup xổ xuống của <select> là do TRÌNH DUYỆT vẽ: một số bản Chromium (Cốc Cốc) không tôn
+   color-scheme nên dù theme tối vẫn vẽ nền trắng và chữ mờ chìm không đọc được. Tô option
+   bằng token theo theme là cách duy nhất với tới được listbox đó trên mọi trình duyệt. */
+option { background: var(--panel-solid); color: var(--text); }
 
 /* ===== HUD shell ===== */
 .hud {
