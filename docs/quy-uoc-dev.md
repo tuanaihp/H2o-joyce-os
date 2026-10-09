@@ -78,3 +78,10 @@ cho MỌI trang, mọi tab làm sau này:
 - Mở trang ở CẢ hai theme trước khi gộp (nút mặt trăng góc trên phải).
 
 `tests/js/test_giao_dien_toi.js` canh ba điều đầu và độ tương phản chữ/nền của hai theme.
+
+## Kế hoạch cho việc lớn
+
+Việc chạm từ hai module trở lên, đổi hợp đồng giữa server và dashboard, hoặc đổi cấu trúc
+dữ liệu trong brain: viết spec rồi plan trước khi code. Quy trình và mẫu nằm ở
+`docs/dev/quy-trinh-ke-hoach.md`. Việc nhỏ không cần. Lộ trình vòng đời skill (học từ Javis,
+kiểm trạng thái thật) nằm ở `docs/dev/lo-trinh-vong-doi-skill.md`.
