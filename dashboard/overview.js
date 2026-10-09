@@ -433,6 +433,21 @@
     w.querySelector(".ov-backdrop").onclick = dong;
     w.querySelector(".ov-close").onclick = dong;
 
+    // Thu gon / mo rong TUNG NHOM trong 3 cot (Agent, Workflow, Ky nang, tung hang quy
+    // trinh): phong nhieu quy trinh keo cot rat dai - chu repo bao 2026-10-09 them nut
+    // mui ten so xuong/thu gon. Trang thai nho theo brain+nhom, song trong Set tren window
+    // nen mo lai drawer trong phien van giu dung cho da gon.
+    const grpThu = window.__ovGrpThu || (window.__ovGrpThu = new Set());
+    const grpKhoa = (k) => String(p.brain || p.ten || "") + "|" + k;
+    w.addEventListener("click", (e) => {
+      const h = e.target.closest("[data-grp-h]");
+      if (!h || !w.contains(h)) return;
+      const grp = h.closest("[data-grp]");
+      if (!grp) return;
+      const on = grp.classList.toggle("collapsed");
+      const k = grpKhoa(grp.dataset.grp);
+      if (on) grpThu.add(k); else grpThu.delete(k);
+    });
     // Nạp năng lực thật của brain phòng: agent phụ, workflow, skill.
     const cap = w.querySelector("#ovwCap");
     if (p.has_brain) {
@@ -444,12 +459,12 @@
           const wf = ((rs[1].data && rs[1].data.workflows) || []);
           const sk = ((rs[2].data && rs[2].data.skills) || []);
           const capBtn = (rel, ten) => `<button type="button" class="ovw-cap ovw-cap-lk" data-file="${esc(rel)}" title="${esc(rel)}">${esc(ten)}</button>`;
-          const nhom = (icon, nhan, arr, lay) => arr.length
-            ? `<div class="ovw-capgrp"><span>${ic(icon)} ${esc(nhan)} <b>${arr.length}</b></span><div>${arr.slice(0, 8).map(lay).join("")}</div></div>` : "";
+          const nhom = (icon, nhan, arr, lay, khoa) => arr.length
+            ? `<div class="ovw-capgrp${grpThu.has(grpKhoa(khoa)) ? " collapsed" : ""}" data-grp="${khoa}"><span data-grp-h>${ic(icon)} ${esc(nhan)} <b>${arr.length}</b>${ic("chevron-down")}</span><div>${arr.slice(0, 8).map(lay).join("")}</div></div>` : "";
           cap.innerHTML =
-            nhom("bot", t("ov.dw_agents"), ag, (a) => capBtn("agents/" + a.slug + ".md", a.name || a.slug)) +
-            nhom("git-branch", t("ov.dw_workflows"), wf, (x) => capBtn("workflows/" + x.slug + ".md", x.name || x.slug)) +
-            nhom("zap", t("ov.dw_skills"), sk, (x) => capBtn((x.enabled === false ? "skills/.disabled/" : "skills/") + x.slug + "/SKILL.md", x.name || x.slug)) ||
+            nhom("bot", t("ov.dw_agents"), ag, (a) => capBtn("agents/" + a.slug + ".md", a.name || a.slug), "ag") +
+            nhom("git-branch", t("ov.dw_workflows"), wf, (x) => capBtn("workflows/" + x.slug + ".md", x.name || x.slug), "wf") +
+            nhom("zap", t("ov.dw_skills"), sk, (x) => capBtn((x.enabled === false ? "skills/.disabled/" : "skills/") + x.slug + "/SKILL.md", x.name || x.slug), "sk") ||
             `<span class="ov-dim">${esc(t("ov.dw_cap_empty"))}</span>`;
           cap.querySelectorAll("[data-file]").forEach((b) => (b.onclick = () => {
             if (window.JoyceFileEditor) window.JoyceFileEditor.open(b.dataset.file, { brain: p.brain_path });
@@ -491,10 +506,12 @@
       if (p.brain_path) moBrain(p.brain_path, p.ten);
       setTimeout(() => hoiJoyce(t("ov.dw_qt_prompt", { ten: it.ten, file: it.rel, phong: p.ten })), 120);
     };
-    const veQt = (hop, ds, nhan) => {
+    const veQt = (hop, ds, nhan, khoa) => {
       if (!hop) return;
-      if (!ds.length) { hop.innerHTML = ""; return; }
-      hop.innerHTML = `<div class="ovw-qt-h">${ic("scroll")} ${esc(nhan)} <b>${ds.length}</b></div>`
+      if (!ds.length) { hop.innerHTML = ""; hop.classList.remove("collapsed"); delete hop.dataset.grp; return; }
+      hop.dataset.grp = khoa;
+      hop.classList.toggle("collapsed", grpThu.has(grpKhoa(khoa)));
+      hop.innerHTML = `<div class="ovw-qt-h" data-grp-h>${ic("scroll")} ${esc(nhan)} <b>${ds.length}</b>${ic("chevron-down")}</div>`
         + ds.map((it, i) => `<div class="ovw-qt-i" title="${esc(it.rel)}">`
           + `<button type="button" class="ovw-qt-open" data-i="${i}"><span>${esc(it.ten)}</span>${ic("pen-line")}</button>`
           + `<button type="button" class="ovw-qt-chat" data-i="${i}" title="${esc(t("ov.dw_qt_chat"))}">${ic("message-circle")}</button>`
@@ -510,20 +527,20 @@
         // còn 404) cũng hiện "phòng chưa có quy trình nào" - câu đó sai và làm người dùng
         // đi sửa tên file trong khi lỗi nằm ở chỗ khác.
         if (!rq.ok) {
-          w.querySelectorAll(".ovw-qt").forEach((x) => (x.innerHTML = ""));
+          w.querySelectorAll(".ovw-qt").forEach((x) => { x.innerHTML = ""; x.classList.remove("collapsed"); delete x.dataset.grp; });
           if (t0) t0.innerHTML = `<p class="ov-dim ovw-qt-none">${esc(t("ov.dw_qt_err"))}</p>`;
           return;
         }
         const g = (rq.data && rq.data.giai_doan) || {};
         [["truoc", "ov.dw_qt_before"], ["trong", "ov.dw_qt_during"], ["sau", "ov.dw_qt_after"]]
-          .forEach(([key, nhan]) => veQt(w.querySelector(`[data-qt="${key}"]`), g[key] || [], t(nhan)));
-        veQt(w.querySelector("#ovwQtKhac"), g.khac || [], t("ov.dw_qt_other"));
+          .forEach(([key, nhan]) => veQt(w.querySelector(`[data-qt="${key}"]`), g[key] || [], t(nhan), "qt-" + key));
+        veQt(w.querySelector("#ovwQtKhac"), g.khac || [], t("ov.dw_qt_other"), "qt-khac");
         // Gợi ý đặt tên chỉ hiện khi phòng CHƯA có quy trình nào - treo nó ở cột Trước khi
         // riêng cột đó rỗng thì sai, vì phòng có thể chỉ có quy trình Trong dịch vụ.
         if (t0 && !((rq.data && rq.data.tong) || 0)) t0.innerHTML = `<p class="ov-dim ovw-qt-none">${esc(t("ov.dw_qt_none"))}</p>`;
       });
     } else {
-      w.querySelectorAll(".ovw-qt").forEach((x) => (x.innerHTML = ""));
+      w.querySelectorAll(".ovw-qt").forEach((x) => { x.innerHTML = ""; x.classList.remove("collapsed"); delete x.dataset.grp; });
     }
 
     w.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {

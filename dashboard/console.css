@@ -3552,6 +3552,16 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ovw-capgrp > span { font-size: 11.5px; color: var(--text3); display: inline-flex; align-items: center; gap: 5px; }
 .ovw-capgrp > span svg { width: 13px; height: 13px; }
 .ovw-capgrp > div { display: flex; flex-wrap: wrap; gap: 5px; }
+/* Header nhom bam de thu gon/mo rong - chevron day sang phai, xoay -90deg khi gon. */
+.ovw-capgrp > span[data-grp-h], .ovw-qt-h[data-grp-h] { cursor: pointer; user-select: none;
+  transition: color .12s; }
+.ovw-capgrp > span[data-grp-h]:hover, .ovw-qt-h[data-grp-h]:hover { color: var(--text); }
+.ovw-capgrp > span[data-grp-h] { display: flex; }
+.ovw-capgrp > span[data-grp-h] svg:last-child, .ovw-qt-h[data-grp-h] svg:last-child {
+  margin-left: auto; transition: transform .15s; }
+.ovw-capgrp.collapsed > div, .ovw-qt.collapsed > .ovw-qt-i, .ovw-qt-khac.collapsed > .ovw-qt-i { display: none; }
+.ovw-capgrp.collapsed > span[data-grp-h] svg:last-child,
+.collapsed > .ovw-qt-h[data-grp-h] svg:last-child { transform: rotate(-90deg); }
 .ovw-cap { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--card); color: var(--text2); }
 button.ovw-cap-lk { font: inherit; cursor: pointer; transition: border-color .15s, color .15s; }
