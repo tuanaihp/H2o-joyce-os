@@ -125,9 +125,12 @@ def _departments(deps: OverviewDeps) -> dict:
             st = _status(c)
         rows.append({
             "id": p.get("id"), "ten": p.get("ten") or p.get("id"), "agent": p.get("agent") or "",
-            "khoi": k.get("ten") or "", "brand_id": b.get("id") or "h2o",
+            "agent_slug": p.get("agent_slug") or "",
+            "khoi": k.get("ten") or "", "khoi_id": k.get("id") or "",
+            "brand_id": b.get("id") or "h2o",
             "brand": b.get("ten") or "H2O Studio", "brain": p.get("brain") or "",
             "brain_path": path if has_brain else "", "has_brain": has_brain,
+            "vai": p.get("vai") or "", "nhiem_vu": list(p.get("nhiem_vu") or []),
             "nhan_vien": int(p.get("so_nhan_vien") or 0), "nguon": nguon, "wiki": wiki,
             "tasks": c, "status": st,
         })
@@ -152,7 +155,13 @@ def _departments(deps: OverviewDeps) -> dict:
                                              -(r["tasks"] or {}).get("open", 0),
                                              -(r["nguon"] + r["wiki"])))[:4],
         })
-    return {"units": units, "phong": rows}
+    # Thong tin khoi cho so do day noi tren trang Phong ban: boi_canh/dau_ra la khuon
+    # bao cao ky vong cua ca khoi, de workspace truong phong hien "dau ra mong muon".
+    khois = [{"id": k.get("id"), "ten": k.get("ten") or k.get("id"),
+              "prefix": k.get("prefix") or "", "boi_canh": k.get("boi_canh") or "",
+              "dau_ra": k.get("dau_ra") or "", "brand_id": k.get("brand") or "h2o"}
+             for k in (d.get("khoi") or [])]
+    return {"units": units, "phong": rows, "khois": khois}
 
 
 # ---------------------------------------------------------------------------------------

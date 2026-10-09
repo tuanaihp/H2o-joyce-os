@@ -2244,7 +2244,9 @@
     .td-tok .num{flex:none;color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums}
     .td-tok .num.cost{color:var(--accent-ink)}
     @media(max-width:1100px){.td-grid{grid-template-columns:1fr}.td-metrics{grid-template-columns:repeat(3,1fr)}}
-    @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-list{max-height:none}.td-metrics{grid-template-columns:repeat(2,1fr)}.td-hi{font-size:22px}}`;
+    @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-list{max-height:none}.td-metrics{grid-template-columns:repeat(2,1fr)}.td-hi{font-size:22px}}
+    .tl-stat:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.12)}
+    .tl-row:hover{background:rgba(127,176,255,.055)}`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
 
@@ -3014,6 +3016,7 @@
   // phải có phân bố mức quyền + nguồn cấp + top tool đang xài (mẫu dashboard SEO).
   // ============================================================
   async function renderTools(el) {
+    _injectExtraCss();
     const myGen = _renderGen;
     el.innerHTML = `<div class="cview-section"><div class="empty">${esc(t("common.loading"))}</div></div>`;
     let d = { tools: [] };
@@ -3065,9 +3068,9 @@
     const nCalls = tools.reduce((s, x) => s + (x.calls || 0), 0);
     const nDanger = tools.filter(x => x.effect === "danger").length;
     const statCard = (icon, val, label, color) => `
-      <div style="flex:1;min-width:130px;padding:14px 16px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);display:flex;gap:12px;align-items:center">
+      <div class="tl-stat" style="flex:1;min-width:130px;padding:14px 16px;border:1px solid var(--hairline);border-top:3px solid ${color};border-radius:12px;background:var(--surface-1);display:flex;gap:12px;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .18s,box-shadow .18s;cursor:default">
         <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:${color}22;color:${color}">${ic(icon, { size: "18px" })}</div>
-        <div><div style="font-size:20px;font-weight:700;line-height:1.1">${val}</div>
+        <div><div style="font-size:20px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums">${val}</div>
         <div style="color:var(--text3);font-size:12px">${esc(label)}</div></div>
       </div>`;
     const statsHtml = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px">
@@ -3083,7 +3086,7 @@
       const eff = EFF[tl.effect]; const stt = STATE[tl.state];
       const calls = (d.audit_on && tl.calls) ? badge(`${tl.calls}×`, "var(--accent,#7aa5ff)") : "";
       const params = (tl.params || []).length ? `<div style="color:var(--text3);font-size:11.5px;margin-top:3px">${esc(tl.params.join(" · "))}</div>` : "";
-      return `<div class="tl-row" data-src="${esc(tl.source_type||"")}" data-eff="${esc(tl.effect||"")}" data-fn="${esc(tl.fn)}" title="${esc(t("tl.v_click_hint"))}" style="padding:8px 12px;border-bottom:1px solid var(--hairline);cursor:pointer;${tl.state!=="loaded"?"opacity:.5":""}">
+      return `<div class="tl-row" data-src="${esc(tl.source_type||"")}" data-eff="${esc(tl.effect||"")}" data-fn="${esc(tl.fn)}" title="${esc(t("tl.v_click_hint"))}" style="padding:8px 12px;border-bottom:1px solid var(--hairline);cursor:pointer;transition:background .15s;${tl.state!=="loaded"?"opacity:.5":""}">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <code style="font-weight:600">${esc(tl.fn)}</code>
           ${eff ? badge(eff.label, eff.color) : ""}
@@ -3103,7 +3106,7 @@
         ${[...gs.entries()].map(([g, arr]) => `
           <div class="tl-sec" style="margin-bottom:12px">
             <div style="font-size:13px;font-weight:600;margin:0 0 5px;display:flex;gap:8px;align-items:center">${esc(g)} <span style="color:var(--text3);font-weight:400">${arr.length}</span></div>
-            <div style="border:1px solid var(--hairline);border-radius:10px;overflow:hidden;background:var(--surface-1)">${arr.map(row).join("")}</div>
+            <div style="border:1px solid var(--hairline);border-radius:10px;overflow:hidden;background:var(--surface-1);box-shadow:0 1px 3px rgba(0,0,0,.06)">${arr.map(row).join("")}</div>
           </div>`).join("")}
       </div>`).join("");
 
@@ -3122,18 +3125,18 @@
       ? topUsed.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hairline);font-size:12.5px"><code style="overflow:hidden;text-overflow:ellipsis">${esc(x.fn)}</code><span style="color:var(--accent,#7aa5ff);white-space:nowrap">${x.calls}×</span></div>`).join("")
       : `<div style="color:var(--text3);font-size:12.5px">${esc(t("tl.no_calls"))}</div>`;
     const sideHtml = `<div style="display:flex;flex-direction:column;gap:14px">
-      <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:14px">
+      <div style="border:1px solid var(--hairline);border-top:3px solid var(--accent,#7aa5ff);border-radius:12px;background:var(--surface-1);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .18s,box-shadow .18s">
         <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc(t("tl.side_perm"))}</div>${barHtml}
       </div>
-      <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:14px">
+      <div style="border:1px solid var(--hairline);border-top:3px solid #a78bfa;border-radius:12px;background:var(--surface-1);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .18s,box-shadow .18s">
         <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc(t("tl.side_top"))}</div>${topHtml}
         ${d.audit_on ? "" : `<div style="color:var(--text3);font-size:11.5px;margin-top:6px">${esc(t("tl.audit_off"))}</div>`}
       </div>
-      <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:14px">
+      <div style="border:1px solid var(--hairline);border-top:3px solid #4ade80;border-radius:12px;background:var(--surface-1);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .18s,box-shadow .18s">
         <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc(t("tl.side_src"))}</div>
-        ${["plugin","mcp","builtin"].map(s => {
+        ${[["plugin", t("tl.src_plugin")], ["mcp", "MCP"], ["builtin", t("tl.src_builtin")]].map(([s, lb]) => {
           const n = tools.filter(x => x.source_type === s).length;
-          return n ? `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0"><span>${esc(t("tl.src_"+s))}</span><span style="color:var(--text3)">${n}</span></div>` : "";
+          return n ? `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0"><span>${esc(lb)}</span><span style="color:var(--text3)">${n}</span></div>` : "";
         }).join("")}
       </div>
     </div>`;
