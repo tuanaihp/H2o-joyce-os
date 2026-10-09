@@ -17642,6 +17642,8 @@ joyce_overview.register(app, joyce_overview.OverviewDeps(
     usage_today=lambda: (usage_index.summary("today") or {}).get("kpi") or {},
     vault_counts=_overview_vault_counts,
     skills_count=_overview_skills_count,
+    staff_scope=lambda: _STAFF_SCOPE.get(),
+    staff_cap=lambda st: _staff_cap(st or {}),
 ))
 
 

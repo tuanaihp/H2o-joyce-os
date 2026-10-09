@@ -29,6 +29,7 @@
     departments: "layers",
     calendar: "calendar",
     reports: "file-text",
+    chungcat: "scroll",
     home: "hexagon",
     chat: "droplet",
     settings: "settings",
@@ -108,7 +109,7 @@
   // Nhãn rail lấy từ TỪ ĐIỂN (thư mục dashboard/i18n) chứ không viết cứng. `t()` suy biến về
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
-    "command", "today", "departments", "calendar", "reports",
+    "command", "today", "departments", "calendar", "reports", "chungcat",
     "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "projects", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
@@ -148,7 +149,7 @@
     // mở app (gói Workstation: Joyce = Experience Layer gom cảnh báo từ mọi nguồn).
     // Spec V1.4 mục 53 (chủ duyệt 07/10): nhóm Hôm nay thành nhóm TỔNG QUAN, Hôm nay là trang con
     // thứ hai sau Bảng điều hành. Bốn trang con mới do dashboard/overview.js vẽ (chỉ đọc).
-    { id: "tong_quan", get label() { return t("nav.group.tong_quan"); }, icon: GICON["Tổng quan"], ids: ["command", "today", "departments", "calendar", "reports"] },
+    { id: "tong_quan", get label() { return t("nav.group.tong_quan"); }, icon: GICON["Tổng quan"], ids: ["command", "today", "departments", "calendar", "reports", "chungcat"] },
     { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["home", "chat", "files", "learn"] },
     // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
     // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
@@ -233,7 +234,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -689,7 +690,7 @@
     if (id === "conversations") return renderConversations(el);
     if (id === "learn")    return renderLearn(el);
     // Nhóm Tổng quan: bốn trang con do overview.js vẽ (cùng kiểu uỷ quyền như camnang.js).
-    if (["command", "departments", "calendar", "reports"].includes(id)) {
+    if (["command", "departments", "calendar", "reports", "chungcat"].includes(id)) {
       if (window.JoyceOverview) return window.JoyceOverview.render(el, id);
       el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "overview.js" }));
       return;

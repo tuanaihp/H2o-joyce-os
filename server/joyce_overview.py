@@ -57,6 +57,9 @@ class OverviewDeps:
     usage_today: Callable[[], dict] = lambda: {}        # usage_index.summary("today")["kpi"]
     vault_counts: Callable[[str], dict] = lambda b: {}  # {sources, wiki, facts} của một brain
     skills_count: Callable[[str], int] = lambda b: 0
+    # Nhân viên H2O: phạm vi brain của họ (None = quản trị, không khoá) và cấp chức vụ
+    staff_scope: Callable[[], Any] = lambda: None
+    staff_cap: Callable[[Any], str] = lambda st: "nhan_vien"
 
 
 def _log(src: str, e: Exception) -> None:
@@ -89,6 +92,116 @@ def _status(c: dict) -> str:
     if c.get("review"):
         return "wait"
     return "good"
+
+
+# ---------------------------------------------------------------------------------------
+# Tài liệu chưng cất trong ngày: wiki nào được tạo/sửa hôm đó, gom theo khối và phòng.
+# Không có bước duyệt trước: Joyce ghi thẳng vào wiki, trang này chỉ để người xem lại và
+# đánh dấu "đã xem". Trạng thái đã xem gắn với THỜI ĐIỂM SỬA của file, nên khi Joyce chưng cất
+# lại trang đó thì nó hiện lại thành chưa xem.
+# ---------------------------------------------------------------------------------------
+_CC_BO_QUA = {"index.md", "log.md"}
+
+
+def _cc_file_xem() -> str:
+    import config as _cfg
+    return str(_cfg.STATE_DIR / "chung-cat-xem.json")
+
+
+def _cc_doc_xem() -> dict:
+    import json as _json
+    try:
+        with open(_cc_file_xem(), encoding="utf-8") as f:
+            d = _json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _cc_ghi_xem(d: dict) -> None:
+    import json as _json
+    p = _cc_file_xem()
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        _json.dump(d, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, p)
+
+
+def _cc_khoang_ngay(day: str) -> tuple:
+    d = _dt.datetime.strptime(day, "%Y-%m-%d")
+    bd = time.mktime(d.timetuple())
+    return bd, bd + 86400
+
+
+def _cc_quyen(request, deps) -> tuple:
+    """(được xem, phạm vi). Quản trị: (True, None) - không khoá. Trưởng phòng (cấp quản lý):
+    (True, các brain được phép). Nhân viên thường: (False, ()) - trang này chỉ dành cho người
+    duyệt, không phải nơi nhân viên đọc tài liệu của phòng khác."""
+    if not _staff(deps, request):
+        return True, None
+    st = getattr(request.state, "staff", None) or {}
+    if deps.staff_cap(st) != "quan_ly":
+        return False, ()
+    return True, tuple(deps.staff_scope() or ())
+
+
+def _cc_trong_pham_vi(bp: str, scope) -> bool:
+    if scope is None:
+        return True
+    try:
+        r = os.path.normcase(os.path.realpath(bp))
+    except OSError:
+        return False
+    for s in scope:
+        sc = os.path.normcase(os.path.realpath(str(s)))
+        if r == sc or r.startswith(sc.rstrip(os.sep) + os.sep):
+            return True
+    return False
+
+
+def _chung_cat(day: str, brain_paths: list, phong_theo_brain: dict) -> dict:
+    bd, kt = _cc_khoang_ngay(day)
+    xem = _cc_doc_xem()
+    nhom = []
+    tong = 0
+    for bp in brain_paths:
+        root = str(bp)
+        items = []
+        for sub in ("wiki", "07 - Wiki"):
+            d = os.path.join(root, sub)
+            if not os.path.isdir(d):
+                continue
+            for dp, dns, fns in os.walk(d):
+                dns[:] = [x for x in dns if not x.startswith(".")]
+                for f in fns:
+                    if not f.lower().endswith(".md") or f.startswith("_") or f in _CC_BO_QUA:
+                        continue
+                    full = os.path.join(dp, f)
+                    try:
+                        mt = os.stat(full).st_mtime
+                    except OSError:
+                        continue
+                    if not (bd <= mt < kt):
+                        continue
+                    rel = os.path.relpath(full, root).replace("\\", "/")
+                    khoa = f"{root}|{rel}"
+                    da = abs(float((xem.get(khoa) or {}).get("mtime") or 0) - mt) < 1
+                    items.append({"ten": f[:-3], "rel": rel, "gio": _dt.datetime.fromtimestamp(mt).strftime("%H:%M"),
+                                  "mtime": mt, "da_xem": da})
+        if not items:
+            continue
+        items.sort(key=lambda x: x["mtime"], reverse=True)
+        tong += len(items)
+        ph = phong_theo_brain.get(os.path.normcase(root)) or {}
+        nhom.append({
+            "brain_path": root, "brain": os.path.basename(root),
+            "phong": ph.get("ten") or os.path.basename(root),
+            "khoi": ph.get("khoi") or "Chung", "brand": ph.get("brand") or "",
+            "items": items, "chua_xem": sum(1 for x in items if not x["da_xem"]),
+        })
+    nhom.sort(key=lambda g: (g["khoi"], g["phong"]))
+    return {"day": day, "tong": tong, "chua_xem": sum(g["chua_xem"] for g in nhom), "nhom": nhom}
 
 
 # ---------------------------------------------------------------------------------------
@@ -458,6 +571,64 @@ def register(app, deps: OverviewDeps):
         for u in d["units"]:
             u["top"] = [r["id"] for r in u["top"]]
         return {"ok": True, "generated_at": time.time(), **d}
+
+    @router.get("/api/joyce/v1/overview/chung-cat")
+    async def api_chung_cat(request: Request, day: str = Query("")):
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            ngay = day or _dt.datetime.now().strftime("%Y-%m-%d")
+            _dt.datetime.strptime(ngay, "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "day phải dạng YYYY-MM-DD"}, status_code=400)
+        try:
+            pv = deps.phong_view() or {}
+            ten_khoi = {k.get("id"): k.get("ten") for k in (pv.get("khoi") or [])}
+            phong = {}
+            for p in pv.get("phong") or []:
+                bp = str(p.get("brain_path") or "")
+                if bp:
+                    phong[os.path.normcase(bp)] = {"ten": p.get("ten"), "khoi": ten_khoi.get(p.get("khoi_id")) or "",
+                                                   "brand": (p.get("brand") or {}).get("ten") or ""}
+            ds = [str(x) for x in (deps.brain_paths() or []) if _cc_trong_pham_vi(str(x), scope)]
+            d = _chung_cat(ngay, ds, phong)
+            return {"ok": True, "generated_at": time.time(), **d}
+        except Exception as e:  # noqa: BLE001
+            _log("chung-cat", e)
+            return {"ok": False, "error": "không đọc được tài liệu chưng cất", "nhom": []}
+
+    @router.post("/api/joyce/v1/overview/chung-cat/xem")
+    async def api_chung_cat_xem(request: Request):
+        """Đánh dấu một tài liệu chưng cất là đã xem (hoặc bỏ đánh dấu). Chỉ nhận đường dẫn
+        đã nằm trong danh sách brain thật, trong wiki của brain đó, và trong phạm vi người gọi."""
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "thiếu dữ liệu"}, status_code=400)
+        bp = str(body.get("brain_path") or "")
+        rel = str(body.get("rel") or "").replace("\\", "/")
+        da_xem = bool(body.get("da_xem", True))
+        brains = {os.path.normcase(str(x)): str(x) for x in (deps.brain_paths() or [])}
+        goc = brains.get(os.path.normcase(bp))
+        if goc and not _cc_trong_pham_vi(goc, scope):
+            goc = None
+        if not goc or ".." in rel.split("/") or not (rel.startswith("wiki/") or rel.startswith("07 - Wiki/")):
+            return JSONResponse({"ok": False, "error": "tài liệu không hợp lệ"}, status_code=400)
+        full = os.path.join(goc, rel)
+        if not os.path.isfile(full):
+            return JSONResponse({"ok": False, "error": "không thấy tài liệu"}, status_code=404)
+        d = _cc_doc_xem()
+        khoa = f"{goc}|{rel}"
+        if da_xem:
+            d[khoa] = {"mtime": os.stat(full).st_mtime, "luc": time.time()}
+        else:
+            d.pop(khoa, None)
+        _cc_ghi_xem(d)
+        return {"ok": True, "da_xem": da_xem}
 
     @router.get("/api/joyce/v1/overview/quy-trinh")
     async def api_quy_trinh(request: Request, brain: str = Query("")):

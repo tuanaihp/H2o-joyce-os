@@ -3690,3 +3690,25 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .ovw-loop-n b { font-size: 13px; font-weight: 600; }
 .ovw-loop-n i { display: block; font-style: normal; color: var(--text3); font-size: 11.5px; }
 .ovw-loop-r { color: var(--text3); font-size: 11.5px; text-align: right; }
+
+/* Tài liệu chưng cất trong ngày: danh sách theo phòng, bấm tên để mở, đánh dấu đã xem. */
+.ov-cc-khoi { display: flex; flex-direction: column; gap: 10px; }
+.ov-cc-phong { border: 1px solid var(--line); border-radius: 12px; background: var(--wash); padding: 10px 12px; }
+.ov-cc-phead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.ov-cc-phead b { font-size: 13px; color: var(--text); }
+.ov-cc-badge { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn-ink); }
+.ov-cc-list { display: flex; flex-direction: column; }
+.ov-cc-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.ov-cc-row:first-child { border-top: 0; }
+.ov-cc-row.seen { opacity: .6; }
+.ov-cc-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; background: none; border: 0;
+  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; padding: 4px 2px; }
+.ov-cc-name:hover span { color: var(--accent-ink); text-decoration: underline; }
+.ov-cc-name span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-cc-name svg { width: 14px; height: 14px; flex: none; color: var(--text3); }
+.ov-cc-name time { font-size: 11px; color: var(--text3); flex: none; font-variant-numeric: tabular-nums; }
+.ov-cc-seen { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text2); font: inherit; font-size: 11.5px; cursor: pointer; }
+.ov-cc-seen svg { width: 13px; height: 13px; }
+.ov-cc-seen:hover { border-color: var(--accent-line); color: var(--accent-ink); }
+.ov-cc-seen[aria-pressed="true"] { color: var(--ok-ink); border-color: var(--ok-ink); }

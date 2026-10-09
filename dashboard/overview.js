@@ -880,7 +880,92 @@
     ganDieuHuong(el);
   }
 
-  const VIEWS = { command: renderCommand, departments: renderDepartments, calendar: renderCalendar, reports: renderReports };
+  // ============================================================
+  // TÀI LIỆU CHƯNG CẤT: wiki được Joyce tạo/sửa trong một ngày, gom theo khối > phòng.
+  // Không có bước duyệt trước (Joyce ghi thẳng vào wiki). Trang này để xem lại và đánh dấu
+  // "đã xem"; bấm tên tài liệu là mở đúng trình đọc/sửa như mọi tài liệu khác.
+  // ============================================================
+  let _ccDay = null;   // "YYYY-MM-DD"; null = hôm nay
+  async function renderChungCat(el) {
+    el.innerHTML = loading();
+    const day = _ccDay || isoDay(new Date());
+    const r = await api("/api/joyce/v1/overview/chung-cat?day=" + encodeURIComponent(day));
+    if (!el.isConnected) return;
+    if (!r.ok && r.status === 403) { el.innerHTML = `<div class="ov-page">${loiTrang(t("ov.staff_denied"))}</div>`; return; }
+    if (!r.ok) { el.innerHTML = `<div class="ov-page">${loiTrang(t("ov.cc_err"))}</div>`; return; }
+    const d = r.data || {};
+    const nhom = d.nhom || [];
+    const homNay = day === isoDay(new Date());
+
+    // Gom theo khối, giữ thứ tự khối như danh sách đã sắp.
+    const khoiMap = new Map();
+    nhom.forEach((g) => {
+      if (!khoiMap.has(g.khoi)) khoiMap.set(g.khoi, []);
+      khoiMap.get(g.khoi).push(g);
+    });
+
+    const dongPhong = (g) => {
+      const ds = g.items.map((x) => `
+        <div class="ov-cc-row${x.da_xem ? " seen" : ""}" data-rel="${esc(x.rel)}" data-brain="${esc(g.brain_path)}">
+          <button type="button" class="ov-cc-name" title="${esc(x.rel)}">
+            ${ic("file-text")}<span>${esc(x.ten)}</span><time>${esc(x.gio)}</time>
+          </button>
+          <button type="button" class="ov-cc-seen" aria-pressed="${x.da_xem ? "true" : "false"}">
+            ${ic(x.da_xem ? "circle-check" : "circle")}<span>${esc(t(x.da_xem ? "ov.cc_seen" : "ov.cc_mark"))}</span>
+          </button>
+        </div>`).join("");
+      return `<div class="ov-cc-phong">
+        <div class="ov-cc-phead"><b>${esc(g.phong)}</b>
+          <span class="ov-dim">${esc(t("ov.cc_count", { so: g.items.length }))}</span>
+          ${g.chua_xem ? `<span class="ov-cc-badge">${esc(t("ov.cc_unseen", { so: g.chua_xem }))}</span>` : ""}</div>
+        <div class="ov-cc-list">${ds}</div>
+      </div>`;
+    };
+
+    const khoiHtml = [...khoiMap.entries()].map(([ten, gs]) => panel(
+      ten, t("ov.cc_khoi_d", { so: gs.length }),
+      `<div class="ov-cc-khoi">${gs.map(dongPhong).join("")}</div>`
+    )).join("");
+
+    el.innerHTML = `<div class="ov-page">
+      <div class="ov-toolbar"><div class="ov-chips">
+        <button type="button" class="ov-chip" id="ovCcPrev">${ic("chevron-left")} ${esc(t("ov.cal_prev"))}</button>
+        <button type="button" class="ov-chip" id="ovCcToday"${homNay ? " disabled" : ""}>${esc(t("ov.cal_today"))}</button>
+        <button type="button" class="ov-chip" id="ovCcNext">${esc(t("ov.cal_next"))} ${ic("chevron-right")}</button></div>
+        <span class="ov-synced">${esc(t("ov.cc_summary", { ngay: day, tong: d.tong || 0, chua: d.chua_xem || 0 }))}</span></div>
+      ${nhom.length ? khoiHtml : `<div class="ov-empty big">${esc(t("ov.cc_empty", { ngay: day }))}</div>`}
+    </div>`;
+
+    el.querySelector("#ovCcPrev").onclick = () => { _ccDay = dichNgay(day, -1); renderChungCat(el); };
+    el.querySelector("#ovCcNext").onclick = () => { _ccDay = dichNgay(day, 1); renderChungCat(el); };
+    el.querySelector("#ovCcToday").onclick = () => { _ccDay = null; renderChungCat(el); };
+
+    el.querySelectorAll(".ov-cc-row").forEach((row) => {
+      const brain = row.dataset.brain, rel = row.dataset.rel;
+      row.querySelector(".ov-cc-name").onclick = () => {
+        if (window.JoyceFileEditor) window.JoyceFileEditor.open(rel, { brain });
+      };
+      const nut = row.querySelector(".ov-cc-seen");
+      nut.onclick = async () => {
+        const dangXem = !row.classList.contains("seen");
+        nut.disabled = true;
+        const fd = { brain_path: brain, rel, da_xem: dangXem };
+        let ok = false;
+        try {
+          const res = await fetch("/api/joyce/v1/overview/chung-cat/xem", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" }, body: JSON.stringify(fd),
+          });
+          ok = res.ok;
+        } catch (e) { ok = false; }
+        nut.disabled = false;
+        if (ok) renderChungCat(el);
+      };
+    });
+    ganDieuHuong(el);
+  }
+
+  const VIEWS = { command: renderCommand, departments: renderDepartments, calendar: renderCalendar, reports: renderReports, chungcat: renderChungCat };
   window.JoyceOverview = {
     VIEWS: Object.keys(VIEWS),
     render(el, view) { return (VIEWS[view] || renderCommand)(el); },
