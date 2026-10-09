@@ -11421,6 +11421,138 @@ async def plugins_list(brain: str = Query("brain")):
             "vault_dir": str(plugins_host.vault_plugins_dir(root) or ""), "plugins": items}
 
 
+@app.get("/tools/registry")
+async def tools_registry(brain: str = Query("brain")):
+    """SỔ TOÀN BỘ tool mà engine nhìn thấy - trang 'Công cụ' của dashboard.
+
+    Gộp 3 nguồn thành một danh sách phẳng, mỗi mục kèm đủ để trả lời 'tool này là gì,
+    từ đâu ra, đang dùng được không, ai đang dùng':
+    - plugin tools ĐÃ NẠP (registry thật: mô tả, schema, min_mode -> mức quyền),
+    - tool chỉ tồn tại trong manifest của plugin ĐANG TẮT/bị env chặn (mờ, để thấy
+      'có mà chưa mở'),
+    - tool MCP + tool builtin qua discover_all của hub (đường engine thật đi qua,
+      đã có cache TTL nên rẻ),
+    - số lượt gọi thật từ plugin tool-audit (nếu đang bật).
+    """
+    root = _brain_root(brain)
+    out = {"ok": True, "tools": [], "audit_on": False}
+
+    # 1) Registry plugin đã nạp: đủ mô tả + quyền + schema.
+    loaded_fns = {}
+    try:
+        spec, route = plugins_host.plugin_tools(mode="full", vault_root=str(root))
+        by_fn = {t["fn"]: t for t in spec}
+        for fn, meta in route.items():
+            t = by_fn.get(fn) or {}
+            loaded_fns[fn] = True
+            out["tools"].append({
+                "fn": fn, "description": t.get("description", ""),
+                "source_type": meta.get("source_type", "plugin"),
+                "source": meta.get("source_id", ""),
+                "namespace": t.get("namespace", ""),
+                "group": t.get("label") or t.get("namespace") or "",
+                "effect": meta.get("effect", "read"),
+                "required_mode": meta.get("required_mode", "readonly"),
+                "params": sorted(((t.get("schema") or {}).get("properties") or {}).keys()),
+                "state": "loaded",
+            })
+    except Exception as e:
+        out["plugins_error"] = str(e)
+
+    # 2) Tool của plugin đang tắt/chặn: chỉ có tên trong manifest -> mờ.
+    try:
+        for p in plugins_host.describe(root):
+            for fn in (p.get("tools") or []):
+                if fn in loaded_fns:
+                    continue
+                out["tools"].append({
+                    "fn": fn, "description": p.get("description", ""),
+                    "source_type": "plugin", "source": f"{p.get('source')}:{p.get('slug')}",
+                    "namespace": p.get("slug", ""), "group": p.get("name", ""),
+                    "effect": "", "required_mode": p.get("min_mode", ""),
+                    "params": [],
+                    "state": "removed" if p.get("removed") else
+                             ("disabled" if not p.get("enabled") else
+                              ("gated" if p.get("gated") else "unloaded")),
+                })
+    except Exception:
+        pass
+
+    # 3) MCP + builtin: cùng đường discover mà engine đi (có cache). Lỗi thì bỏ qua êm -
+    # trang vẫn liệt kê được plugin tools.
+    try:
+        spec_all, route_all = await mcp_hub.discover_all(mode="full", vault_root=str(root))
+        spec_map = {t["fn"]: t for t in spec_all}
+        for fn, meta in route_all.items():
+            st_type = meta.get("source_type")
+            if st_type == "plugin" or fn in loaded_fns:
+                continue
+            t = spec_map.get(fn) or {}
+            out["tools"].append({
+                "fn": fn, "description": t.get("description", ""),
+                "source_type": st_type or "builtin",
+                "source": meta.get("source_id", ""),
+                "namespace": meta.get("source_id", ""),
+                "group": meta.get("source_id", ""),
+                "effect": meta.get("effect", ""),
+                "required_mode": meta.get("required_mode", ""),
+                "params": sorted(((t.get("schema") or {}).get("properties") or {}).keys()),
+                "state": "loaded",
+            })
+    except Exception as e:
+        out["mcp_error"] = str(e)
+
+    # 4) Số lượt gọi thật (plugin tool-audit, nếu bật) -> cột 'đang dùng'.
+    try:
+        from config import STATE_DIR as _SD
+        f = _SD / "plugin-data" / "tool-audit" / "counts.json"
+        if f.is_file():
+            counts = json.loads(f.read_text(encoding="utf-8"))
+            out["audit_on"] = True
+            for t in out["tools"]:
+                t["calls"] = int(counts.get(t["fn"], 0))
+    except Exception:
+        pass
+    out["tools"].sort(key=lambda t: (t.get("source_type") != "plugin",
+                                     t.get("group", ""), t.get("fn", "")))
+    return out
+
+
+@app.post("/plugins/scaffold")
+async def plugins_scaffold(slug: str = Form(...), name: str = Form(...),
+                           description: str = Form("")):
+    """Tạo skeleton plugin mới vào thư mục GLOBAL (dùng chung mọi brain) - luôn
+    enabled:false, chờ người dùng sửa code rồi bật. Từ trang Công cụ."""
+    slug = str(slug or "").strip().lower()
+    if not plugins_host.valid_slug(slug):
+        return JSONResponse({"error": "slug chỉ gồm a-z 0-9 gạch nối"}, status_code=400)
+    d = plugins_host.global_plugins_dir() / slug
+    if d.exists():
+        return JSONResponse({"error": f"plugin '{slug}' đã tồn tại"}, status_code=400)
+    try:
+        d.mkdir(parents=True)
+        (d / "plugin.yaml").write_text(
+            f'name: {name or slug}\nslug: {slug}\nversion: 0.1.0\n'
+            f'description: {description or name}\nauthor: H2O\nenabled: false\n'
+            f'min_mode: safe\ntools:\n  - {slug.replace("-", "_")}\nhooks: []\n',
+            encoding="utf-8")
+        tool_fn = slug.replace("-", "_")
+        (d / "plugin.py").write_text(
+            '"""Plugin scaffold - sửa handler rồi bật enabled trong plugin.yaml."""\n\n\n'
+            'def register(ctx):\n'
+            f'    ctx.register_tool(\n        "{tool_fn}",\n'
+            f'        "{description or name}",\n        _chay,\n'
+            '        schema={"type": "object", "properties": {}},\n'
+            '        min_mode="safe",\n    )\n\n\n'
+            'async def _chay(args, ctx) -> str:\n'
+            '    return "TODO: implement"\n', encoding="utf-8")
+        return {"ok": True, "dir": str(d),
+                "note": "Plugin mới ở trạng thái TẮT. Sửa code rồi bật (và cần "
+                        "JOYCE_ENABLE_USER_PLUGINS=true cho plugin user)."}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.post("/plugins/toggle")
 async def plugins_toggle(slug: str = Form(...), enabled: str = Form(...), brain: str = Form("brain")):
     """Bật/tắt 1 plugin. Bundled → ghi STATE_DIR/plugins.json (không đụng file app); vault → ghi

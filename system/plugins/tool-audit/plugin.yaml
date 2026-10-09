@@ -1,9 +1,9 @@
 name: Nhật ký dùng tool
 slug: tool-audit
 version: 1.0.0
-description: Đếm số lần MỖI tool được engine gọi (qua hook post_tool_call) và cho xem thống kê tool hay dùng. Đây là ví dụ minh hoạ cơ chế HOOK của plugin. Mặc định TẮT - bật qua POST /plugins/toggle (slug=tool-audit) để thử.
+description: Đếm số lần MỖI tool được engine gọi (qua hook post_tool_call) và cho xem thống kê tool hay dùng. Đây là ví dụ minh hoạ cơ chế HOOK của plugin. BẬT mặc định từ 10/2026 - trang Công cụ đọc counts.json để hiện 'luồng dữ liệu đang dùng'.
 author: Joyce (bundled)
-enabled: false
+enabled: true
 min_mode: readonly
 tools:
   - joyce_tool_stats

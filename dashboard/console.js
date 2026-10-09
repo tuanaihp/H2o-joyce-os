@@ -55,6 +55,7 @@
     channels: "send",
     mcp: "plug",
     plugins: "toolbox",
+    tools: "wrench",
     packs: "package",
     logs: "scroll-text",
     account: "circle-user",
@@ -110,7 +111,7 @@
     "command", "today", "departments", "calendar", "reports",
     "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "projects", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "staff", "usage", "pet", "share",
+    "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // Tab con của Cẩm nang trên rail (mỗi module vận hành = một mục con): bấm sub là
@@ -159,7 +160,7 @@
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "workspace", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
-    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
+    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
@@ -185,7 +186,7 @@
   // Tổng quan (trừ Hôm nay) là mặt quản trị toàn hệ thống: server trả 403 cho nhân viên.
   const RAIL_AN_NHAN_VIEN = new Set(["command", "departments", "calendar", "reports",
     "terminal", "coding", "projects", "plugins", "selfimprove",
-    "mcp", "packs", "channels", "models", "settings", "share", "account"]);
+    "mcp", "packs", "channels", "models", "tools", "settings", "share", "account"]);
   // typeof: rail còn được dựng trong môi trường không có window (test chạy console.js trong vm).
   const _laNhanVien = () => typeof window !== "undefined" && !!(window.__h2oStaff || window.__h2oStaffNav);
   // Nhóm quyền theo chức vụ, khớp _STAFF_CAP phía server: "admin" | "quan_ly" | "nhan_vien" | "hoc_viec".
@@ -232,7 +233,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -668,6 +669,7 @@
     if (id === "models")   return renderModels(el);
     if (id === "mcp")      return renderConnect(el);
     if (id === "plugins")  return renderPlugins(el);
+    if (id === "tools")    return renderTools(el);
     // Trang Gói do packs.js dựng, uỷ quyền y như renderStudioPage uỷ cho studio.js. Để riêng
     // file vì console.js đã ~7k dòng.
     if (id === "packs") {
@@ -2999,6 +3001,112 @@
       el.appendChild(wrap);
     }
     load();
+  }
+
+  // ============================================================
+  // Trang Công cụ (tools) - sổ TOÀN BỘ tool engine nhìn thấy, nằm dưới nhóm Kết nối.
+  // Khác trang Plugins (quản lý plugin: bật/tắt/gỡ): trang này nhìn THEO TỪNG TOOL -
+  // trả lời "Joyce đang có những tool nào, của ai, mức quyền gì, đang được dùng không".
+  // ============================================================
+  async function renderTools(el) {
+    const myGen = _renderGen;
+    el.innerHTML = `<div class="cview-section"><div class="empty">${esc(t("common.loading"))}</div></div>`;
+    let d = { tools: [] };
+    try { d = await (await fetch(`/tools/registry?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) { d = { error: e.message, tools: [] }; }
+    if (myGen !== _renderGen) return;
+
+    const EFF = {
+      read:   { label: t("tl.eff_read"),   color: "var(--ok-ink, #4ade80)" },
+      write:  { label: t("tl.eff_write"),  color: "var(--warn-ink, #f0a24a)" },
+      danger: { label: t("tl.eff_danger"), color: "var(--err-ink, #f87171)" },
+    };
+    const STATE = {
+      loaded:   { label: t("tl.st_loaded"),   color: "var(--ok-ink, #4ade80)" },
+      disabled: { label: t("tl.st_disabled"), color: "var(--text3)" },
+      gated:    { label: t("tl.st_gated"),    color: "var(--warn-ink, #f0a24a)" },
+      removed:  { label: t("tl.st_removed"),  color: "var(--text3)" },
+      unloaded: { label: t("tl.st_unloaded"), color: "var(--warn-ink, #f0a24a)" },
+    };
+    const badge = (txt, color) => `<span style="font-size:11px;padding:1px 7px;border-radius:6px;border:1px solid ${color};color:${color};white-space:nowrap">${esc(txt)}</span>`;
+
+    const tools = (d.tools || []);
+    // Gom theo nguồn: plugin <slug> / mcp <server> / builtin. Giữ thứ tự server đã sort.
+    const groups = new Map();
+    for (const tl of tools) {
+      const key = (tl.source_type === "mcp" ? "MCP: " : tl.source_type === "builtin" ? t("tl.src_builtin") : "")
+                + (tl.group || tl.namespace || tl.source || "?");
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tl);
+    }
+
+    const nLoaded = tools.filter(x => x.state === "loaded").length;
+    const nOff = tools.length - nLoaded;
+    const stats = `${tools.length} ${t("tl.count_tools")} · ${groups.size} ${t("tl.count_groups")}`
+                + (nOff ? ` · ${nOff} ${t("tl.count_off")}` : "");
+
+    const row = (tl) => {
+      const eff = EFF[tl.effect]; const stt = STATE[tl.state];
+      const calls = (d.audit_on && tl.calls) ? badge(`${tl.calls}× ${t("tl.calls")}`, "var(--accent,#7aa5ff)") : "";
+      const params = (tl.params || []).length ? `<div style="color:var(--text3);font-size:11.5px;margin-top:3px">${esc(t("tl.params"))}: ${esc(tl.params.join(", "))}</div>` : "";
+      return `<div class="tl-row" style="padding:9px 12px;border-bottom:1px solid var(--hairline);${tl.state!=="loaded"?"opacity:.55":""}">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <code style="font-weight:600">${esc(tl.fn)}</code>
+          ${eff ? badge(eff.label, eff.color) : ""}
+          ${stt ? badge(stt.label, stt.color) : ""}
+          ${calls}
+        </div>
+        <div style="color:var(--text2);font-size:12.5px;margin-top:3px;line-height:1.45">${esc(tl.description || "")}</div>
+        ${params}
+      </div>`;
+    };
+
+    const secHtml = [...groups.entries()].map(([g, arr]) => `
+      <div class="tl-sec" style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:600;color:var(--text2);margin:0 0 6px;display:flex;align-items:center;gap:8px">${esc(g)} <span style="color:var(--text3);font-weight:400">${arr.length}</span></div>
+        <div style="border:1px solid var(--hairline);border-radius:10px;overflow:hidden;background:var(--surface-1)">${arr.map(row).join("")}</div>
+      </div>`).join("");
+
+    const auditNote = d.audit_on ? "" :
+      `<div style="margin-bottom:12px;padding:10px 12px;border:1px dashed var(--hairline);border-radius:8px;color:var(--text3);font-size:12.5px">${esc(t("tl.audit_off"))}</div>`;
+
+    el.innerHTML = `<div class="cview-section">
+      <p style="color:var(--text3);font-size:14px;max-width:760px;margin:0 0 4px">${esc(t("tl.intro"))}</p>
+      <div style="display:flex;gap:10px;align-items:center;margin:10px 0 14px;flex-wrap:wrap">
+        <input id="tlQ" placeholder="${esc(t("tl.search_ph"))}" style="min-width:240px">
+        <span style="color:var(--text3);font-size:12.5px">${esc(stats)}</span>
+        <button class="s-btn" id="tlNew">+ ${esc(t("tl.new"))}</button>
+      </div>
+      ${auditNote}
+      <div id="tlList">${secHtml || `<div class="empty">${esc(t("tl.empty"))}</div>`}</div>
+    </div>`;
+
+    // Lọc theo tên/mô tả/nguồn.
+    el.querySelector("#tlQ")?.addEventListener("input", (e) => {
+      const q = (e.target.value || "").toLowerCase();
+      el.querySelectorAll("#tlList .tl-row").forEach(r => {
+        r.style.display = r.textContent.toLowerCase().includes(q) ? "" : "none";
+      });
+      el.querySelectorAll("#tlList .tl-sec").forEach(s => {
+        s.style.display = [...s.querySelectorAll(".tl-row")].some(r => r.style.display !== "none") ? "" : "none";
+      });
+    });
+
+    // Tạo tool mới: hỏi slug+tên, gọi /plugins/scaffold. Tool mới TẮT mặc định,
+    // viết code xong bật ở trang Công cụ (plugins). Env JOYCE_ENABLE_USER_PLUGINS
+    // vẫn là cổng cho plugin user - ghi rõ trong thông báo trả về.
+    el.querySelector("#tlNew")?.addEventListener("click", async () => {
+      const slug = prompt(t("tl.new_slug_ph"), "");
+      if (!slug) return;
+      const name = prompt(t("tl.new_name_ph"), slug) || slug;
+      const fd = new FormData();
+      fd.append("slug", slug); fd.append("name", name);
+      fd.append("description", prompt(t("tl.new_desc_ph"), "") || name);
+      let r = {};
+      try { r = await (await fetch("/plugins/scaffold", { method: "POST", body: fd })).json(); }
+      catch (e) { r = { error: e.message }; }
+      alert(r.ok ? (t("tl.new_ok") + "\n" + r.dir + "\n" + (r.note || "")) : (t("tl.new_err") + " " + (r.error || "")));
+      if (r.ok) renderTools(el);
+    });
   }
 
   async function renderSelfImprove(el) {
