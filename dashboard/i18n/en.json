@@ -2194,6 +2194,7 @@
   "bgs.chip_mine": "assigned from this chat",
   "bgs.chip_more": "+{so} more",
   "bgs.open_kanban": "Tasks page",
+  "bgs.close": "Dismiss - only reappears when something changes",
   "brains.whole_block": "★ Whole {ten} block",
   "brains.new_prompt": "New brain name:",
   "brains.create_net_err": "Network error while creating the brain.",

@@ -1535,6 +1535,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   min-height: 34px;
 }
 .bg-open:hover { color: var(--accent); border-color: var(--accent); }
+.bg-x {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center;
+  background: none; border: none; border-radius: 8px; color: var(--text2);
+  cursor: pointer; font-size: 17px; line-height: 1;
+}
+.bg-x:hover { color: var(--text); background: rgba(0, 0, 0, .18); }
+.bg-x svg { width: 15px; height: 15px; }
 .bg-dot {
   flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text2);
 }

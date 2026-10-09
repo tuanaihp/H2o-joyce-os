@@ -2194,6 +2194,7 @@
   "bgs.chip_mine": "giao từ hội thoại này",
   "bgs.chip_more": "+{so} nữa",
   "bgs.open_kanban": "Trang Việc",
+  "bgs.close": "Tắt thông báo này - chỉ hiện lại khi có thay đổi",
   "brains.whole_block": "★ Toàn khối {ten}",
   "brains.new_prompt": "Tên brain mới:",
   "brains.create_net_err": "Lỗi mạng khi tạo brain.",

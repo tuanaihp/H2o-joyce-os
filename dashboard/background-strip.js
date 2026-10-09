@@ -45,6 +45,10 @@
   var POLL_HIDDEN_MS = 60000; // tab ẩn: quay lại là hỏi ngay một nhát nên để rất thưa
   var MAX_CHIP = 4;           // dải là chỗ liếc mắt; muốn xem hết thì có nút sang trang Việc
   var timer = null, inflight = false, lastKey = "", dangHien = false, dangChay = false;
+  // Nút × của chủ repo (2026-10-09): "hiện báo công việc như này ko có dấu X để a tắt".
+  // Tắt = im đúng TRẠNG THÁI hiện tại (key); dữ liệu đổi - việc mới xếp, việc bắt đầu chạy -
+  // thì hiện lại, vì đó là thông tin mới chứ không phải nhắc lại cái cũ.
+  var dismissedKey = "";
 
   // Hai bảng này giữ KHOÁ từ điển chứ không giữ chữ: file còn chạy dưới node (test thuần)
   // nên không được tra từ điển lúc nạp, chỉ tra lúc vẽ - lúc đó chắc chắn có window.
@@ -134,6 +138,7 @@
     var key = JSON.stringify([q.muc, q.dau, q.them, q.chips.map(function (x) {
       return [x.kind, x.id, x.status, x.mine].join("|");
     })]);
+    if (key === dismissedKey) return;   // đã bấm × đúng trạng thái này rồi
     dangHien = true;
     if (key === lastKey) return;
     lastKey = key;
@@ -150,10 +155,12 @@
 
     e.hidden = false;
     e.className = "bg-strip bg-" + q.muc;
+    var xIco = (typeof ic === "function") ? ic("x") : "&times;";
     e.innerHTML =
       '<div class="bg-head"><span class="bg-dot"></span><span class="bg-title">' + esc(q.dau) +
       '</span><button type="button" class="bg-open">' + esc(tw("bgs.open_kanban")) +
-      '</button></div>' +
+      '</button><button type="button" class="bg-x" aria-label="' + esc(tw("bgs.close")) +
+      '" title="' + esc(tw("bgs.close")) + '">' + xIco + '</button></div>' +
       '<div class="bg-chips">' + chips + '</div>' +
       (q.warn ? '<div class="bg-warn">' + esc(q.warn) + '</div>' : "");
 
@@ -161,6 +168,8 @@
     if (btn) btn.onclick = function () {
       try { window.Alpine.store("nav").go("kanban"); } catch (err) { location.hash = "#kanban"; }
     };
+    var nutX = e.querySelector(".bg-x");
+    if (nutX) nutX.onclick = function () { dismissedKey = lastKey; hide(); };
   }
 
   function refresh() {
@@ -210,7 +219,7 @@
   // trước nằm lại vài giây trên phiên mới.
   window.JoyceBackground = {
     refresh: refresh,
-    reset: function () { hide(); refresh(); },
+    reset: function () { dismissedKey = ""; hide(); refresh(); },
     start: start,
     stop: stop
   };
