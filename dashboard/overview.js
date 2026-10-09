@@ -367,6 +367,184 @@
     ganDieuHuong(el);
   }
 
+  // ---- Không gian brain: phần thân dùng chung --------------------------------------
+  // Các khoảng "không gian brain" (hiện trạng, ý tưởng, đội hình, việc, loop, kho tri
+  // thức) xuất hiện ở HAI nơi: trong drawer phòng (moWorkspace - trưởng phòng mở phòng
+  // là thấy luôn) và trong overlay riêng (moBrainWs - nút "Không gian CEO" cho Brain
+  // Default). Markup + nạp dữ liệu gom chung ở đây để hai nơi giống hệt nhau.
+  const wsStatHtml = () => `<div class="ov-dmetric" id="ovwWsStat">${ic("loader", { cls: "ic-spin" })}</div>`;
+  const wsIdeaHtml = () => `<section class="ovw-sec"><h4>${ic("lightbulb")} ${esc(t("ov.ws_idea"))}</h4>
+      <p class="ov-dim ovw-sec-d">${esc(t("ov.ws_idea_d"))}</p>
+      <div class="ovw-ichips">${["ov.ws_idea_c1", "ov.ws_idea_c2", "ov.ws_idea_c3"].map((kk) => `<button type="button" class="ov-chip" data-idea="${esc(kk)}">${esc(t(kk))}</button>`).join("")}</div>
+      <textarea id="ovwIdea" rows="2" placeholder="${esc(t("ov.ws_idea_ph"))}"></textarea>
+      <div class="ovw-assign-row">
+        <button type="button" class="ov-primary" id="ovwIdeaGo">${ic("send")} ${esc(t("ov.ws_idea_go"))}</button>
+        <span class="ov-dim" id="ovwIdeaMsg"></span>
+      </div></section>`;
+  const wsInfoHtml = () => `<section class="ovw-sec"><h4>${ic("users")} ${esc(t("ov.ws_team"))}</h4><div id="ovwWsTeam">${ic("loader", { cls: "ic-spin" })}</div></section>
+      <section class="ovw-sec"><h4>${ic("square-kanban")} ${esc(t("ov.ws_tasks"))}</h4><div id="ovwWsTasks">${ic("loader", { cls: "ic-spin" })}</div></section>
+      <section class="ovw-sec"><h4>${ic("repeat")} ${esc(t("ov.ws_loops"))}</h4><div id="ovwWsLoops">${ic("loader", { cls: "ic-spin" })}</div></section>
+      <section class="ovw-sec"><h4>${ic("brain")} ${esc(t("ov.ws_know"))}</h4><div id="ovwWsKnow">${ic("loader", { cls: "ic-spin" })}</div></section>`;
+
+  // Nạp + nối dây cho các khoảng không gian brain bên trong container `w`.
+  // opts.teamFull: true = hiện cả chip workflow/kỹ năng (overlay CEO); false = chỉ
+  // hàng agent có nút giao việc 1-1 (drawer phòng - wf/skill đã có ở cột Trong).
+  // opts.statsExtra: ô số thêm vào dải hiện trạng (drawer thêm "nhân viên").
+  // opts.dongHet: đóng sạch mọi lớp phủ trước khi nhảy trang (bảng việc, kênh agent...).
+  function napWs(w, p, opts) {
+    const o = opts || {};
+    const bparam = p.brain || "brain";
+    const eb = encodeURIComponent(bparam);
+    const brainSel = p.brain_path || "brain";
+    const dongHet = o.dongHet || function () {};
+    const moTask = (id) => {
+      dongHet(); chonBrain(brainSel, p.ten); go("kanban");
+      if (id) setTimeout(() => { try { if (window.JoyceKanbanShow) window.JoyceKanbanShow(id); } catch (e) {} }, 250);
+    };
+    const denLoops = () => { dongHet(); chonBrain(brainSel, p.ten); setTimeout(() => go("selfimprove"), 60); };
+
+    // Hiện trạng + bảng việc: một GET /kanban cho cả hai.
+    api("/kanban?brain=" + eb).then((r) => {
+      if (!w.isConnected) return;
+      const stat = w.querySelector("#ovwWsStat"), tk = w.querySelector("#ovwWsTasks");
+      const mode = w.querySelector("#ovwWsMode");
+      if (!r.ok) { if (stat) stat.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; if (tk) tk.innerHTML = ""; return; }
+      const d = r.data || {}, cnt = d.counts || {}, cols = d.columns || {};
+      const ORCH = { off: "ov.ws_orch_off", manual: "ov.ws_orch_manual", auto: "ov.ws_orch_auto" };
+      const orchTxt = t(ORCH[d.orchestration] || "ov.ws_orch_off");
+      if (mode) mode.textContent = orchTxt;
+      const queue = (cnt.triage || 0) + (cnt.todo || 0) + (cnt.ready || 0);
+      const cells = [["ov.ws_orch", orchTxt], ["ov.ws_col_queue", queue], ["ov.ws_col_running", cnt.running || 0],
+        ["ov.ds_review", cnt.review || 0], ["ov.ds_blocked", cnt.blocked || 0], ["ov.ds_done", d.completed_24h || 0]]
+        .concat((o.statsExtra || []).filter(([, v]) => v != null));
+      if (stat) stat.innerHTML = cells
+        .map(([kk, v]) => `<div><strong>${esc(String(v))}</strong><span>${esc(t(kk))}</span></div>`).join("");
+      if (!tk) return;
+      const li = (x) => `<button type="button" class="ovw-task" data-tid="${esc(x.id || "")}"><span>${esc(x.title || "")}</span>${x.needs_approval ? `<i>${ic("circle-check")}</i>` : ""}</button>`;
+      const grp = (nhan, arr, cls) => arr.length ? `<div class="ovw-tgrp ${cls}"><b>${esc(nhan)} · ${arr.length}</b>${arr.slice(0, 6).map(li).join("")}${arr.length > 6 ? `<span class="ov-dim">+${arr.length - 6}</span>` : ""}</div>` : "";
+      const q = (cols.triage || []).concat(cols.todo || [], cols.ready || []);
+      const html = grp(t("ov.ws_col_running"), cols.running || [], "run")
+        + grp(t("ov.ws_col_queue"), q, "wait") + grp(t("ov.ws_col_review"), cols.review || [], "rev")
+        + grp(t("ov.ws_col_blocked"), cols.blocked || [], "blk");
+      tk.innerHTML = html || `<p class="ov-dim">${esc(t("ov.ws_no_tasks"))}</p>`;
+      tk.querySelectorAll("[data-tid]").forEach((b) => (b.onclick = () => moTask(b.dataset.tid)));
+    });
+
+    // Đội hình: agent (giao việc 1-1 qua kênh agent:<slug>) + workflow + kỹ năng.
+    // Workflow còn đổ vào ô "Chạy qua" của form giao việc -> route wf:<slug>.
+    Promise.all([api("/agents?brain=" + eb + "&prompt=0"), api("/workflows?brain=" + eb), api("/skills?brain=" + eb)])
+      .then((rs) => {
+        if (!w.isConnected) return;
+        const team = w.querySelector("#ovwWsTeam");
+        const ag = (rs[0].data && rs[0].data.agents) || [];
+        const wf = (rs[1].data && rs[1].data.workflows) || [];
+        const sk = (rs[2].data && rs[2].data.skills) || [];
+        if (team) {
+          const chip = (rel, ten) => `<button type="button" class="ovw-cap ovw-cap-lk" data-file="${esc(rel)}" title="${esc(rel)}">${esc(ten)}</button>`;
+          const capLine = (nhan, arr, mk) => arr.length ? `<div class="ovw-capline"><span class="ov-dim">${esc(nhan)}</span>${arr.slice(0, 10).map(mk).join("")}${arr.length > 10 ? `<span class="ov-dim">+${arr.length - 10}</span>` : ""}</div>` : "";
+          team.innerHTML =
+            (ag.length ? `<div class="ovw-agents">${ag.map((a) => `<div class="ovw-agent">
+                <span class="ovw-agent-n"><b>${esc(a.name || a.slug)}</b>${a.role ? `<i>${esc(a.role)}</i>` : ""}</span>
+                <button type="button" class="ovw-icbtn" data-file="agents/${esc(a.slug)}.md" title="${esc(t("ov.ws_agent_file"))}">${ic("pen-line")}</button>
+                <button type="button" class="ovw-icbtn ovw-agent-ask" data-slug="${esc(a.slug)}" title="${esc(t("ov.ws_agent_ask"))}">${ic("send")}</button>
+              </div>`).join("")}</div>` : "")
+            + (o.teamFull === false ? "" :
+              capLine(t("ov.dw_workflows"), wf, (x) => chip("workflows/" + x.slug + ".md", x.name || x.slug))
+              + capLine(t("ov.dw_skills"), sk, (x) => chip((x.enabled === false ? "skills/.disabled/" : "skills/") + x.slug + "/SKILL.md", x.name || x.slug)))
+            || `<span class="ov-dim">${esc(t("ov.dw_cap_empty"))}</span>`;
+          team.querySelectorAll("[data-file]").forEach((b) => (b.onclick = () => {
+            if (window.JoyceFileEditor) window.JoyceFileEditor.open(b.dataset.file, { brain: brainSel });
+          }));
+          team.querySelectorAll(".ovw-agent-ask").forEach((b) => (b.onclick = () => {
+            const slug = b.dataset.slug;
+            dongHet(); chonBrain(brainSel, p.ten);
+            // Kênh agent:<slug> trên trang Cộng sự = đường giao việc 1-1 với đúng agent đó.
+            setTimeout(() => { try { if (window.JoyceWorkspace) window.JoyceWorkspace.openCommand("agent", slug); } catch (e) {} }, 120);
+          }));
+        }
+        const sel = w.querySelector("#ovwWsARoute");
+        if (sel) wf.forEach((x) => { const o2 = document.createElement("option"); o2.value = "wf:" + x.slug; o2.textContent = x.name || x.slug; sel.appendChild(o2); });
+      }).catch(() => { const tm = w.querySelector("#ovwWsTeam"); if (tm) tm.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; });
+
+    // Vòng lặp riêng của brain phòng: file Joyce/loops/<slug>.md trong vault đó.
+    api("/loops?brain=" + eb).then((r) => {
+      if (!w.isConnected) return;
+      const box = w.querySelector("#ovwWsLoops");
+      if (!box) return;
+      const loops = (r.data && r.data.loops) || [];
+      if (!loops.length) { box.innerHTML = `<p class="ov-dim">${esc(t("ov.ws_no_loops"))}</p>`; return; }
+      box.innerHTML = loops.map((l) => `<div class="ovw-loop">
+          <span class="ovw-loop-s ${l.enabled ? "on" : "off"}">${ic(l.enabled ? "repeat" : "minus")}</span>
+          <span class="ovw-loop-n"><b>${esc(l.name || l.slug)}</b><i>${esc(t("ov.ws_loop_min", { n: l.interval_min || 0 }))}${l.enabled ? "" : " · " + esc(t("ov.ws_loop_off"))}${l.auto_paused_reason ? " · " + esc(l.auto_paused_reason) : ""}</i></span>
+          <span class="ovw-loop-r">${l.last_status ? esc(l.last_status) : ""}${l.fail_streak ? ` · ${esc(t("ov.ws_loop_fail", { n: l.fail_streak }))}` : ""}${l.next_run ? ` · ${esc(gioCapNhat(l.next_run))}` : ""}</span>
+        </div>`).join("")
+        + `<button type="button" class="ov-link" data-ws="loops">${esc(t("ov.ws_loops_go"))} ${ic("chevron-right")}</button>`;
+      const go2 = box.querySelector("[data-ws]"); if (go2) go2.onclick = denLoops;
+    });
+
+    // Kho tri thức: nguồn/wiki lấy từ dữ liệu phòng đã có, facts hỏi riêng.
+    api("/memory/stats?brain=" + eb).then((r) => {
+      if (!w.isConnected) return;
+      const box = w.querySelector("#ovwWsKnow");
+      if (!box) return;
+      const facts = r.data && r.data.facts != null ? r.data.facts : null;
+      box.innerHTML = `<div class="ov-dmetric">${[["ov.mem_sources", p.nguon], ["ov.mem_wiki", p.wiki], ["ov.mem_facts", facts]]
+          .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>
+        <p class="ov-dim ovw-sec-d">${esc(t("ov.ws_know_d"))}</p>`;
+    });
+
+    // Giao việc: tiêu đề + yêu cầu, "Chạy qua" = auto | wf:<slug>, tick Cần duyệt khi
+    // việc chạm ngoài. Việc luôn vào đúng brain phòng - tránh lỗi giao nhầm não.
+    const nutGo = w.querySelector("#ovwWsAGo");
+    if (nutGo) nutGo.onclick = async () => {
+      const title = (w.querySelector("#ovwWsATitle").value || "").trim();
+      if (!title) { try { w.querySelector("#ovwWsATitle").focus(); } catch (e) {} return; }
+      const fd = new FormData();
+      fd.append("title", title);
+      fd.append("intent", w.querySelector("#ovwWsAIntent").value || title);
+      fd.append("brain", bparam);
+      const route = w.querySelector("#ovwWsARoute") ? w.querySelector("#ovwWsARoute").value : "auto";
+      if (route && route !== "auto") fd.append("route", route);
+      if (w.querySelector("#ovwWsANeed").checked) fd.append("needs_approval", "1");
+      const sid = window.JoyceSessions && window.JoyceSessions.current ? window.JoyceSessions.current() : "";
+      if (sid) fd.append("chat_id", "web:" + sid);
+      const msg = w.querySelector("#ovwWsAMsg");
+      try {
+        const r = await fetch("/kanban/task", { method: "POST", body: fd, credentials: "same-origin" });
+        const rr = await r.json().catch(() => ({}));
+        msg.textContent = rr.ok ? t("ov.dw_assign_ok", { phong: p.ten }) : (rr.error || t("ov.dw_assign_err"));
+        if (rr.ok) { w.querySelector("#ovwWsATitle").value = ""; w.querySelector("#ovwWsAIntent").value = ""; }
+      } catch (e) { msg.textContent = t("ov.dw_assign_err"); }
+    };
+
+    // Ý tưởng mới: task [Ý tưởng] route qua pipeline xu-ly-y-tuong-moi của CHÍNH brain
+    // này. Pipeline đó tự chạy kể cả khi orchestration off, kết quả lưu wiki/y-tuong/
+    // và báo về chat đang mở (chat_id web:<sid>) - lối trưởng phòng đề xuất cải tiến
+    // mà không cần biết file nào.
+    w.querySelectorAll("[data-idea]").forEach((b) => (b.onclick = () => {
+      const o2 = w.querySelector("#ovwIdea"); o2.value = t(b.dataset.idea) + ": "; o2.focus();
+    }));
+    const nutIdea = w.querySelector("#ovwIdeaGo");
+    if (nutIdea) nutIdea.onclick = async () => {
+      const y = (w.querySelector("#ovwIdea").value || "").trim();
+      if (!y) { try { w.querySelector("#ovwIdea").focus(); } catch (e) {} return; }
+      const fd = new FormData();
+      fd.append("title", "[Ý tưởng] " + y.slice(0, 80));
+      fd.append("intent", y);
+      fd.append("brain", bparam);
+      fd.append("route", "wf:xu-ly-y-tuong-moi");
+      const sid = window.JoyceSessions && window.JoyceSessions.current ? window.JoyceSessions.current() : "";
+      if (sid) fd.append("chat_id", "web:" + sid);
+      const msg = w.querySelector("#ovwIdeaMsg");
+      try {
+        const r = await fetch("/kanban/task", { method: "POST", body: fd, credentials: "same-origin" });
+        const rr = await r.json().catch(() => ({}));
+        msg.textContent = rr.ok ? t("ov.ws_idea_ok", { phong: p.ten }) : (rr.error || t("ov.ws_idea_err"));
+        if (rr.ok) w.querySelector("#ovwIdea").value = "";
+      } catch (e) { msg.textContent = t("ov.ws_idea_err"); }
+    };
+  }
+
   // ---- Workspace trưởng phòng: bấm vào một phòng ------------------------------------
   function moWorkspace(p, khoiMap) {
     const old = document.getElementById("ovDrawer");
@@ -397,21 +575,24 @@
         <div class="ovw-acts">
           ${p.has_brain ? `<button type="button" class="ov-primary" data-act="assign">${ic("plus")} ${esc(t("ov.dw_assign"))}</button>` : ""}
           ${p.has_brain ? `<button type="button" class="ov-secondary" data-act="board">${ic("square-kanban")} ${esc(t("ov.dw_board"))}</button>
-          <button type="button" class="ov-secondary" data-act="brain">${ic("brain")} ${esc(t("ov.dl_brain"))}</button>` : ""}
+          <button type="button" class="ov-secondary" data-act="files">${ic("folder-open")} ${esc(t("ov.ws_files"))}</button>` : ""}
           <button type="button" class="ov-ghost" data-act="improve">${ic("sparkles")} ${esc(t("ov.dw_improve"))}</button>
           ${pill(STATUS_TONE[p.status], t(ST_KEY[p.status] || "ov.st_empty"))}
         </div>
         <div class="ovw-assign" id="ovwAssign" style="display:none">
-          <input id="ovwATitle" placeholder="${esc(t("ov.dw_assign_title"))}">
-          <textarea id="ovwAIntent" rows="2" placeholder="${esc(t("ov.dw_assign_intent"))}"></textarea>
+          <input id="ovwWsATitle" placeholder="${esc(t("ov.dw_assign_title"))}">
+          <textarea id="ovwWsAIntent" rows="2" placeholder="${esc(t("ov.dw_assign_intent"))}"></textarea>
           <div class="ovw-assign-row">
-            <label class="ovw-chk"><input type="checkbox" id="ovwANeed">${esc(t("ov.dw_need_approve"))}</label>
-            <button type="button" class="ov-primary" id="ovwAGo">${esc(t("ov.dw_assign_go"))}</button>
-            <span class="ov-dim" id="ovwAMsg"></span>
+            <label class="ov-dim ovw-route">${esc(t("ov.ws_route"))} <select id="ovwWsARoute"><option value="auto">${esc(t("ov.ws_route_auto"))}</option></select></label>
+            <label class="ovw-chk"><input type="checkbox" id="ovwWsANeed">${esc(t("ov.dw_need_approve"))}</label>
+            <button type="button" class="ov-primary" id="ovwWsAGo">${esc(t("ov.dw_assign_go"))}</button>
+            <span class="ov-dim" id="ovwWsAMsg"></span>
           </div>
         </div>
-        <div class="ov-dmetric">${[["ov.ds_done", c.done24], ["ov.ds_open", c.open], ["ov.ds_review", c.review], ["ov.ds_blocked", c.blocked], ["ov.mem_sources", p.nguon], ["ov.mem_wiki", p.wiki], ["ov.dw_staff", p.nhan_vien]]
-          .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>
+        ${p.has_brain ? wsStatHtml()
+          : `<div class="ov-dmetric">${[["ov.ds_done", c.done24], ["ov.ds_open", c.open], ["ov.ds_review", c.review], ["ov.ds_blocked", c.blocked], ["ov.mem_sources", p.nguon], ["ov.mem_wiki", p.wiki], ["ov.dw_staff", p.nhan_vien]]
+          .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>`}
+        ${p.has_brain ? wsIdeaHtml() : ""}
 
         <div class="ovw-stages">
           <div class="ovw-stage"><h4><span class="ovw-knum">01</span> ${esc(t("ov.dw_before"))}</h4>
@@ -432,6 +613,7 @@
           </div>
         </div>
         <div class="ovw-qt-khac" id="ovwQtKhac"></div>
+        ${p.has_brain ? wsInfoHtml() : ""}
 
         <div class="ovw-steps"><h4>${esc(t("ov.dw_steps"))}</h4><ul>${steps.map(stepHtml).join("")}</ul></div>
       </div></aside>`;
@@ -562,34 +744,19 @@
       if (a === "assign") {
         const f = w.querySelector("#ovwAssign");
         f.style.display = f.style.display === "none" ? "" : "none";
-        if (f.style.display !== "none") { try { w.querySelector("#ovwATitle").focus(); } catch (e) {} }
+        if (f.style.display !== "none") { try { w.querySelector("#ovwWsATitle").focus(); } catch (e) {} }
         return;
       }
-      // "brain" mở KHÔNG GIAN brain (moBrainWs) phủ LÊN TRÊN drawer - không đóng drawer,
-      // đóng workspace là quay lại đúng chỗ đang xem. Các nút còn lại rời hẳn trang nên đóng.
-      if (a === "brain") { moBrainWs(p, khoiMap); return; }
       dong();
       if (a === "board") { chonBrain(p.brain_path, p.ten); setTimeout(() => go("kanban"), 60); }
+      else if (a === "files") moBrain(p.brain_path, p.ten);
       else if (a === "improve") hoiJoyce(t("ov.dw_improve_q", { phong: p.ten, vai: p.vai || "", nhiemvu: (p.nhiem_vu || []).join("; "), daura: k.dau_ra || "" }));
     }));
 
-    // Giao việc thẳng vào hàng đợi Kanban CỦA brain phòng này.
-    const nutGo = w.querySelector("#ovwAGo");
-    if (nutGo) nutGo.onclick = async () => {
-      const title = (w.querySelector("#ovwATitle").value || "").trim();
-      if (!title) { try { w.querySelector("#ovwATitle").focus(); } catch (e) {} return; }
-      const fd = new FormData();
-      fd.append("title", title);
-      fd.append("intent", w.querySelector("#ovwAIntent").value || title);
-      fd.append("brain", p.brain_path || p.brain || "brain");
-      if (w.querySelector("#ovwANeed").checked) fd.append("needs_approval", "1");
-      const msg = w.querySelector("#ovwAMsg");
-      try {
-        const r = await fetch("/kanban/task", { method: "POST", body: fd, credentials: "same-origin" });
-        const rr = await r.json().catch(() => ({}));
-        msg.textContent = rr.ok ? t("ov.dw_assign_ok", { phong: p.ten }) : (rr.error || t("ov.dw_assign_err"));
-      } catch (e) { msg.textContent = t("ov.dw_assign_err"); }
-    };
+    // Không gian brain của phòng nằm NGAY TRONG drawer này: hiện trạng, ý tưởng, đội
+    // hình (giao việc 1-1 cho agent), việc phòng, loop riêng, kho tri thức. Trưởng phòng
+    // mở phòng ra là có đủ màn làm việc, không phải đi đọc cây thư mục.
+    if (p.has_brain) napWs(w, p, { teamFull: false, statsExtra: [["ov.dw_staff", p.nhan_vien]], dongHet: dong });
     setTimeout(() => { try { w.querySelector(".ov-close").focus(); } catch (e) {} }, 30);
   }
 
@@ -603,8 +770,6 @@
     const old = document.getElementById("ovBrainWs");
     if (old) { if (typeof old.__dong === "function") old.__dong(); else old.remove(); }
     const k = (khoiMap || {})[p.khoi_id] || {};
-    const bparam = p.brain || "brain";
-    const eb = encodeURIComponent(bparam);
     const w = document.createElement("div");
     w.id = "ovBrainWs";
     w.innerHTML = `<div class="ov-backdrop"></div><aside class="ov-drawer ovw-ws" role="dialog" aria-modal="true" aria-label="${esc(p.ten)}">
@@ -618,18 +783,8 @@
           <button type="button" class="ov-secondary" data-ws="files">${ic("folder-open")} ${esc(t("ov.ws_files"))}</button>
           <button type="button" class="ov-ghost" data-ws="improve">${ic("sparkles")} ${esc(t("ov.dw_improve"))}</button>
         </div>
-        <div class="ov-dmetric" id="ovwWsStat">${ic("loader", { cls: "ic-spin" })}</div>
-
-        <section class="ovw-sec"><h4>${ic("lightbulb")} ${esc(t("ov.ws_idea"))}</h4>
-          <p class="ov-dim ovw-sec-d">${esc(t("ov.ws_idea_d"))}</p>
-          <div class="ovw-ichips">${["ov.ws_idea_c1", "ov.ws_idea_c2", "ov.ws_idea_c3"].map((kk) => `<button type="button" class="ov-chip" data-idea="${esc(kk)}">${esc(t(kk))}</button>`).join("")}</div>
-          <textarea id="ovwIdea" rows="2" placeholder="${esc(t("ov.ws_idea_ph"))}"></textarea>
-          <div class="ovw-assign-row">
-            <button type="button" class="ov-primary" id="ovwIdeaGo">${ic("send")} ${esc(t("ov.ws_idea_go"))}</button>
-            <span class="ov-dim" id="ovwIdeaMsg"></span>
-          </div>
-        </section>
-
+        ${wsStatHtml()}
+        ${wsIdeaHtml()}
         <section class="ovw-sec"><h4>${ic("plus")} ${esc(t("ov.dw_assign"))}</h4>
           <div class="ovw-assign" style="display:block">
             <input id="ovwWsATitle" placeholder="${esc(t("ov.dw_assign_title"))}">
@@ -642,11 +797,7 @@
             </div>
           </div>
         </section>
-
-        <section class="ovw-sec"><h4>${ic("users")} ${esc(t("ov.ws_team"))}</h4><div id="ovwWsTeam">${ic("loader", { cls: "ic-spin" })}</div></section>
-        <section class="ovw-sec"><h4>${ic("square-kanban")} ${esc(t("ov.ws_tasks"))}</h4><div id="ovwWsTasks">${ic("loader", { cls: "ic-spin" })}</div></section>
-        <section class="ovw-sec"><h4>${ic("repeat")} ${esc(t("ov.ws_loops"))}</h4><div id="ovwWsLoops">${ic("loader", { cls: "ic-spin" })}</div></section>
-        <section class="ovw-sec"><h4>${ic("brain")} ${esc(t("ov.ws_know"))}</h4><div id="ovwWsKnow">${ic("loader", { cls: "ic-spin" })}</div></section>
+        ${wsInfoHtml()}
       </div></aside>`;
     document.body.appendChild(w);
 
@@ -663,160 +814,24 @@
       nutFull.innerHTML = ic(on ? "minimize" : "maximize");
       nutFull.title = t(on ? "ov.dw_full_off" : "ov.dw_full");
     };
-    // Rời trang = đóng cả workspace LẪN drawer phòng bên dưới, không thì người dùng quay
-    // lại thấy hai lớp phủ chồng nhau.
+    // Roi trang = dong ca workspace LAN drawer phong ben duoi, khong thi nguoi dung quay
+    // lai thay hai lop phu chong nhau.
     const dongHet = () => {
       dong();
       const d = document.getElementById("ovDrawer");
       if (d && typeof d.__dong === "function") d.__dong(); else if (d) d.remove();
     };
-    const moTask = (id) => {
-      dongHet(); chonBrain(p.brain_path || "brain", p.ten); go("kanban");
-      if (id) setTimeout(() => { try { if (window.JoyceKanbanShow) window.JoyceKanbanShow(id); } catch (e) {} }, 250);
-    };
 
     w.querySelectorAll("[data-ws]").forEach((b) => (b.onclick = () => {
       const a = b.dataset.ws;
-      if (a === "board") moTask("");
+      if (a === "board") { dongHet(); chonBrain(p.brain_path || "brain", p.ten); go("kanban"); }
       else if (a === "files") { dongHet(); moBrain(p.brain_path || "brain", p.ten); }
-      else if (a === "loops") { dongHet(); chonBrain(p.brain_path || "brain", p.ten); setTimeout(() => go("selfimprove"), 60); }
       else if (a === "improve") {
         dongHet(); chonBrain(p.brain_path || "brain", p.ten);
         setTimeout(() => hoiJoyce(t("ov.dw_improve_q", { phong: p.ten, vai: p.vai || "", nhiemvu: (p.nhiem_vu || []).join("; "), daura: k.dau_ra || "" })), 120);
       }
     }));
-
-    // Hiện trạng + bảng việc: một GET /kanban cho cả hai.
-    api("/kanban?brain=" + eb).then((r) => {
-      if (!w.isConnected) return;
-      const stat = w.querySelector("#ovwWsStat"), tk = w.querySelector("#ovwWsTasks");
-      const mode = w.querySelector("#ovwWsMode");
-      if (!r.ok) { stat.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; tk.innerHTML = ""; return; }
-      const d = r.data || {}, cnt = d.counts || {}, cols = d.columns || {};
-      const ORCH = { off: "ov.ws_orch_off", manual: "ov.ws_orch_manual", auto: "ov.ws_orch_auto" };
-      const orchTxt = t(ORCH[d.orchestration] || "ov.ws_orch_off");
-      if (mode) mode.textContent = orchTxt;
-      const queue = (cnt.triage || 0) + (cnt.todo || 0) + (cnt.ready || 0);
-      stat.innerHTML = [["ov.ws_orch", orchTxt], ["ov.ws_col_queue", queue], ["ov.ws_col_running", cnt.running || 0],
-        ["ov.ds_review", cnt.review || 0], ["ov.ds_blocked", cnt.blocked || 0], ["ov.ds_done", d.completed_24h || 0]]
-        .map(([kk, v]) => `<div><strong>${esc(String(v))}</strong><span>${esc(t(kk))}</span></div>`).join("");
-      const li = (x) => `<button type="button" class="ovw-task" data-tid="${esc(x.id || "")}"><span>${esc(x.title || "")}</span>${x.needs_approval ? `<i>${ic("circle-check")}</i>` : ""}</button>`;
-      const grp = (nhan, arr, cls) => arr.length ? `<div class="ovw-tgrp ${cls}"><b>${esc(nhan)} · ${arr.length}</b>${arr.slice(0, 6).map(li).join("")}${arr.length > 6 ? `<span class="ov-dim">+${arr.length - 6}</span>` : ""}</div>` : "";
-      const q = (cols.triage || []).concat(cols.todo || [], cols.ready || []);
-      const html = grp(t("ov.ws_col_running"), cols.running || [], "run")
-        + grp(t("ov.ws_col_queue"), q, "wait") + grp(t("ov.ws_col_review"), cols.review || [], "rev")
-        + grp(t("ov.ws_col_blocked"), cols.blocked || [], "blk");
-      tk.innerHTML = html || `<p class="ov-dim">${esc(t("ov.ws_no_tasks"))}</p>`;
-      tk.querySelectorAll("[data-tid]").forEach((b) => (b.onclick = () => moTask(b.dataset.tid)));
-    });
-
-    // Đội hình: agent (giao việc 1-1 qua kênh agent:<slug>) + workflow + kỹ năng.
-    // Workflow còn đổ vào ô "Chạy qua" của form giao việc -> route wf:<slug>.
-    Promise.all([api("/agents?brain=" + eb + "&prompt=0"), api("/workflows?brain=" + eb), api("/skills?brain=" + eb)])
-      .then((rs) => {
-        if (!w.isConnected) return;
-        const team = w.querySelector("#ovwWsTeam");
-        const ag = (rs[0].data && rs[0].data.agents) || [];
-        const wf = (rs[1].data && rs[1].data.workflows) || [];
-        const sk = (rs[2].data && rs[2].data.skills) || [];
-        const chip = (rel, ten) => `<button type="button" class="ovw-cap ovw-cap-lk" data-file="${esc(rel)}" title="${esc(rel)}">${esc(ten)}</button>`;
-        const capLine = (nhan, arr, mk) => arr.length ? `<div class="ovw-capline"><span class="ov-dim">${esc(nhan)}</span>${arr.slice(0, 10).map(mk).join("")}${arr.length > 10 ? `<span class="ov-dim">+${arr.length - 10}</span>` : ""}</div>` : "";
-        team.innerHTML =
-          (ag.length ? `<div class="ovw-agents">${ag.map((a) => `<div class="ovw-agent">
-              <span class="ovw-agent-n"><b>${esc(a.name || a.slug)}</b>${a.role ? `<i>${esc(a.role)}</i>` : ""}</span>
-              <button type="button" class="ovw-icbtn" data-file="agents/${esc(a.slug)}.md" title="${esc(t("ov.ws_agent_file"))}">${ic("pen-line")}</button>
-              <button type="button" class="ovw-icbtn ovw-agent-ask" data-slug="${esc(a.slug)}" title="${esc(t("ov.ws_agent_ask"))}">${ic("send")}</button>
-            </div>`).join("")}</div>` : "")
-          + capLine(t("ov.dw_workflows"), wf, (x) => chip("workflows/" + x.slug + ".md", x.name || x.slug))
-          + capLine(t("ov.dw_skills"), sk, (x) => chip((x.enabled === false ? "skills/.disabled/" : "skills/") + x.slug + "/SKILL.md", x.name || x.slug))
-          || `<span class="ov-dim">${esc(t("ov.dw_cap_empty"))}</span>`;
-        team.querySelectorAll("[data-file]").forEach((b) => (b.onclick = () => {
-          if (window.JoyceFileEditor) window.JoyceFileEditor.open(b.dataset.file, { brain: p.brain_path || "brain" });
-        }));
-        team.querySelectorAll(".ovw-agent-ask").forEach((b) => (b.onclick = () => {
-          const slug = b.dataset.slug;
-          dongHet(); chonBrain(p.brain_path || "brain", p.ten);
-          // Kênh agent:<slug> trên trang Cộng sự = đường giao việc 1-1 với đúng agent đó.
-          setTimeout(() => { try { if (window.JoyceWorkspace) window.JoyceWorkspace.openCommand("agent", slug); } catch (e) {} }, 120);
-        }));
-        const sel = w.querySelector("#ovwWsARoute");
-        if (sel) wf.forEach((x) => { const o = document.createElement("option"); o.value = "wf:" + x.slug; o.textContent = x.name || x.slug; sel.appendChild(o); });
-      }).catch(() => { if (w.isConnected) w.querySelector("#ovwWsTeam").innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; });
-
-    // Vòng lặp riêng của brain phòng: file Joyce/loops/<slug>.md trong vault đó.
-    api("/loops?brain=" + eb).then((r) => {
-      if (!w.isConnected) return;
-      const box = w.querySelector("#ovwWsLoops");
-      const loops = (r.data && r.data.loops) || [];
-      if (!loops.length) { box.innerHTML = `<p class="ov-dim">${esc(t("ov.ws_no_loops"))}</p>`; return; }
-      box.innerHTML = loops.map((l) => `<div class="ovw-loop">
-          <span class="ovw-loop-s ${l.enabled ? "on" : "off"}">${ic(l.enabled ? "repeat" : "minus")}</span>
-          <span class="ovw-loop-n"><b>${esc(l.name || l.slug)}</b><i>${esc(t("ov.ws_loop_min", { n: l.interval_min || 0 }))}${l.enabled ? "" : " · " + esc(t("ov.ws_loop_off"))}${l.auto_paused_reason ? " · " + esc(l.auto_paused_reason) : ""}</i></span>
-          <span class="ovw-loop-r">${l.last_status ? esc(l.last_status) : ""}${l.fail_streak ? ` · ${esc(t("ov.ws_loop_fail", { n: l.fail_streak }))}` : ""}${l.next_run ? ` · ${esc(gioCapNhat(l.next_run))}` : ""}</span>
-        </div>`).join("")
-        + `<button type="button" class="ov-link" data-ws="loops">${esc(t("ov.ws_loops_go"))} ${ic("chevron-right")}</button>`;
-      const go2 = box.querySelector("[data-ws]"); if (go2) go2.onclick = () => { dongHet(); chonBrain(p.brain_path || "brain", p.ten); setTimeout(() => go("selfimprove"), 60); };
-    });
-
-    // Kho tri thức: nguồn/wiki lấy từ dữ liệu phòng đã có, facts hỏi riêng.
-    Promise.all([api("/memory/stats?brain=" + eb)]).then((rs) => {
-      if (!w.isConnected) return;
-      const box = w.querySelector("#ovwWsKnow");
-      const facts = rs[0].data && rs[0].data.facts != null ? rs[0].data.facts : null;
-      box.innerHTML = `<div class="ov-dmetric">${[["ov.mem_sources", p.nguon], ["ov.mem_wiki", p.wiki], ["ov.mem_facts", facts]]
-          .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>
-        <p class="ov-dim ovw-sec-d">${esc(t("ov.ws_know_d"))}</p>`;
-    });
-
-    // Giao việc: giống form trong drawer nhưng thêm ô "Chạy qua" (route auto | wf:<slug>).
-    const nutGo = w.querySelector("#ovwWsAGo");
-    if (nutGo) nutGo.onclick = async () => {
-      const title = (w.querySelector("#ovwWsATitle").value || "").trim();
-      if (!title) { try { w.querySelector("#ovwWsATitle").focus(); } catch (e) {} return; }
-      const fd = new FormData();
-      fd.append("title", title);
-      fd.append("intent", w.querySelector("#ovwWsAIntent").value || title);
-      fd.append("brain", bparam);
-      const route = w.querySelector("#ovwWsARoute").value;
-      if (route && route !== "auto") fd.append("route", route);
-      if (w.querySelector("#ovwWsANeed").checked) fd.append("needs_approval", "1");
-      const sid = window.JoyceSessions && window.JoyceSessions.current ? window.JoyceSessions.current() : "";
-      if (sid) fd.append("chat_id", "web:" + sid);
-      const msg = w.querySelector("#ovwWsAMsg");
-      try {
-        const r = await fetch("/kanban/task", { method: "POST", body: fd, credentials: "same-origin" });
-        const rr = await r.json().catch(() => ({}));
-        msg.textContent = rr.ok ? t("ov.dw_assign_ok", { phong: p.ten }) : (rr.error || t("ov.dw_assign_err"));
-        if (rr.ok) { w.querySelector("#ovwWsATitle").value = ""; w.querySelector("#ovwWsAIntent").value = ""; }
-      } catch (e) { msg.textContent = t("ov.dw_assign_err"); }
-    };
-
-    // Ý tưởng mới: task [Ý tưởng] route qua pipeline xu-ly-y-tuong-moi của CHÍNH brain này.
-    // Pipeline đó tự chạy kể cả khi orchestration off, kết quả lưu wiki/y-tuong/ và báo
-    // về chat đang mở (chat_id web:<sid>) - nên đây là lối trưởng phòng đề xuất cải tiến
-    // mà không cần biết file nào.
-    w.querySelectorAll("[data-idea]").forEach((b) => (b.onclick = () => {
-      const o = w.querySelector("#ovwIdea"); o.value = t(b.dataset.idea) + ": "; o.focus();
-    }));
-    const nutIdea = w.querySelector("#ovwIdeaGo");
-    if (nutIdea) nutIdea.onclick = async () => {
-      const y = (w.querySelector("#ovwIdea").value || "").trim();
-      if (!y) { try { w.querySelector("#ovwIdea").focus(); } catch (e) {} return; }
-      const fd = new FormData();
-      fd.append("title", "[Ý tưởng] " + y.slice(0, 80));
-      fd.append("intent", y);
-      fd.append("brain", bparam);
-      fd.append("route", "wf:xu-ly-y-tuong-moi");
-      const sid = window.JoyceSessions && window.JoyceSessions.current ? window.JoyceSessions.current() : "";
-      if (sid) fd.append("chat_id", "web:" + sid);
-      const msg = w.querySelector("#ovwIdeaMsg");
-      try {
-        const r = await fetch("/kanban/task", { method: "POST", body: fd, credentials: "same-origin" });
-        const rr = await r.json().catch(() => ({}));
-        msg.textContent = rr.ok ? t("ov.ws_idea_ok", { phong: p.ten }) : (rr.error || t("ov.ws_idea_err"));
-        if (rr.ok) w.querySelector("#ovwIdea").value = "";
-      } catch (e) { msg.textContent = t("ov.ws_idea_err"); }
-    };
+    napWs(w, p, { teamFull: true, dongHet: dongHet });
     setTimeout(() => { try { w.querySelector(".ov-close").focus(); } catch (e) {} }, 30);
   }
 
