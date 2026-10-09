@@ -266,7 +266,7 @@
     elBody.innerHTML = '<iframe class="jvfe-frame" src="' + esc(rawUrl(b, ceil)) + '"></iframe>';
   }
   function renderReadonly(b, ceil, brainRel, d) {
-    elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
+    elActions.appendChild(askJoyceBtn(b, brainRel)); elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
     elBody.innerHTML = '<div class="jvfe-prev"><pre style="white-space:pre-wrap;margin:0">' + esc(d.content || "") + "</pre></div>";
   }
   function renderError(b, ceil, brainRel, msg) {
@@ -289,6 +289,47 @@
     a.href = rawUrl(b, ceil); a.target = "_blank"; a.rel = "noopener"; a.title = tw("fedit.open_tab");
     a.innerHTML = '<button class="jvfe-btn icon" type="button">↗</button>';
     return a;
+  }
+
+  // ---- Nut NHO JOYCE SUA: nhay sang chat cua DUNG brain chua file, keo san duong dan ----
+  // Bat ky file text nao mo trong khung nay (tu drawer phong, trang Tep tin, link trong
+  // chat...) deu co nut nay - mot nut duy nhat tren thanh modal thay vi icon tren tung link,
+  // theo yeu cau chu du an: "bat ky file md nao click duoc chuyen nhanh sang chat Joyce".
+  // Chi dien san cau lenh kem duong dan file, KHONG tu gui - nguoi dung viet tiep yeu cau.
+  function askJoyceBtn(b, brainRel) {
+    var btn = document.createElement("button");
+    btn.className = "jvfe-btn icon"; btn.type = "button";
+    btn.innerHTML = ic("message-circle");
+    btn.title = tw("fedit.ask_joyce");
+    btn.onclick = function () {
+      // File co the thuoc brain phong khac brain dang chon: chuyen bo chon sang brain do
+      // truoc, de cau hoi roi vao dung ngu canh (cung cach bo chon brain tren navbar lam).
+      var sel = document.getElementById("graphSource");
+      // Chi doi bo chon khi b la PATH tuyet doi (chua /, \ hay o dia). Neu b la ten brain
+      // hoac "brain" mac dinh thi thoi - path:ten se tro sai cho khong resolve duoc.
+      if (sel && b && b !== "brain" && /[\\/:]/.test(b)) {
+        var want = "path:" + b, found = false;
+        for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === want) { found = true; break; }
+        if (!found) {
+          var o = document.createElement("option");
+          o.value = want; o.textContent = String(b).split(/[\\/]/).pop();
+          o.dataset.brain = "1"; o.dataset.brainName = o.textContent;
+          sel.appendChild(o);
+        }
+        sel.value = want;
+        try { localStorage.setItem("joyce.graphSource", want); } catch (e) {}
+        sel.dispatchEvent(new Event("change"));
+      }
+      close();
+      try { var s = window.Alpine && window.Alpine.store("nav"); if (s && s.go) s.go("chat"); } catch (e) {}
+      setTimeout(function () {
+        var inp = document.getElementById("chatInput");
+        if (!inp) return;
+        inp.value = tw("fedit.ask_q", { file: brainRel });
+        try { inp.dispatchEvent(new Event("input", { bubbles: true })); inp.focus(); } catch (e) {}
+      }, 90);
+    };
+    return btn;
   }
 
   // ---- Nut CHIA SE: mot duong link ai cam cung xem duoc, KHONG can dang nhap ----
@@ -394,8 +435,8 @@
     }
   }
 
-  // Nut Luu (dung getContent de lay noi dung THAT theo che do dang mo) + Tai + Dong.
-  function appendSaveAndClose(b, ceil, getContent) {
+  // Nut Luu (dung getContent de lay noi dung THAT theo che do dang mo) + nho Joyce + Tai + Dong.
+  function appendSaveAndClose(b, ceil, brainRel, getContent) {
     var save = document.createElement("button");
     save.className = "jvfe-btn"; save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.title = tw("fedit.save_title");
     curSave = function () {
@@ -415,6 +456,7 @@
     };
     save.onclick = curSave;
     elActions.appendChild(save);
+    elActions.appendChild(askJoyceBtn(b, brainRel));
     elActions.appendChild(shareBtn(b, ceil));
     elActions.appendChild(openLink(b, ceil));
     elActions.appendChild(dlLink(b, ceil));
@@ -440,7 +482,7 @@
       var lang = window.JoyceCodeHL ? window.JoyceCodeHL.langFromPath(ceil) : "";
       if (lang) window.JoyceCodeHL.attach(ta, lang);
     } catch (e) {}
-    appendSaveAndClose(b, ceil, function () { return ta.value; });
+    appendSaveAndClose(b, ceil, brainRel, function () { return ta.value; });
     focusNeuDuocPhep(ta);
   }
 
@@ -492,7 +534,7 @@
     seg.appendChild(bWys); seg.appendChild(bSrc); elActions.appendChild(seg);
 
     NE.buildToolbar(neBody.querySelector(".ne-fmt"), { mode: function () { return curMode; }, ta: ta, wys: wys });
-    appendSaveAndClose(b, ceil, mdGetter);
+    appendSaveAndClose(b, ceil, brainRel, mdGetter);
 
     // Vao che do Sua (WYSIWYG) khi Turndown san sang; offline khong nap duoc thi o lai Nguon (van sua tot).
     if (window.TurndownService) { setMode("wys"); focusNeuDuocPhep(wys); }

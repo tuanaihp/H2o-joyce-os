@@ -481,6 +481,12 @@
         window.JoyceFileEditor.open(it.rel, { brain: p.brain_path });
         return;
       }
+      hoiQuyTrinh(it);
+    };
+    // Icon chat chi hien khi hover dong quy trinh: nhay sang chat cua brain phong keo theo
+    // duong dan file san trong cau lenh - chu du an: "click chuyen nhanh sang khung chat
+    // joyce de nho chinh sua file do" ma khong de icon thuong truc cho roi mat.
+    const hoiQuyTrinh = (it) => {
       dong();
       if (p.brain_path) moBrain(p.brain_path, p.ten);
       setTimeout(() => hoiJoyce(t("ov.dw_qt_prompt", { ten: it.ten, file: it.rel, phong: p.ten })), 120);
@@ -489,9 +495,12 @@
       if (!hop) return;
       if (!ds.length) { hop.innerHTML = ""; return; }
       hop.innerHTML = `<div class="ovw-qt-h">${ic("scroll")} ${esc(nhan)} <b>${ds.length}</b></div>`
-        + ds.map((it, i) => `<button type="button" class="ovw-qt-i" data-i="${i}" title="${esc(it.rel)}">
-            <span>${esc(it.ten)}</span>${ic("pen-line")}</button>`).join("");
-      hop.querySelectorAll(".ovw-qt-i").forEach((b) => (b.onclick = () => moQuyTrinh(ds[+b.dataset.i])));
+        + ds.map((it, i) => `<div class="ovw-qt-i" title="${esc(it.rel)}">`
+          + `<button type="button" class="ovw-qt-open" data-i="${i}"><span>${esc(it.ten)}</span>${ic("pen-line")}</button>`
+          + `<button type="button" class="ovw-qt-chat" data-i="${i}" title="${esc(t("ov.dw_qt_chat"))}">${ic("message-circle")}</button>`
+          + `</div>`).join("");
+      hop.querySelectorAll(".ovw-qt-open").forEach((b) => (b.onclick = () => moQuyTrinh(ds[+b.dataset.i])));
+      hop.querySelectorAll(".ovw-qt-chat").forEach((b) => (b.onclick = () => hoiQuyTrinh(ds[+b.dataset.i])));
     };
     if (p.has_brain) {
       api("/api/joyce/v1/overview/quy-trinh?brain=" + encodeURIComponent(p.brain_path)).then((rq) => {
