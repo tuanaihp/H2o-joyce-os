@@ -55,6 +55,7 @@ _write_update_state = update_state.write_state
 _record_boot_version = update_state.record_boot_version
 _update_outcome = update_state.update_outcome
 import git_brain
+import file_trash   # thùng rác cho file/thư mục xoá trong brain (phục hồi được, giữ 30 ngày)
 import engine
 import openai_oauth
 import claude_update   # tự chạy `claude update` hằng ngày để model mới hiện ra
@@ -834,8 +835,48 @@ def _agent_assets_block(brain: str, meta: dict) -> str:
 H2O_CHUNG_MEM_MAX = 3000
 
 
+H2O_KHOI_PHONG_MAX = 14   # số phòng liệt kê kèm đường dẫn trong prompt brain khối
+
+
+def _h2o_khoi_block(khoi: dict) -> str:
+    """Brain đang làm việc là brain CẤP KHỐI: nó đứng TRÊN các phòng của khối.
+
+    Khối từng chỉ là nhãn nhóm trong dropdown nên không có chỗ nào đứng để hỏi "tổng cả khối".
+    Đứng ở đây Joyce được ĐỌC brain từng phòng để trả lời câu tổng hợp, nhưng ranh giới GHI vẫn
+    giữ nguyên: việc của một phòng ghi vào brain phòng đó."""
+    base = Path(BRAINS_DIR)
+    brand = h2o_departments.brand_of_khoi(khoi) or {}
+    brand_ten = brand.get("ten") or "H2O Studio"
+    phong = h2o_departments.phong_of_khoi(khoi.get("id"))
+    out = ("\n\n# === PHÒNG BAN H2O ===\n"
+           f"Brain đang làm việc là brain CẤP KHỐI **{khoi.get('ten')}** của {brand_ten}, đứng "
+           f"trên {len(phong)} phòng trong khối chứ không phải một phòng cụ thể.")
+    if khoi.get("boi_canh"):
+        out += f"\n{khoi['boi_canh']}"
+    if phong:
+        out += ("\n\n## Các phòng trong khối - ĐỌC được để trả lời câu tổng hợp\n"
+                "Câu hỏi về cả khối (tổng doanh số, so sánh giữa các phòng, tình hình chung) thì "
+                "ĐỌC thẳng brain của từng phòng dưới đây rồi cộng lại và nói rõ số nào của phòng "
+                "nào. KHÔNG trả lời là không có dữ liệu chỉ vì brain khối này còn trống:\n")
+        for p in phong[:H2O_KHOI_PHONG_MAX]:
+            out += f"- **{p.get('ten')}** ({p.get('vai') or ''}): `{base / p['brain']}`\n"
+        if len(phong) > H2O_KHOI_PHONG_MAX:
+            out += f"- ... và {len(phong) - H2O_KHOI_PHONG_MAX} phòng nữa trong sổ phòng ban.\n"
+    out += ("\n## Ghi vào đâu\n"
+            "- Kiến thức dùng chung CẢ KHỐI (quy trình chung, định mức, tổng kết khối): ghi vào "
+            "brain khối này.\n"
+            "- Việc, trí nhớ, ghi chú của MỘT phòng: ghi vào brain phòng đó, không gom về đây.\n")
+    shared = base / h2o_departments.shared_brain_of_brand(brand)
+    if shared.is_dir():
+        out += f"- Kiến thức chung toàn {brand_ten} nằm ở brain chung `{shared}`: chỉ ĐỌC, không ghi.\n"
+    return out
+
+
 def _h2o_phong_block(brain: str) -> str:
     root = Path(_brain_root(brain))
+    kh = h2o_departments.khoi_by_brain(root.name)
+    if kh:
+        return _h2o_khoi_block(kh)
     ph = h2o_departments.phong_by_brain(root.name)
     rieng = (not ph) and root.parent.name == "staff_workspaces"
     if not ph and not rieng:
@@ -6176,20 +6217,37 @@ def _list_brains_sync(scope: tuple = None) -> dict:
     _kh_bid = {k.get("id"): k.get("brand") or h2o_departments.DEFAULT_BRAND_ID for k in _reg["khoi"]}
     _sh_bid = {str(b.get("shared_brain") or "").lower(): b.get("id")
                for b in _reg.get("brands", []) if b.get("shared_brain")}
+    # Brain CẤP KHỐI: thư mục brain -> khối. Phòng giữ quyền ưu tiên tên thư mục, nên khối bị
+    # một phòng chiếm mất tên thì không có mục "toàn khối" (xem h2o_departments.khoi_by_brain).
+    _kb = {}
+    for _k in _reg["khoi"]:
+        _kbn = h2o_departments.khoi_brain_folder(_k)
+        if _kbn and _kbn.lower() not in _ph:
+            _kb[_kbn.lower()] = _k
     _scope_n = [os.path.normcase(x) for x in (scope or ())]
+
+    def _nhom_khoi(khoi_ten, brand_ten):
+        # Nhóm dropdown = "Thương hiệu · Khối" với brand ngoài H2O Studio mặc định;
+        # khối trùng tên brand (khối "ThuyH2O" của brand ThuyH2O) chỉ ghi tên brand.
+        if brand_ten and brand_ten != "H2O Studio":
+            return khoi_ten if khoi_ten.lower() == brand_ten.lower() else f"{brand_ten} · {khoi_ten}"
+        return khoi_ten
 
     def _meta(item, name):
         ph = _ph.get(name.lower())
+        kb = _kb.get(name.lower())
         if ph:
-            # Nhóm dropdown = "Thương hiệu · Khối" với brand ngoài H2O Studio mặc định;
-            # khối trùng tên brand (khối "ThuyH2O" của brand ThuyH2O) chỉ ghi tên brand.
             khoi_ten = _kh.get(ph.get("khoi_id")) or ""
             brand_ten = _kh_brand.get(ph.get("khoi_id")) or ""
-            group = khoi_ten
-            if brand_ten and brand_ten != "H2O Studio":
-                group = khoi_ten if khoi_ten.lower() == brand_ten.lower() else f"{brand_ten} · {khoi_ten}"
-            item.update(label=ph.get("ten") or name, group=group, brand=brand_ten,
-                        phong_id=ph.get("id"), brand_id=_kh_bid.get(ph.get("khoi_id")))
+            item.update(label=ph.get("ten") or name, group=_nhom_khoi(khoi_ten, brand_ten),
+                        brand=brand_ten, phong_id=ph.get("id"),
+                        brand_id=_kh_bid.get(ph.get("khoi_id")))
+        elif kb:
+            khoi_ten = kb.get("ten") or name
+            brand_ten = _br.get(kb.get("brand")) or ""
+            item.update(label=khoi_ten, group=_nhom_khoi(khoi_ten, brand_ten), brand=brand_ten,
+                        khoi_id=kb.get("id"), khoi_brain=True,
+                        brand_id=kb.get("brand") or h2o_departments.DEFAULT_BRAND_ID)
         elif name.lower() in _sh:
             item.update(label=name, group=_sh[name.lower()] or "Chung", shared=True,
                         brand_id=_sh_bid.get(name.lower()))
@@ -6227,6 +6285,22 @@ def _list_brains_sync(scope: tuple = None) -> dict:
                               "is_default": is_default and not scope}, p.name))
     except Exception as e:
         return {"dir": str(base), "brains": [], "error": str(e)}
+    # Mục "toàn khối": số note hiện trong dropdown là TỔNG của khối (thư mục khối + mọi brain
+    # phòng trong khối). Chủ chọn khối chính là để hỏi con số tổng, nên hiện số riêng của thư
+    # mục khối (0 lúc mới dựng) sẽ trả lời sai câu người dùng đang hỏi. Số riêng giữ ở notes_own.
+    if _kb:
+        _n = {str(b.get("name") or "").lower(): b for b in out}
+        for b in out:
+            if not b.get("khoi_brain"):
+                continue
+            b["notes_own"] = b.get("notes") or 0
+            tong, cap = b["notes_own"], bool(b.get("notes_capped"))
+            for p in h2o_departments.phong_of_khoi(b.get("khoi_id")):
+                pb = _n.get(str(p.get("brain") or "").lower())
+                if pb:
+                    tong += pb.get("notes") or 0
+                    cap = cap or bool(pb.get("notes_capped"))
+            b["notes"], b["notes_capped"] = tong, cap
     if scope:
         # Không gian riêng (nhân viên chưa gán phòng) nằm ngoài BRAINS_DIR, vẫn phải hiện.
         da_co = {os.path.normcase(str(Path(b["path"]).resolve())) for b in out}
@@ -6620,7 +6694,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
 async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
     f = _agents_dir(brain) / f"{slug}.md"
     if f.exists():
-        f.unlink()
+        # Qua thùng rác: prompt của một agent là thứ người dùng viết tay, xoá thẳng là mất hẳn.
+        file_trash.bo_vao(f, brain=brain, rel=f"agents/{slug}.md")
     return {"ok": True}
 
 
@@ -6931,10 +7006,16 @@ async def delete_skill(slug: str = Form(...), brain: str = Form("brain")):
                root / ".claude" / "skills" / slug, root / ".claude" / "skills" / ".disabled" / slug,
                root / ".agents" / slug]
     found = False
-    for d in targets:
+    for i, d in enumerate(targets):
         if d.is_dir():
             try:
-                shutil.rmtree(d)
+                # Bản canonical (targets[0]) vào THÙNG RÁC để phục hồi được - know-how trong
+                # SKILL.md là người dùng viết. Các bản mirror/legacy chỉ là bản sao do app
+                # sinh ra, xoá hẳn cho gọn thùng rác.
+                if i == 0:
+                    file_trash.bo_vao(d, brain=brain, rel=f"skills/{slug}")
+                else:
+                    shutil.rmtree(d)
                 found = True
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
@@ -7394,14 +7475,51 @@ async def files_delete(brain: str = Form("brain"), path: str = Form(...)):
         return JSONResponse({"error": "Không thể xoá thư mục gốc / brain"}, status_code=400)
     if _khoa_he_thong_chan(brain, p):
         return _khoa_resp()
+    if not p.exists():
+        return JSONResponse({"error": "Không tìm thấy"}, status_code=404)
+    # Vào THÙNG RÁC chứ không xoá thẳng: `brains/` không nằm trong git nên xoá hẳn là mất
+    # vĩnh viễn, không có đường hoàn tác nào (chủ yêu cầu 2026-10-09 sau một lần mất brain).
     try:
-        if p.is_dir():
-            shutil.rmtree(p)
-        elif p.exists():
-            p.unlink()
+        m = file_trash.bo_vao(p, brain=brain, rel=path)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
-    return {"ok": True}
+    return {"ok": True, "trash_id": m["id"], "giu_ngay": file_trash.GIU_NGAY}
+
+
+@app.get("/files/trash")
+async def files_trash_list(brain: str = ""):
+    """Các mục đang nằm trong thùng rác (mới nhất trước). brain rỗng = mọi brain."""
+    return {"ok": True, "giu_ngay": file_trash.GIU_NGAY,
+            "items": await asyncio.to_thread(file_trash.danh_sach, brain)}
+
+
+@app.post("/files/trash/restore")
+async def files_trash_restore(id: str = Form(...)):
+    """Phục hồi một mục về đúng chỗ cũ trong brain của nó."""
+    m, _ = file_trash.lay(id)
+    if not m:
+        return JSONResponse({"error": "Mục không còn trong thùng rác"}, status_code=404)
+    try:
+        # Tính lại đích qua _safe_path để một meta bị sửa tay không ghi được ra ngoài brain.
+        dich = _safe_path(m.get("brain") or "brain", m.get("rel") or m.get("ten"))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    try:
+        ra = await asyncio.to_thread(file_trash.phuc_hoi, id, dich)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    return {"ok": True, "path": ra}
+
+
+@app.post("/files/trash/purge")
+async def files_trash_purge(id: str = Form(""), tat_ca: str = Form("")):
+    """Xoá HẲN một mục (id) hoặc dọn sạch thùng rác (tat_ca=1). Không hoàn tác được nữa."""
+    if str(tat_ca).strip().lower() in ("1", "true", "on", "yes"):
+        n = await asyncio.to_thread(file_trash.don, -1)   # hạn âm = mọi mục đều quá hạn
+        return {"ok": True, "da_xoa": n}
+    if not id:
+        return JSONResponse({"error": "Thiếu id"}, status_code=400)
+    return {"ok": bool(await asyncio.to_thread(file_trash.xoa_han, id))}
 
 
 @app.post("/files/rename")
@@ -8451,7 +8569,7 @@ async def capability_meta(kind: str = Form(...), slug: str = Form(...),
 async def delete_workflow(slug: str = Form(...), brain: str = Form("brain")):
     f = _workflows_dir(brain) / f"{slug}.md"
     if f.exists():
-        f.unlink()
+        file_trash.bo_vao(f, brain=brain, rel=f"workflows/{slug}.md")
     return {"ok": True}
 
 # ---- Xuất / Nhập năng lực (chia sẻ agent/skill/workflow qua file .zip) ----
@@ -11529,19 +11647,27 @@ async def plugins_scaffold(slug: str = Form(...), name: str = Form(...),
     d = plugins_host.global_plugins_dir() / slug
     if d.exists():
         return JSONResponse({"error": f"plugin '{slug}' đã tồn tại"}, status_code=400)
+    # Tên tool phải là định danh Python hợp lệ: slug cho phép '.' và chữ số đứng đầu
+    # (_SLUG_RE), mà "my.tool"/"1abc" thì engine gọi không nổi.
+    tool_fn = re.sub(r"\W", "_", slug)
+    if not tool_fn[:1].isalpha():
+        tool_fn = "t_" + tool_fn
+    # name/description là chuỗi NGƯỜI DÙNG gõ. Nối thẳng vào YAML thì một dấu ':' hay xuống
+    # dòng là hỏng file hoặc chèn thêm khoá (vd khai route http public); nối thẳng vào
+    # literal Python thì một dấu '"' là vỡ cú pháp plugin.py. Cho serializer lo việc thoát.
+    _y = lambda s: json.dumps(str(s), ensure_ascii=False)   # JSON scalar là YAML hợp lệ
     try:
         d.mkdir(parents=True)
         (d / "plugin.yaml").write_text(
-            f'name: {name or slug}\nslug: {slug}\nversion: 0.1.0\n'
-            f'description: {description or name}\nauthor: H2O\nenabled: false\n'
-            f'min_mode: safe\ntools:\n  - {slug.replace("-", "_")}\nhooks: []\n',
+            f'name: {_y(name or slug)}\nslug: {_y(slug)}\nversion: "0.1.0"\n'
+            f'description: {_y(description or name)}\nauthor: H2O\nenabled: false\n'
+            f'min_mode: safe\ntools:\n  - {_y(tool_fn)}\nhooks: []\n',
             encoding="utf-8")
-        tool_fn = slug.replace("-", "_")
         (d / "plugin.py").write_text(
             '"""Plugin scaffold - sửa handler rồi bật enabled trong plugin.yaml."""\n\n\n'
             'def register(ctx):\n'
-            f'    ctx.register_tool(\n        "{tool_fn}",\n'
-            f'        "{description or name}",\n        _chay,\n'
+            f'    ctx.register_tool(\n        {_y(tool_fn)},\n'
+            f'        {_y(description or name)},\n        _chay,\n'
             '        schema={"type": "object", "properties": {}},\n'
             '        min_mode="safe",\n    )\n\n\n'
             'async def _chay(args, ctx) -> str:\n'
@@ -11572,6 +11698,7 @@ async def plugins_toggle(slug: str = Form(...), enabled: str = Form(...), brain:
 
 
 _PLUGIN_SRC_FILES = ("plugin.yaml", "plugin.py")
+_PLUGIN_SRC_MAX = 300_000   # trần đọc VÀ ghi: file dài hơn thì modal chỉ xem, không lưu
 
 
 def _plugin_row_by_slug(slug: str, root) -> dict:
@@ -11604,9 +11731,13 @@ async def plugins_source(slug: str = Query(...), brain: str = Query("brain")):
             if f.parent != d.resolve() or not f.is_file():
                 continue
             txt = f.read_text(encoding="utf-8", errors="replace")
-            if len(txt) > 300_000:
-                txt = txt[:300_000] + "\n# ... (file quá dài, đã cắt)"
-            files.append({"name": fn, "content": txt})
+            cat = len(txt) > _PLUGIN_SRC_MAX
+            if cat:
+                txt = txt[:_PLUGIN_SRC_MAX] + "\n# ... (file quá dài, đã cắt)"
+            # mtime đi kèm để POST phát hiện file đã đổi sau lúc mở (xem plugins_source_save);
+            # `cat` để frontend KHOÁ lưu - lưu một bản đã cắt là xoá sạch phần đuôi.
+            files.append({"name": fn, "content": txt, "mtime": f.stat().st_mtime,
+                          "truncated": cat})
         except Exception:
             continue
     return {"ok": True, "slug": slug, "dir": str(d), "files": files,
@@ -11616,13 +11747,19 @@ async def plugins_source(slug: str = Query(...), brain: str = Query("brain")):
 
 @app.post("/plugins/source")
 async def plugins_source_save(slug: str = Form(...), filename: str = Form(...),
-                              content: str = Form(""), brain: str = Form("brain")):
+                              content: str = Form(""), brain: str = Form("brain"),
+                              mtime: str = Form("")):
     """Ghi de plugin.yaml / plugin.py / *.py cua 1 plugin. Gioi han file .yaml/.py ngay
-    trong thu muc plugin - khong ghi ra ngoai, khong cham file he thong khac."""
+    trong thu muc plugin - khong ghi ra ngoai, khong cham file he thong khac.
+
+    `mtime`: mtime file luc GET tra ve. Lech = file da bi sua sau khi mo modal -> 409 thay vi
+    ghi de am tham (hai nguoi cung sua, hoac Joyce tu sua trong luc modal dang mo)."""
     if not plugins_host.valid_slug(slug):
         return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+\.(py|yaml|yml|md|txt|json)", filename or ""):
         return JSONResponse({"error": "chỉ sửa file .py/.yaml/.md/.txt/.json"}, status_code=400)
+    if len(content) > _PLUGIN_SRC_MAX:
+        return JSONResponse({"error": f"nội dung quá {_PLUGIN_SRC_MAX} ký tự"}, status_code=413)
     p = _plugin_row_by_slug(slug, _brain_root(brain))
     d = Path(p.get("dir") or "")
     if not p or not d.is_dir():
@@ -11632,6 +11769,14 @@ async def plugins_source_save(slug: str = Form(...), filename: str = Form(...),
         return JSONResponse({"error": "đường dẫn không hợp lệ"}, status_code=400)
     if p.get("source") == "pack":
         return JSONResponse({"error": "plugin đi theo gói (pack) - sửa trong gói nguồn"}, status_code=400)
+    if mtime:
+        try:
+            if f.is_file() and abs(f.stat().st_mtime - float(mtime)) > 0.001:
+                return JSONResponse(
+                    {"error": "File đã thay đổi sau khi bạn mở. Đóng rồi mở lại để lấy bản mới "
+                              "trước khi sửa tiếp.", "conflict": True}, status_code=409)
+        except ValueError:
+            pass
     try:
         f.write_text(content, encoding="utf-8")
         plugins_host.invalidate()
@@ -11640,7 +11785,7 @@ async def plugins_source_save(slug: str = Form(...), filename: str = Form(...),
             rebuild_joyce_index(brain)
         except Exception:
             pass
-        return {"ok": True}
+        return {"ok": True, "mtime": f.stat().st_mtime}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -17538,7 +17683,13 @@ _STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins",
 # Chặn MỌI method: mặt chạm tới đĩa NGOÀI brain phòng ban (duyệt ổ đĩa, kiểm đường dẫn tuyệt
 # đối, repo của trang Coding) và /ingest-upload (nhận thẳng đường dẫn thư mục đích từ client,
 # không qua trần duyệt nên khoá phạm vi brain không giữ được nó).
-_STAFF_DENY_ALL = ("/ingest", "/browse", "/path/", "/coding")
+# `/plugins/source` trả NGUYÊN VĂN plugin.py + plugin.yaml, mà đó là nơi điển hình giữ API
+# key/token của tích hợp. _STAFF_DENY chỉ chặn method GHI (GET vẫn cho đọc để trang hiển thị
+# được), nên nếu không có dòng này thì mọi tài khoản nhân viên - kể cả Học việc - đọc được
+# toàn bộ mã nguồn plugin. `/plugins/reveal` mở Explorer trên MÁY CHỦ, cũng không phải việc
+# của nhân viên.
+_STAFF_DENY_ALL = ("/ingest", "/browse", "/path/", "/coding",
+                   "/plugins/source", "/plugins/reveal")
 
 # PHÒNG BAN H2O (bảng quyền chủ duyệt 2026-10-06). Mọi mặt dưới đây chỉ chạm brain phòng ban
 # của nhân viên, vì brain của request đã bị khoá bởi _STAFF_SCOPE (Tệp tin còn bị ép trần
@@ -17690,6 +17841,12 @@ def _h2o_dung_phong(phong_list) -> dict:
     for b in h2o_departments.brands():
         if b.get("shared_brain"):
             _dung(b["shared_brain"])
+    # Brain CẤP KHỐI: chỗ đứng để hỏi "tổng cả khối" và chỗ ghi kiến thức chung của khối.
+    for kb in h2o_departments.khoi_brains():
+        try:
+            _dung(kb)
+        except Exception as e:
+            print(f"[phòng ban] brain khối {kb}: {e}", file=sys.stderr)
     for p in phong_list:
         try:
             root = _dung(p["brain"])
@@ -17704,6 +17861,52 @@ def _h2o_dung_phong(phong_list) -> dict:
             print(f"[phòng ban] {p.get('brain')}: {e}", file=sys.stderr)
     _h2o_ghi_so_do()
     return {"brain_moi": tao_brain, "agent_moi": tao_agent}
+
+
+@app.on_event("startup")
+async def _don_thung_rac_file():
+    """Dọn các mục trong thùng rác file quá 30 ngày (như thùng rác brain)."""
+    try:
+        n = await asyncio.to_thread(file_trash.don)
+        if n:
+            print(f"[thùng rác] dọn {n} mục quá hạn", file=sys.stderr)
+    except Exception as e:
+        print(f"[thùng rác] dọn: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+@app.on_event("startup")
+async def _h2o_dung_brain_khoi():
+    """Dựng brain CẤP KHỐI cho sổ phòng ban đã seed từ trước.
+
+    Brain khối là tính năng thêm sau (2026-10-09), nên sổ đã seed rồi thì 11 thư mục này còn
+    thiếu, mà người dùng không có lý do gì để đoán rằng phải bấm lại "dựng sơ đồ mẫu". Rẻ và
+    idempotent: chỉ kiểm tra tồn tại, có rồi thì không đụng vào."""
+    def _lam():
+        try:
+            ten = h2o_departments.khoi_brains()
+        except Exception:
+            return []
+        if not ten:
+            return []
+        base, moi = Path(BRAINS_DIR), []
+        for n in ten:
+            try:
+                root = base / n
+                if root.is_dir():
+                    continue
+                _ensure_brain_scaffold(root)
+                git_brain.clear_tombstone(BRAINS_DIR, n)
+                moi.append(n)
+            except Exception as e:
+                print(f"[phòng ban] brain khối {n}: {e}", file=sys.stderr)
+        return moi
+
+    try:
+        moi = await asyncio.to_thread(_lam)
+        if moi:
+            print(f"[phòng ban] dựng {len(moi)} brain khối: {', '.join(moi)}", file=sys.stderr)
+    except Exception as e:
+        print(f"[phòng ban] dựng brain khối: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def _h2o_ghi_so_do(shared: Path = None) -> None:

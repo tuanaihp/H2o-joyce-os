@@ -909,6 +909,7 @@
     if (inCallNow() && window.__joyceCallState === "connecting") return "CONNECTING";
     return "READY";
   }
+  var _celR = 0, _celG = 0, _celB = 0;
   function feedPlanet() {
     var g = window.__joyceGraph;
     var target = Math.min(1, (g ? (g.level || 0) : 0) * 2.2);
@@ -919,6 +920,53 @@
     planet.setAudioAmplitude(_lvl);
     planet.setInCall(call);
     updateHolo(call, st);
+    applyCelestialLight();
+  }
+  function applyCelestialLight() {
+    if (!planet.celestialInfo) return;
+    var ci = planet.celestialInfo();
+    var os = document.getElementById("orbState");
+    if (!os || !host) return;
+    var hostR = host.getBoundingClientRect();
+    var orbR = os.getBoundingClientRect();
+    var ox = orbR.left + orbR.width / 2 - hostR.left;
+    var oy = orbR.top + orbR.height / 2 - hostR.top;
+    var tr = 0, tg = 0, tb = 0, totalK = 0;
+    if (ci.sun) {
+      var sd = Math.hypot(ci.sun.x - ox, ci.sun.y - oy);
+      var sr = Math.max(ci.sun.r * 6, 120);
+      if (sd < sr) {
+        var k = (1 - sd / sr); k = k * k * 0.85;
+        tr += 255 * k; tg += 200 * k; tb += 80 * k; totalK += k;
+      }
+    }
+    if (ci.moon) {
+      var md = Math.hypot(ci.moon.x - ox, ci.moon.y - oy);
+      if (md < 140) {
+        var mk = (1 - md / 140); mk = mk * mk * 0.5;
+        tr += 180 * mk; tg += 200 * mk; tb += 240 * mk; totalK += mk;
+      }
+    }
+    for (var i = 0; i < Math.min(ci.sats.length, 8); i++) {
+      var s = ci.sats[i];
+      var dd = Math.hypot(s.x - ox, s.y - oy);
+      if (dd < 100 && s.col) {
+        var sk = (1 - dd / 100); sk = sk * sk * 0.35;
+        tr += (s.col[0] || 100) * sk; tg += (s.col[1] || 200) * sk; tb += (s.col[2] || 200) * sk; totalK += sk;
+      }
+    }
+    _celR += (tr - _celR) * 0.08; _celG += (tg - _celG) * 0.08; _celB += (tb - _celB) * 0.08;
+    if (totalK > 0.02) {
+      var r = Math.round(Math.min(255, _celR));
+      var gv = Math.round(Math.min(255, _celG));
+      var b = Math.round(Math.min(255, _celB));
+      var a = Math.min(0.7, totalK);
+      os.style.setProperty("--cel-glow", "0 0 24px rgba(" + r + "," + gv + "," + b + "," + (a * 0.6).toFixed(2) + "), 0 0 60px rgba(" + r + "," + gv + "," + b + "," + (a * 0.2).toFixed(2) + ")");
+      os.style.setProperty("--cel-tint", "rgba(" + r + "," + gv + "," + b + "," + (a * 0.45).toFixed(2) + ")");
+      os.classList.add("cel-lit");
+    } else {
+      os.classList.remove("cel-lit");
+    }
   }
 
   // Chỗ hai cột telemetry + công tắc trên + nhãn trạng thái dưới đang chiếm, để camera

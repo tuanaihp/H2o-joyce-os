@@ -196,7 +196,18 @@
     const frag = document.createDocumentFragment();
     // Brain phòng ban (b.group = tên khối) xếp vào <optgroup> theo khối, để 38 phòng không
     // trôi thành một danh sách phẳng. Brain thường vẫn đứng phẳng ngay sau brain mặc định.
+    // Nhãn <optgroup> KHÔNG bấm chọn được, nên khối còn có một option "Toàn khối ..."
+    // (b.khoi_brain) ghim ĐẦU nhóm - đó mới là chỗ chọn được để hỏi con số tổng cả khối.
     const groups = new Map();
+    const nhom = (ten) => {
+      if (!groups.has(ten)) {
+        const g = document.createElement("optgroup");
+        g.label = ten;
+        g.dataset.brainGroup = "1";
+        groups.set(ten, g);
+      }
+      return groups.get(ten);
+    };
     brains.forEach((b) => {
       if (b.is_default) {
         if (defOpt) defOpt.textContent = label(b);
@@ -206,20 +217,19 @@
       if (active && b.brand_id && b.brand_id !== active && "path:" + b.path !== keepVal) return;
       const opt = document.createElement("option");
       opt.value = "path:" + b.path;
-      opt.textContent = label(Object.assign({}, b, { name: b.label || b.name }));
+      const ten = b.khoi_brain
+        ? window.t("brains.whole_block", { ten: b.label || b.name })
+        : (b.label || b.name);
+      opt.textContent = label(Object.assign({}, b, { name: ten }));
       opt.dataset.brain = "1";
       opt.dataset.brainName = b.name; // tên folder để xoá chính xác
-      if (b.group) {
-        if (!groups.has(b.group)) {
-          const g = document.createElement("optgroup");
-          g.label = b.group;
-          g.dataset.brainGroup = "1";
-          groups.set(b.group, g);
-        }
-        groups.get(b.group).appendChild(opt);
-      } else {
-        frag.appendChild(opt);
-      }
+      if (b.khoi_brain) opt.dataset.khoiBrain = "1";
+      if (!b.group) { frag.appendChild(opt); return; }
+      const g = nhom(b.group);
+      // Ghim đầu nhóm: server trả brain khối trước brain phòng theo bảng chữ cái, nhưng đừng
+      // phụ thuộc vào đó - thứ tự thư mục đổi là mục tổng trôi xuống giữa danh sách phòng.
+      if (b.khoi_brain && g.firstChild) g.insertBefore(opt, g.firstChild);
+      else g.appendChild(opt);
     });
     if (defOpt && defOpt.nextSibling) sel.insertBefore(frag, defOpt.nextSibling);
     else sel.appendChild(frag);

@@ -16,6 +16,7 @@ Ba op:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import sys
@@ -104,58 +105,93 @@ def _send(args, ctx) -> str:
 
 
 def _refresh(args, ctx) -> str:
+    """Mở lại tunnel và lấy link mới.
+
+    Phải GIẾT cloudflared cũ trước rồi mới mở: ca dùng thật của op này là "tiến trình còn
+    sống nhưng tunnel đã chết", mà mo_cloudflared() chỉ spawn thêm chứ không thay thế. Bản cũ
+    chỉ mở khi KHÔNG thấy tiến trình nào, nên đúng ca nó sinh ra để chữa thì nó không làm gì
+    rồi chờ hết 60 giây và báo lỗi."""
     try:
         if str(TOOLS) not in sys.path:
             sys.path.insert(0, str(TOOLS))
         import tunnel_notify
-        if not tunnel_notify.cloudflared_dang_chay():
-            tunnel_notify.mo_cloudflared()
+        if tunnel_notify.tunnel_bi_tat():
+            return (f"Tunnel đang được TẮT có chủ đích (còn file {tunnel_notify.TAT.name}). "
+                    "Xoá file đó rồi gọi lại nếu muốn mở tunnel ra Internet.")
+        cu = _doc_state().get("tunnel") or ""
+        if tunnel_notify.cloudflared_dang_chay():
+            tunnel_notify.giet_cloudflared()
+        tunnel_notify.mo_cloudflared()
     except Exception as e:
         return f"ERROR: không mở được cloudflared ({type(e).__name__}: {e})."
     # Cho tunnel in link ra log - toi da 60s cho refresh-on-demand (khac 180s luc boot).
+    # Phai la link KHAC link cu: mo_cloudflared() xoa log, nhung trong vai giay dau log con
+    # trong thi _doc_state() roi ve tunnel-last.json va tra dung link vua chet.
     link, het = "", time.time() + 60
     while time.time() < het:
         st = _doc_state()
-        if st["tunnel"] and _song(st["tunnel"]):
+        if st["tunnel"] and st["tunnel"] != cu and _song(st["tunnel"]):
             link = st["tunnel"]
             break
         time.sleep(3)
     if not link:
-        return ("ERROR: chờ 60 giây vẫn chưa thấy link tunnel sống. Xem tools/tunnel.log "
+        return ("ERROR: chờ 60 giây vẫn chưa thấy link tunnel mới sống. Xem tools/tunnel.log "
                 "để biết cloudflared kẹt ở đâu.")
-    _gui_telegram("Link Joyce moi sau khi refresh:\n\n" + link)
-    return f"Tunnel mới đã lên và đã gửi Telegram: {link}\nLink local: {LOCAL}"
+    da_gui = _gui_telegram("Link Joyce moi sau khi refresh:\n\n" + link)
+    return (f"Tunnel mới đã lên: {link}\nLink local: {LOCAL}\n"
+            + ("Đã gửi qua Telegram." if da_gui
+               else "Chưa gửi được Telegram - kiểm tra cấu hình bot trong Cài đặt."))
 
 
 def register(ctx):
+    # TÁCH LÀM HAI THEO MỨC QUYỀN. Bản cũ gộp cả ba op vào một tool `min_mode="safe"`, mà
+    # `send` gửi tin ra ngoài còn `refresh` giết/mở tiến trình rồi cũng gửi Telegram - đúng
+    # loại hành động CLAUDE.md xếp vào `full`. Để `safe` nghĩa là một loop chạy ở mức `auto`
+    # (mức được quảng cáo là "hub chặn hành động ra ngoài") vẫn nhắn Telegram được.
+    # min_mode lọc ngay lúc dựng danh sách tool, nên ở mức thấp model chỉ thấy tool xem.
     ctx.register_tool(
         "joyce_access",
-        "Lấy lại đường truy cập Joyce khi người dùng đòi ('gửi lại link', 'link Joyce', "
-        "'link truy cập mới', 'sao không vào được'). op=get: trả link tunnel Cloudflare mới "
-        "nhất đã lưu + link local (mặc định, KHÔNG gửi đi đâu). op=send: gửi link đó qua "
-        "Telegram. op=refresh: link cũ chết/đổi - mở lại cloudflared, lấy link mới và gửi "
-        "Telegram luôn (chờ tới ~60s). Luôn báo rõ cả link local 127.0.0.1:7777 cho người "
-        "dùng đang ngồi trên cùng máy.",
-        _chay,
+        "XEM đường truy cập Joyce khi người dùng hỏi ('link Joyce đâu', 'sao không vào "
+        "được'): trả link tunnel Cloudflare mới nhất đã lưu + link local 127.0.0.1:7777 + "
+        "link đó ghi từ bao giờ. CHỈ ĐỌC, không gửi đi đâu, không đụng tiến trình nào. "
+        "Luôn báo rõ cả link local cho người đang ngồi trên cùng máy.",
+        _chay_xem,
+        schema={"type": "object", "properties": {}},
+        min_mode="readonly",
+        emoji="🔗",
+    )
+    ctx.register_tool(
+        "joyce_access_gui",
+        "GỬI LẠI hoặc LÀM MỚI đường truy cập Joyce khi người dùng đòi ('gửi lại link', "
+        "'link truy cập mới'). op=send: gửi link đã lưu qua Telegram. op=refresh: link cũ "
+        "chết/đổi - giết cloudflared cũ, mở lại, chờ link mới (tới ~60s) rồi gửi Telegram. "
+        "Cả hai đều GỬI TIN RA NGOÀI nên chỉ chạy ở mức toàn quyền.",
+        _chay_gui,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["get", "send", "refresh"],
-                       "description": "get=xem link (mặc định), send=gửi Telegram, refresh=tunnel chết thì mở lại và lấy link mới"},
+                "op": {"type": "string", "enum": ["send", "refresh"],
+                       "description": "send=gửi lại link đã lưu, refresh=mở lại tunnel lấy link mới rồi gửi"},
             },
             "required": ["op"],
         },
-        min_mode="safe",
+        min_mode="full",
         emoji="🔗",
     )
 
 
-async def _chay(args, ctx) -> str:
-    op = str((args or {}).get("op") or "get").strip().lower()
-    if op == "get":
-        return _get(args, ctx)
+# Mọi op chạy trong THREAD, không phải trên event loop. Hub await thẳng handler
+# (plugins_host: `result = await base_call(args)`), nên I/O chặn ở đây đứng CẢ SERVER:
+# refresh ngủ tới 60 giây, get/send đọc file và gọi HTTP Telegram. Trước khi tách thread,
+# một lần gọi refresh là dashboard, chat và webhook cùng treo một phút.
+async def _chay_xem(args, ctx) -> str:
+    return await asyncio.to_thread(_get, args, ctx)
+
+
+async def _chay_gui(args, ctx) -> str:
+    op = str((args or {}).get("op") or "send").strip().lower()
     if op == "send":
-        return _send(args, ctx)
+        return await asyncio.to_thread(_send, args, ctx)
     if op == "refresh":
-        return _refresh(args, ctx)
-    return "ERROR: op phải là 'get', 'send' hoặc 'refresh'."
+        return await asyncio.to_thread(_refresh, args, ctx)
+    return "ERROR: op phải là 'send' hoặc 'refresh'."

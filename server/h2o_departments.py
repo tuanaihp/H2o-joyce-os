@@ -267,6 +267,20 @@ def brain_folder(khoi: dict, ten_phong: str) -> str:
 
 
 # ---- Kho -----------------------------------------------------------------------------------
+# ---- Vị trí của khối trong LUỒNG vận hành (chủ duyệt 2026-10-09) --------------------------
+# Trang Phòng ban vẽ sơ đồ theo luồng khách đi qua. Trước đây thứ tự này hardcode 6 slug
+# trong dashboard/overview.js, tức cơ cấu phòng ban có HAI nguồn sự thật: đổi cơ cấu phải sửa
+# JavaScript. Giờ nó là dữ liệu của khối, backfill mặc định ở đây rồi admin sửa được.
+#
+#   thu_tu_luong: thứ tự trên chuỗi chính (1,2,3... ; 0 = không nằm trên chuỗi)
+#   trai_dai:     khối CHẠY DỌC cả hành trình, không nằm ở một khúc. CSKH có ba phòng
+#                 Trước/Trong/Sau Dịch Vụ, Kế Toán thì Phòng Thu nhận cọc ngay đầu còn Đối
+#                 Soát ở cuối - ép chúng thành một mắt xích giữa chuỗi là vẽ sai luồng thật.
+_LUONG_MAC_DINH = {"nghien-cuu": 1, "marketing": 2, "ban-hang": 3, "san-xuat": 4}
+_TRAI_DAI_MAC_DINH = {"cskh", "ke-toan"}
+_DA_BACKFILL = False   # chỉ ghi file backfill một lần mỗi tiến trình
+
+
 def _doc() -> dict:
     try:
         d = json.loads(PATH.read_text(encoding="utf-8"))
@@ -277,8 +291,24 @@ def _doc() -> dict:
             if not any(b.get("id") == DEFAULT_BRAND_ID for b in d["brands"]):
                 d["brands"].insert(0, {"id": DEFAULT_BRAND_ID, "ten": "H2O Studio",
                                        "shared_brain": SHARED_BRAIN, "created": time.time()})
+            them = False
             for k in d["khoi"]:
                 k.setdefault("brand", DEFAULT_BRAND_ID)
+                for f, v in (("thu_tu_luong", _LUONG_MAC_DINH.get(k.get("id"), 0)),
+                             ("trai_dai", k.get("id") in _TRAI_DAI_MAC_DINH)):
+                    if f not in k:
+                        k[f] = v
+                        them = True
+            # Ghi XUỐNG FILE một lần, không chỉ vá trong bộ nhớ: cả điểm của việc đưa thứ tự
+            # luồng vào sổ là admin mở h2o_departments.json ra sửa được. Backfill câm thì
+            # trường không bao giờ xuất hiện trong file và vẫn phải sửa code như cũ.
+            global _DA_BACKFILL
+            if them and not _DA_BACKFILL:
+                _DA_BACKFILL = True
+                try:
+                    _save(d)
+                except Exception:
+                    pass
             return d
     except Exception:
         pass
@@ -381,6 +411,54 @@ def khoi_of(phong: dict):
         if k.get("id") == kid:
             return k
     return None
+
+
+def get_khoi(kid: str):
+    for k in _doc()["khoi"]:
+        if k.get("id") == kid:
+            return k
+    return None
+
+
+def phong_of_khoi(kid: str) -> list:
+    """Các phòng thuộc một khối, đúng thứ tự trong sổ."""
+    return [p for p in _doc()["phong"] if p.get("khoi_id") == kid]
+
+
+# ---- Brain CẤP KHỐI (chủ duyệt 2026-10-09) -------------------------------------------------
+# Trước đây khối chỉ là nhãn nhóm trong dropdown, không bấm chọn được, nên không có chỗ nào
+# đứng để hỏi "tổng cả khối Bán Hàng". Mỗi khối nay có một brain riêng: vừa là chỗ GHI kiến
+# thức cấp khối, vừa là chỗ ĐỨNG để Joyce đọc gộp mọi phòng trong khối (xem _h2o_khoi_block
+# của main.py). Brain phòng vẫn là nơi ghi việc của từng phòng - khối không gom hết về mình.
+def khoi_brain_folder(khoi: dict) -> str:
+    """Thư mục brain của một khối: 'Bán Hàng' -> 'Ban Hang' (dùng luôn prefix đặt tên phòng,
+    nên brain khối đứng ngay trước các brain phòng khi xếp theo bảng chữ cái)."""
+    return _clean((khoi or {}).get("prefix") or (khoi or {}).get("ten"))[:60]
+
+
+def khoi_by_brain(folder: str):
+    """Tên thư mục brain -> khối sở hữu nó, hoặc None.
+
+    PHÒNG được ưu tiên: khối chỉ có đúng một phòng trùng tên khối (vd 'Văn Thư & Quy Trình')
+    thì brain_folder() đã cấp tên đó cho phòng, nên thư mục ấy là brain PHÒNG. Nhận nhầm nó
+    là brain khối sẽ làm phòng đó mất ngữ cảnh trưởng phòng của mình."""
+    f = str(folder or "").strip().lower()
+    if not f or phong_by_brain(f):
+        return None
+    for k in _doc()["khoi"]:
+        if khoi_brain_folder(k).lower() == f:
+            return k
+    return None
+
+
+def khoi_brains() -> list:
+    """Tên thư mục brain cấp khối cần tồn tại (bỏ khối đã bị một phòng chiếm mất tên)."""
+    out = []
+    for k in _doc()["khoi"]:
+        n = khoi_brain_folder(k)
+        if n and not phong_by_brain(n) and n not in out:
+            out.append(n)
+    return out
 
 
 def brains_of_staff(staff: dict) -> list:
@@ -487,7 +565,9 @@ def _upsert_khoi(d: dict, k: dict) -> dict:
             return x
     rec = {"id": kid, "ten": k["ten"], "prefix": k.get("prefix") or _ascii(k["ten"]),
            "boi_canh": k.get("boi_canh") or "", "dau_ra": k.get("dau_ra") or "",
-           "brand": k.get("brand") or DEFAULT_BRAND_ID}
+           "brand": k.get("brand") or DEFAULT_BRAND_ID,
+           "thu_tu_luong": int(k.get("thu_tu_luong") or _LUONG_MAC_DINH.get(kid, 0)),
+           "trai_dai": bool(k.get("trai_dai", kid in _TRAI_DAI_MAC_DINH))}
     d["khoi"].append(rec)
     return rec
 

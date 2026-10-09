@@ -38,16 +38,21 @@ If Err.Number = 0 Then alive = True
 Err.Clear
 On Error GoTo 0
 
-If alive Then WScript.Quit
-
+' Server song: khong can dung day lai, chi xem tunnel co chet rieng khong roi thoat.
+' LUU Y: truoc day o day co "If alive Then WScript.Quit" dat NGAY TREN khoi "If alive Then"
+' ben duoi, nen ca nhanh va tunnel la code chet - khong lan nao chay. Gio gop lam mot.
 If alive Then
-  ' Server song nhung tunnel co the da chet rieng -> mo lai de link con dung duoc.
-  ' tunnel_notify.py tu phat hien cloudflared mat, mo lai va gui link moi qua Telegram.
   On Error Resume Next
-  Set sh0 = CreateObject("WScript.Shell")
-  Dim out : out = sh0.Exec("cmd /c tasklist /FI ""IMAGENAME eq cloudflared.exe"" /NH").StdOut.ReadAll
-  If InStr(out, "cloudflared.exe") = 0 Then
-    sh0.Run """" & root & "\.venv\Scripts\python.exe"" """ & root & "\tools\tunnel_notify.py""", 0, False
+  Set fso0 = CreateObject("Scripting.FileSystemObject")
+  ' Chu co the TAT tunnel co chu dich (tools\tunnel-off.flag). Khong co kiem tra nay thi
+  ' nguoi tu tay giet cloudflared de ngung phoi may ra Internet se bi watchdog bat lai o
+  ' chu ky sau, kem mot link public moi gui thang qua Telegram.
+  If Not fso0.FileExists(root & "\tools\tunnel-off.flag") Then
+    Set sh0 = CreateObject("WScript.Shell")
+    Dim out : out = sh0.Exec("cmd /c tasklist /FI ""IMAGENAME eq cloudflared.exe"" /NH").StdOut.ReadAll
+    If InStr(out, "cloudflared.exe") = 0 Then
+      sh0.Run """" & root & "\.venv\Scripts\python.exe"" """ & root & "\tools\tunnel_notify.py""", 0, False
+    End If
   End If
   WScript.Quit
 End If

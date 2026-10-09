@@ -3478,9 +3478,16 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ovw-flow { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 2px 10px; }
 .ovw-khoi { flex: 1 0 216px; min-width: 216px; border: 1px solid var(--line); border-radius: 14px;
   background: var(--card); padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
-.ovw-arrow { flex: none; display: flex; align-items: center; justify-content: center; width: 34px;
-  color: var(--text3); }
+/* Mũi tên nối hai khối: mang luôn SỐ việc đang đọng ở khối nhận, đỏ khi có việc kẹt -
+   mũi tên trơn không nói được chỗ nào đang tắc. */
+.ovw-arrow { flex: none; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px; width: 44px; color: var(--text3); }
 .ovw-arrow svg { width: 18px; height: 18px; }
+.ovw-arrow.risk { color: var(--danger-ink); }
+.ovw-an { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--accent-wash-2);
+  color: var(--accent-ink); font-size: 10.5px; font-weight: 800;
+  font-variant-numeric: tabular-nums; }
+.ovw-an.risk { background: var(--danger-bg); color: var(--danger-ink); }
 .ovw-khead { display: flex; align-items: flex-start; gap: 8px; }
 .ovw-knum { font-size: 11px; font-weight: 800; color: var(--accent-ink); letter-spacing: .08em;
   padding-top: 2px; }
@@ -3504,6 +3511,24 @@ button.staff-chip:hover { border-color: var(--acc); }
   overflow: hidden; text-overflow: ellipsis; }
 .ovw-supp { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 12px; }
 .ovw-supp .ovw-khoi { min-width: 0; }
+
+/* Khối TRẢI DÀI (CSKH, Kế Toán): chạm vào mọi chặng của hành trình nên vẽ thành dải ngang
+   nằm dưới chuỗi, không phải một mắt xích chen giữa. Viền đứt + mũi neo lên trên để thấy
+   nó chạy song song với cả chuỗi phía trên. */
+.ovw-spans { display: flex; flex-direction: column; gap: 9px; padding: 2px 2px 4px; }
+.ovw-spans-l { font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text3); }
+.ovw-span { position: relative; border: 1px dashed var(--line); border-radius: 12px;
+  background: var(--wash); padding: 10px 12px; }
+.ovw-span.risk { border-color: var(--danger-line, var(--danger-ink)); }
+.ovw-span-h { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.ovw-span-h b { font-size: 13px; color: var(--text); }
+.ovw-span-h span { flex: 1; min-width: 0; font-size: 11px; color: var(--text3); }
+.ovw-span-b { display: flex; flex-wrap: wrap; gap: 6px; }
+.ovw-span-b .ovw-phong { flex: 1 1 190px; min-width: 0; background: var(--card); }
+@media (max-width: 760px) {
+  .ovw-span-b .ovw-phong { flex-basis: 100%; }
+}
 
 /* Drawer workspace trưởng phòng (rộng hơn drawer mặc định) */
 .ov-drawer.ovw-wide { width: min(760px, 96vw); }
@@ -3539,7 +3564,42 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ovw-steps li.todo svg { color: var(--text3); }
 .ovw-steps li.wait svg { color: var(--accent-ink); }
 
+/* Nút xem toàn màn hình + trạng thái bung. Drawer 760px không đủ cho ba cột quy trình. */
+/* margin-left:auto vì .ov-drawer-head dùng space-between: thêm con thứ ba mà không ghim thì
+   nút này trôi ra giữa tiêu đề thay vì đứng cạnh nút đóng. */
+.ovw-full { flex: none; margin-left: auto; width: 34px; height: 34px; display: grid;
+  place-items: center; border: 1px solid var(--line); border-radius: 9px; background: transparent;
+  color: var(--text2); cursor: pointer; transition: color .15s, border-color .15s; }
+.ovw-full:hover { color: var(--accent-ink); border-color: var(--accent-line); }
+.ovw-full svg { width: 15px; height: 15px; }
+#ovDrawer.ovw-fullscreen .ov-drawer { width: 100vw; max-width: 100vw; border-radius: 0; }
+#ovDrawer.ovw-fullscreen .ovw-stages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#ovDrawer.ovw-fullscreen .ov-drawer-body { max-width: 1500px; margin: 0 auto; width: 100%; }
+
+/* Danh sách QUY TRÌNH thật trong mỗi cột giai đoạn: bấm là sang chat sửa cùng Joyce. */
+.ovw-qt { display: flex; flex-direction: column; gap: 5px; }
+.ovw-qt:empty { display: none; }
+.ovw-qt-h { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+.ovw-qt-h svg { width: 13px; height: 13px; }
+.ovw-qt-h b { color: var(--accent-ink); }
+.ovw-qt-i { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+  padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--card);
+  color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+  transition: border-color .15s, transform .15s; }
+.ovw-qt-i:hover { border-color: var(--accent-line); transform: translateX(2px); }
+.ovw-qt-i span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovw-qt-i svg { width: 13px; height: 13px; flex: none; color: var(--text3); }
+.ovw-qt-i:hover svg { color: var(--accent-ink); }
+.ovw-qt-none { margin: 2px 0 0; font-size: 11.5px; }
+.ovw-qt-khac { width: 100%; }
+.ovw-qt-khac:empty { display: none; }
+.ovw-qt-khac .ovw-qt-i { display: inline-flex; width: auto; max-width: 100%; }
+.ovw-qt-khac { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ovw-qt-khac .ovw-qt-h { width: 100%; margin: 0; }
+
 @media (max-width: 900px) {
+  #ovDrawer.ovw-fullscreen .ovw-stages { grid-template-columns: 1fr; }
   .ovw-stages { grid-template-columns: 1fr; }
   .ovw-flow { flex-direction: column; overflow: visible; }
   .ovw-khoi { flex-basis: auto; }

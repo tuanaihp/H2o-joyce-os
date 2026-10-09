@@ -25,6 +25,7 @@ from urllib.parse import quote, unquote
 from fastapi.responses import JSONResponse, Response
 
 import config
+import h2o_departments
 import mcp_catalog
 import mcp_client
 import mcp_store
@@ -405,6 +406,32 @@ def _vung_nhan_file():
         return None
 
 
+def _goc_doc_khoi(vault_root):
+    """Brain đang làm việc là brain CẤP KHỐI -> đường dẫn brain các PHÒNG trong khối đó.
+
+    Vì sao cần: sáu engine API không có tool đọc file nào ngoài `joyce_read_file`, mà tool đó
+    khoá trong vault. Đứng ở brain khối hỏi "tổng doanh số cả khối Bán Hàng" thì mọi lời gọi
+    đọc sang brain phòng đều nổ "nằm ngoài vault", và nửa "đọc gộp" của brain khối chỉ chạy
+    được trên bốn engine CLI. Nới đúng các phòng CỦA KHỐI ĐÓ và CHỈ CHO ĐỌC: ghi vẫn khoá
+    trong vault, nên không có đường nào để một lượt cấp khối ghi đè dữ liệu của phòng."""
+    try:
+        root = Path(str(vault_root or "")).resolve()
+    except (OSError, ValueError):
+        return []
+    try:
+        kh = h2o_departments.khoi_by_brain(root.name)
+        if not kh:
+            return []
+        out = []
+        for ph in h2o_departments.phong_of_khoi(kh.get("id")):
+            d = root.parent / str(ph.get("brain") or "")
+            if d.is_dir():
+                out.append(str(d))
+        return out
+    except Exception:
+        return []
+
+
 def _safe_read_path(vault_root, p, cho_phep_staging=False, workspace_root=None):
     """Như `_safe_path` nhưng cho ĐỌC, và biết thêm vùng nhận file của khung chat.
 
@@ -428,6 +455,10 @@ def _safe_read_path(vault_root, p, cho_phep_staging=False, workspace_root=None):
             return trong_vault          # vault LUÔN thắng: không để staging che file thật
     except ValueError as e:
         loi = e
+    for goc in _goc_doc_khoi(vault_root):   # brain khối: đọc sang brain các phòng trong khối
+        t = _trong_goc(goc, p)
+        if t is not None and t.exists():
+            return t
     if cho_phep_staging:
         stage = _vung_nhan_file()
         raw = str(p or "").strip().replace("\\", "/")

@@ -17,24 +17,59 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXE = ROOT / "tools" / "cloudflared.exe"
+EXE = ROOT / "tools" / ("cloudflared.exe" if sys.platform == "win32" else "cloudflared")
 LOG = ROOT / "tools" / "tunnel.log"
 LAST = ROOT / "tools" / "tunnel-last.json"
+# Cờ "chủ cố ý tắt tunnel": có file này thì watchdog KHÔNG được tự mở lại. Không có nó thì
+# người tự tay giết cloudflared để ngừng phơi máy ra Internet sẽ bị watchdog bật lại ở chu kỳ
+# sau và phát link public mới qua Telegram - đúng điều họ vừa chặn.
+TAT = ROOT / "tools" / "tunnel-off.flag"
 SETTINGS = ROOT / "server" / "settings.json"
 
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 WAIT_SECONDS = 180
 
 
+def tunnel_bi_tat() -> bool:
+    return TAT.exists()
+
+
 def cloudflared_dang_chay() -> bool:
+    """Có tiến trình cloudflared nào đang chạy không.
+
+    Phải tách theo HĐH: bản cũ chỉ gọi `tasklist` (Windows), nên trên Linux/macOS lệnh ném
+    FileNotFoundError -> except -> trả False -> mỗi lần refresh lại đẻ thêm một cloudflared."""
     try:
-        out = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq cloudflared.exe", "/NH"],
-            capture_output=True, text=True, timeout=15,
-        ).stdout
-        return "cloudflared.exe" in out
+        if sys.platform == "win32":
+            out = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq cloudflared.exe", "/NH"],
+                capture_output=True, text=True, timeout=15,
+            ).stdout
+            return "cloudflared.exe" in out
+        return subprocess.run(["pgrep", "-f", "cloudflared"], capture_output=True,
+                              timeout=15).returncode == 0
     except Exception:
         return False
+
+
+def giet_cloudflared() -> bool:
+    """Giết mọi tiến trình cloudflared đang chạy. Trả True nếu sau đó không còn cái nào.
+
+    Cần cho op=refresh: ca dùng thật của nó là "tiến trình còn sống nhưng tunnel đã chết",
+    mà mo_cloudflared() chỉ spawn chứ không thay thế - không giết trước thì link cũ vẫn đó."""
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/F", "/IM", "cloudflared.exe"],
+                           capture_output=True, timeout=20)
+        else:
+            subprocess.run(["pkill", "-f", "cloudflared"], capture_output=True, timeout=20)
+    except Exception:
+        return False
+    for _ in range(10):          # chờ HĐH thu hồi tiến trình trước khi mở cái mới
+        if not cloudflared_dang_chay():
+            return True
+        time.sleep(0.3)
+    return not cloudflared_dang_chay()
 
 
 def link_trong_log() -> str:
@@ -52,15 +87,17 @@ def mo_cloudflared() -> None:
     LOG.parent.mkdir(parents=True, exist_ok=True)
     # Xoa log cu de link moi doc khong lan vao lan chay truoc.
     LOG.write_text("", encoding="utf-8")
-    f = LOG.open("a", encoding="utf-8")
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | \
             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen(
-        [str(EXE), "tunnel", "--url", "http://localhost:7777"],
-        stdout=f, stderr=subprocess.STDOUT,
-        creationflags=flags, cwd=str(ROOT),
-        close_fds=True,
-    )
+    # `with`: tiến trình con đã nhận bản sao handle lúc spawn, nên cha đóng ngay được. Bản cũ
+    # mở rồi bỏ đó, mỗi lần gọi rò một file handle sống hết đời tiến trình cha.
+    with LOG.open("a", encoding="utf-8") as f:
+        subprocess.Popen(
+            [str(EXE), "tunnel", "--url", "http://localhost:7777"],
+            stdout=f, stderr=subprocess.STDOUT,
+            creationflags=flags, cwd=str(ROOT),
+            close_fds=True,
+        )
 
 
 def _giai_ma(v: str) -> str:
@@ -100,6 +137,9 @@ def gui_telegram(text: str) -> bool:
 
 
 def main() -> int:
+    if tunnel_bi_tat():
+        print("co", TAT.name, "- chu da tat tunnel, khong mo lai", flush=True)
+        return 0
     if not cloudflared_dang_chay():
         print("cloudflared chua chay - mo moi", flush=True)
         mo_cloudflared()
@@ -118,23 +158,29 @@ def main() -> int:
         print("het", WAIT_SECONDS, "giay van chua thay link tunnel", flush=True)
         return 1
 
-    cu = ""
+    cu, da_gui_cu = "", False
     try:
-        cu = json.loads(LAST.read_text(encoding="utf-8")).get("link", "")
+        _d = json.loads(LAST.read_text(encoding="utf-8"))
+        cu = _d.get("link", "")
+        da_gui_cu = bool(_d.get("telegram_sent"))
     except Exception:
         pass
 
     # LUON ghi state moi nhat ngay khi thay link, ke ca khi gui telegram xit:
     # day la so nho ma tool joyce_access doc de tra lai link khi nguoi dung doi
     # ("gui lai link"), thay vi chi nho link sau khi gui thanh cong nhu truoc.
+    #
+    # telegram_sent phai mang theo ket qua gui THAT cua lan truoc. Ban cu ghi
+    # `link == cu`, ma state duoc ghi TRUOC khi gui - nen mot lan gui that bai roi chay
+    # lai se thay link trung va tu nhan la "da gui", trong khi chua gui duoc lan nao.
     state = {"link": link, "local": "http://127.0.0.1:7777", "at": time.time(),
-             "telegram_sent": link == cu}
+             "telegram_sent": (link == cu) and da_gui_cu}
     try:
         LAST.write_text(json.dumps(state), encoding="utf-8")
     except Exception:
         pass
 
-    if link == cu:
+    if link == cu and da_gui_cu:
         print("link cu da gui roi, khong gui lai:", link, flush=True)
         return 0
 

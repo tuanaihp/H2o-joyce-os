@@ -1,5 +1,18 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.3.4] - 2026-10-09
+### Thêm mới
+- **Chọn cả khối trong ô chọn brain**: ngoài từng phòng, giờ có mục `★ Toàn khối Bán Hàng` ghim đầu mỗi nhóm, kèm tổng số note của cả khối. Đứng ở đó hỏi "tổng doanh số cả khối" thì Joyce đọc được dữ liệu của mọi phòng trong khối, còn ghi thì vẫn vào đúng brain của từng phòng.
+- **Thùng rác, phục hồi được**: xoá file, thư mục, trợ lý, kỹ năng hay quy trình giờ chuyển vào thùng rác giữ 30 ngày thay vì mất hẳn. Mở bằng nút **Thùng rác** ở trang Tệp tin, mỗi mục có nút Phục hồi.
+- **Tab Phòng ban vận hành**: sơ đồ luồng khách giờ ghi số việc đang ùn ngay trên mũi tên và tô đỏ chỗ có việc kẹt, nhìn một cái là thấy nút thắt. CSKH và Kế Toán tách thành dải chạy dọc phía dưới vì chúng chạm vào mọi chặng chứ không nằm ở một khúc.
+- **Mở quy trình thẳng từ phòng**: bấm một phòng rồi xem toàn màn hình, ba cột Trước - Trong - Sau giờ liệt kê đúng các file quy trình đang có. Bấm một quy trình là nhảy sang chat, đã chuyển sẵn brain phòng và điền sẵn câu lệnh để nhờ Joyce rà và chuẩn hoá.
+
+### Sửa lỗi
+- Gọi lấy lại link truy cập không còn làm đứng cả máy chủ gần một phút, và lệnh làm mới nay thực sự mở lại được tunnel khi link cũ chết.
+- Watchdog không còn tự bật lại tunnel khi anh cố ý tắt (tạo file `tools/tunnel-off.flag` để giữ tắt).
+- Tài khoản nhân viên không còn đọc được mã nguồn plugin, nơi thường chứa khoá API.
+- Hai người cùng sửa một file plugin không còn ghi đè mất bài của nhau.
+
 ## [1.3.3] - 2026-10-08
 ### Thêm mới
 - **Kéo thả tinh thể kiến thức**: sau khi Big Bang nổ, kéo bất kỳ tinh thể nào bằng chuột hoặc ngón tay trên điện thoại sang vị trí mới. Tinh thể đang kéo sáng lên, các tinh thể khác mờ đi, thả ra có hiệu ứng hạ cánh. Bấm mà không kéo vẫn mở chi tiết như cũ.

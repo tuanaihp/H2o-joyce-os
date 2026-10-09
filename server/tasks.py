@@ -348,7 +348,11 @@ class TasksFeature:
             execution_mode if execution_mode in EXECUTION_MODES else "auto",
             idempotency_key,
             status,
-            metadata={"lane": lane},
+            # source_brain truoc day CHI dung de check ACL roi vut di, nen he thong khong
+            # co ban ghi ban giao nao: khong tra loi duoc "viec nay tu khoi nao chuyen sang".
+            # Giu lai ten brain nguon de so do van hanh dem duoc luong ban giao that.
+            metadata={"lane": lane,
+                      **({"source_brain": Path(source_brain).name} if source_brain else {})},
         )
         self.store.promote_dependencies(root)
         try:
@@ -1440,6 +1444,11 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 )
             except PermissionError as e:
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+            except ValueError as e:
+                # _root() raise khi brain khong resolve duoc (vd phong chua dung brain, hoac
+                # ten brain sai). Khong bat thi thanh HTTP 500 - nguoi dung chi thay "loi"
+                # chung chung trong khi nguyen nhan noi duoc thanh loi.
+                return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
             return {"ok": True, "id": tid}
 
         @router.post("/kanban/task/move")

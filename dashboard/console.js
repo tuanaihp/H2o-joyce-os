@@ -2186,9 +2186,9 @@
     .td-brief p{margin:4px 0 0;color:var(--text2);font-size:13.5px;line-height:1.5}
     .td-partial{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:9px 13px;border:1px solid var(--warn-line);border-radius:10px;background:var(--warn-wash);color:var(--warn-ink);font-size:12.5px}
     .td-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:18px}
-    .td-metric{padding:14px 15px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);display:flex;flex-direction:column;gap:3px;border-left:3px solid var(--accent);transition:transform .18s,box-shadow .18s}
+    .td-metric{padding:14px 15px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);display:flex;flex-direction:column;gap:3px;border-top:3px solid var(--accent);transition:transform .18s,box-shadow .18s;box-shadow:0 1px 3px rgba(0,0,0,.06)}
     .td-metric:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.1)}
-    .td-metric:nth-child(2){border-left-color:var(--warn-ink)}.td-metric:nth-child(3){border-left-color:var(--green,#4ade80)}.td-metric:nth-child(4){border-left-color:var(--info,#4c91ff)}.td-metric:nth-child(5){border-left-color:var(--red,#f87171)}.td-metric:nth-child(6){border-left-color:var(--text3)}
+    .td-metric:nth-child(2){border-top-color:var(--warn-ink)}.td-metric:nth-child(3){border-top-color:var(--green,#4ade80)}.td-metric:nth-child(4){border-top-color:var(--info,#4c91ff)}.td-metric:nth-child(5){border-top-color:var(--red,#f87171)}.td-metric:nth-child(6){border-top-color:var(--text3)}
     .td-metric-ico{color:var(--text3);width:16px;height:16px}
     .td-metric span{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
     .td-metric b{font-size:22px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
@@ -2246,7 +2246,21 @@
     @media(max-width:1100px){.td-grid{grid-template-columns:1fr}.td-metrics{grid-template-columns:repeat(3,1fr)}}
     @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-list{max-height:none}.td-metrics{grid-template-columns:repeat(2,1fr)}.td-hi{font-size:22px}}
     .tl-stat:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.12)}
-    .tl-row:hover{background:rgba(127,176,255,.055)}`;
+    .tl-row:hover{background:rgba(127,176,255,.055)}
+    .fm-trash-ov{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px}
+    .fm-trash-box{width:min(760px,96vw);max-height:84vh;display:flex;flex-direction:column;background:var(--surface-1,#14181f);border:1px solid var(--hairline);border-radius:14px;overflow:hidden}
+    .fm-trash-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--hairline)}
+    .fm-trash-head b{font-size:14px;display:flex;align-items:center;gap:7px}
+    .fm-trash-head span{font-size:12px;color:var(--text3)}
+    .fm-trash-head .fm-trash-x{margin-left:auto;padding:4px 8px}
+    .fm-trash-list{overflow:auto;padding:8px 10px}
+    .fm-trash-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;margin-bottom:7px;background:var(--surface-2,rgba(255,255,255,.02))}
+    .fm-trash-ico{flex:none;color:var(--text3);display:grid;place-items:center}
+    .fm-trash-main{flex:1;min-width:0}
+    .fm-trash-main b{display:block;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fm-trash-main span{display:block;margin-top:2px;font-size:11.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fm-trash-row button{flex:none;padding:4px 10px;font-size:12px}
+    .fm-trash-empty{padding:34px;text-align:center;color:var(--text3);font-size:13px}`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
 
@@ -2292,6 +2306,7 @@
           <button class="s-btn-ghost" id="fmNewFile">+ File</button>
           <label class="s-btn-ghost fm-uplabel">⤒ ${window.t("cs.fm_upload")}<input type="file" id="fmUpload" hidden multiple></label>
           <button class="s-btn-ghost" id="fmZipCur" title="${window.t("cs.fm_zip_title")}">⤓ ${window.t("cs.fm_zip_btn")}</button>
+          <button class="s-btn-ghost" id="fmTrash" title="${window.t("cs.fm_trash_title")}">${ic("trash-2")} ${window.t("cs.fm_trash")}</button>
           <button class="s-btn-ghost" id="fmRefresh">↻</button>
         </div>
       </div>
@@ -2648,6 +2663,56 @@
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
       await _baoLoi(await fetch("/files/delete", { method: "POST", body: fd }).catch(() => null)); load(cur);
     }
+    // Thùng rác: xoá file/thư mục trong brain chỉ chuyển vào đây (giữ 30 ngày) nên phục hồi
+    // được. Mở dạng lớp phủ cho gọn - trang Tệp tin không cần thêm một tab thường trực.
+    async function moThungRac() {
+      let d = { items: [] };
+      try { d = await (await fetch(`/files/trash?brain=${encodeURIComponent(fbrain())}`)).json(); }
+      catch (e) { d = { items: [], error: e.message }; }
+      const ov = document.createElement("div");
+      ov.className = "fm-trash-ov";
+      const khi = (ts) => { try { return new Date(ts * 1000).toLocaleString(LOC()); } catch (e) { return ""; } };
+      const co = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB"
+        : n >= 1024 ? Math.round(n / 1024) + " KB" : (n || 0) + " B";
+      const hang = (it) => `<div class="fm-trash-row" data-id="${esc(it.id)}">
+          <span class="fm-trash-ico">${ic(it.la_thu_muc ? "folder" : "file-text")}</span>
+          <div class="fm-trash-main">
+            <b>${esc(it.ten)}</b>
+            <span>${esc(it.rel || "")} · ${esc(khi(it.xoa_luc))} · ${co(it.co)}</span>
+          </div>
+          <button class="s-btn fm-trash-rs">${esc(window.t("cs.fm_trash_restore"))}</button>
+          <button class="s-btn-ghost fm-trash-rm">${esc(window.t("cs.fm_trash_purge"))}</button>
+        </div>`;
+      const than = (d.items || []).length
+        ? (d.items || []).map(hang).join("")
+        : `<div class="fm-trash-empty">${esc(window.t("cs.fm_trash_empty"))}</div>`;
+      ov.innerHTML = `<div class="fm-trash-box">
+        <div class="fm-trash-head">
+          <b>${ic("trash-2")} ${esc(window.t("cs.fm_trash"))}</b>
+          <span>${esc(window.t("cs.fm_trash_keep", { ngay: d.giu_ngay || 30 }))}</span>
+          <button class="s-btn-ghost fm-trash-x">${ic("x")}</button>
+        </div>
+        <div class="fm-trash-list">${than}</div>
+      </div>`;
+      document.body.appendChild(ov);
+      const dong = () => { ov.remove(); load(cur); };
+      ov.querySelector(".fm-trash-x").onclick = dong;
+      ov.addEventListener("mousedown", (e) => { if (e.target === ov) dong(); });
+      ov.querySelectorAll(".fm-trash-row").forEach((r) => {
+        const id = r.dataset.id;
+        r.querySelector(".fm-trash-rs").onclick = async () => {
+          const fd = new FormData(); fd.append("id", id);
+          const ok = await _baoLoi(await fetch("/files/trash/restore", { method: "POST", body: fd }).catch(() => null));
+          if (ok !== false) { ov.remove(); load(cur); }
+        };
+        r.querySelector(".fm-trash-rm").onclick = async () => {
+          if (!await JoyceDialog.confirm(window.t("cs.fm_trash_purge_confirm"))) return;
+          const fd = new FormData(); fd.append("id", id);
+          await fetch("/files/trash/purge", { method: "POST", body: fd }).catch(() => null);
+          r.remove();
+        };
+      });
+    }
     searchInput.oninput = () => {
       searchClear.hidden = !searchInput.value;
       if (searchTimer) clearTimeout(searchTimer);
@@ -2663,6 +2728,7 @@
     el.querySelector("#fmUp").onclick = () => { if (upTarget !== null && upTarget !== undefined) load(upTarget); };
     el.querySelector("#fmHome").onclick = () => load(undefined);   // undefined = về brain (điểm vào mặc định)
     el.querySelector("#fmRefresh").onclick = () => load(cur);
+    el.querySelector("#fmTrash").onclick = moThungRac;
     el.querySelector("#fmZipCur").onclick = async (e) => {
       const b = e.currentTarget, old = b.textContent;
       b.textContent = window.t("cs.fm_zipping"); b.disabled = true;
@@ -3024,16 +3090,18 @@
     if (myGen !== _renderGen) return;
 
     const EFF = {
-      read:   { label: t("tl.eff_read"),   color: "#4ade80" },
-      write:  { label: t("tl.eff_write"),  color: "#f0a24a" },
-      danger: { label: t("tl.eff_danger"), color: "#f87171" },
+      // Giữ var(--*) chứ đừng hardcode hex: màu này dùng cho CẢ viền lẫn chữ của badge, mà
+      // #4ade80/#f0a24a trên nền sáng là gần như không đọc được. Hex chỉ là dự phòng.
+      read:   { label: t("tl.eff_read"),   color: "var(--ok-ink, #4ade80)" },
+      write:  { label: t("tl.eff_write"),  color: "var(--warn-ink, #f0a24a)" },
+      danger: { label: t("tl.eff_danger"), color: "var(--danger-ink, #f87171)" },
     };
     const STATE = {
-      loaded:   { label: t("tl.st_loaded"),   color: "#4ade80" },
+      loaded:   { label: t("tl.st_loaded"),   color: "var(--ok-ink, #4ade80)" },
       disabled: { label: t("tl.st_disabled"), color: "var(--text3)" },
-      gated:    { label: t("tl.st_gated"),    color: "#f0a24a" },
+      gated:    { label: t("tl.st_gated"),    color: "var(--warn-ink, #f0a24a)" },
       removed:  { label: t("tl.st_removed"),  color: "var(--text3)" },
-      unloaded: { label: t("tl.st_unloaded"), color: "#f0a24a" },
+      unloaded: { label: t("tl.st_unloaded"), color: "var(--warn-ink, #f0a24a)" },
     };
     // Luồng nghiệp vụ: đoán từ tên nhóm nguồn (plugin slug/label hoặc tên MCP).
     const LUONG = [
@@ -3069,16 +3137,16 @@
     const nDanger = tools.filter(x => x.effect === "danger").length;
     const statCard = (icon, val, label, color) => `
       <div class="tl-stat" style="flex:1;min-width:130px;padding:14px 16px;border:1px solid var(--hairline);border-top:3px solid ${color};border-radius:12px;background:var(--surface-1);display:flex;gap:12px;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .18s,box-shadow .18s;cursor:default">
-        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:${color}22;color:${color}">${ic(icon, { size: "18px" })}</div>
+        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb, ${color} 14%, transparent);color:${color}">${ic(icon, { size: "18px" })}</div>
         <div><div style="font-size:20px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums">${val}</div>
         <div style="color:var(--text3);font-size:12px">${esc(label)}</div></div>
       </div>`;
     const statsHtml = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px">
-      ${statCard("wrench", tools.length, t("tl.st_all"), "var(--accent,#7aa5ff)")}
-      ${statCard("circle-check", nLoaded, t("tl.st_loaded"), "#4ade80")}
-      ${statCard("ban", nOff, t("tl.count_off"), "#f0a24a")}
-      ${statCard("zap", nCalls, t("tl.calls_total"), "#a78bfa")}
-      ${statCard("shield", nDanger, t("tl.danger_n"), "#f87171")}
+      ${statCard("wrench", tools.length, t("tl.st_all"), "var(--accent, #7aa5ff)")}
+      ${statCard("circle-check", nLoaded, t("tl.st_loaded"), "var(--ok-ink, #4ade80)")}
+      ${statCard("ban", nOff, t("tl.count_off"), "var(--warn-ink, #f0a24a)")}
+      ${statCard("zap", nCalls, t("tl.calls_total"), "var(--info, #a78bfa)")}
+      ${statCard("shield", nDanger, t("tl.danger_n"), "var(--danger-ink, #f87171)")}
     </div>`;
 
     // --- Hàng tool ---
@@ -3260,11 +3328,18 @@
       };
       ov.querySelector(".tl-save").onclick = async () => {
         const f = files[cur]; if (!f) return;
+        // File đã bị cắt lúc đọc: lưu lại là xoá sạch phần đuôi không hiện trong ô.
+        if (f.truncated) { ov.querySelector(".tl-msg").textContent = t("tl.v_too_long"); return; }
         const fd = new FormData();
         fd.append("slug", slug); fd.append("filename", f.name); fd.append("content", ta.value); fd.append("brain", fbrain());
+        if (f.mtime != null) fd.append("mtime", String(f.mtime));   // chống ghi đè bản mới hơn
         const r = await (await fetch("/plugins/source", { method: "POST", body: fd })).json().catch(() => ({}));
-        if (r.ok) { ov.querySelector(".tl-msg").textContent = t("tl.v_saved", { file: f.name }); renderTools(el); }
-        else ov.querySelector(".tl-msg").textContent = r.error || t("tl.v_err");
+        if (r.ok) {
+          f.content = ta.value;
+          if (r.mtime != null) f.mtime = r.mtime;   // giữ mtime mới để lưu tiếp không báo xung đột
+          ov.querySelector(".tl-msg").textContent = t("tl.v_saved", { file: f.name });
+          renderTools(el);
+        } else ov.querySelector(".tl-msg").textContent = r.error || t("tl.v_err");
       };
     };
     el.querySelector("#tlList")?.addEventListener("click", (e) => {
@@ -3276,16 +3351,19 @@
 
     // Tạo tool mới (giữ nguyên luồng scaffold).
     el.querySelector("#tlNew")?.addEventListener("click", async () => {
-      const slug = prompt(t("tl.new_slug_ph"), "");
+      // JoyceDialog chứ không phải prompt()/alert() của trình duyệt: phần còn lại của trang
+      // dùng JoyceDialog, và dialog native bị chặn trong một số webview nhúng.
+      const slug = (await JoyceDialog.prompt(t("tl.new_slug_ph"), "") || "").trim();
       if (!slug) return;
-      const name = prompt(t("tl.new_name_ph"), slug) || slug;
+      const name = (await JoyceDialog.prompt(t("tl.new_name_ph"), slug) || slug).trim();
+      const desc = (await JoyceDialog.prompt(t("tl.new_desc_ph"), "") || name).trim();
       const fd = new FormData();
-      fd.append("slug", slug); fd.append("name", name);
-      fd.append("description", prompt(t("tl.new_desc_ph"), "") || name);
+      fd.append("slug", slug); fd.append("name", name); fd.append("description", desc);
       let r = {};
       try { r = await (await fetch("/plugins/scaffold", { method: "POST", body: fd })).json(); }
       catch (e) { r = { error: e.message }; }
-      alert(r.ok ? (t("tl.new_ok") + "\n" + r.dir + "\n" + (r.note || "")) : (t("tl.new_err") + " " + (r.error || "")));
+      await JoyceDialog.alert(r.ok ? (t("tl.new_ok") + "\n" + r.dir + "\n" + (r.note || ""))
+                                   : (t("tl.new_err") + " " + (r.error || "")));
       if (r.ok) renderTools(el);
     });
   }

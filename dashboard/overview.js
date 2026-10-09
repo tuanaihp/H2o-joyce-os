@@ -238,7 +238,10 @@
   // Luồng doanh thu của studio theo hành trình khách: Nghiên Cứu ra concept -> Marketing
   // mang khách về -> Bán Hàng chốt -> CSKH đi cùng -> Sản Xuất làm -> Kế Toán chốt tiền.
   // Khối không nằm trong danh sách này là khối HỖ TRỢ (nhân sự, vệ sinh, truyền thông...).
-  const FLOW_ORDER = ["nghien-cuu", "marketing", "ban-hang", "cskh", "san-xuat", "ke-toan"];
+  // Thứ tự luồng ĐẾN TỪ SỔ PHÒNG BAN (khoi.thu_tu_luong / khoi.trai_dai), không hardcode ở
+  // đây nữa - cơ cấu phòng ban là dữ liệu, đổi nó không nên phải sửa JavaScript. Danh sách
+  // dưới chỉ còn là lưới cứu khi server cũ chưa trả trường đó.
+  const FLOW_FALLBACK = ["nghien-cuu", "marketing", "ban-hang", "san-xuat"];
   const DOT_C = { good: "var(--ok-ink)", wait: "var(--warn-ink)", risk: "var(--danger-ink)",
     error: "var(--danger-ink)", empty: "var(--text3)", nobrain: "var(--text3)" };
 
@@ -279,25 +282,55 @@
     if (_deptBrand !== "all" && !units.some((u) => u.id === _deptBrand)) _deptBrand = "all";
     const khoiMap = Object.fromEntries(khois.map((k) => [k.id, k]));
 
-    // Gom phòng theo khối, tách khối theo luồng doanh thu vs khối hỗ trợ.
+    // Gom phòng theo khối, rồi chia ba vai: CHUỖI chính (thu_tu_luong > 0), khối TRẢI DÀI
+    // chạy dọc cả hành trình (trai_dai), và khối hỗ trợ còn lại.
     const byKhoi = {};
     phong.filter((p) => _deptBrand === "all" || p.brand_id === _deptBrand)
       .forEach((p) => { (byKhoi[p.khoi_id] = byKhoi[p.khoi_id] || []).push(p); });
     const ids = Object.keys(byKhoi);
-    const flowIds = FLOW_ORDER.filter((id) => byKhoi[id]);
-    const supIds = ids.filter((id) => !FLOW_ORDER.includes(id))
+    const bac = (id) => Number(khoiMap[id]?.thu_tu_luong || 0);
+    const traiDai = (id) => !!khoiMap[id]?.trai_dai;
+    let flowIds = ids.filter((id) => bac(id) > 0 && !traiDai(id)).sort((a, b) => bac(a) - bac(b));
+    if (!flowIds.length) flowIds = FLOW_FALLBACK.filter((id) => byKhoi[id] && !traiDai(id));
+    const spanIds = ids.filter(traiDai)
+      .sort((a, b) => bac(a) - bac(b) || String(khoiMap[a]?.ten || a).localeCompare(String(khoiMap[b]?.ten || b)));
+    const supIds = ids.filter((id) => !flowIds.includes(id) && !spanIds.includes(id))
       .sort((a, b) => String(khoiMap[a]?.ten || a).localeCompare(String(khoiMap[b]?.ten || b)));
     // Brand nào không có khối luồng nào (vd ThuyH2O) thì khối của nó vẫn nằm ở phần chính.
     const mainIds = flowIds.length ? flowIds : supIds;
     const restIds = flowIds.length ? supIds : [];
 
-    const arrow = `<div class="ovw-arrow">${ic("chevron-right")}</div>`;
+    // Mũi tên MANG SỐ: việc đang đọng ở khối NHẬN (kẹt + chờ duyệt + đang mở). Mũi tên trơn
+    // chỉ là trang trí - nó không nói được chỗ nào đang tắc, mà đó mới là câu người ta mở
+    // trang vận hành để hỏi.
+    const un = (id) => Number(khoiMap[id]?.un || 0);
+    const ket = (id) => Number((khoiMap[id]?.tasks || {}).blocked || 0);
+    const noi = (idSau) => {
+      const n = un(idSau), k = ket(idSau);
+      return `<div class="ovw-arrow${k ? " risk" : ""}" title="${esc(t("ov.dw_arrow_t", { khoi: khoiMap[idSau]?.ten || idSau }))}">
+        ${ic("chevron-right")}${n ? `<span class="ovw-an${k ? " risk" : ""}">${so(n)}</span>` : ""}</div>`;
+    };
     const flowHtml = mainIds.map((id, i) =>
       khoiCard(khoiMap[id] || { ten: id }, byKhoi[id], String(i + 1).padStart(2, "0"))
-    ).join(arrow);
+    ).reduce((acc, card, i) => acc + (i ? noi(mainIds[i]) : "") + card, "");
+
+    // Khối trải dài: một dải NẰM NGANG dưới chuỗi, đúng với việc nó chạm vào mọi chặng.
+    // CSKH có Trước/Trong/Sau Dịch Vụ, Kế Toán thì Phòng Thu ở đầu còn Đối Soát ở cuối -
+    // vẽ chúng thành một mắt xích giữa chuỗi là mô tả sai cơ cấu.
+    const spanHtml = spanIds.map((id) => {
+      const k = khoiMap[id] || { ten: id };
+      const ps = byKhoi[id];
+      return `<div class="ovw-span${ket(id) ? " risk" : ""}">
+        <div class="ovw-span-h"><b>${esc(k.ten)}</b>
+          <span>${esc(t("ov.dw_span_d", { so: ps.length }))}</span>
+          ${un(id) ? `<span class="ovw-n${ket(id) ? " risk" : ""}">${so(un(id))}</span>` : ""}</div>
+        <div class="ovw-span-b">${ps.map(phongChip).join("")}</div>
+      </div>`;
+    }).join("");
+
     const supHtml = restIds.length
       ? panel(t("ov.dw_support"), t("ov.dw_support_d"),
-          `<div class="ovw-supp">${restIds.map((id, i) =>
+          `<div class="ovw-supp">${restIds.map((id) =>
             khoiCard(khoiMap[id] || { ten: id }, byKhoi[id], "")).join("")}</div>`)
       : "";
 
@@ -310,7 +343,9 @@
         return `<div class="ov-usum" data-unit="${i}"><div class="ov-usum-ico">${ic("layers")}</div><div class="ov-usum-body"><b>${esc(u.ten)}</b>${pill(STATUS_TONE[u.status], t(ST_KEY[u.status]))}<span>${esc(t("ov.unit_line", { phong: u.phong, dulieu: u.co_du_lieu, xong: tk.done24 || 0, mo: tk.open || 0, ket: tk.blocked || 0 }))}</span>
         <div class="ov-usum-nums"><span><strong>${so(tk.done24 || 0)}</strong> ${esc(t("ov.ds_done"))}</span><span><strong>${so(tk.open || 0)}</strong> ${esc(t("ov.ds_open"))}</span><span><strong>${so(tk.blocked || 0)}</strong> ${esc(t("ov.ds_blocked"))}</span></div></div></div>`;
       }).join("")}</div>
-      ${panel(t("ov.dw_flow"), t("ov.dw_flow_d"), `<div class="ovw-flow">${flowHtml}</div>`)}
+      ${panel(t("ov.dw_flow"), t("ov.dw_flow_d"),
+        `<div class="ovw-flow">${flowHtml}</div>`
+        + (spanHtml ? `<div class="ovw-spans"><span class="ovw-spans-l">${esc(t("ov.dw_span_l"))}</span>${spanHtml}</div>` : ""))}
       ${supHtml}
       <p class="ov-dim" style="margin:0">${ic("info")} ${esc(t("ov.dw_hint"))}</p></div>`;
     el.querySelectorAll("[data-brand]").forEach((b) => (b.onclick = () => { _deptBrand = b.dataset.brand; renderDepartments(el); }));
@@ -321,7 +356,7 @@
   // ---- Workspace trưởng phòng: bấm vào một phòng ------------------------------------
   function moWorkspace(p, khoiMap) {
     const old = document.getElementById("ovDrawer");
-    if (old) old.remove();
+    if (old) { if (typeof old.__dong === "function") old.__dong(); else old.remove(); }
     const k = (khoiMap || {})[p.khoi_id] || {};
     const c = p.tasks || {};
     const w = document.createElement("div");
@@ -342,10 +377,11 @@
     w.innerHTML = `<div class="ov-backdrop"></div><aside class="ov-drawer ovw-wide" role="dialog" aria-modal="true" aria-label="${esc(p.ten)}">
       <div class="ov-drawer-head"><div><span class="ov-eyebrow">${esc(p.brand)} · ${esc(p.khoi)}</span><h2>${esc(p.ten)}</h2>
         ${p.agent ? `<span class="ov-dim">${ic("bot")} ${esc(p.agent)}${p.vai ? " - " + esc(p.vai) : ""}</span>` : ""}</div>
+        <button type="button" class="ovw-full" aria-label="${esc(t("ov.dw_full"))}" title="${esc(t("ov.dw_full"))}" aria-pressed="false">${ic("maximize")}</button>
         <button type="button" class="ov-close" aria-label="${esc(t("common.close"))}">${ic("x")}</button></div>
       <div class="ov-drawer-body">
         <div class="ovw-acts">
-          <button type="button" class="ov-primary" data-act="assign">${ic("plus")} ${esc(t("ov.dw_assign"))}</button>
+          ${p.has_brain ? `<button type="button" class="ov-primary" data-act="assign">${ic("plus")} ${esc(t("ov.dw_assign"))}</button>` : ""}
           ${p.has_brain ? `<button type="button" class="ov-secondary" data-act="board">${ic("square-kanban")} ${esc(t("ov.dw_board"))}</button>
           <button type="button" class="ov-secondary" data-act="brain">${ic("brain")} ${esc(t("ov.dl_brain"))}</button>` : ""}
           <button type="button" class="ov-ghost" data-act="improve">${ic("sparkles")} ${esc(t("ov.dw_improve"))}</button>
@@ -368,23 +404,32 @@
             <p class="ovw-stage-sub">${esc(t("ov.dw_before_d"))}</p>
             ${p.vai ? `<p class="ovw-vai">${esc(p.vai)}</p>` : ""}
             <ul class="ovw-list">${(p.nhiem_vu || []).map((nv) => `<li>${esc(nv)}</li>`).join("") || `<li class="ov-dim">${esc(t("ov.dw_no_duty"))}</li>`}</ul>
+            <div class="ovw-qt" data-qt="truoc">${ic("loader", { cls: "ic-spin" })}</div>
           </div>
           <div class="ovw-stage"><h4><span class="ovw-knum">02</span> ${esc(t("ov.dw_during"))}</h4>
             <p class="ovw-stage-sub">${esc(t("ov.dw_during_d"))}</p>
             <div id="ovwCap">${ic("loader", { cls: "ic-spin" })}</div>
+            <div class="ovw-qt" data-qt="trong"></div>
           </div>
           <div class="ovw-stage"><h4><span class="ovw-knum">03</span> ${esc(t("ov.dw_after"))}</h4>
             <p class="ovw-stage-sub">${esc(t("ov.dw_after_d"))}</p>
             <p class="ovw-vai">${esc(k.dau_ra || t("ov.dw_no_output"))}</p>
+            <div class="ovw-qt" data-qt="sau"></div>
           </div>
         </div>
+        <div class="ovw-qt-khac" id="ovwQtKhac"></div>
 
         <div class="ovw-steps"><h4>${esc(t("ov.dw_steps"))}</h4><ul>${steps.map(stepHtml).join("")}</ul></div>
       </div></aside>`;
     document.body.appendChild(w);
-    const dong = () => { w.remove(); document.removeEventListener("keydown", onKey); };
-    const onKey = (e) => { if (e.key === "Escape") dong(); };
-    document.addEventListener("keydown", onKey);
+    // AbortController thay cho removeEventListener tay: mở drawer lần 2 chỉ gọi old.remove()
+    // chứ không gọi dong() của drawer cũ, nên listener keydown cũ còn bám document và tích
+    // tụ thêm một cái mỗi lần mở. Gắn abort() lên chính node để lần mở sau dọn được nó.
+    const huy = new AbortController();
+    const dong = () => { huy.abort(); w.remove(); };
+    w.__dong = dong;
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") dong(); },
+                              { signal: huy.signal });
     w.querySelector(".ov-backdrop").onclick = dong;
     w.querySelector(".ov-close").onclick = dong;
 
@@ -410,6 +455,48 @@
         }).catch(() => { if (w.isConnected) cap.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; });
     } else {
       cap.innerHTML = `<span class="ov-dim">${esc(t("ov.dl_nobrain"))}</span>`;
+    }
+
+    // Toàn màn hình: drawer mặc định rộng 760px, không đủ cho ba cột quy trình.
+    const nutFull = w.querySelector(".ovw-full");
+    if (nutFull) nutFull.onclick = () => {
+      const on = w.classList.toggle("ovw-fullscreen");
+      nutFull.setAttribute("aria-pressed", on ? "true" : "false");
+      nutFull.innerHTML = ic(on ? "minimize" : "maximize");
+      nutFull.title = t(on ? "ov.dw_full_off" : "ov.dw_full");
+    };
+
+    // QUY TRÌNH THẬT của phòng, xếp vào đúng cột Trước / Trong / Sau. Ba cột này trước đây
+    // chỉ là chữ mô tả vai trò - không nối vào tài liệu nào, nên trưởng phòng đọc xong vẫn
+    // phải tự đi tìm file. Bấm một quy trình = nhảy sang chat, đã đổi sẵn sang brain phòng
+    // và điền sẵn câu lệnh kèm đường dẫn file, chỉ việc bảo Joyce sửa gì.
+    const moQuyTrinh = (it) => {
+      dong();
+      if (p.brain_path) moBrain(p.brain_path, p.ten);
+      setTimeout(() => hoiJoyce(t("ov.dw_qt_prompt", { ten: it.ten, file: it.rel, phong: p.ten })), 120);
+    };
+    const veQt = (hop, ds, nhan) => {
+      if (!hop) return;
+      if (!ds.length) { hop.innerHTML = ""; return; }
+      hop.innerHTML = `<div class="ovw-qt-h">${ic("scroll")} ${esc(nhan)} <b>${ds.length}</b></div>`
+        + ds.map((it, i) => `<button type="button" class="ovw-qt-i" data-i="${i}" title="${esc(it.rel)}">
+            <span>${esc(it.ten)}</span>${ic("pen-line")}</button>`).join("");
+      hop.querySelectorAll(".ovw-qt-i").forEach((b) => (b.onclick = () => moQuyTrinh(ds[+b.dataset.i])));
+    };
+    if (p.has_brain) {
+      api("/api/joyce/v1/overview/quy-trinh?brain=" + encodeURIComponent(p.brain_path)).then((rq) => {
+        if (!w.isConnected) return;
+        const g = (rq.data && rq.data.giai_doan) || {};
+        [["truoc", "ov.dw_qt_before"], ["trong", "ov.dw_qt_during"], ["sau", "ov.dw_qt_after"]]
+          .forEach(([key, nhan]) => veQt(w.querySelector(`[data-qt="${key}"]`), g[key] || [], t(nhan)));
+        veQt(w.querySelector("#ovwQtKhac"), g.khac || [], t("ov.dw_qt_other"));
+        // Gợi ý đặt tên chỉ hiện khi phòng CHƯA có quy trình nào - treo nó ở cột Trước khi
+        // riêng cột đó rỗng thì sai, vì phòng có thể chỉ có quy trình Trong dịch vụ.
+        const t0 = w.querySelector('[data-qt="truoc"]');
+        if (t0 && !((rq.data && rq.data.tong) || 0)) t0.innerHTML = `<p class="ov-dim ovw-qt-none">${esc(t("ov.dw_qt_none"))}</p>`;
+      });
+    } else {
+      w.querySelectorAll(".ovw-qt").forEach((x) => (x.innerHTML = ""));
     }
 
     w.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {

@@ -91,6 +91,58 @@ def _status(c: dict) -> str:
 
 
 # ---------------------------------------------------------------------------------------
+# Quy trình của một phòng, xếp theo giai đoạn Trước / Trong / Sau dịch vụ
+# ---------------------------------------------------------------------------------------
+# Quy ước đặt tên có sẵn trong vault của chủ: tên file kết thúc bằng "- Trước dịch vụ.md",
+# "- Trong dịch vụ.md", "- Sau dịch vụ.md" (108 file đang dùng khi viết hàm này). Phân loại
+# theo TÊN FILE chứ không đọc nội dung: rẻ, và chủ đổi giai đoạn chỉ bằng đổi tên file.
+_GIAI_DOAN = (("truoc", "truoc dich vu"), ("trong", "trong dich vu"), ("sau", "sau dich vu"))
+_QT_MAX = 40          # trần mỗi giai đoạn, tránh phòng có vài trăm trang làm nặng drawer
+
+
+def _bo_dau(s: str) -> str:
+    import unicodedata
+    s = str(s or "").replace("Đ", "D").replace("đ", "d")
+    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+
+
+def _tieu_de_qt(ten: str) -> str:
+    """'3. Quy Trình Tư Vấn Báo Giá Offline - Trước dịch vụ.md' -> 'Quy Trình Tư Vấn Báo
+    Giá Offline'. Bỏ đuôi .md, bỏ hậu tố giai đoạn, bỏ số thứ tự đầu tên."""
+    import re as _re
+    t = _re.sub(r"\.md$", "", str(ten or ""), flags=_re.I)
+    t = _re.sub(r"\s*[-–]\s*(trước|trong|sau)\s+dịch\s+vụ\s*$", "", t, flags=_re.I)
+    return _re.sub(r"^\s*\d+[.)]\s*", "", t).strip() or t.strip()
+
+
+def _quy_trinh(brain_path: str) -> dict:
+    """{giai_doan: {truoc|trong|sau|khac: [{ten, file, rel}]}, tong: n}."""
+    out = {k: [] for k, _ in _GIAI_DOAN}
+    out["khac"] = []
+    root = str(brain_path or "")
+    if not root or not os.path.isdir(root):
+        return {"giai_doan": out, "tong": 0}
+    tong = 0
+    for sub in ("wiki", "07 - Wiki"):
+        d = os.path.join(root, sub)
+        if not os.path.isdir(d):
+            continue
+        for dp, dns, fns in os.walk(d):
+            dns[:] = [x for x in dns if not x.startswith(".")]
+            for f in sorted(fns):
+                if not f.lower().endswith(".md") or f.startswith("_") or f in ("index.md", "log.md"):
+                    continue
+                kho = _bo_dau(f)
+                nhom = next((k for k, dau in _GIAI_DOAN if dau in kho), "khac")
+                if len(out[nhom]) >= _QT_MAX:
+                    continue
+                rel = os.path.relpath(os.path.join(dp, f), root).replace("\\", "/")
+                out[nhom].append({"ten": _tieu_de_qt(f), "file": f, "rel": rel})
+                tong += 1
+    return {"giai_doan": out, "tong": tong}
+
+
+# ---------------------------------------------------------------------------------------
 # Phòng ban: việc (kanban của brain phòng) + dữ liệu đã nạp (sources/wiki trong brain phòng)
 # ---------------------------------------------------------------------------------------
 def _departments(deps: OverviewDeps) -> dict:
@@ -157,10 +209,27 @@ def _departments(deps: OverviewDeps) -> dict:
         })
     # Thong tin khoi cho so do day noi tren trang Phong ban: boi_canh/dau_ra la khuon
     # bao cao ky vong cua ca khoi, de workspace truong phong hien "dau ra mong muon".
-    khois = [{"id": k.get("id"), "ten": k.get("ten") or k.get("id"),
-              "prefix": k.get("prefix") or "", "boi_canh": k.get("boi_canh") or "",
-              "dau_ra": k.get("dau_ra") or "", "brand_id": k.get("brand") or "h2o"}
-             for k in (d.get("khoi") or [])]
+    #
+    # thu_tu_luong/trai_dai den TU SO phong ban chu khong hardcode ben JS nua (xem
+    # h2o_departments._LUONG_MAC_DINH). `tasks` la tong cua ca khoi, va `un` = so viec dang
+    # dong lai (ket + cho duyet + dang mo) - do la con so gan len mui ten so do, de nhin ra
+    # cho tac thay vi chi thay mot mui ten trang tri.
+    khois = []
+    for k in (d.get("khoi") or []):
+        rs = [r for r in rows if r["khoi_id"] == k.get("id")]
+        tot = {"done24": 0, "open": 0, "review": 0, "blocked": 0, "running": 0}
+        for r in rs:
+            for key in tot:
+                tot[key] += int((r["tasks"] or {}).get(key, 0))
+        khois.append({
+            "id": k.get("id"), "ten": k.get("ten") or k.get("id"),
+            "prefix": k.get("prefix") or "", "boi_canh": k.get("boi_canh") or "",
+            "dau_ra": k.get("dau_ra") or "", "brand_id": k.get("brand") or "h2o",
+            "thu_tu_luong": int(k.get("thu_tu_luong") or 0),
+            "trai_dai": bool(k.get("trai_dai")),
+            "phong": len(rs), "tasks": tot, "status": _status(tot),
+            "un": tot["blocked"] + tot["review"] + tot["open"],
+        })
     return {"units": units, "phong": rows, "khois": khois}
 
 
@@ -364,6 +433,21 @@ def register(app, deps: OverviewDeps):
         for u in d["units"]:
             u["top"] = [r["id"] for r in u["top"]]
         return {"ok": True, "generated_at": time.time(), **d}
+
+    @router.get("/api/joyce/v1/overview/quy-trinh")
+    async def api_quy_trinh(request: Request, brain: str = Query("")):
+        """Quy trình THẬT trong wiki của một brain phòng, xếp theo Trước / Trong / Sau.
+
+        Ba cột Trước-Trong-Sau của workspace trưởng phòng trước đây chỉ hiện mô tả vai trò
+        lấy từ sổ phòng ban - chữ tĩnh, không nối vào tài liệu nào. Endpoint này trả đúng
+        các file quy trình đang có để bấm thẳng vào mà sửa cùng Joyce."""
+        if _staff(deps, request):
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            return {"ok": True, **_quy_trinh(brain)}
+        except Exception as e:  # noqa: BLE001
+            _log("quy-trinh", e)
+            return {"ok": False, "error": "không đọc được quy trình", "giai_doan": {}}
 
     @router.get("/api/joyce/v1/overview/calendar")
     async def api_calendar(request: Request, start: str = Query(""), days: int = Query(7, ge=1, le=31)):

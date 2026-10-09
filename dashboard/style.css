@@ -678,22 +678,72 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .hud-center.brain-overlays-hidden .brain-eye-on { display: none; }
 .hud-center.brain-overlays-hidden .brain-eye-off { display: block; }
 .orb-overlay {
-  position: absolute; bottom: 92px; left: 0; right: 0;
+  position: absolute; bottom: 24px; left: 0; right: 0;
   text-align: center; pointer-events: none; z-index: 5;
 }
 .orb-state {
-  font-family: var(--font); font-size: 14px; letter-spacing: 3px;
-  color: var(--text2); transition: color 0.3s;
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 13px; font-weight: 600; letter-spacing: 4.5px; text-transform: uppercase;
+  color: rgba(160,210,240,0.7);
+  transition: color 0.4s, text-shadow 0.4s, filter 0.4s;
+  text-shadow: 0 0 8px rgba(100,180,240,0.3);
+  filter: blur(0);
 }
-.orb-state.listening { color: var(--accent); }
-.orb-state.speaking { color: var(--accent2); }
-.orb-state.thinking { color: var(--yellow); }
-/* Voice V1: trạng thái thật (docs/dev/2026-10-voice-call-spec.md phụ lục A1) */
-.orb-state.waiting { color: var(--accent2); }
-.orb-state.paused { color: var(--yellow); }
-.orb-state.reconnecting { color: var(--red); animation: orb-blink 1.2s ease-in-out infinite; }
-.orb-state.error { color: var(--red); }
+.orb-state.listening {
+  color: #67e8f9;
+  text-shadow: 0 0 12px rgba(103,232,249,0.5), 0 0 30px rgba(103,232,249,0.15);
+  animation: orb-scan 2.4s ease-in-out infinite;
+}
+.orb-state.speaking {
+  color: #5eead4;
+  text-shadow: 0 0 14px rgba(94,234,212,0.5), 0 0 36px rgba(94,234,212,0.12);
+  animation: orb-pulse 1.6s ease-in-out infinite;
+}
+.orb-state.thinking {
+  color: #fbbf24;
+  text-shadow: 0 0 16px rgba(251,191,36,0.55), 0 0 40px rgba(251,191,36,0.15);
+  animation: orb-think 2s ease-in-out infinite;
+}
+.orb-state.waiting {
+  color: #5eead4;
+  text-shadow: 0 0 10px rgba(94,234,212,0.4);
+  animation: orb-scan 3s ease-in-out infinite;
+}
+.orb-state.paused {
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(251,191,36,0.4);
+  animation: orb-blink 1.8s ease-in-out infinite;
+}
+.orb-state.reconnecting {
+  color: #f87171;
+  text-shadow: 0 0 14px rgba(248,113,113,0.6), 0 0 40px rgba(248,113,113,0.2);
+  animation: orb-alert 1s ease-in-out infinite;
+}
+.orb-state.error {
+  color: #f87171;
+  text-shadow: 0 0 18px rgba(248,113,113,0.7);
+}
 @keyframes orb-blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes orb-scan {
+  0%, 100% { opacity: .75; letter-spacing: 4.5px; }
+  50% { opacity: 1; letter-spacing: 5.5px; }
+}
+@keyframes orb-think {
+  0%, 100% { opacity: .8; text-shadow: 0 0 16px rgba(251,191,36,0.55), 0 0 40px rgba(251,191,36,0.15); }
+  50% { opacity: 1; text-shadow: 0 0 22px rgba(251,191,36,0.7), 0 0 50px rgba(251,191,36,0.25); }
+}
+@keyframes orb-pulse {
+  0%, 100% { opacity: .85; }
+  50% { opacity: 1; text-shadow: 0 0 20px rgba(94,234,212,0.6), 0 0 44px rgba(94,234,212,0.18); }
+}
+@keyframes orb-alert {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; letter-spacing: 6px; }
+}
+.orb-state.cel-lit {
+  filter: drop-shadow(0 0 6px var(--cel-tint, transparent))
+          drop-shadow(0 0 16px var(--cel-tint, transparent));
+}
 .orb-interim {
   font-size: 17px; color: var(--text); margin-top: 8px;
   max-width: 600px; margin-left: auto; margin-right: auto; min-height: 20px;

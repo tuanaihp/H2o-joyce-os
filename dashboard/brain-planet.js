@@ -4977,6 +4977,13 @@
     R.state = function () { return state; };
     R.planetGeom = function () { return { cx: geo.cx, cy: geo.cy, R: geo.R, callK: callK }; };
     R.moonInfo = function () { return { phase: moonPh.phase, illum: moonPh.illum, key: MOON_KEYS[moonPhaseKey(moonPh.phase)] }; };
+    R.celestialInfo = function () {
+      var si = geo.sun ? { x: geo.sun.x, y: geo.sun.y, r: geo.sun.r } : null;
+      var mi = moon && moon.pt ? { x: moon.pt.x, y: moon.pt.y } : null;
+      var near = [];
+      sats.forEach(function (s) { if (s.pt && s.pt.z > 0) near.push({ x: s.pt.x, y: s.pt.y, col: satColor(s), name: s.name }); });
+      return { sun: si, moon: mi, sats: near };
+    };
     // Thời tiết kinh doanh (hud.js đọc /business-weather): mây, mưa, sét, bão trên Việt Nam.
     R.setWeather = function (key) {
       if (!WX[key]) key = "nang_nhe";
