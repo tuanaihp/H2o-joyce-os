@@ -244,16 +244,40 @@
       // Anh / PDF: xem truoc thang qua /files/raw (khong doc dang text).
       if (IMG.indexOf(ext) >= 0) { renderImage(b, ceil, brainRel); return; }
       if (ext === ".pdf") { renderPdf(b, ceil, brainRel); return; }
-      // Con lai: doc noi dung.
-      fetch("/files/read?brain=" + encodeURIComponent(b) + "&path=" + encodeURIComponent(ceil))
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (res) {
-          if (!isOpen()) return;
-          if (!res.ok || res.d.error) { renderError(b, ceil, brainRel, res.d && res.d.error); return; }
-          if (res.d.editable) renderEditor(b, ceil, brainRel, res.d);
-          else renderReadonly(b, ceil, brainRel, res.d);
-        })
-        .catch(function () { if (isOpen()) renderError(b, ceil, brainRel, null); });
+      // Con lai: doc noi dung. Hai lop du phong truoc khi bao loi:
+      //  1. Tien to 'home' cu lech tran duyet (localhost=to o dia, tunnel khoa vao brain -
+      //     doi giua phien thi homeCache giu prefix cu, ceil tro vao cho khong ton tai) ->
+      //     doc lai bang duong dan GOC BRAIN, duoc thi lam moi 'home' de nut Luu ghi dung.
+      //  2. Nghet mang/tunnel sup tam (fetch nem loi, hoac dap tra khong phai JSON) -> thu
+      //     lai 1 lan. Chu repo bao 2026-10-09: "sao khong mo xem luon duoc noi dung".
+      var dung = function (res, duong) {
+        if (res.d.editable) renderEditor(b, duong, brainRel, res.d);
+        else renderReadonly(b, duong, brainRel, res.d);
+      };
+      var doc = function (duong, lan2) {
+        fetch("/files/read?brain=" + encodeURIComponent(b) + "&path=" + encodeURIComponent(duong))
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!isOpen()) return;
+            if (!res.ok || res.d.error) {
+              if (!lan2 && duong !== brainRel) { doc(brainRel, true); return; }
+              renderError(b, duong, brainRel, res.d && res.d.error);
+              return;
+            }
+            if (duong !== ceil) {
+              delete homeCache[b];
+              getHome(b).then(function (h2) { if (isOpen()) dung(res, ceilPath(h2, brainRel)); });
+              return;
+            }
+            dung(res, ceil);
+          })
+          .catch(function () {
+            if (!isOpen()) return;
+            if (!lan2) { doc(duong === brainRel ? duong : brainRel, true); return; }
+            renderError(b, duong, brainRel, tw("app.err_net"));
+          });
+      };
+      doc(ceil);
     });
   }
 
