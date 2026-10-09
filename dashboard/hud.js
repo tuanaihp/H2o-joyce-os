@@ -132,6 +132,9 @@
     view.querySelectorAll(".hp-title[data-tk], .planet-call-btn[data-tk], .hs-end[data-tk], .gx-btn[data-tk]").forEach(function (el) {
       el.textContent = t(el.dataset.tk);
     });
+    view.querySelectorAll("[data-title-tk]").forEach(function (el) {
+      el.title = t(el.dataset.titleTk);
+    });
   }
 
   // ---------- Nhịp tim tri thức (sparkline) ----------
@@ -587,13 +590,19 @@
   // hỏi /knowledge/search (cùng phạm vi bầu trời, admin ở brain chủ = mọi phòng) rồi đẩy kết
   // quả cho tinh cầu. Rê chuột hai chiều: dòng kết quả <-> tinh cầu nhỏ.
   var _timQ = "", _timHits = [];
+  function focViewReset() {
+    var fc = view && view.querySelector("#fvCtl");
+    if (fc) { fc.hidden = true; fc.querySelectorAll(".fv-btn").forEach(function (b, i) { b.classList.toggle("fv-active", i === 0); }); }
+  }
   function timTriThuc(q) {
     _timQ = q;
-    if (!q) { _timHits = []; if (planet) planet.focusKnowledge(null); return; }
+    if (!q) { _timHits = []; if (planet) planet.focusKnowledge(null); focViewReset(); return; }
     jget("/knowledge/search?brain=" + encodeURIComponent(brainPath()) + "&q=" + encodeURIComponent(q)).then(function (r) {
-      if (_timQ !== q || !planet) return;   // đã gõ tiếp sang từ khác
+      if (_timQ !== q || !planet) return;
       _timHits = (r && r.hits) || [];
       planet.focusKnowledge(_timHits.length ? { q: q, hits: _timHits, total: r.total } : null);
+      var fc = view && view.querySelector("#fvCtl");
+      if (fc) fc.hidden = !_timHits.length;
     });
   }
   window.addEventListener("joyce:vault-search", function (e) {
@@ -1077,6 +1086,11 @@
       // Nút Thiên hà (lùi ra tầng thiên hà / về tinh cầu) và đường về Trái Đất (Brain Default).
       '<div class="gx-ctl" id="gxCtl"><button type="button" class="gx-btn" id="gxBtn" data-tk="planet.gx_btn"></button>' +
         '<button type="button" class="gx-btn" id="gxEarth" data-tk="planet.gx_back_earth" hidden></button></div>' +
+      '<div class="fv-ctl" id="fvCtl" hidden>' +
+        '<button type="button" class="fv-btn fv-active" data-fv="0" data-title-tk="planet.fv_sky"><span>✦</span></button>' +
+        '<button type="button" class="fv-btn" data-fv="1" data-title-tk="planet.fv_orbit"><span>◎</span></button>' +
+        '<button type="button" class="fv-btn" data-fv="2" data-title-tk="planet.fv_tri"><span>△</span></button>' +
+      '</div>' +
       '<div class="planet-ctx" id="planetCtx" role="dialog" hidden></div>' +
       '<div class="holo-screen" id="holoScreen" role="region" aria-live="polite" hidden>' +
         '<div class="hs-frame">' +
@@ -1121,8 +1135,18 @@
       var r = host.getBoundingClientRect(), x = e.clientX - r.left;
       host.classList.toggle("hud-peek-l", x < 70);
       host.classList.toggle("hud-peek-r", x > r.width - 70);
+      var y = e.clientY - r.top;
+      host.classList.toggle("hud-peek-b", y > r.height - 100);
     });
-    host.addEventListener("mouseleave", function () { host.classList.remove("hud-peek-l", "hud-peek-r"); });
+    host.addEventListener("mouseleave", function () { host.classList.remove("hud-peek-l", "hud-peek-r", "hud-peek-b"); });
+    host.addEventListener("touchstart", function (e) {
+      if (!active || !host.classList.contains("brain-overlays-hidden") || !e.touches.length) return;
+      var r = host.getBoundingClientRect(), t0 = e.touches[0];
+      var x = t0.clientX - r.left, y = t0.clientY - r.top;
+      host.classList.toggle("hud-peek-l", x < 70);
+      host.classList.toggle("hud-peek-r", x > r.width - 70);
+      host.classList.toggle("hud-peek-b", y > r.height - 100);
+    }, { passive: true });
     var gxB = view.querySelector("#gxBtn"), gxE = view.querySelector("#gxEarth");
     if (gxB) gxB.addEventListener("click", function () {
       if (!planet) return;
@@ -1131,6 +1155,14 @@
     if (gxE) gxE.addEventListener("click", function () {
       var e = D.gal && D.gal.earth;
       if (e) vaoTinhCau(Object.assign({ role: "earth" }, e)); else chuyenBrain({ role: "earth" });
+    });
+    var fvCtl = view.querySelector("#fvCtl");
+    if (fvCtl) fvCtl.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("[data-fv]");
+      if (!btn || !planet) return;
+      var m = parseInt(btn.dataset.fv, 10);
+      planet.setFocViewMode(m);
+      fvCtl.querySelectorAll(".fv-btn").forEach(function (b) { b.classList.toggle("fv-active", b === btn); });
     });
     built = true;
   }

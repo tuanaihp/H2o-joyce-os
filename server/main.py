@@ -6853,6 +6853,9 @@ async def skill_get(slug: str = Query(...), brain: str = Query("brain")):
             "version": int(meta.get("version") or 1), "status": meta.get("status") or "active"}
 
 
+_skill_save_locks: dict = {}
+_skill_save_locks_guard = threading.Lock()
+
 @app.post("/skills")
 async def save_skill(name: str = Form(...), description: str = Form(""), group: str = Form("Chung"),
                      body: str = Form(""), slug: str = Form(""), brain: str = Form("brain")):
@@ -6861,59 +6864,54 @@ async def save_skill(name: str = Form(...), description: str = Form(""), group: 
     slug = (slug or _ascii_slug(name)).strip()
     if not skill_router.valid_slug(slug):
         return JSONResponse({"error": "Tên skill không hợp lệ"}, status_code=400)
-    # Ép trần description NGAY, trước khi tạo bất cứ thư mục nào -> request bị từ chối không
-    # để lại folder skill rỗng trên đĩa. Router cắt ở SKILL_DESC_MAX nên vượt trần = mất chữ
-    # im lặng; chặn ở đây tốt hơn là ghi bừa rồi để runtime cắt.
     desc_err = skill_router.validate_description(description)
     if desc_err:
         return JSONResponse({"error": desc_err}, status_code=400)
     root = _brain_root(brain)
     try:
-        system_sync.migrate_brain(root)   # brain cũ: chuẩn hoá về skills/ trước khi ghi
+        system_sync.migrate_brain(root)
     except Exception:
         pass
     sk = _skills_dir(brain)
-    # SỬA skill đang TẮT thì GIỮ nguyên trạng thái tắt (ghi lại vào .disabled), không tự bật lên
-    # + không để lại bản mồ côi. Skill MỚI (chưa có ở đâu) → ghi vào vị trí BẬT (mặc định bật).
-    disabled_dir = sk / ".disabled" / slug
-    d = disabled_dir if disabled_dir.is_dir() else (sk / slug)
-    d.mkdir(parents=True, exist_ok=True)
-    meta = {"name": name, "description": description, "group": (group or "Chung").strip()}
-    # GIỮ LẠI các bản dịch (`description_en`, `name_en`...) của skill đang có. Form chỉ gửi lên
-    # bản gốc, nên ghi đè trắng meta là mỗi lần user bấm Lưu lại xoá sạch bản dịch mà không ai
-    # thấy - skill hệ thống sẽ tụt về mô tả tiếng Việt cho người dùng tiếng Anh.
-    cu, cu_body = _read_md(d / "SKILL.md")
-    for k, v in (cu or {}).items():
-        if skill_router.la_khoa_ngon_ngu(k) and k not in meta:
-            meta[k] = v
-    # Skill versioning: skill đang ACTIVE mà bị sửa thân bài → KHÔNG ghi đè câm mà lưu
-    # snapshot bản cũ vào .history/v<N>.md rồi tăng version. Bản active luôn là bản
-    # mới nhất; ai cần so sánh/rollback đọc .history. Skill mới/draft: version=1.
-    new_body = body or f"# {name}\n\n{description}"
-    old_status = str((cu or {}).get("status", "active")).lower()
-    old_ver = int((cu or {}).get("version") or 0)
-    if cu is not None and old_status == "active" and (cu_body or "").strip() != new_body.strip():
-        ver = old_ver + 1
-        hist = d / ".history"
-        try:
-            hist.mkdir(parents=True, exist_ok=True)
-            (hist / f"v{max(old_ver, 1)}.md").write_text(
-                (Path(d / "SKILL.md").read_text(encoding="utf-8")), encoding="utf-8")
-        except Exception:
-            pass
-        meta["version"] = ver
-        meta["updated"] = _today()
-        if (cu or {}).get("created"):
-            meta["created"] = cu["created"]
-    elif cu is not None and old_ver:
-        meta["version"] = old_ver          # sửa nhẹ không đổi thân, hay skill draft → giữ version
-    elif cu is None:
-        meta["version"] = 1
-        meta["created"] = _today()
-    meta.setdefault("status", "active")
-    _write_md(d / "SKILL.md", meta, new_body)
+    lock_key = f"{root}:{slug}"
+    with _skill_save_locks_guard:
+        if lock_key not in _skill_save_locks:
+            _skill_save_locks[lock_key] = threading.Lock()
+        lock = _skill_save_locks[lock_key]
+    with lock:
+        disabled_dir = sk / ".disabled" / slug
+        d = disabled_dir if disabled_dir.is_dir() else (sk / slug)
+        d.mkdir(parents=True, exist_ok=True)
+        meta = {"name": name, "description": description, "group": (group or "Chung").strip()}
+        cu, cu_body = _read_md(d / "SKILL.md")
+        for k, v in (cu or {}).items():
+            if skill_router.la_khoa_ngon_ngu(k) and k not in meta:
+                meta[k] = v
+        new_body = body or f"# {name}\n\n{description}"
+        old_status = str((cu or {}).get("status", "active")).lower()
+        old_ver = int((cu or {}).get("version") or 0)
+        if cu is not None and old_status == "active" and (cu_body or "").strip() != new_body.strip():
+            ver = old_ver + 1
+            hist = d / ".history"
+            try:
+                hist.mkdir(parents=True, exist_ok=True)
+                (hist / f"v{max(old_ver, 1)}.md").write_text(
+                    (Path(d / "SKILL.md").read_text(encoding="utf-8")), encoding="utf-8")
+            except Exception:
+                pass
+            meta["version"] = ver
+            meta["updated"] = _today()
+            if (cu or {}).get("created"):
+                meta["created"] = cu["created"]
+        elif cu is not None and old_ver:
+            meta["version"] = old_ver
+        elif cu is None:
+            meta["version"] = 1
+            meta["created"] = _today()
+        meta.setdefault("status", "active")
+        _write_md(d / "SKILL.md", meta, new_body)
     try:
-        system_sync.mirror_skills(root)   # bật → cập nhật mirror; tắt (.disabled) → mirror bỏ qua
+        system_sync.mirror_skills(root)
     except Exception:
         pass
     return {"ok": True, "slug": slug}

@@ -3888,6 +3888,15 @@ body.ne-full-on .cview { z-index: 250; }
   border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text2); cursor: pointer; }
 .gx-btn:hover, .gx-btn:focus-visible { color: var(--accent); border-color: var(--accent); }
 .hud-center.hud-on.brain-overlays-hidden .gx-ctl { opacity: 0; pointer-events: none; }
+.fv-ctl { position: absolute; bottom: 68px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 4px; pointer-events: auto; }
+.fv-btn { font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text2); cursor: pointer; opacity: 0.7; transition: opacity 0.2s, border-color 0.2s, color 0.2s; }
+.fv-btn:hover, .fv-btn:focus-visible { opacity: 1; color: var(--accent); border-color: var(--accent); }
+.fv-btn.fv-active { opacity: 1; color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-1)); }
+.hud-center.hud-on.brain-overlays-hidden .fv-ctl { opacity: 0; pointer-events: none; }
+.hud-center.hud-on.brain-overlays-hidden.hud-peek-b .fv-ctl { opacity: 1; pointer-events: auto; }
+.planet-hd canvas:first-child { filter: contrast(1.08) saturate(1.15); }
+.planet-hd { --planet-glow: drop-shadow(0 0 30px rgba(80,180,255,.25)); }
 /* Thẻ Đọc nhanh của bầu trời tri thức (hud.js openKnow) dùng lại khung .planet-ctx. */
 .planet-tip .pt-know { font-size: 10.5px; color: var(--text2); margin-top: 3px; letter-spacing: .3px; }
 .planet-ctx .pc-know-dot { color: var(--accent); }

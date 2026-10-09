@@ -758,6 +758,8 @@
   "kanban.ago_min": "{n} phút",
   "kanban.ago_hour": "{n} giờ",
   "kanban.ago_day": "{n} ngày",
+  "kanban.verify_pass": "Kiểm chứng: Đạt",
+  "kanban.verify_fail": "Kiểm chứng: Chưa đạt",
   "kanban.act_approve": "Duyệt ngoại lệ",
   "kanban.act_retry": "Thử lại",
   "kanban.act_run": "Chạy",

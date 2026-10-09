@@ -93,12 +93,19 @@ def _khoa_gia(model: str, prices: dict) -> str:
     return best_key
 
 
+_UNPRICED_WARNED: set = set()
+
 def estimate_cost(ev: dict, prices: dict) -> float:
     """Chi phi quy doi USD cho 1 UsageEvent theo bang gia (USD/1M token).
-    Khop model theo tien to DAI NHAT; khong khop -> 0."""
+    Khop model theo tien to DAI NHAT; khong khop -> 0 va canh bao 1 lan."""
     model = ev.get("model") or ""
     best_key = _khoa_gia(model, prices)
     if not best_key:
+        if model and model not in _UNPRICED_WARNED and ":free" not in model:
+            _UNPRICED_WARNED.add(model)
+            import sys
+            print(f"[usage] model '{model}' khong co trong bang gia usage_pricing.json "
+                  f"- chi phi se la $0. Them khoa vao file de tinh dung.", file=sys.stderr)
         return 0.0
     p = prices[best_key]
     cost = (int(ev.get("input") or 0) * float(p.get("in") or 0)

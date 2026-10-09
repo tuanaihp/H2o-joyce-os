@@ -229,6 +229,8 @@
              brain-v2.js nối vào JoyceHud (hud.js) - "core" = quả cầu nước + telemetry,
              "graph" = tinh vân đồ thị. #hudViewBtn bên dưới giữ nguyên vai trò phụ/a11y. -->
         <div class="brain-view-switch" id="brainViewSwitch" role="tablist" aria-label="Lớp nhìn khoang não" data-i18n-aria="bview.switch_aria">
+          <button class="bvs-btn" id="bvsHd" type="button" role="tab" data-view="hd"
+                  aria-selected="false"><i data-ic="box"></i><span data-i18n="bview.hd">3D View</span></button>
           <button class="bvs-btn" id="bvsCore" type="button" role="tab" data-view="core"
                   aria-selected="false"><i data-ic="globe"></i><span data-i18n="bview.core">Lõi nước</span></button>
           <button class="bvs-btn active" id="bvsGraph" type="button" role="tab" data-view="graph"

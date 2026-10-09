@@ -93,29 +93,11 @@ def _feature():
 
 
 def _acl_cho_phep(vault_dich: str, vault_nguon: str) -> bool:
-    """Brain đích có chấp nhận việc từ brain nguồn không? Luật ở <đích>/Joyce/acl.json:
-
-    {"deny_brains": ["Ke Toan - Thu"]}       -> chặn đúng các brain khai tên
-    {"allow_brains": ["Marketing - ..."]}    -> chỉ nhận việc từ các brain khai tên
-    Không có file / file hỏng = cho phép (giữ hành vi cũ, org nhỏ không cần khoá)."""
-    try:
-        import json as _json
-        acl = Path(vault_dich) / "Joyce" / "acl.json"
-        if not acl.is_file():
-            return True
-        cfg = _json.loads(acl.read_text(encoding="utf-8"))
-        if not isinstance(cfg, dict):
-            return True
-        ten_nguon = Path(vault_nguon).name.casefold()
-        allow = [str(x).casefold() for x in (cfg.get("allow_brains") or [])]
-        deny = [str(x).casefold() for x in (cfg.get("deny_brains") or [])]
-        if ten_nguon in deny:
-            return False
-        if allow:
-            return ten_nguon in allow
-        return True
-    except Exception:
-        return True   # lỗi đọc ACL không được làm nghẽn giao việc - log ở nơi gọi nếu cần
+    """Proxy: dung ham chinh trong TasksFeature (kiem ACL o MOI diem vao, khong chi plugin)."""
+    f, _ = _feature()
+    if f is not None:
+        return f.acl_cho_phep(vault_dich, vault_nguon)
+    return True
 
 
 def _them(args, ctx) -> str:
@@ -146,9 +128,8 @@ def _them(args, ctx) -> str:
             return f"ERROR: không tìm được brain '{brain_arg}' ({type(e).__name__}: {e})."
         if not vault:
             return f"ERROR: không tìm được brain '{brain_arg}'."
-        # ACL chéo brain: brain đích có Joyce/acl.json thì giao việc vào phải được phép.
-        # {"allow_brains": [...]} = whitelist; {"deny_brains": [...]} = blacklist; khớp theo
-        # TÊN thư mục brain (không phân biệt hoa thường). Không có file = mở (mặc định cũ).
+        # ACL cheo brain: kiem tra o day (bao loi ro rang cho model) VA trong enqueue()
+        # (chan moi duong vao ke ca HTTP route). Plugin kiem truoc de tra thong bao tot hon.
         if not _acl_cho_phep(vault, ctx.vault_root):
             return (f"ERROR: brain '{Path(vault).name}' từ chối việc giao từ brain "
                     f"'{Path(ctx.vault_root).name}' (Joyce/acl.json của brain đích). "
@@ -183,6 +164,7 @@ def _them(args, ctx) -> str:
             "auto",
             mode,
             "",
+            source_brain=ctx.vault_root,
         )
     except Exception as e:
         return f"ERROR: không giao được việc ({type(e).__name__}: {e})."

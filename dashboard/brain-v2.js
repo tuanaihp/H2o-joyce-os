@@ -20,9 +20,10 @@
 
     function paint() {
       var onHud = !!(window.JoyceHud && window.JoyceHud.isOn());
-      ["core", "graph"].forEach(function (v) {
+      var hdOn = !!(window.JoycePlanet && window.JoycePlanet.hdMode && window.JoycePlanet.hdMode());
+      ["hd", "core", "graph"].forEach(function (v) {
         var b = btns[v]; if (!b) return;
-        var active = (v === "core") === onHud;
+        var active = v === "hd" ? (onHud && hdOn) : v === "core" ? (onHud && !hdOn) : !onHud;
         b.classList.toggle("active", active);
         b.setAttribute("aria-selected", active ? "true" : "false");
       });
@@ -31,14 +32,22 @@
     sw.addEventListener("click", function (e) {
       var b = e.target.closest(".bvs-btn");
       if (!b || !window.JoyceHud) return;
-      if (typeof window.JoyceHud.set === "function") window.JoyceHud.set(b.dataset.view === "core");
-      else window.JoyceHud.toggle();          // đường lui nếu hud.js bản cũ
+      var v = b.dataset.view;
+      if (v === "hd" || v === "core") {
+        if (typeof window.JoyceHud.set === "function") window.JoyceHud.set(true);
+        else window.JoyceHud.toggle();
+        if (window.JoycePlanet && window.JoycePlanet.setHdMode) window.JoycePlanet.setHdMode(v === "hd");
+      } else {
+        if (typeof window.JoyceHud.set === "function") window.JoyceHud.set(false);
+        else window.JoyceHud.toggle();
+      }
       paint();
     });
 
     // Lớp nhìn còn đổi từ nơi khác (phím tắt, localStorage của tab khác, nút icon cũ
     // nếu ai đó bật lại) - hud.js bắn sự kiện này sau mỗi lần show/hide.
     window.addEventListener("joyce:hud-view", paint);
+    window.addEventListener("joyce:hd-mode", paint);
     window.addEventListener("joyce:i18n", paint);
     paint();
   }

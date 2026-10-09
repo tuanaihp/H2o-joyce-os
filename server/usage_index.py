@@ -19,6 +19,7 @@ import glob
 import json
 import os
 import sqlite3
+import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -447,8 +448,13 @@ def _migrate_schema_once(conn) -> bool:
     return True
 
 
+_refresh_lock = threading.Lock()
+
 def refresh() -> dict:
     """Quet tang dan ca 3 nguon. Tra so file/event thuc su xu ly lan nay."""
+    if not _refresh_lock.acquire(blocking=False):
+        return {"claude_files": 0, "codex_files": 0, "api_events": 0, "quet_lai": False,
+                "skipped": True}
     res = {"claude_files": 0, "codex_files": 0, "api_events": 0, "quet_lai": False}
     conn = _connect()
     try:
@@ -463,6 +469,7 @@ def refresh() -> dict:
         conn.commit()
     finally:
         conn.close()
+        _refresh_lock.release()
     return res
 
 

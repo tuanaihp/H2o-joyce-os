@@ -57,8 +57,9 @@
   var VS = "#version 300 es\nin vec2 aP;void main(){gl_Position=vec4(aP,0.,1.);}";
 
   // HI=1: voronoi (mạng nơron + thành phố trí tuệ), 4 octave, lớp tinh vân trong riêng.
+  var hdFlag = false;
   function fragSrc(hi) {
-    return "#version 300 es\nprecision highp float;\n#define HI " + (hi ? 1 : 0) + "\n" + [
+    return "#version 300 es\nprecision highp float;\n#define HI " + (hi ? 1 : 0) + "\n#define HD " + (hdFlag ? 1 : 0) + "\n" + [
       "out vec4 o;",
       "uniform vec2 uRes; uniform vec2 uC; uniform float uR; uniform float uT;",
       "uniform vec2 uRot; uniform float uLight; uniform float uAmp; uniform float uHover;",
@@ -85,7 +86,9 @@
       " return mix(mix(mix(h13(i),h13(i+vec3(1,0,0)),f.x),mix(h13(i+vec3(0,1,0)),h13(i+vec3(1,1,0)),f.x),f.y),",
       "  mix(mix(h13(i+vec3(0,0,1)),h13(i+vec3(1,0,1)),f.x),mix(h13(i+vec3(0,1,1)),h13(i+vec3(1,1,1)),f.x),f.y),f.z);}",
       "float fbm(vec3 p){float a=.5,s=0.;",
-      "#if HI",
+      "#if HD",
+      " for(int i=0;i<6;i++){s+=a*vn(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;} return s/.984375;",
+      "#elif HI",
       " for(int i=0;i<4;i++){s+=a*vn(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;} return s/.9375;",
       "#else",
       " for(int i=0;i<3;i++){s+=a*vn(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;} return s/.875;",
@@ -138,8 +141,19 @@
       " float gnA=band*.2*smoothstep(.3,.75,gcl)*uGal*bgK;",
       " acc+=gnC*gnA; al+=gnA*.6;",
       " vec2 dq=(fcb+uPar*1.8)/2.6; vec2 dc=floor(dq); float dh=h13(vec3(dc,3.1));",
+      "#if HD",
+      " if(dh>.993-.006*band*uGal){vec2 dd=fract(dq)-.5; float tw=.55+.45*sin(uT*(1.+dh*3.)+dh*40.);",
+      "  float sz2=fract(dh*137.)*.7+.3; float st=smoothstep(.32*sz2,0.,length(dd))*tw*.85*bgK;",
+      "  vec3 sc=mix(vec3(.75,.9,1.),mix(MINT,GOLD,fract(dh*41.)),fract(dh*97.));",
+      "  float df=pow(max(1.-length(dd)*5.,0.),3.)*.35*sz2; acc+=sc*(st+df); al+=st+df;}",
+      " {float sh=h13(vec3(floor(fc.x/120.),floor(fc.y/1.8),floor(uT*.5)));",
+      "  if(sh>.997){float sy=(fract(fc.y/1.8+uT*280.)-.5); float sx=fract(fc.x/120.)-.5;",
+      "   float trail=smoothstep(.2,0.,abs(sy))*smoothstep(.5,0.,abs(sx))*1.5*bgK;",
+      "   acc+=vec3(.85,.95,1.)*trail; al+=trail*.5;}}",
+      "#else",
       " if(dh>.9965-.0045*band*uGal){vec2 dd=fract(dq)-.5; float tw=.55+.45*sin(uT*(1.+dh*3.)+dh*40.);",
       "  float st=smoothstep(.32,0.,length(dd))*tw*.75*bgK; acc+=mix(vec3(.75,.9,1.),MINT,fract(dh*97.))*st; al+=st;}",
+      "#endif",
       " float yt=1.-fc.y/uRes.y;",
       " float fog=(.62*exp(-abs(yt-uHorizon)*16.)+.30*smoothstep(uHorizon-.01,uHorizon+.08,yt)*(1.-.55*smoothstep(uHorizon+.08,1.,yt)))*bgK;",
       " acc=acc*(1.-fog)+NAVY*fog; al=al*(1.-fog)+fog;",
@@ -167,9 +181,15 @@
       "   float rr=length(vec2(d2.x,d2.y/.3)); float an=atan(d2.y/.3,d2.x); float ing=uBH.w;",
       "   float rin=1.45, rout=4.2+ing*.8;",
       "   float diskM=smoothstep(rin,rin+.25,rr)*(1.-smoothstep(rin+.6,rout,rr));",
+      "#if HD",
+      "   float strk=.4+.3*vn(vec3(an*3.,rr*2.2-uT*(.6+ing*3.),1.7))+.3*vn(vec3(an*7.,rr*5.-uT*2.,3.1));",
+      "   float dop=.55+.45*cos(an+.4); float turb=vn(vec3(an*5.+uT*.3,rr*3.,2.));",
+      "   vec3 dC=mix(mix(vec3(1.,.35,.08),vec3(1.,.6,.2),turb),vec3(1.,.93,.78),smoothstep(rout,rin,rr))*diskM*strk*dop*(.38+.95*ing)*bgK;",
+      "#else",
       "   float strk=.55+.45*vn(vec3(an*3.,rr*2.2-uT*(.6+ing*3.),1.7));",
       "   float dop=.55+.45*cos(an+.4);",
       "   vec3 dC=mix(vec3(1.,.5,.18),vec3(1.,.93,.78),smoothstep(rout,rin,rr))*diskM*strk*dop*(.32+.9*ing)*bgK;",
+      "#endif",
       "   float fr0=step(d2.y,0.);",
       "   vec3 bk=dC*(1.-fr0)*.9; acc+=bk; al+=dot(bk,vec3(.3,.45,.25));",
       "   float sh=1.-smoothstep(.96,1.04,br); acc*=1.-sh; al=al*(1.-sh)+sh*.92;",
@@ -185,7 +205,11 @@
       " float hh=d-1.; vec2 dir=d>0.?p/d:vec2(0.);",
       " float lightSide=.5+.5*dot(dir,lxy);",
       " float outer=smoothstep(-.015,.02,hh);",
+      "#if HD",
+      " float atm=exp(-max(hh,0.)*5.5)*outer*(.48+.52*lightSide)*(1.+.4*uHover)*(1.-.35*recon)*uLk.y;",
+      "#else",
       " float atm=exp(-max(hh,0.)*6.5)*outer*(.42+.48*lightSide)*(1.+.35*uHover)*(1.-.35*recon)*uLk.y;",
+      "#endif",
       " vec3 atmC=mix(uPb,uPc,.55+.35*lightSide)*atm*(1.-uLight*.3);",
       " float vm=smoothstep(.15,.95,dot(dir,shadowDir))*exp(-max(hh,0.)*15.)*outer;",
       " atmC+=mix(VIOLET,MAGENTA,.45)*vm*.55*uLk.y;",
@@ -374,12 +398,24 @@
       "  col*=.6+.4*n.z;",
       "  vec3 nn=normalize(n+vec3(w.xy-.5,0.)*.16);",
       "  vec3 H=normalize(L+vec3(0.,0.,1.));",
+      "#if HD",
+      "  float sp=pow(max(dot(nn,H),0.),120.)*.55+pow(max(dot(nn,H),0.),30.)*.12+pow(max(dot(nn,H),0.),8.)*.025;",
+      "#else",
       "  float sp=pow(max(dot(nn,H),0.),70.)*.38+pow(max(dot(nn,H),0.),11.)*.035;",
+      "#endif",
       "  col+=mix(vec3(.85,.96,1.),uSunC,.35*uSun.w)*sp*day*lit;",
+      "#if HD",
+      "  float fr=pow(1.-n.z,2.5);",
+      "  col+=uPc*fr*.85*(.55+.45*lightSide)*(1.+.35*uHover)*uLk.y;",
+      "  col+=mix(VIOLET,MAGENTA,.5)*fr*smoothstep(.1,.9,dot(dir,shadowDir))*.9*uLk.y;",
+      "  col+=uSunC*fr*day*.65*uSun.w;",
+      "  col+=mix(CYAN,vec3(.9,.95,1.),.6)*pow(1.-n.z,5.)*.15*(1.-day)*uLk.y;",
+      "#else",
       "  float fr=pow(1.-n.z,3.);",
       "  col+=uPc*fr*.7*(.55+.45*lightSide)*(1.+.3*uHover)*uLk.y;",
       "  col+=mix(VIOLET,MAGENTA,.5)*fr*smoothstep(.1,.9,dot(dir,shadowDir))*.75*uLk.y;",
       "  col+=uSunC*fr*day*.5*uSun.w;",
+      "#endif",
       "  float off=recon*smoothstep(.38,.62,vn(s*2.4+vec3(uT*.35)));",
       "  col*=1.-off*.65-recon*.12;",
       "  float em=smoothstep(.8,.97,dot(n,normalize(vec3(.55,-.5,.67))))*err;",
@@ -388,7 +424,11 @@
       "  col=1.-exp(-col*1.3);",
       "  acc=acc*(1.-body)+col*body; al=al*(1.-body)+body;",
       " }",
+      "#if HD",
+      " vec3 c=1.-exp(-acc*1.25); c=pow(c,vec3(.97));",
+      "#else",
       " vec3 c=1.-exp(-acc*1.15);",
+      "#endif",
       " float a=clamp(max(al,max(c.r,max(c.g,c.b))),0.,1.);",
       " o=vec4(min(c,vec3(a)),a);",
       "}",
@@ -839,7 +879,7 @@
     var ctx2 = null;
     var W = 0, H = 0, dprGL = 1, dprOv = 1;
     var raf = 0, running = false, paused = false, destroyed = false;
-    var profile = "high", requested = null;
+    var profile = "high", requested = null, hdMode = false;
     var reducedMQ = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
     var listeners = [];
     var ro = null;
@@ -1049,10 +1089,9 @@
       W = Math.round(r.width); H = Math.round(r.height);
       if (!W || !H) return;
       var dpr = window.devicePixelRatio || 1;
-      dprOv = Math.min(dpr, 2);
-      dprGL = Math.min(dpr, profile === "high" ? 2 : 1.25);
-      // Trần số điểm ảnh: shader chạy trên TOÀN khoang não, màn 4K x dpr 2 thì quá tay.
-      var maxPx = profile === "high" ? 2.6e6 : 1.4e6;
+      dprOv = Math.min(dpr, hdMode ? 3 : 2);
+      dprGL = Math.min(dpr, hdMode ? 3 : profile === "high" ? 2 : 1.25);
+      var maxPx = hdMode ? 6e6 : profile === "high" ? 2.6e6 : 1.4e6;
       if (W * H * dprGL * dprGL > maxPx) dprGL = Math.sqrt(maxPx / (W * H));
       glCv.width = Math.max(1, Math.round(W * dprGL)); glCv.height = Math.max(1, Math.round(H * dprGL));
       ovCv.width = Math.max(1, Math.round(W * dprOv)); ovCv.height = Math.max(1, Math.round(H * dprOv));
@@ -1194,14 +1233,16 @@
     function drawMoonDisc(c, x0, y0, r, p, col, a, rot, gl) {
       var k = Math.cos(2 * Math.PI * p), side = 1;
       gl = gl == null ? 1 : gl;
-      var gr = r * (2.6 + 1.3 * Math.max(0, gl - 1));
+      var gr = r * (hdMode ? 3.2 : 2.6 + 1.3 * Math.max(0, gl - 1));
       var glow = c.createRadialGradient(x0, y0, r * 0.8, x0, y0, gr);
-      glow.addColorStop(0, rgba(col, Math.min(0.6, 0.22 * a * gl * (0.25 + 0.75 * (1 - k) / 2))));
+      var glowA = Math.min(0.6, 0.22 * a * gl * (0.25 + 0.75 * (1 - k) / 2));
+      glow.addColorStop(0, rgba(col, hdMode ? glowA * 1.4 : glowA));
+      if (hdMode) glow.addColorStop(0.4, rgba(col, glowA * 0.5));
       glow.addColorStop(1, rgba(col, 0));
       c.fillStyle = glow; c.beginPath(); c.arc(x0, y0, gr, 0, 6.2832); c.fill();
       // Bề mặt thật (biển tối hình chú Cuội ngồi gốc cây đa, hố lồi lõm, ánh đất ở phần tối).
       // Ảnh KHÔNG xoay theo nắng: trăng luôn đứng thẳng, chỉ phần sáng đổi hướng.
-      var res = clamp(Math.ceil(2 * r * dprOv / 16) * 16, 32, 320);
+      var res = clamp(Math.ceil(2 * r * dprOv / 16) * 16, 32, hdMode ? 512 : 320);
       var img = moonImage(res, p, rot || 0, gl, col);
       if (img) {
         c.save(); c.globalAlpha = a; c.drawImage(img, x0 - r, y0 - r, 2 * r, 2 * r); c.restore();
@@ -1276,9 +1317,23 @@
       c.beginPath(); c.moveTo(-len / 2, -s.r * 0.6); c.lineTo(len / 2, -geo.R * 0.9); c.lineTo(len / 2, geo.R * 0.9); c.lineTo(-len / 2, s.r * 0.6); c.closePath();
       c.fillStyle = rgba(col, 0.06 * L.k); c.fill();
       c.restore();
-      var co = c.createRadialGradient(s.x, s.y, s.r * 0.9, s.x, s.y, s.r * 4.2);
-      co.addColorStop(0, rgba(col, 0.55 * L.k)); co.addColorStop(1, rgba(col, 0));
-      c.fillStyle = co; c.beginPath(); c.arc(s.x, s.y, s.r * 4.2, 0, 6.2832); c.fill();
+      var coR = hdMode ? s.r * 6 : s.r * 4.2;
+      var co = c.createRadialGradient(s.x, s.y, s.r * 0.9, s.x, s.y, coR);
+      co.addColorStop(0, rgba(col, (hdMode ? 0.7 : 0.55) * L.k));
+      if (hdMode) co.addColorStop(0.3, rgba(col, 0.25 * L.k));
+      co.addColorStop(1, rgba(col, 0));
+      c.fillStyle = co; c.beginPath(); c.arc(s.x, s.y, coR, 0, 6.2832); c.fill();
+      if (hdMode) {
+        c.save(); c.globalCompositeOperation = "lighter";
+        for (var ri = 0; ri < 6; ri++) {
+          var ra = ri * 1.047 + performance.now() / 8000;
+          var rx = s.x + Math.cos(ra) * s.r * 0.15, ry = s.y + Math.sin(ra) * s.r * 0.15;
+          var rg = c.createRadialGradient(rx, ry, 0, s.x, s.y, s.r * (3.5 + Math.sin(ra * 2.3) * 0.8));
+          rg.addColorStop(0, rgba(col, 0.12 * L.k)); rg.addColorStop(1, rgba(col, 0));
+          c.fillStyle = rg; c.beginPath(); c.arc(s.x, s.y, s.r * 4.3, 0, 6.2832); c.fill();
+        }
+        c.restore();
+      }
       var dk = c.createRadialGradient(s.x - s.r * 0.25, s.y - s.r * 0.25, 0, s.x, s.y, s.r);
       dk.addColorStop(0, "rgba(255,250,230," + L.k + ")"); dk.addColorStop(1, rgba(col, L.k));
       c.fillStyle = dk; c.beginPath(); c.arc(s.x, s.y, s.r, 0, 6.2832); c.fill();
@@ -1762,8 +1817,13 @@
         var a = (0.35 + 0.4 * (0.55 + 0.45 * Math.sin(t * s.tw + s.ph)) * 0.8 + 0.25 * s.size) * (p[2] < 0 ? 0.6 : 1);
         if (s.b.recent) a += 0.25 * (0.5 + 0.5 * Math.sin(t * 3 + s.ph));   // sửa trong 7 ngày: nháy
         var r = (0.8 + s.size * 1.6) * (1 + on * 0.8);
+        if (hdMode) {
+          var gr2 = c.createRadialGradient(x, y, 0, x, y, r * 4);
+          gr2.addColorStop(0, rgba(s.col, 0.3 * a * kf)); gr2.addColorStop(1, rgba(s.col, 0));
+          c.fillStyle = gr2; c.beginPath(); c.arc(x, y, r * 4, 0, 6.2832); c.fill();
+        }
         c.fillStyle = rgba(s.col, Math.min(1, a * kf + on * 0.4));
-        if (s.b.proc) {   // quy trình: sao bốn cánh
+        if (s.b.proc) {
           c.fillRect(x - r * 2.2, y - 0.5, r * 4.4, 1);
           c.fillRect(x - 0.5, y - r * 2.2, 1, r * 4.4);
         }
@@ -1818,7 +1878,7 @@
       }
     }
     function hitKnow(x, y) {
-      var best = null, bd = 81;   // trong 9px
+      var best = null, bd = 225;   // trong 15px
       for (var i = know.hits.length - 1; i >= 0; i--) {
         var h = know.hits[i], d = (h.x - x) * (h.x - x) + (h.y - y) * (h.y - y);
         if (d < bd) { bd = d; best = h.k; }
@@ -2031,7 +2091,7 @@
       "ve-sinh": [200, 235, 255], "xu-ly-truyen-thong": [120, 140, 230], "van-thu-va-quy-trinh": [190, 195, 205],
       "thuyh2o": [255, 120, 200] };
     var gal = { d: null, nodes: [], clusters: [], arms: [], cur: null, sprites: {}, hover: null, hits: null,
-                hitsMax: 0, fly: null, palOverride: null };
+                hitsMax: 0, fly: null, palOverride: null, panX: 0, panY: 0 };
     function strHash(s) {
       var h = 2166136261;
       s = String(s || "");
@@ -2095,17 +2155,19 @@
       gal.cur = null;
       for (var i = 0; i < gal.nodes.length; i++) if (gal.nodes[i].key === curKey) gal.cur = gal.nodes[i];
       if (!gal.cur) gal.cur = gal.nodes.filter(function (n) { return n.role === "earth"; })[0] || null;
-      // tinh cầu đang mở mang bảng màu của khối nó (không ghi vào cài đặt giao diện của người dùng)
       var st = gal.cur && gal.cur.role === "dept" && GX_STYLE[gal.cur.style];
       gal.palOverride = st ? gxPal(st.pal) : null;
+      gal.panX = 0; gal.panY = 0;
     }
     // 0 ở tầng tinh cầu, 1 ở tầng Thiên hà.
     function gxLevel() { return 1 - smooth(0.24, 0.42, cam.zoom); }
     function gxScale() { return (geo.base || 100) * cam.zoom * 1.55; }
     function gxPos(n) {   // đơn vị thiên hà -> màn hình, tâm là tinh cầu đang mở, cùng góc với dải ngân hà
       var cur = gal.cur || { gx: 0, gy: 0 }, S = gxScale(), A = galAngle();
-      var x = (n.gx - cur.gx) * S, y = (n.gy - cur.gy) * S, ca = Math.cos(A), sa = Math.sin(A);
-      return { x: geo.cx + ca * x + sa * y, y: geo.cy - sa * x + ca * y };
+      var ox = (n._dox || 0) + (n.cluster && n.cluster._dox || 0);
+      var oy = (n._doy || 0) + (n.cluster && n.cluster._doy || 0);
+      var x = (n.gx + ox - cur.gx) * S, y = (n.gy + oy - cur.gy) * S, ca = Math.cos(A), sa = Math.sin(A);
+      return { x: geo.cx + ca * x + sa * y + (gal.panX || 0), y: geo.cy - sa * x + ca * y + (gal.panY || 0) };
     }
     function gxRad(n) {
       if (n.role === "star") return clamp((geo.base || 100) * cam.zoom * 0.42, 6, 26);
@@ -2282,27 +2344,33 @@
         c.font = "700 11px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
         gal.clusters.forEach(function (cl) {
           var p = gxPos(cl);
-          c.fillStyle = rgba(cl.col, 0.42 * gx); c.fillText(String(cl.ten).toUpperCase(), p.x, p.y - gxScale() * 0.95);
+          var ly = p.y - gxScale() * 0.95;
+          var on2 = gal.hover === cl;
+          c.fillStyle = rgba(cl.col, (on2 ? 0.85 : 0.42) * gx);
+          c.fillText(String(cl.ten).toUpperCase(), p.x, ly);
+          if (on2) { c.strokeStyle = rgba(cl.col, 0.5 * gx); c.lineWidth = 1; c.strokeText(String(cl.ten).toUpperCase(), p.x, ly); }
+          gal.hitPts.push({ x: p.x, y: ly, r: 40, n: cl, isCluster: true });
         });
       }
       // "Bạn đang ở đây" quanh tinh cầu đang mở
       if (gx > 0.35 && gal.cur) {
         var tt = window.t || function (k) { return k; }, nh = tt("planet.gx_here");
         if (nh === "planet.gx_here") nh = "Bạn đang ở đây";
+        var hx = geo.cx + (gal.panX || 0), hy = geo.cy + (gal.panY || 0);
         c.strokeStyle = "rgba(140,240,220," + (0.4 + 0.3 * Math.sin(t * 2.5)) * gx + ")"; c.lineWidth = 1.2;
-        c.beginPath(); c.arc(geo.cx, geo.cy, geo.R + 9, 0, 6.2832); c.stroke();
+        c.beginPath(); c.arc(hx, hy, geo.R + 9, 0, 6.2832); c.stroke();
         c.font = "600 10.5px 'Segoe UI', system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "top";
         c.fillStyle = "rgba(170,250,230," + 0.9 * gx + ")";
-        c.fillText(nh + " · " + (gal.cur.ten || gal.cur.key), geo.cx, geo.cy + geo.R + 14);
+        c.fillText(nh + " · " + (gal.cur.ten || gal.cur.key), hx, hy + geo.R + 14);
       }
       c.restore();
       void dt;
     }
     function hitGalaxy(x, y) {
-      var best = null, bd = 1e9;
+      var best = null, bd = 1e9, bestH = null;
       (gal.hitPts || []).forEach(function (h) {
         var d = Math.hypot(h.x - x, h.y - y);
-        if (d < h.r && d < bd && h.n.role !== "anon") { bd = d; best = h.n; }
+        if (d < h.r && d < bd && (h.isCluster || h.n.role !== "anon")) { bd = d; best = h.n; bestH = h; }
       });
       return best;
     }
@@ -2328,6 +2396,7 @@
     // gọi mid() (hud.js đổi brain), rồi zoom từ xa vào tinh cầu mới.
     function flyTo(n, mid) {
       if (!n) return;
+      gal.panX = 0; gal.panY = 0;
       var p = gxPos(n);
       gal.fly = { n: n, t0: performance.now(), x0: p.x, y0: p.y, r0: gxRad(n), mid: mid, done: false };
       tip.hidden = true;
@@ -2380,7 +2449,7 @@
       return VX_MAU[VX_MAU.length - 1][1];
     }
     function buildVortex() {
-      var S = profile === "high" ? 448 : 320, cvs = [], dats = [];
+      var S = hdMode ? 640 : profile === "high" ? 448 : 320, cvs = [], dats = [];
       for (var l = 0; l < 3; l++) {
         var cv = document.createElement("canvas"); cv.width = cv.height = S;
         var g = cv.getContext("2d"); cvs.push(cv); dats.push({ g: g, img: g.createImageData(S, S) });
@@ -2513,6 +2582,58 @@
       });
       c.restore();
       void dt;
+    }
+
+    // ---- Sao băng + bụi thiên thể HD (chế độ 3D View) ----
+    var hdStars = [], hdDust = [];
+    function spawnHdStar() {
+      var edge = Math.random() < 0.5, x0, y0, dx, dy;
+      if (edge) { x0 = Math.random() * W; y0 = -10; dx = (Math.random() - 0.5) * 0.6; dy = 0.7 + Math.random() * 0.3; }
+      else { x0 = Math.random() < 0.5 ? -10 : W + 10; y0 = Math.random() * H * 0.6; dx = x0 < 0 ? 0.8 : -0.8; dy = 0.3 + Math.random() * 0.4; }
+      var speed = 280 + Math.random() * 350;
+      return { x: x0, y: y0, dx: dx * speed, dy: dy * speed, life: 0, maxLife: 0.6 + Math.random() * 0.8,
+               w: 1.2 + Math.random() * 1.8, col: Math.random() < 0.3 ? [255, 200, 100] : Math.random() < 0.5 ? [180, 220, 255] : [255, 255, 240] };
+    }
+    function spawnHdDust() {
+      var a = Math.random() * 6.2832, dist = geo.R * (1.15 + Math.random() * 1.2);
+      return { x: geo.cx + Math.cos(a) * dist, y: geo.cy + Math.sin(a) * dist,
+               vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+               r: 0.4 + Math.random() * 1.2, life: 0, maxLife: 3 + Math.random() * 5,
+               col: Math.random() < 0.4 ? [140, 200, 255] : Math.random() < 0.5 ? [200, 180, 255] : [255, 220, 180],
+               a: 0.15 + Math.random() * 0.3 };
+    }
+    function drawHdAmbient(c, dt) {
+      if (!hdMode) { hdStars = []; hdDust = []; return; }
+      // Sao bang ngau nhien
+      if (hdStars.length < 3 && Math.random() < dt * 1.2) hdStars.push(spawnHdStar());
+      c.save(); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
+      hdStars = hdStars.filter(function (s) {
+        s.life += dt; if (s.life > s.maxLife) return false;
+        s.x += s.dx * dt; s.y += s.dy * dt;
+        var u = s.life / s.maxLife, fade = u < 0.1 ? u / 0.1 : u > 0.7 ? (1 - u) / 0.3 : 1;
+        var tailLen = 30 + 40 * u, tx = s.x - s.dx * dt * (tailLen / (Math.abs(s.dx * dt) || 1));
+        var ty = s.y - s.dy * dt * (tailLen / (Math.abs(s.dy * dt) || 1));
+        var gr = c.createLinearGradient(tx, ty, s.x, s.y);
+        gr.addColorStop(0, rgba(s.col, 0)); gr.addColorStop(1, rgba(s.col, 0.8 * fade));
+        c.strokeStyle = gr; c.lineWidth = s.w; c.beginPath(); c.moveTo(tx, ty); c.lineTo(s.x, s.y); c.stroke();
+        var hg = c.createRadialGradient(s.x, s.y, 0, s.x, s.y, 3 + s.w);
+        hg.addColorStop(0, rgba([255, 255, 255], 0.9 * fade)); hg.addColorStop(1, rgba(s.col, 0));
+        c.fillStyle = hg; c.beginPath(); c.arc(s.x, s.y, 3 + s.w, 0, 6.2832); c.fill();
+        return true;
+      });
+      c.restore();
+      // Bui thien the quanh hanh tinh
+      while (hdDust.length < 80) hdDust.push(spawnHdDust());
+      c.save(); c.globalCompositeOperation = "lighter";
+      hdDust = hdDust.filter(function (d) {
+        d.life += dt; if (d.life > d.maxLife) return false;
+        d.x += d.vx * dt; d.y += d.vy * dt;
+        var u = d.life / d.maxLife, fade = u < 0.15 ? u / 0.15 : u > 0.6 ? (1 - u) / 0.4 : 1;
+        c.fillStyle = rgba(d.col, d.a * fade);
+        c.beginPath(); c.arc(d.x, d.y, d.r, 0, 6.2832); c.fill();
+        return true;
+      });
+      c.restore();
     }
 
     // ---- Nhìn sâu vào hố đen: bấm giữa hố đen thì mở cảnh cận (chủ yêu cầu 2026-10-08) ----
@@ -2997,7 +3118,78 @@
       var toBuild = [];
       items.forEach(function (it) { if (ROCK[it.rock] === undefined && toBuild.indexOf(it.rock) < 0) toBuild.push(it.rock); });
       foc = { toBuild: toBuild, t0: now, q: d.q || "", items: items, more: more, total: d.total || d.hits.length, ids: ids,
-              gone: lite ? {} : gone, frags: lite ? [] : frags, sparks: [], lite: lite, closing: false, tc: 0, dark: 0 };
+              gone: lite ? {} : gone, frags: lite ? [] : frags, sparks: [], lite: lite, closing: false, tc: 0, dark: 0,
+              viewMode: 0, viewT0: 0, viewFrom: null, dragIt: null, dragLand: 0 };
+    }
+
+    // ---- Chế độ xem tinh thể: 0 = bầu trời, 1 = quỹ đạo (3 vòng), 2 = chòm sao (3 tam giác) ----
+    function focViewLayout(mode, items) {
+      if (!items.length) return;
+      var cx = geo.cx, cy = geo.cy - geo.R * 0.15;
+      var sc = clamp(geo.R / 150, 0.7, 1.4);
+      if (mode === 1) {
+        var rings = [[], [], []], n = items.length;
+        var n0 = Math.max(1, Math.min(3, Math.ceil(n * 0.25)));
+        var n1 = Math.max(0, Math.min(n - n0, Math.ceil(n * 0.4)));
+        for (var i = 0; i < n; i++) {
+          if (i < n0) rings[0].push(items[i]);
+          else if (i < n0 + n1) rings[1].push(items[i]);
+          else rings[2].push(items[i]);
+        }
+        var radii = [80 * sc, 160 * sc, 240 * sc];
+        for (var ri = 0; ri < 3; ri++) {
+          var ring = rings[ri], nr = ring.length;
+          for (var j = 0; j < nr; j++) {
+            var a = -1.5708 + j / Math.max(1, nr) * 6.2832;
+            ring[j]._vx = cx + Math.cos(a) * radii[ri];
+            ring[j]._vy = cy + Math.sin(a) * radii[ri];
+            ring[j]._vring = ri;
+          }
+        }
+      } else if (mode === 2) {
+        var tris = [[], [], []], nt = items.length;
+        var t0 = Math.max(1, Math.min(3, Math.ceil(nt * 0.25)));
+        var t1 = Math.max(0, Math.min(nt - t0, Math.ceil(nt * 0.4)));
+        for (var i2 = 0; i2 < nt; i2++) {
+          if (i2 < t0) tris[0].push(items[i2]);
+          else if (i2 < t0 + t1) tris[1].push(items[i2]);
+          else tris[2].push(items[i2]);
+        }
+        var tw = Math.min(W * 0.28, 200 * sc), gap = tw * 0.35;
+        var ox = cx - tw - gap;
+        for (var ti = 0; ti < 3; ti++) {
+          var tri = tris[ti], tcx = ox + ti * (tw + gap), tcy = cy;
+          var triR = tw * 0.45;
+          if (!tri.length) continue;
+          var verts = [
+            { x: tcx, y: tcy - triR },
+            { x: tcx - triR * 0.866, y: tcy + triR * 0.5 },
+            { x: tcx + triR * 0.866, y: tcy + triR * 0.5 }
+          ];
+          for (var j2 = 0; j2 < tri.length; j2++) {
+            if (j2 < 3) {
+              tri[j2]._vx = verts[j2].x; tri[j2]._vy = verts[j2].y;
+            } else {
+              var edge = (j2 - 3) % 3, ef = ((j2 - 3) / 3 + 1) / (Math.ceil((tri.length - 3) / 3) + 1);
+              var ea = verts[edge], eb = verts[(edge + 1) % 3];
+              tri[j2]._vx = ea.x + (eb.x - ea.x) * ef;
+              tri[j2]._vy = ea.y + (eb.y - ea.y) * ef;
+            }
+            tri[j2]._vtri = ti;
+          }
+        }
+      }
+    }
+
+    function focHitItem(x, y) {
+      if (!foc || foc.closing) return null;
+      for (var i = foc.items.length - 1; i >= 0; i--) {
+        var it = foc.items[i];
+        if (it.gk < 0.3) continue;
+        var dx = x - it.px, dy = y - it.py, r = it.rF + 6;
+        if (dx * dx + dy * dy < r * r) return it;
+      }
+      return null;
     }
 
     // ---- mặt đá lồi lõm của tinh cầu kiến thức: 6 mẫu dựng MỘT lần bằng nhiễu + miệng hố ----
@@ -3190,12 +3382,32 @@
       c.fillStyle = "rgba(2,8,23," + 0.45 * foc.dark + ")";   // bầu trời tối lại
       c.fillRect(0, 0, W, H);
       // Chỗ sống của từng kết quả: chỗ thật + độ lệch giãn chỗ (mở dần theo lúc lớn lên).
+      var vm = foc.viewMode || 0, vt = foc.viewT0 ? clamp((now - foc.viewT0) / 600, 0, 1) : 1;
+      var vtE = vt * vt * (3 - 2 * vt);
       foc.items.forEach(function (it) {
         it.gk = clamp((t - grow0 - (lite ? 0 : it.del)) / (grow1 - grow0), 0, 1);
         var lp = knowPos(it.k) || it.p0, gs = smooth(0, 1, it.gk);
-        var p = focClamp(focAvoidEarth({ x: lp.x + it.off.x * gs, y: lp.y + it.off.y * gs }, it.rF), it.rF);
-        it.px = p.x; it.py = p.y;
+        var skyP = focClamp(focAvoidEarth({ x: lp.x + it.off.x * gs, y: lp.y + it.off.y * gs }, it.rF), it.rF);
+        if (it === (foc.dragIt || null)) {
+          it.px = it._dragX; it.py = it._dragY;
+        } else if (vm > 0 && it._vx != null) {
+          var tx = it._vx, ty = it._vy;
+          if (it.dragged && it._userX != null) { tx = it._userX; ty = it._userY; }
+          if (foc.viewFrom) {
+            var fx0 = foc.viewFrom[it.rank] || skyP;
+            it.px = fx0.x + (tx - fx0.x) * vtE; it.py = fx0.y + (ty - fx0.y) * vtE;
+          } else { it.px = tx; it.py = ty; }
+        } else if (vm === 0 && foc.viewFrom && vt < 1) {
+          var fx1 = foc.viewFrom[it.rank] || skyP;
+          it.px = fx1.x + (skyP.x - fx1.x) * vtE; it.py = fx1.y + (skyP.y - fx1.y) * vtE;
+        } else {
+          it.px = skyP.x; it.py = skyP.y;
+        }
       });
+      if (foc.dragLand) {
+        var dl = clamp((now - foc.dragLand) / 200, 0, 1);
+        if (dl >= 1) foc.dragLand = 0;
+      }
       if (!lite && !foc.closing) {
         // 1. Thiên thể lân cận lao vào tinh cầu kết quả, nóng đỏ dần khi tới gần.
         c.lineCap = "round";
@@ -3241,6 +3453,36 @@
         c.lineWidth = 10; c.beginPath(); c.moveTo(geo.sun.x, geo.sun.y); c.lineTo(top.px, top.py); c.stroke();
         c.lineWidth = 1.4; c.beginPath(); c.moveTo(geo.sun.x, geo.sun.y); c.lineTo(top.px, top.py); c.stroke();
       }
+      // 3b. Khung hình chế độ xem: vòng quỹ đạo hoặc đường nối tam giác.
+      if (vm > 0 && !foc.closing) {
+        var vA = 0.25 * (1 - close) * Math.min(1, vt * 3);
+        if (vA > 0.02) {
+          c.setLineDash([6, 4]); c.lineWidth = 0.8;
+          if (vm === 1) {
+            var vcx = geo.cx, vcy = geo.cy - geo.R * 0.15, vsc = clamp(geo.R / 150, 0.7, 1.4);
+            var vRadii = [80 * vsc, 160 * vsc, 240 * vsc];
+            c.strokeStyle = "rgba(100,160,255," + vA + ")";
+            for (var vri = 0; vri < 3; vri++) {
+              c.beginPath(); c.arc(vcx, vcy, vRadii[vri], 0, 6.2832); c.stroke();
+            }
+          } else if (vm === 2) {
+            var vtw = Math.min(W * 0.28, 200 * clamp(geo.R / 150, 0.7, 1.4)), vgap = vtw * 0.35;
+            var vox = geo.cx - vtw - vgap, vtcy2 = geo.cy - geo.R * 0.15;
+            c.strokeStyle = "rgba(100,160,255," + vA + ")";
+            for (var vti = 0; vti < 3; vti++) {
+              var vtcx = vox + vti * (vtw + vgap), vtR = vtw * 0.45;
+              var vv = [
+                { x: vtcx, y: vtcy2 - vtR },
+                { x: vtcx - vtR * 0.866, y: vtcy2 + vtR * 0.5 },
+                { x: vtcx + vtR * 0.866, y: vtcy2 + vtR * 0.5 }
+              ];
+              c.beginPath(); c.moveTo(vv[0].x, vv[0].y); c.lineTo(vv[1].x, vv[1].y);
+              c.lineTo(vv[2].x, vv[2].y); c.closePath(); c.stroke();
+            }
+          }
+          c.setLineDash([]);
+        }
+      }
       // 4. Chòm sao: tài liệu [[liên kết]] tới nhau thì nối vệt sáng.
       var linkA = 0.3 * (1 - close);
       if (linkA > 0.02) {
@@ -3257,6 +3499,11 @@
       foc.items.forEach(function (it, i) {
         var r = it.rF * (lite ? smooth(0, 1, it.gk) : easeBack(it.gk)), a = Math.min(1, it.gk * 3);
         if (close) { r *= 1 - 0.8 * close; a *= 1 - close; }
+        if (foc.dragIt && it !== foc.dragIt) a *= 0.55;
+        if (foc.dragLand && it === foc._landed) {
+          var dlp = clamp((now - foc.dragLand) / 200, 0, 1);
+          r *= 1 + 0.1 * (1 - dlp);
+        }
         var lit = it.lit * smooth(sun0, sun1, t);
         var hot = know.hover === it.k || know.hl === it.h.id;
         drawRockPlanet(c, it, r * (hot ? 1.15 : 1), a, lit, now, hot);
@@ -3346,7 +3593,7 @@
     function drawWind(c, dt) {
       var k = fx.wind;
       if (k < 0.01 || !cells.length) { streaks.length = 0; return; }
-      var n = profile === "high" ? 26 : profile === "balanced" ? 16 : 8;
+      var n = hdMode ? 40 : profile === "high" ? 26 : profile === "balanced" ? 16 : 8;
       while (streaks.length < n) { var ns = newStreak(); if (!ns) break; streaks.push(ns); }
       if (streaks.length > n) streaks.length = n;
       var L = cloudLift();
@@ -3459,7 +3706,7 @@
       c.save(); c.lineCap = "round";
       for (var i = 0; i < cells.length; i++) {
         var cl = cells[i], cen = scr(cl.g), vis = cellVis(cl, cen);
-        var n = Math.round((profile === "high" ? 110 : profile === "balanced" ? 70 : 36) * rk);
+        var n = Math.round((hdMode ? 160 : profile === "high" ? 110 : profile === "balanced" ? 70 : 36) * rk);
         while (cl.drops.length < n) cl.drops.push({ du: gauss() * 0.45, dv: gauss() * 0.32, t: Math.random(), sp: 1.5 + Math.random() * 0.9 });
         if (cl.drops.length > n) cl.drops.length = n;
         if (vis < 0.01 || rk < 0.01) continue;
@@ -3732,7 +3979,7 @@
     // sang xám. Lửa vẽ thủ tục mỗi khung (không cần nhớ hạt).
     function drawLavaSmoke(c, k, dt, now) {
       if (!volc.rivers) return;
-      var R = geo.R, cap = profile === "high" ? 420 : profile === "balanced" ? 240 : 90;
+      var R = geo.R, cap = hdMode ? 650 : profile === "high" ? 420 : profile === "balanced" ? 240 : 90;
       var spd = 0.6 + 0.4 * Math.min(2, look.lavaSpeed);
       var push = function (g, big) {
         if (volc.plume.length >= cap) return;
@@ -4005,7 +4252,7 @@
       body.addColorStop(0, "rgba(12,16,28," + (0.5 * TH.body * vis).toFixed(3) + ")"); body.addColorStop(1, "rgba(12,16,28," + (TH.body * vis).toFixed(3) + ")");
       c.fillStyle = body; c.fill();
       // 4. hạt: xoắn quanh trục, xoay nhanh ở chân chậm ở đỉnh, bốc lên rồi loe ra thành vòng ở đỉnh
-      var PN = Math.round((profile === "high" ? 520 : profile === "balanced" ? 300 : 150) * vis);
+      var PN = Math.round((hdMode ? 800 : profile === "high" ? 520 : profile === "balanced" ? 300 : 150) * vis);
       while (torn.parts.length < PN) torn.parts.push(tornadoParticle(TH.dust));
       if (torn.parts.length > PN) torn.parts.length = PN;
       for (var pass = 0; pass < 2; pass++) {
@@ -4130,7 +4377,7 @@
       if (bolts.length > 5) bolts.shift();
       bolt = { g: g, k: 1 };
       cl.flash = 1;
-      var nS = profile === "high" ? 26 : profile === "balanced" ? 16 : 8;
+      var nS = hdMode ? 40 : profile === "high" ? 26 : profile === "balanced" ? 16 : 8;
       for (var s = 0; s < nS; s++) hot.push(launch(g, 0.25 + Math.random() * 0.45, 0.9, "spark"));
     }
     // Màu sét vàng trắng: quầng vàng cam rộng, thân vàng nhạt, lõi trắng.
@@ -4348,6 +4595,7 @@
       drawKnowOrbit(c, false, ddt);
       drawSatDots(c, false, ddt);
       drawMoon(c, false, ddt);
+      drawHdAmbient(c, ddt);
       drawLookFx(c, now, ddt);
       drawGalRing(c, now, 0, true);                 // nửa trước vành đai, chạy ngang trước tinh cầu
       drawRings(c, true);
@@ -4452,7 +4700,12 @@
       drag = ids.length ? { x: pts[ids[0]].x, y: pts[ids[0]].y, yaw: cam.tyaw, pitch: cam.tpitch, moved: true } : null;
       return true;
     }
-    function onCancel(e) { liftPointer(e); pinch = null; drag = null; pts = {}; }
+    function onCancel(e) {
+      liftPointer(e); pinch = null; drag = null; pts = {};
+      if (foc) { foc.dragIt = null; foc.dragLand = 0; }
+      if (gal) { gal.dragNode = null; gal.dragCluster = null; }
+      ovCv.style.cursor = "default";
+    }
 
     function onMove(e) {
       var p = local(e);
@@ -4462,7 +4715,44 @@
         var dx = p.x - drag.x, dy = p.y - drag.y;
         if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
         if (drag.moved) {
-          // Xoay quả cầu: kéo ngang đổi kinh độ, kéo dọc đổi vĩ độ (chậm lại khi phóng gần).
+          if (drag.focDrag && foc && foc.dragIt) {
+            var fi2 = foc.dragIt;
+            fi2._dragX = fi2.px + (p.x - (fi2._dragOx || p.x));
+            fi2._dragY = fi2.py + (p.y - (fi2._dragOy || p.y));
+            fi2._dragOx = p.x; fi2._dragOy = p.y;
+            ovCv.style.cursor = "grabbing";
+            if (foc.viewMode === 1 && fi2._vring === 0) {
+              var mdx = p.x - drag.x, mdy = p.y - drag.y;
+              foc.items.forEach(function (oi) {
+                if (oi !== fi2 && oi._vx != null) { oi._vx += mdx; oi._vy += mdy; }
+              });
+              drag.x = p.x; drag.y = p.y;
+            }
+            if (foc.viewMode === 2 && fi2._vtri != null) {
+              var tdx = p.x - drag.x, tdy = p.y - drag.y, tg = fi2._vtri;
+              foc.items.forEach(function (oi) {
+                if (oi !== fi2 && oi._vtri === tg && oi._vx != null) { oi._vx += tdx; oi._vy += tdy; }
+              });
+              drag.x = p.x; drag.y = p.y;
+            }
+            return;
+          }
+          if (drag.gxDrag && (gal.dragNode || gal.dragCluster)) {
+            var S2 = gxScale(), A2 = galAngle(), ca2 = Math.cos(A2), sa2 = Math.sin(A2);
+            var sdx = p.x - drag.x, sdy = p.y - drag.y;
+            var gdx = (ca2 * sdx - sa2 * sdy) / S2, gdy = (sa2 * sdx + ca2 * sdy) / S2;
+            var tgt = gal.dragCluster || gal.dragNode;
+            tgt._dox = (tgt._dox || 0) + gdx; tgt._doy = (tgt._doy || 0) + gdy;
+            drag.x = p.x; drag.y = p.y;
+            ovCv.style.cursor = "grabbing";
+            return;
+          }
+          if (gxLevel() > 0.5) {
+            gal.panX += p.x - drag.x; gal.panY += p.y - drag.y;
+            drag.x = p.x; drag.y = p.y;
+            ovCv.style.cursor = "grab";
+            return;
+          }
           var zk = 1 / Math.max(1, cam.zoom * 0.8);
           cam.tyaw = clamp(drag.yaw + dx * 0.004 * zk, -2.8, 2.8);
           cam.tpitch = clamp(drag.pitch + dy * 0.003 * zk, -1.1, 1.1);
@@ -4481,7 +4771,7 @@
       know.hover = kh;
       var onP = !s && !kh && !gh && onPlanet(p.x, p.y);
       hoverT = onP ? 1 : 0;
-      ovCv.style.cursor = s || kh || onP || overBH || gh ? "pointer" : "default";
+      ovCv.style.cursor = gh && gxLevel() > 0.5 ? "grab" : s || kh || onP || overBH || gh ? "pointer" : "default";
       if (gh) showGalTip(gh, p.x, p.y);
       else if (overBH) showBHTip(p.x, p.y);
       else if (kh) showKnowTip(kh, p.x, p.y); else showTip(s, p.x, p.y);
@@ -4489,19 +4779,57 @@
     function onDown(e) {
       if (e.button !== 0) return;
       var p = local(e);
-      // Ngón ĐẦU của một cử chỉ mới: xoá con trỏ cũ còn sót (lỡ mất pointerup), không thì một
-      // ngón chạm mới bị tính thành chụm với "bóng ma" của ngón trước.
       if (e.isPrimary) { pts = {}; pinch = null; }
       pts[e.pointerId] = p;
       try { ovCv.setPointerCapture(e.pointerId); } catch (_) {}
-      if (nPts() >= 2) { startPinch(); return; }
+      if (nPts() >= 2) { if (foc) foc.dragIt = null; startPinch(); return; }
+      var fi = foc && !foc.closing ? focHitItem(p.x, p.y) : null;
+      if (fi) {
+        foc.dragIt = fi; fi._dragX = fi.px; fi._dragY = fi.py; fi._dragOx = p.x; fi._dragOy = p.y;
+        drag = { x: p.x, y: p.y, yaw: cam.tyaw, pitch: cam.tpitch, moved: false, focDrag: true };
+        return;
+      }
+      if (gxLevel() > 0.5 && !gal.fly) {
+        var gh2 = hitGalaxy(p.x, p.y);
+        if (gh2) {
+          var isClus = !gh2.role;
+          gal.dragNode = isClus ? null : gh2; gal.dragCluster = isClus ? gh2 : null;
+          drag = { x: p.x, y: p.y, yaw: cam.tyaw, pitch: cam.tpitch, moved: false, gxDrag: true };
+          return;
+        }
+      }
       drag = { x: p.x, y: p.y, yaw: cam.tyaw, pitch: cam.tpitch, moved: false };
     }
     function onUp(e) {
-      if (liftPointer(e)) return;          // đang/vừa chụm: không phải một cú bấm
+      if (liftPointer(e)) return;
       if (!drag) return;
-      var moved = drag.moved;
+      var moved = drag.moved, wasFocDrag = drag.focDrag, wasGxDrag = drag.gxDrag;
       drag = null;
+      if (wasGxDrag) {
+        ovCv.style.cursor = "default";
+        var clickNode = gal.dragNode, clickCluster = gal.dragCluster;
+        gal.dragNode = null; gal.dragCluster = null;
+        if (!moved) {
+          var gc = clickNode || clickCluster;
+          if (gc) { try { opts.onGalaxyClick && opts.onGalaxyClick(gc); } catch (_) {} }
+        }
+        return;
+      }
+      if (wasFocDrag && foc && foc.dragIt) {
+        var fi3 = foc.dragIt;
+        if (moved) {
+          fi3.dragged = true; fi3._userX = fi3._dragX; fi3._userY = fi3._dragY;
+          if (foc.viewMode > 0) { fi3._vx = fi3._dragX; fi3._vy = fi3._dragY; }
+          else { fi3.off.x += fi3._dragX - fi3.px; fi3.off.y += fi3._dragY - fi3.py; }
+          foc._landed = fi3; foc.dragLand = performance.now();
+        }
+        foc.dragIt = null; ovCv.style.cursor = "default";
+        if (!moved) {
+          var kh3 = fi3.k;
+          if (kh3) { try { opts.onKnowledgeClick && opts.onKnowledgeClick(kh3.b, { x: fi3.px, y: fi3.py }); } catch (_) {} }
+        }
+        return;
+      }
       if (moved) return;
       var p = local(e);
       if (bhv.target || bhv.k > 0.05) { openBlackHole(false); return; }   // đang nhìn sâu: bấm đâu cũng quay ra
@@ -4539,6 +4867,7 @@
     function onDbl() {
       clearTimeout(clickTimer);
       cam.tyaw = cam.tpitch = 0; cam.tzoom = 1;
+      gal.panX = 0; gal.panY = 0;
     }
     function onWheel(e) {
       // Ô xem trước nằm giữa trang Cài đặt: lăn chuột phải cuộn trang, không phóng quả cầu.
@@ -4671,7 +5000,7 @@
     R.galaxyLevel = gxLevel;
     R.flyTo = flyTo;
     R.zoomTo = function (z) { cam.tzoom = clamp(+z || 1, ZMIN, ZMAX); };
-    R.arrive = function () { cam.zoom = 0.38; cam.tzoom = 1; cam.tyaw = cam.tpitch = 0; };   // vào tinh cầu từ xa
+    R.arrive = function () { cam.zoom = 0.38; cam.tzoom = 1; cam.tyaw = cam.tpitch = 0; gal.panX = 0; gal.panY = 0; };   // vào tinh cầu từ xa
     R.galaxyInfo = function () {
       return { nodes: gal.nodes.length, cur: gal.cur ? gal.cur.key : null, level: gxLevel(), flying: !!gal.fly,
                palette: !!gal.palOverride, hits: gal.hitsMax };
@@ -4691,9 +5020,35 @@
     // Big Bang khi tìm kiếm (hud.js đọc /knowledge/search): {q, hits, total}; null = thu về.
     R.focusKnowledge = focusKnowledge;
     R.highlightKnowledge = function (id) { know.hl = id || null; };
+    R.setFocViewMode = function (m) {
+      if (!foc || foc.closing) return;
+      m = clamp(m | 0, 0, 2);
+      if (m === foc.viewMode) return;
+      foc.viewFrom = {};
+      foc.items.forEach(function (it) { foc.viewFrom[it.rank] = { x: it.px, y: it.py }; });
+      foc.viewMode = m; foc.viewT0 = performance.now();
+      foc.items.forEach(function (it) { it.dragged = false; it._userX = null; it._userY = null; });
+      if (m > 0) focViewLayout(m, foc.items);
+    };
+    R.focViewMode = function () { return foc ? foc.viewMode : 0; };
+    R.hdMode = function () { return hdMode; };
+    R.setHdMode = function (on) {
+      hdMode = !!on; hdFlag = hdMode;
+      host.classList.toggle("planet-hd", hdMode);
+      if (gl) {
+        try {
+          prog = makeProgram(gl, false);
+          progHi = null;
+          if (profile === "high") { try { progHi = makeProgram(gl, true); } catch (_) {} }
+        } catch (_) {}
+      }
+      resize();
+      try { window.dispatchEvent(new CustomEvent("joyce:hd-mode", { detail: { hd: hdMode } })); } catch (_) {}
+    };
     R.knowledgeFocus = function () {
       return foc ? { q: foc.q, n: foc.items.length, more: foc.more.length, total: foc.total,
-                     closing: foc.closing, lite: foc.lite, t: (performance.now() - foc.t0) / 1000 } : null;
+                     closing: foc.closing, lite: foc.lite, t: (performance.now() - foc.t0) / 1000,
+                     viewMode: foc.viewMode } : null;
     };
     R.knowledgeInfo = function () {
       return { stars: know.stars.length, orbit: know.orbit.length, debris: know.debris.length,
@@ -4716,10 +5071,14 @@
                  tips: volc.rivers.filter(function (r) { return volc.front - r.start > 0 && volc.front - r.start < r.pts.length; })
                    .map(function (r) { return r.pts[Math.floor(volc.front - r.start)].slice(); }) } : null };
     };
+    window.JoycePlanet._inst = R;
     return R;
   }
 
   window.JoycePlanet = {
+    _inst: null,
+    hdMode: function () { return this._inst ? this._inst.hdMode() : false; },
+    setHdMode: function (on) { if (this._inst) this._inst.setHdMode(on); },
     FLAG: FLAG,
     enabled: flagOn,
     setEnabled: function (on) {

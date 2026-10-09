@@ -1,5 +1,24 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.3.3] - 2026-10-08
+### Thêm mới
+- **Kéo thả tinh thể kiến thức**: sau khi Big Bang nổ, kéo bất kỳ tinh thể nào bằng chuột hoặc ngón tay trên điện thoại sang vị trí mới. Tinh thể đang kéo sáng lên, các tinh thể khác mờ đi, thả ra có hiệu ứng hạ cánh. Bấm mà không kéo vẫn mở chi tiết như cũ.
+- **3 chế độ xem kết quả tìm kiếm** (3 nút tròn dưới màn hình khi có Big Bang):
+  - **✦ Bầu trời** (mặc định): giữ nguyên vị trí trên vòm trời.
+  - **◎ Quỹ đạo**: xếp tinh thể thành 3 vòng tròn đồng tâm theo kích thước (to/vừa/bé); kéo tinh thể vòng trong dời cả 3 vòng.
+  - **△ Chòm sao**: xếp thành 3 tam giác theo kích thước.
+- Chuyển chế độ có hoạt ảnh 0.6 giây, vòng quỹ đạo và tam giác vẽ nét đứt làm khung hình.
+- **Kéo dịch thiên hà**: ở tầng thiên hà (zoom nhỏ), kéo chuột/ngón tay giờ dịch chuyển toàn bộ tầm nhìn thay vì xoay quả cầu, giúp bấm được các tinh cầu phòng ban ở rìa màn hình. Chạm đúp hoặc bay tới tinh cầu sẽ reset vị trí.
+- **Kéo tinh cầu và khối phòng ban**: ở tầng thiên hà, kéo lẻ một tinh cầu sang vị trí mới, hoặc kéo nhãn khối (ví dụ "Kế Toán") để dời cả cụm tinh cầu trong khối đó. Bấm mà không kéo vẫn bay tới tinh cầu như cũ. Con trỏ đổi thành bàn tay khi rê trên tinh cầu.
+- **Kéo nhóm tam giác**: ở chế độ Chòm sao, kéo bất kỳ tinh thể nào sẽ dời cả tam giác cùng nhóm.
+- **3D View**: nút mới trên thanh chuyển lớp nhìn (3D View | Lõi nước | Tinh vận). Bật lên để xem tinh cầu ở chế độ HD siêu nét: shader biên dịch lại với 6 tầng fbm, sao nền dày hơn với kích thước khác nhau và tia nhiễu xạ, sao băng ngẫu nhiên trong shader, hố đen có đĩa bồi tụ hai tần số nhiễu loạn và gradient cam-trắng giàu hơn, khí quyển dày hơn, ánh specular 3 tầng (120/30/8), fresnel rộng với ánh cyan ban đêm, tone mapping nâng cao. Canvas 2D cũng nâng cấp: bụi thiên thể lấp lánh quanh hành tinh, sao băng ngẫu nhiên bay qua bầu trời, mặt trăng phân giải lên 512px với quầng sáng mềm hơn, tinh thể kiến thức có hào quang, mặt trời có 6 tia quầng corona xoay. Phù hợp trình chiếu cho team. Click "Lõi nước" để quay về chế độ nhẹ.
+- **Peek vùng dưới**: ẩn mắt xem (chế độ Quan sát), rê chuột hoặc chạm vào vùng dưới chữ SẴN SÀNG sẽ hiện 3 nút chế độ xem.
+
+### Cải thiện
+- Vùng click tinh thể kiến thức mở rộng từ 9px lên 15px, dễ bấm trúng hơn.
+- Nút "Nghe thử" giọng nói giờ dùng TTS đọc text thay vì phát file MP3 thu sẵn, đúng tên "Joyce".
+- Câu mẫu nghe thử đổi từ "HoaiMy/NamMinh" sang "Joyce".
+
 ## [1.3.2] - 2026-10-08
 ### Cải thiện
 - **Cẩm nang → Fanpage**: mỗi Trang giờ có nút ↗ mở thẳng sang trang Facebook tương ứng (tab mới), không phải copy ID dán lên trình duyệt nữa. Bấm vào tên Trang vẫn chọn để xem báo cáo như cũ.

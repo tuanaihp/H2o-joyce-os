@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional
 
 from fastapi import APIRouter, Form, Query
+from fastapi.responses import JSONResponse
 
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine
@@ -280,6 +281,31 @@ class TasksFeature:
             return "skill"
         return "fast"
 
+    @staticmethod
+    def acl_cho_phep(vault_dich: str, vault_nguon: str) -> bool:
+        """Brain dich co chap nhan viec tu brain nguon khong?
+        {"deny_brains": [...]} -> chan; {"allow_brains": [...]} -> chi nhan tu;
+        Khong co file / file hong = cho phep (giu hanh vi cu)."""
+        try:
+            acl = Path(vault_dich) / "Joyce" / "acl.json"
+            if not acl.is_file():
+                return True
+            cfg = json.loads(acl.read_text(encoding="utf-8"))
+            if not isinstance(cfg, dict):
+                return True
+            ten_nguon = Path(vault_nguon).name.casefold()
+            allow = [str(x).casefold() for x in (cfg.get("allow_brains") or [])]
+            deny = [str(x).casefold() for x in (cfg.get("deny_brains") or [])]
+            if ten_nguon in deny:
+                return False
+            if allow:
+                return ten_nguon in allow
+            return True
+        except Exception:
+            print(f"[kanban] loi doc ACL {vault_dich}/Joyce/acl.json, cho phep mac dinh",
+                  file=sys.stderr)
+            return True
+
     def enqueue(
         self,
         brain: str,
@@ -294,8 +320,15 @@ class TasksFeature:
         capability: str = "auto",
         execution_mode: str = "auto",
         idempotency_key: str = "",
+        source_brain: str = "",
     ) -> str:
         root = self._ensure(brain)
+        if source_brain and os.path.normcase(os.path.abspath(source_brain)) != os.path.normcase(os.path.abspath(root)):
+            if not self.acl_cho_phep(root, source_brain):
+                raise PermissionError(
+                    f"Brain '{Path(root).name}' tu choi viec giao tu brain "
+                    f"'{Path(source_brain).name}' (Joyce/acl.json)"
+                )
         lane = self._classify_lane(title, intent, route, capability)
         if not needs_approval:
             needs_approval = self._policy_gate(title, intent, route, capability) \
@@ -318,7 +351,11 @@ class TasksFeature:
             metadata={"lane": lane},
         )
         self.store.promote_dependencies(root)
-        self._snapshot(root)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._asnapshot(root))
+        except RuntimeError:
+            self._snapshot(root)
         self.wake()
         return tid
 
@@ -559,23 +596,32 @@ class TasksFeature:
                 )
             else:
                 verify = None
-                if task.get("needs_approval") and result:
-                    # Lớp kiểm chứng (Verify trong Operating Loop 2.0): việc chạm ngoài /
-                    # động tiền được cờ needs_approval không vào thẳng cột review mà qua một
-                    # pass độc lập "giả định kết quả SAI" trước. Người vẫn là cổng cuối -
-                    # verify chỉ gắn phán quyết lên thẻ để người duyệt đọc nhanh hơn.
-                    try:
-                        verify = await asyncio.wait_for(
-                            self._verify(task, result), timeout=180
-                        )
-                    except Exception:
-                        verify = None
-                    if verify:
-                        metadata = dict(metadata or {})
-                        metadata["verify"] = verify
-                        verdict = "✓ Đạt" if verify.get("pass") else "✗ CHƯA ĐẠT"
-                        result += (f"\n\n**Kiểm chứng: {verdict}** — "
-                                   f"{str(verify.get('reason') or '')[:300]}")
+                if task.get("needs_approval"):
+                    if not result:
+                        verify = {"pass": False, "reason": "Kết quả rỗng, cần duyệt thủ công",
+                                  "skipped": True}
+                    else:
+                        try:
+                            verify = await asyncio.wait_for(
+                                self._verify(task, result), timeout=180
+                            )
+                        except asyncio.TimeoutError:
+                            verify = {"pass": False,
+                                      "reason": "Kiểm chứng hết giờ (180s), cần duyệt thủ công",
+                                      "error": True}
+                        except Exception as ve:
+                            verify = {"pass": False,
+                                      "reason": f"Kiểm chứng lỗi ({type(ve).__name__}), cần duyệt thủ công",
+                                      "error": True}
+                    if not verify:
+                        verify = {"pass": False,
+                                  "reason": "Không kiểm chứng được, cần duyệt thủ công",
+                                  "error": True}
+                    metadata = dict(metadata or {})
+                    metadata["verify"] = verify
+                    verdict = "✓ Đạt" if verify.get("pass") else "✗ CHƯA ĐẠT"
+                    result += (f"\n\n**Kiểm chứng: {verdict}** — "
+                               f"{str(verify.get('reason') or '')[:300]}")
                 final_task = self.store.complete(
                     tid,
                     worker_id,
@@ -1369,26 +1415,31 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             capability: str = Form("auto"),
             execution_mode: str = Form("auto"),
             idempotency_key: str = Form(""),
+            source_brain: str = Form(""),
         ):
             dep_list = [d.strip() for d in (deps or "").split(",") if d.strip()]
             try:
                 value = int(priority)
             except ValueError:
                 value = 2
-            tid = self.enqueue(
-                brain,
-                title,
-                intent or title,
-                route or "auto",
-                value,
-                dep_list,
-                needs_approval in ("1", "true", "True", "on"),
-                "user",
-                chat_id,
-                capability,
-                execution_mode,
-                idempotency_key,
-            )
+            try:
+                tid = self.enqueue(
+                    brain,
+                    title,
+                    intent or title,
+                    route or "auto",
+                    value,
+                    dep_list,
+                    needs_approval in ("1", "true", "True", "on"),
+                    "user",
+                    chat_id,
+                    capability,
+                    execution_mode,
+                    idempotency_key,
+                    source_brain,
+                )
+            except PermissionError as e:
+                return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
             return {"ok": True, "id": tid}
 
         @router.post("/kanban/task/move")

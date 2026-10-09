@@ -758,6 +758,8 @@
   "kanban.ago_min": "{n} min",
   "kanban.ago_hour": "{n} h",
   "kanban.ago_day": "{n} d",
+  "kanban.verify_pass": "Verified: Pass",
+  "kanban.verify_fail": "Verified: Fail",
   "kanban.act_approve": "Approve exception",
   "kanban.act_retry": "Retry",
   "kanban.act_run": "Run",

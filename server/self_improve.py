@@ -55,6 +55,7 @@ import asyncio
 import sys
 import json
 import re
+import threading
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -174,6 +175,7 @@ class LoopFeature:
             "interval_min": 60, "last_run": 0.0, "last_summary": "", "last_status": "",
         }
         self.lock = asyncio.Lock()           # THỰC THI TUẦN TỰ: 1 vòng/lúc trên toàn hệ
+        self._save_lock = threading.Lock()   # chong ghi chong loop cung slug
         self._viec_nen: set = set()   # vòng loop đang chạy nền (xem _chay_nen)
         self._running: Optional[Tuple[str, str]] = None   # (brain_root_resolved, slug) đang chạy
         self._migrated = False
@@ -360,6 +362,10 @@ class LoopFeature:
         Identity = TÊN FILE: nếu slug trỏ đúng file ĐANG CÓ (kể cả stem tiếng Việt user tự
         đặt trong Obsidian) → ghi đè CHÍNH file đó; chỉ loop MỚI mới sinh slug ascii.
         (Không thì toggle/sửa loop tên tự do sẽ fork bản sao ascii, bản gốc vẫn chạy.)"""
+        with self._save_lock:
+            return self._save_loop_inner(brain, loop)
+
+    def _save_loop_inner(self, brain: str, loop: dict) -> dict:
         raw = str(loop.get("slug") or loop.get("name") or "loop").strip()
         fp = self._loop_path(brain, raw)
         if fp is not None and fp.exists():
