@@ -3005,8 +3005,9 @@
 
   // ============================================================
   // Trang Công cụ (tools) - sổ TOÀN BỘ tool engine nhìn thấy, nằm dưới nhóm Kết nối.
-  // Khác trang Plugins (quản lý plugin: bật/tắt/gỡ): trang này nhìn THEO TỪNG TOOL -
-  // trả lời "Joyce đang có những tool nào, của ai, mức quyền gì, đang được dùng không".
+  // Bố cục theo LUỒNG nghiệp vụ (kênh liên lạc / vận hành / dev / điều phối / hệ thống):
+  // thẻ thống kê trên cùng, vùng chính gom theo luồng -> nhóm nguồn -> tool, sidebar
+  // phải có phân bố mức quyền + nguồn cấp + top tool đang xài (mẫu dashboard SEO).
   // ============================================================
   async function renderTools(el) {
     const myGen = _renderGen;
@@ -3016,84 +3017,182 @@
     if (myGen !== _renderGen) return;
 
     const EFF = {
-      read:   { label: t("tl.eff_read"),   color: "var(--ok-ink, #4ade80)" },
-      write:  { label: t("tl.eff_write"),  color: "var(--warn-ink, #f0a24a)" },
-      danger: { label: t("tl.eff_danger"), color: "var(--err-ink, #f87171)" },
+      read:   { label: t("tl.eff_read"),   color: "#4ade80" },
+      write:  { label: t("tl.eff_write"),  color: "#f0a24a" },
+      danger: { label: t("tl.eff_danger"), color: "#f87171" },
     };
     const STATE = {
-      loaded:   { label: t("tl.st_loaded"),   color: "var(--ok-ink, #4ade80)" },
+      loaded:   { label: t("tl.st_loaded"),   color: "#4ade80" },
       disabled: { label: t("tl.st_disabled"), color: "var(--text3)" },
-      gated:    { label: t("tl.st_gated"),    color: "var(--warn-ink, #f0a24a)" },
+      gated:    { label: t("tl.st_gated"),    color: "#f0a24a" },
       removed:  { label: t("tl.st_removed"),  color: "var(--text3)" },
-      unloaded: { label: t("tl.st_unloaded"), color: "var(--warn-ink, #f0a24a)" },
+      unloaded: { label: t("tl.st_unloaded"), color: "#f0a24a" },
     };
-    const badge = (txt, color) => `<span style="font-size:11px;padding:1px 7px;border-radius:6px;border:1px solid ${color};color:${color};white-space:nowrap">${esc(txt)}</span>`;
+    // Luồng nghiệp vụ: đoán từ tên nhóm nguồn (plugin slug/label hoặc tên MCP).
+    const LUONG = [
+      [/zalo|telegram|facebook|fb-|meta-|youtube|chatbot|inbox|kenh|social/i, t("tl.dom_channels")],
+      [/h2o|crm|wedding|du_an|bao_cao|bao_gia|sales|khach/i,               t("tl.dom_h2o")],
+      [/devin|coding|terminal|git|desktop|code/i,                          t("tl.dom_dev")],
+      [/joyce-task|joyce-schedule|joyce-workflow|joyce-ui|joyce-job|task|schedule|workflow|loop/i, t("tl.dom_flow")],
+      [/image|video|audio|photo|content|media/i,                           t("tl.dom_media")],
+      [/access|audit|connect|datetime|system|core|builtin|lõi/i,           t("tl.dom_system")],
+    ];
+    const luongCua = (key) => { for (const [re, lb] of LUONG) if (re.test(key)) return lb; return t("tl.dom_other"); };
 
+    const badge = (txt, color) => `<span style="font-size:11px;padding:1px 7px;border-radius:6px;border:1px solid ${color};color:${color};white-space:nowrap">${esc(txt)}</span>`;
     const tools = (d.tools || []);
-    // Gom theo nguồn: plugin <slug> / mcp <server> / builtin. Giữ thứ tự server đã sort.
-    const groups = new Map();
+
+    // Gom 2 tầng: luồng -> nhóm nguồn -> tools.
+    const doms = new Map();
+    const groupLabel = (tl) => (tl.source_type === "mcp" ? "MCP: " : tl.source_type === "builtin" ? "" : "")
+        + (tl.group || tl.namespace || tl.source || "?");
     for (const tl of tools) {
-      const key = (tl.source_type === "mcp" ? "MCP: " : tl.source_type === "builtin" ? t("tl.src_builtin") : "")
-                + (tl.group || tl.namespace || tl.source || "?");
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(tl);
+      const g = groupLabel(tl);
+      const dom = tl.source_type === "builtin" ? t("tl.dom_system") : luongCua(g);
+      if (!doms.has(dom)) doms.set(dom, new Map());
+      const gs = doms.get(dom);
+      if (!gs.has(g)) gs.set(g, []);
+      gs.get(g).push(tl);
     }
 
+    // --- Thẻ thống kê trên cùng (mẫu stat cards) ---
     const nLoaded = tools.filter(x => x.state === "loaded").length;
     const nOff = tools.length - nLoaded;
-    const stats = `${tools.length} ${t("tl.count_tools")} · ${groups.size} ${t("tl.count_groups")}`
-                + (nOff ? ` · ${nOff} ${t("tl.count_off")}` : "");
+    const nCalls = tools.reduce((s, x) => s + (x.calls || 0), 0);
+    const nDanger = tools.filter(x => x.effect === "danger").length;
+    const statCard = (icon, val, label, color) => `
+      <div style="flex:1;min-width:130px;padding:14px 16px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);display:flex;gap:12px;align-items:center">
+        <div style="width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:${color}22;color:${color}">${ic(icon, { size: "18px" })}</div>
+        <div><div style="font-size:20px;font-weight:700;line-height:1.1">${val}</div>
+        <div style="color:var(--text3);font-size:12px">${esc(label)}</div></div>
+      </div>`;
+    const statsHtml = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px">
+      ${statCard("wrench", tools.length, t("tl.st_all"), "var(--accent,#7aa5ff)")}
+      ${statCard("circle-check", nLoaded, t("tl.st_loaded"), "#4ade80")}
+      ${statCard("ban", nOff, t("tl.count_off"), "#f0a24a")}
+      ${statCard("zap", nCalls, t("tl.calls_total"), "#a78bfa")}
+      ${statCard("shield", nDanger, t("tl.danger_n"), "#f87171")}
+    </div>`;
 
+    // --- Hàng tool ---
     const row = (tl) => {
       const eff = EFF[tl.effect]; const stt = STATE[tl.state];
-      const calls = (d.audit_on && tl.calls) ? badge(`${tl.calls}× ${t("tl.calls")}`, "var(--accent,#7aa5ff)") : "";
-      const params = (tl.params || []).length ? `<div style="color:var(--text3);font-size:11.5px;margin-top:3px">${esc(t("tl.params"))}: ${esc(tl.params.join(", "))}</div>` : "";
-      return `<div class="tl-row" style="padding:9px 12px;border-bottom:1px solid var(--hairline);${tl.state!=="loaded"?"opacity:.55":""}">
+      const calls = (d.audit_on && tl.calls) ? badge(`${tl.calls}×`, "var(--accent,#7aa5ff)") : "";
+      const params = (tl.params || []).length ? `<div style="color:var(--text3);font-size:11.5px;margin-top:3px">${esc(tl.params.join(" · "))}</div>` : "";
+      return `<div class="tl-row" data-src="${esc(tl.source_type||"")}" data-eff="${esc(tl.effect||"")}" style="padding:8px 12px;border-bottom:1px solid var(--hairline);${tl.state!=="loaded"?"opacity:.5":""}">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <code style="font-weight:600">${esc(tl.fn)}</code>
           ${eff ? badge(eff.label, eff.color) : ""}
           ${stt ? badge(stt.label, stt.color) : ""}
           ${calls}
         </div>
-        <div style="color:var(--text2);font-size:12.5px;margin-top:3px;line-height:1.45">${esc(tl.description || "")}</div>
+        <div style="color:var(--text2);font-size:12.5px;margin-top:2px;line-height:1.45">${esc(tl.description || "")}</div>
         ${params}
       </div>`;
     };
-
-    const secHtml = [...groups.entries()].map(([g, arr]) => `
-      <div class="tl-sec" style="margin-bottom:14px">
-        <div style="font-size:13px;font-weight:600;color:var(--text2);margin:0 0 6px;display:flex;align-items:center;gap:8px">${esc(g)} <span style="color:var(--text3);font-weight:400">${arr.length}</span></div>
-        <div style="border:1px solid var(--hairline);border-radius:10px;overflow:hidden;background:var(--surface-1)">${arr.map(row).join("")}</div>
+    const domHtml = [...doms.entries()].map(([dom, gs]) => `
+      <div class="tl-dom" style="margin-bottom:18px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin:0 0 8px;display:flex;align-items:center;gap:8px">
+          ${esc(dom)} <span style="font-weight:400">${[...gs.values()].reduce((s,a)=>s+a.length,0)}</span>
+          <span style="flex:1;height:1px;background:var(--hairline)"></span>
+        </div>
+        ${[...gs.entries()].map(([g, arr]) => `
+          <div class="tl-sec" style="margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;margin:0 0 5px;display:flex;gap:8px;align-items:center">${esc(g)} <span style="color:var(--text3);font-weight:400">${arr.length}</span></div>
+            <div style="border:1px solid var(--hairline);border-radius:10px;overflow:hidden;background:var(--surface-1)">${arr.map(row).join("")}</div>
+          </div>`).join("")}
       </div>`).join("");
 
-    const auditNote = d.audit_on ? "" :
-      `<div style="margin-bottom:12px;padding:10px 12px;border:1px dashed var(--hairline);border-radius:8px;color:var(--text3);font-size:12.5px">${esc(t("tl.audit_off"))}</div>`;
-
-    el.innerHTML = `<div class="cview-section">
-      <p style="color:var(--text3);font-size:14px;max-width:760px;margin:0 0 4px">${esc(t("tl.intro"))}</p>
-      <div style="display:flex;gap:10px;align-items:center;margin:10px 0 14px;flex-wrap:wrap">
-        <input id="tlQ" placeholder="${esc(t("tl.search_ph"))}" style="min-width:240px">
-        <span style="color:var(--text3);font-size:12.5px">${esc(stats)}</span>
-        <button class="s-btn" id="tlNew">+ ${esc(t("tl.new"))}</button>
+    // --- Sidebar phải ---
+    const effCount = { read: 0, write: 0, danger: 0 };
+    tools.forEach(x => { if (effCount[x.effect] !== undefined) effCount[x.effect]++; });
+    const effTotal = Math.max(1, tools.length);
+    const barHtml = ["read","write","danger"].map(k =>
+      `<div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:70px;font-size:12px;color:var(--text3)">${esc(EFF[k].label)}</span>
+        <div style="flex:1;height:8px;border-radius:4px;background:var(--surface-2,rgba(255,255,255,.06))"><div style="height:8px;border-radius:4px;width:${Math.round(effCount[k]/effTotal*100)}%;background:${EFF[k].color}"></div></div>
+        <span style="width:30px;text-align:right;font-size:12px">${effCount[k]}</span>
+      </div>`).join("");
+    const topUsed = tools.filter(x => x.calls > 0).sort((a,b) => b.calls - a.calls).slice(0,5);
+    const topHtml = topUsed.length
+      ? topUsed.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--hairline);font-size:12.5px"><code style="overflow:hidden;text-overflow:ellipsis">${esc(x.fn)}</code><span style="color:var(--accent,#7aa5ff);white-space:nowrap">${x.calls}×</span></div>`).join("")
+      : `<div style="color:var(--text3);font-size:12.5px">${esc(t("tl.no_calls"))}</div>`;
+    const sideHtml = `<div style="display:flex;flex-direction:column;gap:14px">
+      <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc(t("tl.side_perm"))}</div>${barHtml}
       </div>
-      ${auditNote}
-      <div id="tlList">${secHtml || `<div class="empty">${esc(t("tl.empty"))}</div>`}</div>
+      <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc(t("tl.side_top"))}</div>${topHtml}
+        ${d.audit_on ? "" : `<div style="color:var(--text3);font-size:11.5px;margin-top:6px">${esc(t("tl.audit_off"))}</div>`}
+      </div>
+      <div style="border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc(t("tl.side_src"))}</div>
+        ${["plugin","mcp","builtin"].map(s => {
+          const n = tools.filter(x => x.source_type === s).length;
+          return n ? `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0"><span>${esc(t("tl.src_"+s))}</span><span style="color:var(--text3)">${n}</span></div>` : "";
+        }).join("")}
+      </div>
     </div>`;
 
-    // Lọc theo tên/mô tả/nguồn.
-    el.querySelector("#tlQ")?.addEventListener("input", (e) => {
-      const q = (e.target.value || "").toLowerCase();
+    const filterBtn = (id, label, active) =>
+      `<button class="s-chip tl-f" data-f="${id}" style="padding:4px 12px;border-radius:14px;border:1px solid ${active?"var(--accent,#7aa5ff)":"var(--hairline)"};background:${active?"rgba(122,165,255,.12)":"transparent"};color:var(--text2);font-size:12px;cursor:pointer">${esc(label)}</button>`;
+
+    el.innerHTML = `<div class="cview-section">
+      ${statsHtml}
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 16px;flex-wrap:wrap">
+        <input id="tlQ" placeholder="${esc(t("tl.search_ph"))}" style="min-width:220px;padding:6px 10px">
+        <div id="tlFSrc" style="display:flex;gap:6px;flex-wrap:wrap">
+          ${filterBtn("", t("tl.f_all"), true)}${filterBtn("plugin", t("tl.src_plugin"))}${filterBtn("mcp", "MCP")}${filterBtn("builtin", t("tl.src_builtin"))}
+        </div>
+        <div id="tlFEff" style="display:flex;gap:6px;flex-wrap:wrap">
+          ${filterBtn("read", t("tl.eff_read"))}${filterBtn("write", t("tl.eff_write"))}${filterBtn("danger", t("tl.eff_danger"))}
+        </div>
+        <button class="s-btn" id="tlNew" style="margin-left:auto">+ ${esc(t("tl.new"))}</button>
+      </div>
+      <div style="display:grid;grid-template-columns:${isNarrow() ? "1fr" : "minmax(0,1fr) 280px"};gap:18px;align-items:start" class="tl-grid">
+        <div id="tlList">${domHtml || `<div class="empty">${esc(t("tl.empty"))}</div>`}</div>
+        <div>${sideHtml}</div>
+      </div>
+    </div>`;
+
+    // Bộ lọc: search text + chip nguồn + chip mức quyền (chọn 1 mỗi nhóm, bấm lại = bỏ).
+    let fSrc = "", fEff = "";
+    const apply = () => {
+      const q = ((el.querySelector("#tlQ")?.value) || "").toLowerCase();
       el.querySelectorAll("#tlList .tl-row").forEach(r => {
-        r.style.display = r.textContent.toLowerCase().includes(q) ? "" : "none";
+        const okQ = !q || r.textContent.toLowerCase().includes(q);
+        const okS = !fSrc || r.dataset.src === fSrc;
+        const okE = !fEff || r.dataset.eff === fEff;
+        r.style.display = (okQ && okS && okE) ? "" : "none";
       });
       el.querySelectorAll("#tlList .tl-sec").forEach(s => {
         s.style.display = [...s.querySelectorAll(".tl-row")].some(r => r.style.display !== "none") ? "" : "none";
       });
-    });
+      el.querySelectorAll("#tlList .tl-dom").forEach(s => {
+        s.style.display = [...s.querySelectorAll(".tl-row")].some(r => r.style.display !== "none") ? "" : "none";
+      });
+    };
+    el.querySelector("#tlQ")?.addEventListener("input", apply);
+    el.querySelectorAll("#tlFSrc .tl-f").forEach(b => b.addEventListener("click", () => {
+      fSrc = (fSrc === b.dataset.f) ? "" : b.dataset.f;
+      el.querySelectorAll("#tlFSrc .tl-f").forEach(x => {
+        const on = x.dataset.f === fSrc;
+        x.style.borderColor = on ? "var(--accent,#7aa5ff)" : "var(--hairline)";
+        x.style.background = on ? "rgba(122,165,255,.12)" : "transparent";
+      });
+      apply();
+    }));
+    el.querySelectorAll("#tlFEff .tl-f").forEach(b => b.addEventListener("click", () => {
+      fEff = (fEff === b.dataset.f) ? "" : b.dataset.f;
+      el.querySelectorAll("#tlFEff .tl-f").forEach(x => {
+        const on = x.dataset.f === fEff;
+        x.style.borderColor = on ? "var(--accent,#7aa5ff)" : "var(--hairline)";
+        x.style.background = on ? "rgba(122,165,255,.12)" : "transparent";
+      });
+      apply();
+    }));
 
-    // Tạo tool mới: hỏi slug+tên, gọi /plugins/scaffold. Tool mới TẮT mặc định,
-    // viết code xong bật ở trang Công cụ (plugins). Env JOYCE_ENABLE_USER_PLUGINS
-    // vẫn là cổng cho plugin user - ghi rõ trong thông báo trả về.
+    // Tạo tool mới (giữ nguyên luồng scaffold).
     el.querySelector("#tlNew")?.addEventListener("click", async () => {
       const slug = prompt(t("tl.new_slug_ph"), "");
       if (!slug) return;
