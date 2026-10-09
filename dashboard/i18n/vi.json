@@ -4197,6 +4197,7 @@
   "ov.dw_qt_after": "Quy trình sau dịch vụ",
   "ov.dw_qt_other": "Quy trình chưa xếp giai đoạn",
   "ov.dw_qt_none": "Phòng chưa có quy trình nào trong wiki. Đặt tên file kèm \"- Trước dịch vụ\" để nó hiện ở đây.",
+  "ov.dw_qt_err": "Chưa tải được danh sách quy trình. Nếu máy chủ vừa cập nhật thì khởi động lại Joyce rồi mở lại.",
   "ov.dw_qt_prompt": "Mở quy trình \"{ten}\" của phòng {phong} (file: {file}) rồi rà lại giúp mình: thiếu bước nào, bước nào thừa hoặc dễ làm sai. Đề xuất bản chuẩn hoá rồi hỏi lại trước khi ghi đè.",
   "ov.dw_span_l": "Chạy dọc cả hành trình",
   "ov.dw_span_d": "{so} phòng, chạm vào mọi chặng",

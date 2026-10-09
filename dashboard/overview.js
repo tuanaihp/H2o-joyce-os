@@ -486,13 +486,21 @@
     if (p.has_brain) {
       api("/api/joyce/v1/overview/quy-trinh?brain=" + encodeURIComponent(p.brain_path)).then((rq) => {
         if (!w.isConnected) return;
+        const t0 = w.querySelector('[data-qt="truoc"]');
+        // GỌI HỎNG khác RỖNG. Gộp hai cái làm một thì server chưa khởi động lại (endpoint
+        // còn 404) cũng hiện "phòng chưa có quy trình nào" - câu đó sai và làm người dùng
+        // đi sửa tên file trong khi lỗi nằm ở chỗ khác.
+        if (!rq.ok) {
+          w.querySelectorAll(".ovw-qt").forEach((x) => (x.innerHTML = ""));
+          if (t0) t0.innerHTML = `<p class="ov-dim ovw-qt-none">${esc(t("ov.dw_qt_err"))}</p>`;
+          return;
+        }
         const g = (rq.data && rq.data.giai_doan) || {};
         [["truoc", "ov.dw_qt_before"], ["trong", "ov.dw_qt_during"], ["sau", "ov.dw_qt_after"]]
           .forEach(([key, nhan]) => veQt(w.querySelector(`[data-qt="${key}"]`), g[key] || [], t(nhan)));
         veQt(w.querySelector("#ovwQtKhac"), g.khac || [], t("ov.dw_qt_other"));
         // Gợi ý đặt tên chỉ hiện khi phòng CHƯA có quy trình nào - treo nó ở cột Trước khi
         // riêng cột đó rỗng thì sai, vì phòng có thể chỉ có quy trình Trong dịch vụ.
-        const t0 = w.querySelector('[data-qt="truoc"]');
         if (t0 && !((rq.data && rq.data.tong) || 0)) t0.innerHTML = `<p class="ov-dim ovw-qt-none">${esc(t("ov.dw_qt_none"))}</p>`;
       });
     } else {

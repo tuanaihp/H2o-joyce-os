@@ -4195,6 +4195,7 @@
   "ov.dw_qt_after": "After-service procedures",
   "ov.dw_qt_other": "Procedures with no stage yet",
   "ov.dw_qt_none": "This room has no procedure in its wiki yet. Add the stage suffix to a file name and it shows up here.",
+  "ov.dw_qt_err": "Could not load the procedure list. If the server was just updated, restart Joyce and open this again.",
   "ov.dw_qt_prompt": "Open the \"{ten}\" procedure of the {phong} room (file: {file}) and review it with me: which steps are missing, redundant or easy to get wrong. Propose a standardised version and ask me before overwriting.",
   "ov.dw_span_l": "Runs along the whole journey",
   "ov.dw_span_d": "{so} rooms, touches every stage",
