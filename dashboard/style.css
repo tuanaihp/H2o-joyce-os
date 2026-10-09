@@ -678,7 +678,7 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .hud-center.brain-overlays-hidden .brain-eye-on { display: none; }
 .hud-center.brain-overlays-hidden .brain-eye-off { display: block; }
 .orb-overlay {
-  position: absolute; bottom: 24px; left: 0; right: 0;
+  position: absolute; bottom: 10px; left: 0; right: 0;
   text-align: center; pointer-events: none; z-index: 5;
 }
 .orb-state {

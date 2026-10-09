@@ -2584,16 +2584,11 @@
       void dt;
     }
 
-    // ---- Sao băng + bụi thiên thể HD (chế độ 3D View) ----
-    var hdStars = [], hdDust = [];
-    function spawnHdStar() {
-      var edge = Math.random() < 0.5, x0, y0, dx, dy;
-      if (edge) { x0 = Math.random() * W; y0 = -10; dx = (Math.random() - 0.5) * 0.6; dy = 0.7 + Math.random() * 0.3; }
-      else { x0 = Math.random() < 0.5 ? -10 : W + 10; y0 = Math.random() * H * 0.6; dx = x0 < 0 ? 0.8 : -0.8; dy = 0.3 + Math.random() * 0.4; }
-      var speed = 280 + Math.random() * 350;
-      return { x: x0, y: y0, dx: dx * speed, dy: dy * speed, life: 0, maxLife: 0.6 + Math.random() * 0.8,
-               w: 1.2 + Math.random() * 1.8, col: Math.random() < 0.3 ? [255, 200, 100] : Math.random() < 0.5 ? [180, 220, 255] : [255, 255, 240] };
-    }
+    // ---- Bui thien the HD (che do 3D View) ----
+    // Sao bang ngau nhien tung bay ngang man hinh lien tuc, chu du an phan nan "doan ke
+    // ngang trang nhap nhay nhieu, kho chiu" nen bo han - giu lai bui troi cham quanh hanh
+    // tinh cho canh van song. Sao bang co Y NGHIA (drawMeteors, bao file moi nap vao) giu.
+    var hdDust = [];
     function spawnHdDust() {
       var a = Math.random() * 6.2832, dist = geo.R * (1.15 + Math.random() * 1.2);
       return { x: geo.cx + Math.cos(a) * dist, y: geo.cy + Math.sin(a) * dist,
@@ -2603,25 +2598,7 @@
                a: 0.15 + Math.random() * 0.3 };
     }
     function drawHdAmbient(c, dt) {
-      if (!hdMode) { hdStars = []; hdDust = []; return; }
-      // Sao bang ngau nhien
-      if (hdStars.length < 3 && Math.random() < dt * 1.2) hdStars.push(spawnHdStar());
-      c.save(); c.globalCompositeOperation = "lighter"; c.lineCap = "round";
-      hdStars = hdStars.filter(function (s) {
-        s.life += dt; if (s.life > s.maxLife) return false;
-        s.x += s.dx * dt; s.y += s.dy * dt;
-        var u = s.life / s.maxLife, fade = u < 0.1 ? u / 0.1 : u > 0.7 ? (1 - u) / 0.3 : 1;
-        var tailLen = 30 + 40 * u, tx = s.x - s.dx * dt * (tailLen / (Math.abs(s.dx * dt) || 1));
-        var ty = s.y - s.dy * dt * (tailLen / (Math.abs(s.dy * dt) || 1));
-        var gr = c.createLinearGradient(tx, ty, s.x, s.y);
-        gr.addColorStop(0, rgba(s.col, 0)); gr.addColorStop(1, rgba(s.col, 0.8 * fade));
-        c.strokeStyle = gr; c.lineWidth = s.w; c.beginPath(); c.moveTo(tx, ty); c.lineTo(s.x, s.y); c.stroke();
-        var hg = c.createRadialGradient(s.x, s.y, 0, s.x, s.y, 3 + s.w);
-        hg.addColorStop(0, rgba([255, 255, 255], 0.9 * fade)); hg.addColorStop(1, rgba(s.col, 0));
-        c.fillStyle = hg; c.beginPath(); c.arc(s.x, s.y, 3 + s.w, 0, 6.2832); c.fill();
-        return true;
-      });
-      c.restore();
+      if (!hdMode) { hdDust = []; return; }
       // Bui thien the quanh hanh tinh
       while (hdDust.length < 80) hdDust.push(spawnHdDust());
       c.save(); c.globalCompositeOperation = "lighter";
