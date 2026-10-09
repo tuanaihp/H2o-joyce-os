@@ -271,8 +271,11 @@
             }
             dung(res, ceil);
           })
-          .catch(function () {
+          .catch(function (err) {
             if (!isOpen()) return;
+            // Chỗ này cũng bắt lỗi JavaScript ném ra khi dựng trình sửa, không chỉ lỗi mạng.
+            // Ghi lỗi gốc ra console để lần sau không bị tưởng là mạng rớt.
+            try { console.error("[file-editor]", err); } catch (e) {}
             if (!lan2) { doc(duong === brainRel ? duong : brainRel, true); return; }
             renderError(b, duong, brainRel, tw("app.err_net"));
           });
@@ -490,12 +493,12 @@
   function renderEditor(b, ceil, brainRel, d) {
     var isMd = extOf(brainRel) === ".md";
     // .md + du bo may WYSIWYG (mdToHtml + JoyceNoteEditor) -> soan nhu Word; con lai -> textarea nguon.
-    if (isMd && typeof window.mdToHtml === "function" && window.JoyceNoteEditor) renderMdEditor(b, ceil, d);
-    else renderPlainEditor(b, ceil, d);
+    if (isMd && typeof window.mdToHtml === "function" && window.JoyceNoteEditor) renderMdEditor(b, ceil, brainRel, d);
+    else renderPlainEditor(b, ceil, brainRel, d);
   }
 
   // File text thuong (khong phai .md): textarea nguon, co to mau cu phap neu la file code.
-  function renderPlainEditor(b, ceil, d) {
+  function renderPlainEditor(b, ceil, brainRel, d) {
     elActions.innerHTML = "";
     elBody.innerHTML = '<textarea class="jvfe-text" spellcheck="false"></textarea>';
     var ta = elBody.querySelector(".jvfe-text");
@@ -511,7 +514,7 @@
   }
 
   // .md: WYSIWYG 2 khung (ban render sua truc tiep + nguon markdown) dung LAI bo may editor cay.
-  function renderMdEditor(b, ceil, d) {
+  function renderMdEditor(b, ceil, brainRel, d) {
     var NE = window.JoyceNoteEditor;
     elActions.innerHTML = "";
     elBody.innerHTML =
