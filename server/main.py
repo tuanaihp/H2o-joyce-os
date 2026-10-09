@@ -11571,6 +11571,102 @@ async def plugins_toggle(slug: str = Form(...), enabled: str = Form(...), brain:
     return res
 
 
+_PLUGIN_SRC_FILES = ("plugin.yaml", "plugin.py")
+
+
+def _plugin_row_by_slug(slug: str, root) -> dict:
+    """Tim plugin theo slug trong describe() de lay dir + nguon. Tra {} neu khong co."""
+    try:
+        for p in plugins_host.describe(root):
+            if p.get("slug") == slug:
+                return p
+    except Exception:
+        pass
+    return {}
+
+
+@app.get("/plugins/source")
+async def plugins_source(slug: str = Query(...), brain: str = Query("brain")):
+    """Doc ma nguon 1 plugin (plugin.yaml + plugin.py + *.py phu) cho modal 'xem/sua
+    goc du lieu' tren trang Tools. Chi doc file trong dung thu muc plugin da giai."""
+    if not plugins_host.valid_slug(slug):
+        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+    p = _plugin_row_by_slug(slug, _brain_root(brain))
+    d = Path(p.get("dir") or "")
+    if not p or not d.is_dir():
+        return JSONResponse({"error": "không tìm thấy plugin"}, status_code=404)
+    files = []
+    names = list(_PLUGIN_SRC_FILES) + sorted(x.name for x in d.glob("*.py")
+                                             if x.name != "plugin.py")
+    for fn in dict.fromkeys(names):
+        f = (d / fn).resolve()
+        try:
+            if f.parent != d.resolve() or not f.is_file():
+                continue
+            txt = f.read_text(encoding="utf-8", errors="replace")
+            if len(txt) > 300_000:
+                txt = txt[:300_000] + "\n# ... (file quá dài, đã cắt)"
+            files.append({"name": fn, "content": txt})
+        except Exception:
+            continue
+    return {"ok": True, "slug": slug, "dir": str(d), "files": files,
+            "name": p.get("name", slug), "source": p.get("source", ""),
+            "enabled": bool(p.get("enabled"))}
+
+
+@app.post("/plugins/source")
+async def plugins_source_save(slug: str = Form(...), filename: str = Form(...),
+                              content: str = Form(""), brain: str = Form("brain")):
+    """Ghi de plugin.yaml / plugin.py / *.py cua 1 plugin. Gioi han file .yaml/.py ngay
+    trong thu muc plugin - khong ghi ra ngoai, khong cham file he thong khac."""
+    if not plugins_host.valid_slug(slug):
+        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+\.(py|yaml|yml|md|txt|json)", filename or ""):
+        return JSONResponse({"error": "chỉ sửa file .py/.yaml/.md/.txt/.json"}, status_code=400)
+    p = _plugin_row_by_slug(slug, _brain_root(brain))
+    d = Path(p.get("dir") or "")
+    if not p or not d.is_dir():
+        return JSONResponse({"error": "không tìm thấy plugin"}, status_code=404)
+    f = (d / filename).resolve()
+    if f.parent != d.resolve():
+        return JSONResponse({"error": "đường dẫn không hợp lệ"}, status_code=400)
+    if p.get("source") == "pack":
+        return JSONResponse({"error": "plugin đi theo gói (pack) - sửa trong gói nguồn"}, status_code=400)
+    try:
+        f.write_text(content, encoding="utf-8")
+        plugins_host.invalidate()
+        mcp_hub.invalidate_cache()
+        try:
+            rebuild_joyce_index(brain)
+        except Exception:
+            pass
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/plugins/reveal")
+async def plugins_reveal(slug: str = Form(...), brain: str = Form("brain")):
+    """Mo thu muc plugin bang Explorer/Finder - chi co y nghia khi dashboard mo ngay
+    tren may chay Joyce (qua tunnel thi mo tren may server, khong phai may khach)."""
+    if not plugins_host.valid_slug(slug):
+        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+    p = _plugin_row_by_slug(slug, _brain_root(brain))
+    d = Path(p.get("dir") or "")
+    if not p or not d.is_dir():
+        return JSONResponse({"error": "không tìm thấy plugin"}, status_code=404)
+    try:
+        if os.name == "nt":
+            subprocess.Popen(["explorer", str(d)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(d)])
+        else:
+            subprocess.Popen(["xdg-open", str(d)])
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.post("/plugins/remove")
 async def plugins_remove(slug: str = Form(...), removed: str = Form("1"),
                          brain: str = Form("brain")):

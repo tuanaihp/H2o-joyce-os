@@ -2179,19 +2179,23 @@
     .td-hi{margin:6px 0 4px;font-size:26px;font-weight:680;color:var(--text)}
     .td-role{font-size:13px;color:var(--text3)}
     .td-synced{font-size:11px;color:var(--text3);opacity:.8;margin-top:3px}
-    .td-brief{display:flex;gap:16px;align-items:center;padding:16px 18px;border:1px solid var(--accent-line);border-radius:13px;background:var(--accent-wash);margin-bottom:16px}
-    .td-brief-orb{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--accent-wash-2);border:1px solid var(--accent-line);color:var(--accent-ink)}
+    .td-brief{display:flex;gap:16px;align-items:center;padding:18px 20px;border:1px solid var(--accent-line);border-radius:14px;background:linear-gradient(135deg,var(--accent-wash) 0%,var(--accent-wash-2) 100%);margin-bottom:16px;box-shadow:0 2px 12px rgba(34,211,238,.08);position:relative;overflow:hidden}
+    .td-brief::before{content:"";position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:var(--accent-wash-2);opacity:.5;pointer-events:none}
+    .td-brief-orb{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--accent-wash-2);border:1px solid var(--accent-line);color:var(--accent-ink);position:relative;z-index:1}
     .td-brief b{display:block;color:var(--text);font-size:15px}
     .td-brief p{margin:4px 0 0;color:var(--text2);font-size:13.5px;line-height:1.5}
     .td-partial{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:9px 13px;border:1px solid var(--warn-line);border-radius:10px;background:var(--warn-wash);color:var(--warn-ink);font-size:12.5px}
     .td-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:18px}
-    .td-metric{padding:13px 14px;border:1px solid var(--hairline);border-radius:11px;background:var(--surface-1);display:flex;flex-direction:column;gap:3px}
+    .td-metric{padding:14px 15px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);display:flex;flex-direction:column;gap:3px;border-left:3px solid var(--accent);transition:transform .18s,box-shadow .18s}
+    .td-metric:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.1)}
+    .td-metric:nth-child(2){border-left-color:var(--warn-ink)}.td-metric:nth-child(3){border-left-color:var(--green,#4ade80)}.td-metric:nth-child(4){border-left-color:var(--info,#4c91ff)}.td-metric:nth-child(5){border-left-color:var(--red,#f87171)}.td-metric:nth-child(6){border-left-color:var(--text3)}
     .td-metric-ico{color:var(--text3);width:16px;height:16px}
-    .td-metric span{font-size:12px;color:var(--text3)}
-    .td-metric b{font-size:21px;color:var(--text)}
+    .td-metric span{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+    .td-metric b{font-size:22px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
     .td-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    .td-panel{border:1px solid var(--hairline);border-radius:12px;background:rgba(255,255,255,.018);overflow:hidden;display:flex;flex-direction:column}
-    .td-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .td-panel{border:1px solid var(--hairline);border-radius:14px;background:rgba(255,255,255,.018);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:box-shadow .2s}
+    .td-panel:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+    .td-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid rgba(255,255,255,.07);background:linear-gradient(135deg,var(--surface-1) 0%,transparent 100%)}
     .td-panel-head b{font-size:14px;color:var(--text)}.td-panel-head span{font-size:12px;color:var(--text3)}
     .td-src{font-size:10.5px!important;letter-spacing:.3px;opacity:.75}
     .td-live{font-size:10px;letter-spacing:.12em;color:var(--accent-ink);border:1px solid var(--accent-line);border-radius:99px;padding:2px 8px;animation:tdPulse 1.6s ease-in-out infinite}
@@ -2215,8 +2219,8 @@
     .td-pulse[data-sev="critical"]{border-left:3px solid var(--red)}
     .td-pulse[data-sev="high"]{border-left:3px solid var(--warn-ink)}
     .td-apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:12px 14px;max-height:300px;overflow:auto}
-    .td-app{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--hairline);border-radius:9px;background:var(--surface-1);cursor:pointer;transition:.15s}
-    .td-app:hover{border-color:var(--accent-line)}
+    .td-app{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-1);cursor:pointer;transition:all .18s}
+    .td-app:hover{border-color:var(--accent-line);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.08)}
     .td-app b{flex:1;min-width:0;font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .td-app-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(63,220,134,.14)}
     .td-app.down .td-app-dot{background:var(--red);box-shadow:0 0 0 3px rgba(255,110,110,.14)}
@@ -2224,9 +2228,9 @@
     .td-app-ms{flex:none;font-size:10.5px;color:var(--text3)}
     .td-app.down .td-app-ms{color:var(--red)}
     /* Nhịp ngày CEO - checklist vận hành, mỗi mục là cửa nhảy sang trang chủ quản. */
-    .td-routine{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
-    .td-rt{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--hairline);border-radius:11px;background:var(--surface-1);cursor:pointer;font-size:12.5px;color:var(--text2);transition:.15s}
-    .td-rt:hover{border-color:var(--accent-line);color:var(--text)}
+    .td-routine{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+    .td-rt{display:flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);cursor:pointer;font-size:12.5px;color:var(--text2);transition:all .18s}
+    .td-rt:hover{border-color:var(--accent-line);color:var(--text);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.08)}
     .td-rt b{color:var(--text);font-variant-numeric:tabular-nums}
     .td-rt .td-rt-ico{width:15px;height:15px;color:var(--text3);display:grid;place-items:center}
     .td-rt .td-rt-ico svg{width:15px;height:15px}
@@ -3079,7 +3083,7 @@
       const eff = EFF[tl.effect]; const stt = STATE[tl.state];
       const calls = (d.audit_on && tl.calls) ? badge(`${tl.calls}×`, "var(--accent,#7aa5ff)") : "";
       const params = (tl.params || []).length ? `<div style="color:var(--text3);font-size:11.5px;margin-top:3px">${esc(tl.params.join(" · "))}</div>` : "";
-      return `<div class="tl-row" data-src="${esc(tl.source_type||"")}" data-eff="${esc(tl.effect||"")}" style="padding:8px 12px;border-bottom:1px solid var(--hairline);${tl.state!=="loaded"?"opacity:.5":""}">
+      return `<div class="tl-row" data-src="${esc(tl.source_type||"")}" data-eff="${esc(tl.effect||"")}" data-fn="${esc(tl.fn)}" title="${esc(t("tl.v_click_hint"))}" style="padding:8px 12px;border-bottom:1px solid var(--hairline);cursor:pointer;${tl.state!=="loaded"?"opacity:.5":""}">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <code style="font-weight:600">${esc(tl.fn)}</code>
           ${eff ? badge(eff.label, eff.color) : ""}
@@ -3191,6 +3195,81 @@
       });
       apply();
     }));
+
+    // Click hàng tool -> mo "goc du lieu": plugin thi mo modal xem/sua ma nguon
+    // (plugin.yaml + plugin.py), MCP thi nhay sang trang Ket noi -> MCP, loi thi
+    // chi duong dan ma nguon trong server/.
+    const toolByFn = new Map(tools.map(x => [x.fn, x]));
+    const moNguonTool = async (tl) => {
+      const slug = (String(tl.source || "").split(":")[1] || "").trim();
+      if (tl.source_type !== "plugin" || !slug) {
+        if (tl.source_type === "mcp") {
+          if (await JoyceDialog.confirm(t("tl.v_mcp", { src: tl.source || "" }))) {
+            const s = window.Alpine && Alpine.store("nav");
+            if (s && s.go) s.go("mcp");
+          }
+        } else {
+          JoyceDialog.alert(t("tl.v_builtin"));
+        }
+        return;
+      }
+      let d = {};
+      try { d = await (await fetch(`/plugins/source?slug=${encodeURIComponent(slug)}&brain=${encodeURIComponent(fbrain())}`)).json(); }
+      catch (e) { d = { error: e.message }; }
+      if (!d.ok) { JoyceDialog.alert(d.error || t("tl.v_err")); return; }
+      const files = d.files || [];
+      const ov = document.createElement("div");
+      ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;display:flex;align-items:center;justify-content:center;padding:18px";
+      ov.innerHTML = `<div style="width:min(880px,96vw);max-height:88vh;display:flex;flex-direction:column;background:var(--surface-1,#14181f);border:1px solid var(--hairline);border-radius:14px;overflow:hidden">
+        <div style="padding:11px 16px;border-bottom:1px solid var(--hairline);display:flex;gap:10px;align-items:center;min-width:0">
+          <code style="font-weight:700">${esc(tl.fn)}</code>
+          <span style="font-size:12px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.dir || "")}</span>
+          <button class="s-btn-ghost tl-x" style="margin-left:auto;padding:4px 8px">${ic("x")}</button>
+        </div>
+        <div class="tl-tabs" style="display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--hairline);flex-wrap:wrap">
+          ${files.map((f, i) => `<button class="tl-tab" data-i="${i}" style="padding:4px 12px;border-radius:8px 8px 0 0;border:1px solid var(--hairline);border-bottom:0;font-size:12px;cursor:pointer;background:${i ? "transparent" : "var(--surface-2,rgba(255,255,255,.08))"};color:var(--text2)">${esc(f.name)}</button>`).join("") || `<span style="color:var(--text3);font-size:12px;padding:4px 0">${esc(t("tl.v_nofiles"))}</span>`}
+        </div>
+        <textarea class="tl-code" spellcheck="false" style="flex:1;min-height:300px;padding:14px 16px;border:0;background:transparent;color:var(--text1);font:12.5px/1.55 ui-monospace,Consolas,monospace;resize:none;outline:none;white-space:pre"></textarea>
+        <div style="padding:10px 16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="s-btn tl-save">${esc(t("tl.v_save"))}</button>
+          <button class="s-btn-ghost tl-dir">${ic("external-link")} ${esc(t("tl.v_open_dir"))}</button>
+          <span class="tl-msg" style="color:var(--text3);font-size:12px;margin-left:auto"></span>
+        </div>
+      </div>`;
+      document.body.appendChild(ov);
+      const ta = ov.querySelector(".tl-code");
+      const tabs = [...ov.querySelectorAll(".tl-tab")];
+      const dong = () => ov.remove();
+      let cur = 0;
+      const moFile = (i) => {
+        cur = i;
+        ta.value = files[i] ? files[i].content : "";
+        tabs.forEach((b, j) => { b.style.background = j === i ? "var(--surface-2,rgba(255,255,255,.08))" : "transparent"; });
+      };
+      tabs.forEach(b => b.onclick = () => moFile(+b.dataset.i));
+      if (files.length) moFile(0);
+      ov.addEventListener("mousedown", e => { if (e.target === ov) dong(); });
+      ov.querySelector(".tl-x").onclick = dong;
+      ov.querySelector(".tl-dir").onclick = async () => {
+        const fd = new FormData(); fd.append("slug", slug); fd.append("brain", fbrain());
+        const r = await (await fetch("/plugins/reveal", { method: "POST", body: fd })).json().catch(() => ({}));
+        ov.querySelector(".tl-msg").textContent = r.ok ? "" : (r.error || "");
+      };
+      ov.querySelector(".tl-save").onclick = async () => {
+        const f = files[cur]; if (!f) return;
+        const fd = new FormData();
+        fd.append("slug", slug); fd.append("filename", f.name); fd.append("content", ta.value); fd.append("brain", fbrain());
+        const r = await (await fetch("/plugins/source", { method: "POST", body: fd })).json().catch(() => ({}));
+        if (r.ok) { ov.querySelector(".tl-msg").textContent = t("tl.v_saved", { file: f.name }); renderTools(el); }
+        else ov.querySelector(".tl-msg").textContent = r.error || t("tl.v_err");
+      };
+    };
+    el.querySelector("#tlList")?.addEventListener("click", (e) => {
+      const rEl = e.target.closest(".tl-row");
+      if (!rEl) return;
+      const tl = toolByFn.get(rEl.dataset.fn);
+      if (tl) moNguonTool(tl);
+    });
 
     // Tạo tool mới (giữ nguyên luồng scaffold).
     el.querySelector("#tlNew")?.addEventListener("click", async () => {
