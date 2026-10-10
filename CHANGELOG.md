@@ -1,4 +1,11 @@
-# Nhật ký phiên bản — H2O Joyce OS
+# Nhật ký phiên bản - H2O Joyce OS
+
+## [1.3.6] - 2026-10-10
+### Sửa lỗi
+- Mục "Hôm nay" đẩy việc tóm tắt bằng AI không còn rơi mất các mục do một lỗi bị nuốt im lặng.
+- Đường dẫn file kiểu Windows (`E:\...`) trong câu trả lời chỉ hiện thành link khi file thật sự nằm trong brain, không còn hiện link chết.
+- Trang Nhật ký cập nhật tải theo từng trang và có bộ nhớ đệm, mở nhanh hơn và không tải lại cả kho mỗi lần.
+- Trên Windows: giờ Việt Nam đúng ngay cả khi thiếu dữ liệu múi giờ, và các lệnh chạy nền không còn bật cửa sổ đen.
 
 ## [1.3.5] - 2026-10-10
 ### Thêm mới
