@@ -19,7 +19,7 @@ import unicodedata
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
     "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace",
-    "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
+    "camnang", "kinhdoanh", "nghiencuu", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
     "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
     "staff", "usage", "pet", "share",
 )
@@ -35,6 +35,7 @@ ALIASES = {
     "bao cao": "reports", "trung tam bao cao": "reports", "reports": "reports",
     "cam nang": "camnang", "du an": "projects", "nhan vien": "staff",
     # Kinh doanh (0.65.5x): trang cha chứa Xưởng content AI - nói "xưởng content" cũng mở đúng.
+    "nghien cuu": "nghiencuu", "nghien cuu concept": "nghiencuu", "xu huong": "nghiencuu",
     "kinh doanh": "kinhdoanh", "business": "kinhdoanh", "xuong content": "kinhdoanh",
     "xuong noi dung": "kinhdoanh", "content factory": "kinhdoanh",
     "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban", "task": "kanban", "tasks": "kanban",

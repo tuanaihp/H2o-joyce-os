@@ -38,6 +38,7 @@
     // Kinh doanh = trang cha các công cụ bán hàng/marketing của H2O (Xưởng content AI...).
     // trending-up vì trang này nói về doanh số và chiến dịch, không phải tài liệu tra cứu.
     kinhdoanh: "trending-up",
+    nghiencuu: "sparkles",
     chatbots: "headset",
     conversations: "messages-square",
     skills: "puzzle",
@@ -110,7 +111,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
-    "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files",
+    "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "nghiencuu", "skills", "chatbots", "conversations", "files",
     "terminal", "coding", "projects", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -159,7 +160,7 @@
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal", "coding", "projects"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "workspace", "conversations", "skills", "plugins"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "workspace", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
@@ -187,7 +188,7 @@
   // Tổng quan (trừ Hôm nay) là mặt quản trị toàn hệ thống: server trả 403 cho nhân viên.
   const RAIL_AN_NHAN_VIEN = new Set(["command", "calendar", "reports",
     "terminal", "coding", "projects", "plugins", "selfimprove",
-    "mcp", "packs", "channels", "models", "tools", "settings", "share", "account"]);
+    "mcp", "packs", "channels", "models", "tools", "settings", "share", "account", "nghiencuu"]);
   // Phòng ban và Tài liệu chưng cất: trưởng phòng (quan_ly) thấy đúng phòng/brain của mình (server
   // lọc theo phạm vi); nhân viên thường và học việc không thấy (server trả 403 cho họ).
   const RAIL_AN_KHONG_QUAN_LY = new Set(["departments", "chungcat"]);
@@ -240,7 +241,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "nghiencuu", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -704,6 +705,11 @@
     if (id === "today") {
       if (!_wsV1) { el.innerHTML = placeholder("today"); return; }
       return renderToday(el);
+    }
+    if (id === "nghiencuu") {
+      if (window.JoyceNghienCuu) return window.JoyceNghienCuu.render(el);
+      el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "nghien-cuu.js" }));
+      return;
     }
     if (id === "kanban")   return renderKanban(el);
     if (id === "logs")     return renderLogs(el);
