@@ -1,5 +1,10 @@
 # Nhật ký phiên bản - H2O Joyce OS
 
+## [1.3.7] - 2026-10-11
+### Thêm mới
+- **Trang Nghiên cứu**: một chỗ để xem ý tưởng concept đang ở bước nào, thư viện concept, SOP liên quan, bản tin xu hướng và nhật ký quyết định của phòng Nghiên cứu concept hình ảnh.
+- **Phân loại ý tưởng**: ý tưởng gửi vào phòng ghi rõ là concept, quy trình mới hay sửa quy trình cũ, để kết quả không lẫn vào nhau.
+
 ## [1.3.6] - 2026-10-10
 ### Sửa lỗi
 - Mục "Hôm nay" đẩy việc tóm tắt bằng AI không còn rơi mất các mục do một lỗi bị nuốt im lặng.
