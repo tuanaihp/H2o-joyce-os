@@ -54,7 +54,8 @@ check("có hàm renderToday", /async function renderToday\(el\)/.test(CON));
   const g = railCtx.groups.find(x => x.items.some(i => i.id === "today"));
   assert.ok(g, "nhóm chứa today không tồn tại");
   // deepEqual trên mảng cross-realm (vm context) luôn fail - so từng phần tử.
-  assert.equal(g.items.length, 5);
+  // 6 trang: Bảng điều hành, Hôm nay, Phòng ban, Lịch, Báo cáo, Tài liệu chưng cất (9fedc7f thêm trang cuối).
+  assert.equal(g.items.length, 6);
   assert.equal(g.items[1].id, "today");
 }
 

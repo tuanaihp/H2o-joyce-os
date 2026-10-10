@@ -144,7 +144,9 @@ check("file-editor.js xuất window.JoyceShareBtn", /window\.JoyceShareBtn\s*=\s
 // hai nút nằm cùng một trình sửa, cách nhau vài chục pixel. Chủ dự án báo 18/09: "icon đổi lại
 // thành icon share em ơi. trùng với icon thêm link mất rồi". Đây là lỗi chỉ thấy bằng mắt trên
 // máy thật, nên phải có test canh - dò icon THẬT mà mỗi bên gọi rồi so, không đọc chay.
-const mShare = /btn\.innerHTML = ic\("([^"]+)"\)/.exec(feSrc);
+// Chỉ dò TRONG thân shareBtn: file-editor còn nút "Nhớ Joyce" (message-circle) đứng trước nó,
+// dò cả file sẽ đọc nhầm icon của nút kia.
+const mShare = /btn\.innerHTML = ic\("([^"]+)"\)/.exec(thanShare || "");
 const ecSrc = fs.readFileSync(path.join(ROOT, "dashboard", "editor-cmds.js"), "utf8");
 const mLink = /\{\s*id:\s*"link"[\s\S]{0,200}?btn:\s*\{\s*icon:\s*"([^"]+)"/.exec(ecSrc);
 check("đọc được icon của nút Chia sẻ", !!mShare, mShare && mShare[1]);
