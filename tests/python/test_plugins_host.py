@@ -26,12 +26,13 @@ async def main():
     desc = {d["slug"]: d for d in plugins_host.describe(None)}
     assert "datetime-vn" in desc and "tool-audit" in desc, sorted(desc)
     assert desc["datetime-vn"]["enabled"] and desc["datetime-vn"]["loaded"]
-    assert desc["tool-audit"]["enabled"] is False
+    # tool-audit BẬT mặc định từ trang Tools (f6d7b5a): nó đếm lượt gọi để nuôi cột thống kê.
+    assert desc["tool-audit"]["enabled"] is True
 
     # 2) tool datetime-vn xuất hiện + chạy đúng
     tools, route = plugins_host.plugin_tools("full", None)
     assert {"joyce_now", "joyce_date_add"} <= _names(tools)
-    assert "joyce_tool_stats" not in _names(tools)
+    assert "joyce_tool_stats" in _names(tools)   # tool-audit bật mặc định nên tool thống kê có mặt
     now = json.loads(await route["joyce_now"]["call"]({}))
     assert now["tz"].startswith("Asia/Ho_Chi_Minh")
     add = json.loads(await route["joyce_date_add"]["call"]({"days": 3, "from": "2026-07-09"}))

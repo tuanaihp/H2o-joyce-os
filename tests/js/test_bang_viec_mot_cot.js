@@ -67,9 +67,10 @@ check("nhận diện việc kẹt vì thiếu quyền bằng block_kind",
 check("hiện nút cho phép chạy thật", /data-act="grant"/.test(JS));
 // Đây là nửa quan trọng nhất: nút Thử lại ở ca này chạy lại đúng nhánh chặn rồi chặn lại y
 // hệt, kèm một tiếng chuông nữa - một vòng không có lối ra.
-check("và BỎ nút Thử lại ở đúng ca đó", /if \(!canQuyen && \(t\.status === "blocked"/.test(JS));
+check("và BỎ nút Thử lại ở đúng ca đó", /if \(!canQuyen && t\.status === "blocked"/.test(JS));
 check("gọi endpoint cấp quyền", /post\("\/kanban\/task\/grant", \{ id \}\)/.test(JS));
-check("hỏi lại trước khi cấp quyền", /act === "grant" && !confirm\(t\("kanban\.confirm_grant"\)\)/.test(JS));
+check("hỏi lại trước khi cấp quyền (hộp thoại của app)",
+  /act === "grant" && !await (?:JoyceDialog\.confirm|confirm)\(t\("kanban\.confirm_grant"\)\)/.test(JS));
 check("câu hỏi lại nói thẳng hậu quả không hoàn tác được",
   /KHÔNG hoàn tác/.test(VI["kanban.confirm_grant"] || ""), VI["kanban.confirm_grant"]);
 

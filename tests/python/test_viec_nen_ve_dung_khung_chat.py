@@ -83,7 +83,7 @@ class _Store:
 class _F:
     store = _Store()
 
-    def enqueue(self, *a):
+    def enqueue(self, *a, **kw):   # nhận đủ tham số như tasks.enqueue (kể cả source_brain)
         nhan.append(a)
         return "t1"
 

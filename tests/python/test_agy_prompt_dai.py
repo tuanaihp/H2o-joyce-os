@@ -22,6 +22,7 @@ Hai lỗi chồng nhau, và cái thứ nhất giải thích vì sao chỉ tiến
    đường không trần (stdin, file ngữ cảnh) nằm ngay đó.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
+from _cli_gia import ghi_cli  # CLI giả chạy được cả Windows lẫn Linux
 import asyncio
 import errno
 import json
@@ -54,16 +55,26 @@ def chay(coro):
 _VI = "Đọc và trích xuất bài viết từ URL này giúp mình nhé. "
 _EN = "Please read and extract the article from this URL for me. "
 
-check("tiếng Anh: byte == ký tự (ASCII)", A._do_dai_argv(_EN) == len(_EN))
-check(f"tiếng Việt: byte > ký tự ({A._do_dai_argv(_VI)} > {len(_VI)})",
-      A._do_dai_argv(_VI) > len(_VI))
+# Đơn vị đo là của HỆ ĐIỀU HÀNH: Linux đếm byte UTF-8 (tiếng Việt > ký tự), Windows đếm đơn vị
+# UTF-16 của dòng lệnh (tiếng Việt = ký tự, xem _do_dai_argv). Test kiểm đúng đơn vị của máy đang
+# chạy, không cứng một kiểu; cái bẫy chỉ tồn tại trên Linux.
+_NT = os.name == "nt"
+_DON_VI_VI = len(_VI) if _NT else len(_VI.encode("utf-8"))
+check("tiếng Anh: đo đúng đơn vị HĐH (ASCII: đơn vị = ký tự)", A._do_dai_argv(_EN) == len(_EN))
+check(f"tiếng Việt: đo đúng đơn vị HĐH ({A._do_dai_argv(_VI)} = {_DON_VI_VI})",
+      A._do_dai_argv(_VI) == _DON_VI_VI)
 # Đây là con số làm nên cả cái bug: đo bằng len() thì 120k ký tự tiếng Việt "vừa" trần 120k.
 # Cỡ khối chọn có tính: 100.700 KÝ TỰ (lọt trần 120.000 nếu đo bằng len - đúng cái bẫy của
 # code cũ) nhưng 131.000 BYTE (vượt trần thật). Đây chính là khe mà hội thoại tiếng Việt rơi vào.
 _khoi_vi = _VI * 1900            # ~100.700 ký tự
-check(f"CANARY: khối tiếng Việt {len(_khoi_vi):,} ký tự (LỌT trần nếu đếm ký tự) "
-      f"= {A._do_dai_argv(_khoi_vi):,} byte (VƯỢT trần {A._tran_argv():,})",
-      len(_khoi_vi) < A._tran_argv() < A._do_dai_argv(_khoi_vi))
+if _NT:
+    check(f"CANARY Windows: khối {len(_khoi_vi):,} ký tự = {A._do_dai_argv(_khoi_vi):,} đơn vị, "
+          f"vẫn VƯỢT trần {A._tran_argv():,} nên bị bỏ argv",
+          A._do_dai_argv(_khoi_vi) > A._tran_argv())
+else:
+    check(f"CANARY: khối tiếng Việt {len(_khoi_vi):,} ký tự (LỌT trần nếu đếm ký tự) "
+          f"= {A._do_dai_argv(_khoi_vi):,} byte (VƯỢT trần {A._tran_argv():,})",
+          len(_khoi_vi) < A._tran_argv() < A._do_dai_argv(_khoi_vi))
 
 
 # ============================================================
@@ -77,8 +88,7 @@ def _gia_agy(dong_ra, ma=0):
     """`agy` giả: ghi lại argv/stdin nhận được rồi in ra dòng sự kiện đã khai."""
     d = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-dai-"))
     p = d / "agy"
-    p.write_text(
-        "#!/usr/bin/env python3\n"
+    p = Path(ghi_cli(p, "#!/usr/bin/env python3\n"
         "import sys\n"
         "a = sys.argv[1:]\n"
         f"if '--help' in a:\n    sys.stdout.write({_HELP!r}); sys.exit(0)\n"
@@ -86,9 +96,7 @@ def _gia_agy(dong_ra, ma=0):
         f"open({str(d / 'argv.txt')!r}, 'w').write('\\x00'.join(a))\n"
         f"open({str(d / 'stdin.txt')!r}, 'w').write(_sd or '')\n"
         f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
-        f"sys.exit({ma})\n",
-        encoding="utf-8")
-    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        f"sys.exit({ma})\n"))
     return str(p), d
 
 
@@ -116,8 +124,13 @@ try:
     # Ngưỡng phải nằm ĐÚNG chỗ: cùng số ký tự đó bằng tiếng Anh thì vẫn lọt argv - chứng minh
     # phép đo bám vào byte thật chứ không phải vừa siết bừa cho qua test.
     _khoi_en = "x" * len(_khoi_vi)
-    check(f"cùng {len(_khoi_en):,} ký tự nhưng ASCII thì vẫn vừa argv (không siết bừa)",
-          g._chon_duong(_khoi_en) == "argv")
+    if _NT:
+        # Windows đếm đơn vị UTF-16 = ký tự, nên khối cùng cỡ ASCII cũng vượt trần 30.000: không lọt argv.
+        check(f"Windows: cùng {len(_khoi_en):,} ký tự (ASCII hay tiếng Việt đều vượt trần đơn vị) "
+              f"thì bỏ argv", g._chon_duong(_khoi_en) != "argv")
+    else:
+        check(f"cùng {len(_khoi_en):,} ký tự nhưng ASCII thì vẫn vừa argv (không siết bừa)",
+              g._chon_duong(_khoi_en) == "argv")
 finally:
     A.find_antigravity_cli = _that_find
 

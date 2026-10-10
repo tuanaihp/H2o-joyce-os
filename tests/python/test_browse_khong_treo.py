@@ -40,15 +40,15 @@ def test_dem_md_co_tran_that_dung_giua_chung(tmp_path):
 
 def test_dem_md_dung_khi_duoi_tran(tmp_path):
     (tmp_path / "a.md").write_text("x", encoding="utf-8")
-    (tmp_path / "con").mkdir()
-    (tmp_path / "con" / "b.md").write_text("x", encoding="utf-8")
-    (tmp_path / "con" / "bo-qua.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "thu-muc-con").mkdir()
+    (tmp_path / "thu-muc-con" / "b.md").write_text("x", encoding="utf-8")
+    (tmp_path / "thu-muc-con" / "bo-qua.txt").write_text("x", encoding="utf-8")
     assert main._count_md(str(tmp_path), cap=500) == 2
 
 
 def test_dem_md_khong_di_theo_symlink_vong(tmp_path):
     """Symlink trỏ ngược lên cha làm glob recursive lặp vô tận. Phải bỏ qua symlink."""
-    con = tmp_path / "con"
+    con = tmp_path / "thu-muc-con"
     con.mkdir()
     (con / "a.md").write_text("x", encoding="utf-8")
     try:
@@ -149,14 +149,14 @@ def test_browse_md_0_khong_dem_va_bao_dung_repo_git(tmp_path):
 
 def test_browse_md_0_khong_goi_ham_dem(tmp_path, monkeypatch):
     """Chốt cứng: không phải "đếm rồi vứt đi", mà là KHÔNG ĐẾM."""
-    (tmp_path / "con").mkdir()
+    (tmp_path / "thu-muc-con").mkdir()
 
     def khong_duoc_goi(*a, **k):
         raise AssertionError("md=0 mà vẫn gọi _count_md")
 
     monkeypatch.setattr(main, "_count_md", khong_duoc_goi)
     res = asyncio.run(main.browse(path=str(tmp_path), md=0))
-    assert [d["name"] for d in res["dirs"]] == ["con"]
+    assert [d["name"] for d in res["dirs"]] == ["thu-muc-con"]
 
 
 def test_browse_mac_dinh_van_dem_md(tmp_path):

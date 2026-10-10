@@ -37,7 +37,10 @@ class VoiceProtocolWS(unittest.IsolatedAsyncioTestCase):
             runtime=types.SimpleNamespace(get_job=lambda sid:jobs.get(sid),register_job=lambda sid,task,*a,**k:jobs.update({sid:task}))
             cfg=types.SimpleNamespace(read_settings=lambda:{'model':{}})
             reg=types.SimpleNamespace(cancel=lambda sid:False)
+            import contextvars
+            # Vòng nhận đã có khoá phạm vi nhân viên (_STAFF_SCOPE): phải có tên này trong không gian chạy.
             namespace=dict(_real_ws=Socket(),json=json,store=store,voice_turn_protocol=vp,
+                _STAFF_SCOPE=contextvars.ContextVar('staff_scope',default=None),_ws_staff=None,
                 _CHAT_RUNTIME=runtime,cfgmod=cfg,_chat_provider_for_session=lambda *a:('test','api','key','test'),
                 _brain_key=lambda x:x,send_raw=send,send_client=send,sys=__import__('sys'),uuid=uuid,
                 limit_resume=types.SimpleNamespace(REGISTRY=reg),

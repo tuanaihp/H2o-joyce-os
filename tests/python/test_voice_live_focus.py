@@ -39,6 +39,7 @@ class LiveFocusTests(unittest.IsolatedAsyncioTestCase):
                     yield {'type': 'transcript', 'role': 'assistant', 'text': 'Latest answer', 'final': False}
                     await asyncio.Event().wait()
             class Socket:
+                cookies = {}   # kết nối giả không có cookie: nhân viên/đăng nhập không áp dụng
                 async def accept(self): pass
                 async def send_text(self, text):
                     frame = json.loads(text); frames.append(frame)
@@ -49,7 +50,7 @@ class LiveFocusTests(unittest.IsolatedAsyncioTestCase):
                     return {'text': '{"type":"stop"}'}
                 async def close(self): pass
             provider = Provider()
-            namespace = dict(asyncio=asyncio, json=json, WebSocket=Socket, Query=lambda x: x,
+            namespace = dict(h2o_staff_mod=types.SimpleNamespace(staff_by_token=lambda tok: None), _STAFF_SCOPE=__import__('contextvars').ContextVar('staff_scope', default=None), asyncio=asyncio, json=json, WebSocket=Socket, Query=lambda x: x,
                              cfgmod=types.SimpleNamespace(gate_active=lambda: False, read_settings=lambda: {}),
                              voice_live=types.SimpleNamespace(make_provider=lambda *a, **k: provider),
                              voice_call=types.SimpleNamespace(live_settings=lambda c: c),

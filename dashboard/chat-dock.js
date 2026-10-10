@@ -11,7 +11,7 @@
  * mở dock lên thấy tiếp đúng cuộc đang chat, đóng dock là nó quay về chỗ cũ.
  *
  * Dock KHÔNG có nền mờ và không tự đóng khi bấm ra ngoài - cố tình, vì cả mục đích của
- * nó là để người dùng thao tác trang phía sau. Đóng bằng nút ✕ hoặc mở lại menu pet.
+ * nó là để người dùng thao tác trang phía sau. Đóng bằng nút X hoặc mở lại menu pet.
  */
 (function () {
   var dock = null, slot = null;

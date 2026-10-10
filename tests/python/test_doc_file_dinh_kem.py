@@ -18,7 +18,7 @@ Test khoá ba việc:
   2. Không mở kèm đường nào khác - `..`, thư mục cha của staging, chỗ khác trên ổ đĩa.
   3. Ghi vẫn khoá trong vault, và bot chuyên trách (không truyền cờ) vẫn không thấy staging.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
+from _paths import ROOT, SERVER, correr  # noqa: E402,F401  - nạp server/ vào sys.path
 import os
 import sys
 import tempfile
@@ -61,7 +61,7 @@ NGOAI.write_text("không được đọc", encoding="utf-8")
 
 
 def _no(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return correr(coro)
 
 
 def _chan(fn, *a, **kw):

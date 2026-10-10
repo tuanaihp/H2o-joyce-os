@@ -151,13 +151,15 @@ async function chay(items, opts) {
     JoycePager: (box, arr, per, ve, trong) => pagerThat(box, arr, per, ve, trong, win),
     t: t,
   };
+  // Đổi tên dùng hộp thoại của app (JoyceDialog.prompt): nối vào prompt giả của cửa sổ test.
+  const JoyceDialog = { prompt: async (cau, cu) => win.prompt(cau, cu), confirm: async () => true };
   await new Function("el", "_renderGen", "ic", "t", "esc", "fetch", "location",
-    "navigator", "window", "document", "SHARE_MOI_TRANG", "SHARE_NGUONG_TIM",
+    "navigator", "window", "document", "SHARE_MOI_TRANG", "SHARE_NGUONG_TIM", "JoyceDialog",
     "return (async () => {" + than + "})();")(
     el, 1, ic, t, esc, fetchGia, { origin: "https://nas.vi.du" },
     { clipboard: null }, win,
     { createElement: () => nut(), body: { appendChild() {} } },
-    MOI_TRANG, NGUONG_TIM);
+    MOI_TRANG, NGUONG_TIM, JoyceDialog);
   return { el, list, oTim, goi, fetchGia };
 }
 

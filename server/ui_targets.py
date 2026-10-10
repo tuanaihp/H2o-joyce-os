@@ -18,9 +18,9 @@ import unicodedata
 # Trang hợp lệ = RAIL_ITEMS trong dashboard/console.js và PAGES trong dashboard/ui-actions.js.
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
-    "command", "today", "departments", "calendar", "reports", "home", "chat", "settings", "workspace",
+    "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace",
     "camnang", "kinhdoanh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
-    "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account",
+    "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
     "staff", "usage", "pet", "share",
 )
 

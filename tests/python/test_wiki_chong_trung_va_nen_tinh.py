@@ -32,7 +32,7 @@ Starlette NUỐT TRỌN response streaming. Đo trên SSE 5 chunk cách nhau 0,3
 Joyce có 4 endpoint text/event-stream. Bật nén toàn cục là người dùng gõ câu hỏi rồi nhìn
 màn hình trống tới khi trả lời xong - đổi lỗi chậm lấy lỗi nặng hơn hẳn.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER, correr  # noqa: E402,F401
 import os
 import sys
 import tempfile
@@ -187,7 +187,7 @@ def _di_qua(path):
         async def __call__(self, scope, receive, send):
             dau["gzip"] = True
     mw._gzip = _GiaGzip()
-    asyncio.get_event_loop().run_until_complete(
+    correr(
         mw({"type": "http", "path": path}, None, None))
     return dau
 
@@ -206,7 +206,7 @@ async def _ws_goc(scope, receive, send):
 
 
 mw = main_mod._NenTinh(_ws_goc, minimum_size=1024)
-asyncio.get_event_loop().run_until_complete(mw({"type": "websocket", "path": "/ws"}, None, None))
+correr(mw({"type": "websocket", "path": "/ws"}, None, None))
 check("websocket đi thẳng, không đụng nén", dau["thang"])
 
 # ============================================================

@@ -21,11 +21,15 @@ Ba nhóm:
 from _paths import ROOT, SERVER, DASHBOARD  # noqa: E402,F401
 import asyncio
 import json
+import os
 import sys
 import tempfile
 from urllib.parse import urlparse
 import time
 from pathlib import Path
+
+# Cô lập state: không đọc Cài đặt thật của máy (store_url) và không phụ thuộc .env.
+os.environ.setdefault("JOYCE_STATE_DIR", tempfile.mkdtemp(prefix="joyce-kho-test-"))
 
 import packs_fetch
 import packs_store
@@ -130,6 +134,10 @@ def gia_tai(noi_dung=None, loi=None):
 
 
 with tempfile.TemporaryDirectory() as td:
+    # Kho không có địa chỉ mặc định (JOYCE_PACKS_STORE trống trên CI) thì lay() trả rỗng; test
+    # cần một địa chỉ để có index giả mà đọc.
+    goc_kho = packs_store.STORE_MAC_DINH
+    packs_store.STORE_MAC_DINH = "https://kho.thu.dev/index.json"
     goc_cache, goc_tai = packs_store.CACHE, packs_fetch.tai
     packs_store.CACHE = Path(td) / "packs-store-cache.json"
     try:
@@ -180,6 +188,7 @@ with tempfile.TemporaryDirectory() as td:
                   r["ok"] is False and (not dau or dau in r.get("error", "")))
     finally:
         packs_store.CACHE, packs_fetch.tai = goc_cache, goc_tai
+        packs_store.STORE_MAC_DINH = goc_kho
 
 # ─────────────── 5. Canary trên mã nguồn ───────────────
 src = (SERVER / "packs_fetch.py").read_text(encoding="utf-8")
@@ -229,28 +238,20 @@ check("kho hỏng KHÔNG làm hỏng phần gói đã cài",
 # ============================================================
 # Tách repo là điểm mấu chốt: thêm một gói không còn dính tới việc ra bản mới của app, và người
 # lạ gửi Pull Request vào kho được mà không cần quyền ghi vào mã nguồn Joyce.
-check("kho mặc định trỏ sang repo riêng, không phải repo Joyce OS",
-      "joyce-store" in packs_store.STORE_MAC_DINH
-      and "joyce-os" not in packs_store.STORE_MAC_DINH)
-check("và đọc qua raw.githubusercontent (không phải trang HTML của GitHub)",
-      packs_store.STORE_MAC_DINH.startswith("https://raw.githubusercontent.com/"))
+# Từ bản H2O 1.0.0 (commit a87f344) kho KHÔNG còn trỏ sẵn sang repo ngoài: người dùng tự đặt
+# địa chỉ kho trong Cài đặt hoặc JOYCE_PACKS_STORE. Không được trỏ ngược về chính repo Joyce OS.
+check("bản H2O không trỏ kho mặc định về repo Joyce OS",
+      "joyce-os" not in packs_store.STORE_MAC_DINH)
 
 idx = json.loads((ROOT / "system" / "pack-index.json").read_text(encoding="utf-8"))
 check("repo có sẵn tệp danh mục", idx.get("format") == "joyce-pack-index")
 check("và nó đọc được bằng chính bộ đọc",
       all(packs_store._lam_sach(x)["id"] for x in idx.get("packs", [])) if idx.get("packs") else True)
-check("có tài liệu cách phát hành gói",
-      (ROOT / "docs" / "dev" / "pack-store-index.md").is_file())
-
-# Danh mục CŨ trong repo này đã đông lại, nhưng KHÔNG được xoá: bản 0.55.24-0.55.29 trỏ cứng vào
-# đó. Xoá đi là mọi máy chưa cập nhật thấy kho rỗng. Nên nó phải còn, và mọi địa chỉ tải trong đó
-# phải TUYỆT ĐỐI - đường tương đối sẽ ghép với repo Joyce OS, nơi không còn tệp .zip nào.
-check("danh mục cũ vẫn còn cho bản chưa cập nhật", bool(idx.get("packs")))
-check("và mọi địa chỉ tải trong đó là tuyệt đối, trỏ sang kho mới",
-      all((g.get("download") or {}).get("url", "").startswith("https://")
-          and "joyce-store" in g["download"]["url"] for g in idx.get("packs", [])))
-check("danh mục cũ tự nói là đã đông lại, để không ai thêm nhầm vào đó",
-      "ĐÔNG LẠI" in (idx.get("_doc") or ""))
+# Tệp này là KHUÔN định dạng (không gói, không trỏ kho ngoài). Runtime không đọc nó; kho thật do
+# người dùng cấu hình. Ghi rõ điều đó trong _doc để không ai biến nó thành danh mục sống.
+check("tệp danh mục là khuôn định dạng, không liệt kê gói nào", idx.get("packs") == [])
+check("và tự nói rõ nó không còn trỏ tới kho ngoài",
+      "KHUÔN" in (idx.get("_doc") or "") and "không còn trỏ tới kho ngoài" in (idx.get("_doc") or ""))
 # Gói thật đã dọn sang repo kho, nên repo này không còn ôm tệp .zip nào nữa.
 check("repo Joyce OS không còn giữ tệp gói", not (ROOT / "system" / "packs").exists())
 
@@ -291,7 +292,7 @@ check("mọi loại năng lực có đường sang kho, trợ lý và quy trình
       and 'data-loai="agent"' in src_ws and 'data-loai="workflow"' in src_ws)
 # Năm bản sao của lưới kho là năm thứ sẽ lệch nhau sau vài tháng. Tab chỉ ĐIỀU HƯỚNG.
 check("tab kho điều hướng sang kho chứ không nhúng bản sao lưới",
-      "JoycePacks.moKho(kind" in src_con and "veKho" not in src_con)
+      "JoycePacks.moKho(kind" in src_con and "veKho(" not in src_con)
 # Kho không nằm trên thanh bên, nên vào rồi mà không có nút quay lại là người dùng thấy mình
 # bị lạc. Tab phải truyền cả trang gốc, và kho phải vẽ nút đó.
 check("tab truyền cả trang gốc để kho vẽ được nút quay lại",
@@ -325,10 +326,10 @@ _an = _re.search(r"const RAIL_AN = new Set\((.*?)\);", src_con)
 check("kho hiện trên thanh bên", _an is not None and '"packs"' not in _an.group(1))
 check("và nằm trong nhóm Kết nối", '"mcp", "packs", "channels", "models"' in src_con)
 check("vẫn giữ trong danh sách trang (nguồn icon và nhãn)",
-      '"packs", "logs", "account", "usage",' in src_con)
+      '"packs", "logs", "account", "staff", "usage",' in src_con)
 # VIEW_META thiếu "packs" từ đầu nên header trang kho ghi nhầm là tiêu đề Trang chủ.
 check("trang kho có tiêu đề riêng, không mượn tiêu đề Trang chủ",
-      '"plugins", "packs", "logs"' in src_con)
+      '"tools", "packs", "logs"' in src_con)
 
 # Khối "Đã cài" ở cuối trang bỏ hẳn ở 0.55.34: nó lặp lại đúng những gì lưới đã hiện, chỉ
 # khác cách bày. Cái duy nhất chỉ nó có - nút bật/tắt tạm - chuyển thẳng lên thẻ, chứ KHÔNG

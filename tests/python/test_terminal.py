@@ -206,6 +206,11 @@ async def _phien_that():
 
 
 def _con_song(pid):
+    # Trên Windows os.kill(pid, 0) gửi CTRL_C_EVENT chứ không phải lệnh dò, nên hỏi tasklist.
+    if os.name == "nt":
+        import subprocess
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True)
+        return str(pid) in (r.stdout or "")
     try:
         os.kill(pid, 0)
         return True

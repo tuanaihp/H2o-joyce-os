@@ -5,8 +5,10 @@ const source = fs.readFileSync(path.join(__dirname, '../../dashboard/console.js'
 const fn = source.match(/  async function _vtAddFolder\(rel, isDir\) \{[\s\S]*?\n  \}/)[0];
 async function run(rel, isDir, name, ok = true) {
   const calls = [], reveals = [], errors = [];
-  const add = new Function('prompt','FormData','fbrain','fetch','_vtRevealInTree','alert','window',fn+';return _vtAddFolder')(
-    () => name, FormData, () => 'brain', async (url, opts) => {
+  // Tên thư mục hỏi qua hộp thoại của app (JoyceDialog.prompt), không còn window.prompt.
+  const JoyceDialog = { prompt: async () => name };
+  const add = new Function('JoyceDialog','FormData','fbrain','fetch','_vtRevealInTree','alert','window',fn+';return _vtAddFolder')(
+    JoyceDialog, FormData, () => 'brain', async (url, opts) => {
       calls.push({url, fields: Object.fromEntries(opts.body)});
       return {ok, json: async () => ok ? {ok:true} : {error:'Cannot create'}};
     }, async (...args) => reveals.push(args), msg => errors.push(msg), {t:k=>k});

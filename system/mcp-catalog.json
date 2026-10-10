@@ -737,7 +737,7 @@
           { "key": "client_secret", "label": "App Secret (Khoá bí mật ứng dụng)",
             "placeholder": "Ví dụ: a1b2c3d4e5f6..." }
         ],
-        "guide": "App Facebook (developers.facebook.com) dùng chung cho cả hai thẻ Facebook Trang và Meta Ads - tạo một lần, dán cùng App ID + Secret vào hai thẻ đều được.\n\nLàm 1 lần, khoảng 10 phút:\n1. Vào developers.facebook.com/apps > Create App. Bước 'Trường hợp sử dụng' tick mục cuối 'Xác thực và yêu cầu dữ liệu từ người dùng qua phương thức Đăng nhập bằng Facebook'. Muốn đọc số liệu quảng cáo thì tick thêm 'API Marketing'.\n2. Bước Doanh nghiệp: chọn 'Tôi chưa muốn kết nối hồ sơ doanh nghiệp' > Tiếp.\n3. Qua các bước Yêu cầu > Tổng quan > Tạo ứng dụng. BỎ QUA 'Xác minh doanh nghiệp' và 'Xét duyệt ứng dụng' - app ở Development mode tự đọc được Trang mà bạn là admin.\n4. Vào Cài đặt ứng dụng > Thông tin cơ bản: copy ID ứng dụng (App ID) và Khoá bí mật (App Secret) dán vào đây rồi bấm Kết nối.\n5. Trình duyệt mở trang Facebook xin quyền: NHỚ TICK chọn các Trang muốn quản lý rồi đồng ý. Quên tick là Joyce không thấy Trang nào.\n\nMáy chạy localhost thì KHÔNG cần điền 'URI chuyển hướng OAuth' - Meta tự cho phép localhost khi app đang Development. Chạy trên tên miền thì phải điền URI mà Joyce hiện ở bước 4.\n\nToken sống ~60 ngày, Joyce tự gia hạn khi còn dùng; hết hạn thì bấm Kết nối lại.",
+        "guide": "App Facebook (developers.facebook.com) dùng chung cho cả hai thẻ Facebook Trang và Meta Ads - tạo một lần, dán cùng App ID + Secret vào hai thẻ đều được.\n\nLàm 1 lần, khoảng 10 phút:\n1. Vào developers.facebook.com/apps > Create App.\nBước 'Trường hợp sử dụng' tick mục cuối 'Xác thực và yêu cầu dữ liệu từ người dùng qua phương thức Đăng nhập bằng Facebook'. Muốn đọc số liệu quảng cáo thì tick thêm 'API Marketing'.\n2. Bước Doanh nghiệp: chọn 'Tôi chưa muốn kết nối hồ sơ doanh nghiệp' > Tiếp.\n3. Qua các bước Yêu cầu > Tổng quan > Tạo ứng dụng. BỎ QUA 'Xác minh doanh nghiệp' và 'Xét duyệt ứng dụng' - app ở Development mode tự đọc được Trang mà bạn là admin.\n4. Vào Cài đặt ứng dụng > Thông tin cơ bản: copy ID ứng dụng (App ID) và Khoá bí mật (App Secret) dán vào đây rồi bấm Kết nối.\n5. Trình duyệt mở trang Facebook xin quyền: NHỚ TICK chọn các Trang muốn quản lý rồi đồng ý. Quên tick là Joyce không thấy Trang nào.\n\nMáy chạy localhost thì KHÔNG cần điền 'URI chuyển hướng OAuth' - Meta tự cho phép localhost khi app đang Development. Chạy trên tên miền thì phải điền URI mà Joyce hiện ở bước bốn.\n\nToken sống ~60 ngày, Joyce tự gia hạn khi còn dùng; hết hạn thì bấm Kết nối lại.",
         "guide_url": "https://developers.facebook.com/apps/",
         "steps": [
           { "text": "Vào trang tạo app của Meta Developers. Chọn tạo app mới, đặt tên tuỳ ý (vd T-Joyce).",
@@ -795,12 +795,14 @@
           { "key": "client_secret", "label": "App Secret (Khoá bí mật ứng dụng)",
             "placeholder": "Ví dụ: a1b2c3d4e5f6..." }
         ],
-        "guide": "Dùng chung Facebook App với thẻ 'Facebook Trang': nếu đã tạo app ở thẻ đó thì lấy lại đúng App ID + App Secret đó dán vào đây, KHÔNG phải tạo app mới.\n\nChưa có app thì làm y hướng dẫn của thẻ Facebook Trang (developers.facebook.com/apps > Create App, tick 'Xác thực... Đăng nhập bằng Facebook' + 'API Marketing'), rồi copy App ID + App Secret ở Cài đặt ứng dụng > Thông tin cơ bản.\n\nBấm Kết nối, đăng nhập Facebook và đồng ý là xong.",
+        "guide": "Dùng chung Facebook App với thẻ 'Facebook Trang': nếu đã tạo app ở thẻ đó thì lấy lại đúng App ID + App Secret đó dán vào đây, KHÔNG phải tạo app mới.\n\nChưa có app thì làm y hướng dẫn của thẻ Facebook Trang (developers.facebook.com/apps > Create App,\ntick 'Xác thực... Đăng nhập bằng Facebook' + 'API Marketing'), rồi copy App ID + App Secret ở Cài đặt ứng dụng > Thông tin cơ bản.\n\nBấm Kết nối, đăng nhập Facebook và đồng ý là xong.",
         "guide_url": "https://developers.facebook.com/apps/",
         "steps": [
           { "text": "Dùng lại Facebook App đã tạo cho thẻ 'Facebook Trang' (hoặc tạo mới tại trang Meta Developers nếu chưa có).",
             "link": "https://developers.facebook.com/apps/", "link_label": "Mở Meta Developers" },
-          { "text": "Vào Cài đặt ứng dụng > Thông tin cơ bản, copy ID ứng dụng + Khoá bí mật ứng dụng dán vào hai ô bên dưới. Nếu Joyce chạy trên tên miền (không phải localhost) thì điền URI chuyển hướng này vào Đăng nhập Facebook > Cài đặt:",
+          { "text": "Vào Cài đặt ứng dụng > Thông tin cơ bản, copy ID ứng dụng + Khoá bí mật ứng dụng dán vào hai ô bên dưới.",
+            "copy": "" },
+          { "text": "Nếu Joyce chạy trên tên miền (không phải localhost) thì điền URI chuyển hướng này vào Đăng nhập Facebook > Cài đặt:",
             "copy": "redirect" },
           { "text": "Bấm Kết nối, đăng nhập Facebook và đồng ý. Tài khoản quảng cáo phải thuộc về đúng user/doanh nghiệp đăng nhập." }
         ]

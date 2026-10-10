@@ -74,3 +74,7 @@ gpsoauth>=1.0
 # `tv_embedded` - cái tên đã bị xoá. Cài bản cũ thì quân dự bị coi như không có. Máy nào cập
 # nhật Joyce từ trước 0.41.1 nên chạy thẳng: pip install -U yt-dlp
 yt-dlp>=2026.8.19
+
+# tzdata: Windows không có cơ sở dữ liệu múi giờ hệ thống, zoneinfo tìm "Asia/Tokyo" sẽ không thấy và
+# localefmt rơi lặng lẽ về UTC+7. Ghim để đổi múi giờ trên Windows ăn đúng.
+tzdata==2026.5

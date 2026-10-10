@@ -136,12 +136,16 @@ const LINKS = [
   ["docs/14-bao-mat-tai-khoan.md", "tài liệu bảo mật"],
 ];
 for (const [f, ten] of LINKS) {
-  check(`thẻ Token API có link tới ${ten}`, CON.includes("/blob/main/" + f));
+  // Tài liệu đi cùng mã nguồn và mở trong app (/static/docs/view.html, xem server/main.py guide-src),
+  // không trỏ ra GitHub: bản H2O mở được cả khi offline.
+  check(`thẻ Token API có link tới ${ten} (mở trong app)`,
+    CON.includes("/static/docs/view.html?f=" + f.replace(/^docs\//, "")));
   check(`CANARY: ${ten} còn tồn tại đúng đường đó`, fs.existsSync(path.join(ROOT, f)));
 }
 check("link mở tab mới, không cuốn người dùng ra khỏi dashboard",
   /24-cli-terminal\.md" target="_blank" rel="noopener"/.test(CON));
-check("lúc token vừa hiện thì chỉ luôn cách cài CLI", /pip install joyce-cli/.test(khoiTao));
+// CLI đi kèm sẵn trong repo (thư mục cli/), không có gói PyPI: chỉ dẫn cài là `pip install cli/`.
+check("lúc token vừa hiện thì chỉ luôn cách cài CLI", /pip install (?:joyce-cli|cli\/)/.test(khoiTao));
 check("khối link có kiểu riêng", /\.tk-docs \{/.test(CSS));
 
 console.log("");

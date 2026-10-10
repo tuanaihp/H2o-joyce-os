@@ -84,7 +84,7 @@ fake = [
     {"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 2}},
 ]
 script = "import json\n" + "\n".join(
-    f"print(json.dumps({json.dumps(ev, ensure_ascii=False)}), flush=True)" for ev in fake)
+    f"print(json.dumps({json.dumps(ev)}), flush=True)" for ev in fake)
 cli = CodexCLI(cwd=str(TMP))
 cli.cli_path = sys.executable
 cli._build_args = lambda: [sys.executable, "-c", script]

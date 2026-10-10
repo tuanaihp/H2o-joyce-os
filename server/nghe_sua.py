@@ -118,6 +118,12 @@ def bo_dau(s: str) -> str:
     return s.replace("đ", "d")
 
 
+# Cách viết của TÊN GỌI mà luật chữ -> âm không ra cùng khoá với các cách máy nghe hay chép
+# (David, Davis, Jarvis, Gia vít...): "joyce" thoát khỏi luật "j->d" và "y->i" theo kiểu khác.
+# Gom thẳng về khoá của tên gọi trước khi áp luật chung.
+_KHOA_TEN_GOI = {"joyce": "davit", "joycet": "davit", "joice": "davit"}
+
+
 def khoa_am(tu: str) -> str:
     """Rút một từ (hay cụm đã ghép liền) về khoá âm để so mờ.
 
@@ -126,6 +132,8 @@ def khoa_am(tu: str) -> str:
     s = re.sub(r"[^a-z]", "", bo_dau(tu))
     if not s:
         return ""
+    if s in _KHOA_TEN_GOI:
+        return _KHOA_TEN_GOI[s]
     for a, b in _AM_DOI:
         s = s.replace(a, b)
     s = s.translate(_AM_DON)
@@ -207,7 +215,9 @@ def _o_vi_tri_goi_ten(toks, i, n, s) -> bool:
         if bo_dau(truoc.group(0)) in {bo_dau(x) for x in _MO_DAU}:
             return True
     if sau is None:
-        return bool(_RANH_CAU.search(s[toks[i + n - 1].end():]))
+        # Cuối câu nói: giọng nói thường KHÔNG có dấu câu sau tên ("... đúng không David"), nên
+        # tên đứng cuối chính là vị trí gọi. Các chặn ở trên (sau "cho", "với"...) vẫn chạy trước.
+        return True
     khoang_sau = s[toks[i + n - 1].end():sau.start()]
     if _RANH_CAU.search(khoang_sau):
         return True

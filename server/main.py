@@ -7196,9 +7196,7 @@ def _fold_accents(s: str) -> str:
     return s.replace("đ", "d").replace("Đ", "D").lower()
 
 
-@app.get("/files/search")
-async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: int = Query(50),
-                       mode: str = Query("all"), include_dirs: bool = False):
+async def files_index(brain: str, q: str, limit: int, mode: str, include_dirs: bool):
     """Tìm note trong GỐC BRAIN (KHÔNG phải trần duyệt - tránh quét cả ổ đĩa trên localhost).
     `mode=name` khớp TÊN file (mọi loại, không phân biệt dấu tiếng Việt), `mode=content` tìm
     trong NỘI DUNG file text, còn `mode=all` giữ hành vi cũ là tìm cả hai; bỏ file >1MB
@@ -7277,6 +7275,13 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
 # phải chữa. Luật nhận dạng nằm trong md_repair.py - chỉ sửa thứ mà CHỈ lỗi đó tạo ra được.
 _MD_HONG_MAX_FILE = 1_000_000        # cùng ngưỡng với tìm theo nội dung
 _MD_HONG_MAX_HIT = 500               # đủ để một brain rất to vẫn liệt được, không phình vô hạn
+
+
+@app.get("/files/search")
+async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: int = Query(50),
+                       mode: str = Query("all"), include_dirs: bool = False):
+    """Route /files/search: chỉ là vỏ HTTP, logic ở files_index (gọi được từ code nội bộ)."""
+    return await files_index(brain, q, limit, mode, include_dirs)
 
 
 def _quet_md_hong(brain: str, chi_path: set = None):
@@ -11111,7 +11116,9 @@ def _link_muc_tieu_moi(brain_root: str, raw: str, files_written=None):
             if file_uri is None:
                 return None
             rel = t.lstrip("/")
-            if not rel or not (broot / rel).exists():
+            # "C:/..." KHÔNG được ghép vào broot: Path(broot) / "C:/..." trên Windows cho ra chính
+            # đường dẫn tuyệt đối đó, nên file ngoài brain bị coi là "có thật" và link bị viết lại.
+            if not rel or re.match(r"^[A-Za-z]:", rel) or not (broot / rel).exists():
                 return None
         return rel if rel != str(raw).strip() else None
     rel = re.sub(r"^(\./)+", "", t.replace("\\", "/")).lstrip("/")
@@ -11172,7 +11179,9 @@ def _chuan_hoa_link_file(brain_root: str, text: str, files_written=None) -> str:
             return m.group(0)
         return m.group(0)[:m.start(1) - m.start(0)] + f"`{rel}`" + duoi
 
-    ra = re.sub(r"(?<![`\[(/\w])(/[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
+    # Gồm cả đường dẫn ổ đĩa Windows (C:\... hoặc C:/...): trên máy Windows đường dẫn tuyệt đối
+    # của brain luôn có dạng này. Lookbehind chặn "http://", "file://" (có chữ cái ngay trước dấu hai chấm).
+    ra = re.sub(r"(?<![`\[(/\w])((?:/|[A-Za-z]:[\\/])[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
 
     def _uri_tran(m):
         moi = _link_muc_tieu_moi(brain_root, m.group(0), files_written)
@@ -11846,11 +11855,11 @@ async def plugins_reveal(slug: str = Form(...), brain: str = Form("brain")):
         return JSONResponse({"error": "không tìm thấy plugin"}, status_code=404)
     try:
         if os.name == "nt":
-            subprocess.Popen(["explorer", str(d)])
+            subprocess.Popen(["explorer", str(d)], creationflags=winproc.no_window())
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(d)])
+            subprocess.Popen(["open", str(d)], creationflags=winproc.no_window())
         else:
-            subprocess.Popen(["xdg-open", str(d)])
+            subprocess.Popen(["xdg-open", str(d)], creationflags=winproc.no_window())
         return {"ok": True}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -12691,7 +12700,7 @@ def _schtasks(args: list, timeout: int = 15) -> tuple:
         return False, ""
     try:
         r = subprocess.run(["schtasks", *args], capture_output=True, text=True,
-                           timeout=timeout, errors="replace")
+                           timeout=timeout, errors="replace", creationflags=winproc.no_window())
         return r.returncode == 0, (r.stdout or "") + (r.stderr or "")
     except Exception:
         return False, ""
@@ -16408,9 +16417,7 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 # và `def` thì FastAPI chạy ở threadpool. Để `async def` là chúng chạy thẳng trên event loop,
 # nên hễ loop bận (một lượt chat đang chạy, hub đang dò MCP) là trang Cộng sự bấm đổi trợ lý
 # mà màn hình đứng yên - chủ repo gặp đúng cảnh này 23/09. Kho phiên đã có khoá riêng.
-@app.get("/sessions")
-def sessions_list(request: Request, brain: str = Query(None), limit: int = Query(50),
-                        project: str = Query(""), channel: str = Query(""), bots: int = Query(0)):
+def sessions_index(request: Request, brain: str | None, limit: int, project: str, channel: str, bots: int):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
     channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
     (trang Cộng sự mở một trợ lý/quy trình).
@@ -16427,6 +16434,14 @@ def sessions_list(request: Request, brain: str = Query(None), limit: int = Query
                                                   project=project or None,
                                                   channel=channel or None,
                                                   also_channels=_kenh_bot_cua_agent(brain, channel) if bots else [])}
+
+
+@app.get("/sessions")
+def sessions_list(request: Request, brain: str = Query(None), limit: int = Query(50),
+                  project: str = Query(""), channel: str = Query(""), bots: int = Query(0)):
+    """Route /sessions: chỉ là vỏ HTTP. Logic nằm ở sessions_index, để code nội bộ gọi hàm thuần
+    mà không dính giá trị mặc định Query() (xem tests/python/test_handler_khong_goi_truc_tiep.py)."""
+    return sessions_index(request, brain, limit, project, channel, bots)
 
 
 def _kenh_bot_cua_agent(brain, channel) -> list:
@@ -17603,10 +17618,10 @@ _today_deps = joyce_today.TodayDeps(
     brief_ai=_brief_ai_today,
     # Bọc đúng endpoint /files/search - Query() default chỉ đúng khi FastAPI gọi, gọi tay
     # phải truyền trọn (mode="all", include_dirs=False).
-    knowledge_search=lambda b, q, l: files_search(b, q, l, "all", False),
+    knowledge_search=lambda b, q, l: files_index(b, q, l, "all", False),
     # sessions_list là hàm route thường (request đầu) - staff scope nằm bên trong nó;
     # cũng phải truyền trọn tham số vì default là Query() chứ không phải giá trị.
-    threads_list=lambda req, b, lim: sessions_list(req, b, lim, "", "", 0),
+    threads_list=lambda req, b, lim: sessions_index(req, b, lim, "", "", 0),
     thread_create=_thread_create_today,
     run_command=_v1_cmd_today,
     # Hàng chờ học của learn.py - đọc commit + undo git revert (không store mới).

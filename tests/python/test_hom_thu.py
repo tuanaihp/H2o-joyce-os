@@ -21,7 +21,7 @@ import tempfile
 
 os.environ.setdefault("JOYCE_STATE_DIR", tempfile.mkdtemp(prefix="joyce-homthu-"))
 
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER, correr  # noqa: E402,F401
 
 import inbox  # noqa: E402
 import main   # noqa: E402
@@ -97,7 +97,7 @@ async def _gia_kenh(owner_chat, text, **_kw):
 that_kenh = main._gui_qua_kenh
 main._gui_qua_kenh = _gia_kenh
 try:
-    ok, err = asyncio.get_event_loop().run_until_complete(
+    ok, err = correr(
         main._notify_owner("web:phien-abc", "Việc xong rồi\nchi tiết ở đây", kind="answer"))
 finally:
     main._gui_qua_kenh = that_kenh
@@ -117,7 +117,7 @@ async def _kenh_hong(owner_chat, text, **_kw):
 
 main._gui_qua_kenh = _kenh_hong
 try:
-    ok2, err2 = asyncio.get_event_loop().run_until_complete(
+    ok2, err2 = correr(
         main._notify_owner("", "Nhắc bạn: họp lúc 3h", kind="report", source="reminder"))
 finally:
     main._gui_qua_kenh = that_kenh
@@ -136,7 +136,7 @@ that_publish = main._CHAT_RUNTIME.publish
 main._CHAT_RUNTIME.publish = _bat_publish
 main._gui_qua_kenh = _gia_kenh
 try:
-    asyncio.get_event_loop().run_until_complete(
+    correr(
         main._notify_owner("web:phien-xyz", "Xong rồi nhé"))
 finally:
     main._CHAT_RUNTIME.publish = that_publish
@@ -166,11 +166,11 @@ _that_store = main.get_store
 main.get_store = lambda: _GiaStore()
 main._gui_qua_kenh = _gia_kenh
 try:
-    asyncio.get_event_loop().run_until_complete(
+    correr(
         main._notify_owner("web:phien-cs", "Quy trình chạy xong", kind="answer"))
-    asyncio.get_event_loop().run_until_complete(
+    correr(
         main._notify_owner("web:phien-thuong", "Việc thường chạy xong", kind="answer"))
-    asyncio.get_event_loop().run_until_complete(
+    correr(
         main._notify_owner("12345678", "Tin đi Telegram", kind="report"))
 finally:
     main.get_store = _that_store

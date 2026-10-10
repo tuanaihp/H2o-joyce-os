@@ -2936,7 +2936,7 @@ button.staff-chip:hover { border-color: var(--acc); }
    .qs-field và .gcard-btn tự đặt display nên đè mất hidden; luật này trả lại nghĩa cho hidden. */
 #voiceCard [hidden] { display: none !important; }
 
-/* ---- Command palette (⌘K) - Workstation Experience Layer ---- */
+/* ---- Command palette (Ctrl+K) - Workstation Experience Layer ---- */
 /* Nút gợi palette nằm phải cview-head: người mới nhìn thấy nó tồn tại thay vì
    phải biết trước phím tắt Ctrl+K. */
 .cmdk-trigger {
@@ -3730,3 +3730,8 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .ov-cc-seen svg { width: 13px; height: 13px; }
 .ov-cc-seen:hover { border-color: var(--accent-line); color: var(--accent-ink); }
 .ov-cc-seen[aria-pressed="true"] { color: var(--ok-ink); border-color: var(--ok-ink); }
+
+/* Thẻ tên file trong hộp xem mẫu: nền theo token của theme (không tô màu cứng); thẻ đang mở có .on */
+.tl-tab { padding: 4px 12px; border-radius: 8px 8px 0 0; border: 1px solid var(--hairline); border-bottom: 0;
+  font-size: 12px; cursor: pointer; background: transparent; color: var(--text2); }
+.tl-tab.on { background: var(--surface-2); }

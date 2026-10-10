@@ -131,7 +131,7 @@ check("mây trôi theo PHA gió tích luỹ (không giật khi bật gió)", /wi
 ["drawWind", "drawRain", "drawEruption", "drawHot", "drawTornado", "drawLightning"].forEach((f) =>
   check("có hiệu ứng " + f, new RegExp("function " + f + "\\(").test(PLANET)));
 check("hiệu ứng vẽ trước vành + trăng phía trước (bị che đúng)",
-  /drawMoon\(c, false, ddt\);\s*drawLookFx\(c, now, ddt\);\s*(?:drawGalRing\(c, now, 0, true\);[^\n]*\s*)?drawRings\(c, true\);/.test(PLANET));
+  /drawMoon\(c, false, ddt\);\s*(?:drawHdAmbient\(c, ddt\);\s*)?drawLookFx\(c, now, ddt\);\s*(?:drawGalRing\(c, now, 0, true\);[^\n]*\s*)?drawRings\(c, true\);/.test(PLANET));
 check("Mặt Trời: tín hiệu sức khoẻ H2O Legacy vẫn đè lên màu tự chọn", /h\.c\[0\] \* 0\.7/.test(PLANET));
 // 0.65.44: núi lửa không còn bắn hạt; dung nham chảy thành sông (số đoạn cố định, dựng một lần).
 check("núi lửa: sông dung nham dựng một lần, không bắn hạt tung toé", /if \(!volc\.rivers\) volc\.rivers = buildRivers\(\);/.test(PLANET) && !/ventAcc/.test(PLANET));
@@ -150,8 +150,8 @@ const DES = PLANET.slice(PLANET.indexOf("R.destroy = function"), PLANET.indexOf(
 check("destroy dọn mảng hạt của hiệu ứng", /cells = \[\]; splashes = \[\]; streaks = \[\]; bolts = \[\]; hot = \[\]; torn\.g = null; torn\.parts = \[\]/.test(DES));
 
 // ---- 7. Trang Cài đặt ----
-check("tab appearance có trong danh sách tab Cài đặt", /const tabs = \["general", "voice", "appearance", "pet", "usage", "updates"\];/.test(CONSOLE));
-check("navigateTo nhận tab appearance", /\["general", "voice", "appearance", "pet", "usage", "updates"\]\.includes\(tab\)/.test(CONSOLE));
+check("tab appearance có trong danh sách tab Cài đặt", /const tabs = \["general", "huongdan", "voice", "appearance", "pet", "usage", "updates"\];/.test(CONSOLE));
+check("navigateTo nhận tab appearance và huongdan", /\["general", "huongdan", "voice", "appearance", "pet", "usage", "updates"\]\.includes\(tab\)/.test(CONSOLE));
 check("renderSettingsPage vẽ tab appearance", /tab === "appearance"\) await renderAppearancePage\(panel\)/.test(CONSOLE));
 check("khung tab con (sau này thêm giao diện khác)", /const LOOK_SUBS = \{ planet: \{/.test(CONSOLE) && /role="tablist"/.test(CONSOLE.slice(CONSOLE.indexOf("async function renderAppearancePage"))));
 const LP = CONSOLE.slice(CONSOLE.indexOf("async function renderPlanetLook"), CONSOLE.indexOf("async function renderSettingsPage"));

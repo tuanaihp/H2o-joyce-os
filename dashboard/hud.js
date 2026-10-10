@@ -1135,7 +1135,7 @@
       '<div class="gx-ctl" id="gxCtl"><button type="button" class="gx-btn" id="gxBtn" data-tk="planet.gx_btn"></button>' +
         '<button type="button" class="gx-btn" id="gxEarth" data-tk="planet.gx_back_earth" hidden></button></div>' +
       '<div class="fv-ctl" id="fvCtl" hidden>' +
-        '<button type="button" class="fv-btn fv-active" data-fv="0" data-title-tk="planet.fv_sky"><span>✦</span></button>' +
+        '<button type="button" class="fv-btn fv-active" data-fv="0" data-title-tk="planet.fv_sky"><span>' + ic("sparkles") + '</span></button>' +
         '<button type="button" class="fv-btn" data-fv="1" data-title-tk="planet.fv_orbit"><span>◎</span></button>' +
         '<button type="button" class="fv-btn" data-fv="2" data-title-tk="planet.fv_tri"><span>△</span></button>' +
       '</div>' +

@@ -78,12 +78,16 @@ check("CA THẬT: sau việc nền, phiên KHÔNG còn bị coi là đang chạy
   !(turns[SID] && turns[SID].running));
 
 // ---- 2. sendMessage không được nuốt lặng tin từ mic ----
-check("CANARY: bỏ hẳn kiểu nuốt lặng `if (turns[sid].running) return;`",
-  !/if \(turns\[sid\] && turns\[sid\]\.running\) return;/.test(app));
+// Chỉ soi THÂN sendMessage. guiHangGo (hàng chờ) có một dòng `if (turns[sid] && turns[sid].running) return;`
+// nhưng đó là CHỜ rồi gửi lại khi turn_done, không phải nuốt tin.
+const thanSend = app.slice(app.indexOf("function sendMessage("),
+  app.indexOf("\nfunction ", app.indexOf("function sendMessage(") + 20));
+check("CANARY: sendMessage không còn nuốt lặng khi lượt đang chạy",
+  thanSend.length > 500 && !/if \(turns\[sid\] && turns\[sid\]\.running\) return;/.test(thanSend));
 // 0.65.28: trong cuộc gọi KHÔNG dừng lượt cũ nữa (chủ dự án báo 02/10: "Đã dừng lượt này" liên
 // tục, mô hình bị cắt); câu xếp hàng và gửi khi lượt xong. Ngoài cuộc gọi (mic một lần) vẫn dừng rồi gửi.
 check("tin từ mic lúc đang gọi thì XẾP HÀNG, không dừng lượt cũ",
-  /if \(!\(_tuGiong \|\| handsFree\)\) return;[\s\S]{0,400}if \(handsFree\) \{ xepCauChoLuot\(msg, opts\); return; \}\s*\n\s*stopCurrent\(\);/.test(app));
+  /if \(!\(_tuGiong \|\| handsFree\)\) \{[^}]*xepTinGo[^}]*\}[\s\S]{0,300}if \(handsFree\) \{ xepCauChoLuot\(msg, opts\); return; \}\s*\n\s*stopCurrent\(\);/.test(app));
 
 // ---- 3. Cắt lời chỉ làm Joyce im, lượt đang chạy viết nốt (0.65.28) ----
 const b = new T.VoiceTurn();

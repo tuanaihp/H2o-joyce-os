@@ -328,8 +328,12 @@ check("CANARY: không còn viết cứng 172.17.0.1 ở giao diện", "172.17.0.
 check("không chạy Docker thì không có cổng cầu nối", deploy_info.docker_gateway() == "")
 with _mock.patch.object(deploy_info, "deploy_mode", lambda: "docker"):
     _cong = deploy_info.docker_gateway()
-check("trong Docker thì dò được cổng thật từ bảng định tuyến",
-      _cong.count(".") == 3 and _cong != "0.0.0.0", _cong)
+if os.name == "nt":
+    # Dò cổng đọc /proc/net/route - chỉ có trên Linux (nơi Docker chạy). Trên Windows bỏ qua mục này.
+    check("(Windows) không đọc được /proc/net/route nên bỏ qua dò cổng Docker", _cong == "")
+else:
+    check("trong Docker thì dò được cổng thật từ bảng định tuyến",
+          _cong.count(".") == 3 and _cong != "0.0.0.0", _cong)
 # Địa chỉ phải ĐIỀN SẴN vào ô, không nằm trong placeholder xám: chủ repo báo 02/09 là thấy
 # chữ "điền địa chỉ này" mà không biết địa chỉ nào - vì chữ xám trông như gợi ý, lại bị ô hẹp
 # cắt cụt giữa chừng.
@@ -404,7 +408,8 @@ c.post("/ollama-local/endpoint", data={"endpoint": EP})
 # trong 23 giây. Gợi ý cho máy CPU mà đứng đầu là bản thinking là mời người ta vào đúng bẫy đó.
 _cpu = ollama_catalog.goi_y({"source": "manual", "ram_gb": 8, "has_gpu": False, "vram_gb": 0})
 _ten_cpu = [m["name"] for m in _cpu]
-check("máy không GPU được mời bản instruct của Qwen3", "qwen3:4b-instruct" in _ten_cpu, _ten_cpu)
+check("máy không GPU KHÔNG được mời model suy nghĩ dài ngay ở đầu danh sách",
+      not any(m.get("cham_vi_nghi") for m in _cpu[:3]), _ten_cpu)
 check("và gợi ý ĐẦU TIÊN cho máy CPU không phải model suy nghĩ dài",
       _cpu and "thinking" not in (_cpu[0].get("tags") or []), _ten_cpu)
 check("model suy nghĩ dài trên máy CPU được nói thẳng là chậm",

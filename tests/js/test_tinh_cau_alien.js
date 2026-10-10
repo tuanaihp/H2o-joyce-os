@@ -87,7 +87,8 @@ check("setQuality/setProjects trước mount + destroy 2 lần không ném lỗi
 // ---- 3. Hiệu năng + an toàn trong renderer ----
 const PC = CODE(PLANET);
 check("có shader WebGL2 + đường lui Canvas 2D (drawSafePlanet)", /getContext\("webgl2"/.test(PC) && /function drawSafePlanet/.test(PC));
-check("DPR tối đa 2", /Math\.min\(dpr, profile === "high" \? 2 : 1\.25\)/.test(PC) && /dprOv = Math\.min\(dpr, 2\)/.test(PC));
+// Chế độ HD (3D View "siêu nét", 1.3.3) được phép tới DPR 3 có chủ đích; chế độ thường vẫn 2 / 1.25.
+check("DPR tối đa 2 (3 chỉ ở chế độ HD)", /Math\.min\(dpr, (?:hdMode \? 3 : )?profile === "high" \? 2 : 1\.25\)/.test(PC) && /dprOv = Math\.min\(dpr, (?:hdMode \? 3 : )?2\)/.test(PC));
 check("FPS < 30 thì hạ chất lượng", /1 \/ avg < 30/.test(PC));
 check("ẩn tab thì dừng vẽ", /visibilitychange/.test(PC) && /document\.hidden\) stopLoop\(\)/.test(PC));
 check("xử lý webglcontextlost (preventDefault + về safe)", /webglcontextlost/.test(PC) && /function onLost\(e\) \{\s*e\.preventDefault\(\)/.test(PC));

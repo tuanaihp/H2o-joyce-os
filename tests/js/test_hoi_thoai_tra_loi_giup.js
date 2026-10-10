@@ -47,7 +47,8 @@ check("gửi hỏng mà bot đã soạn: chữ đổ vào ô nhập để chủ 
   /if \(text && ta2\) \{ ta2\.value = text; \}/.test(ONACT) && /ht\.act_send_failed/.test(ONACT) && /d\.text|\(d && d\.text\)/.test(ONACT));
 check("Agent chọn im thì nói thẳng, không gửi gì", /if \(d\.silent\) return setActionNote\(window\.t\("ht\.act_silent"\), false\)/.test(ONACT));
 check("bản nháp đổ vào ô nhập và đưa con trỏ vào, chưa gửi", /ta2\.value = text; ta2\.focus\(\)/.test(ONACT) && /ht\.act_drafted/.test(ONACT));
-check("ô nhập đang có chữ thì HỎI trước khi đè bằng bản nháp", /ta\.value\.trim\(\) && !confirm\(window\.t\("ht\.act_overwrite"\)\)/.test(ONACT));
+check("ô nhập đang có chữ thì HỎI trước khi đè bằng bản nháp (hộp thoại của app)",
+  /ta\.value\.trim\(\) && !await (?:JoyceDialog\.confirm|confirm)\(window\.t\("ht\.act_overwrite"\)\)/.test(ONACT));
 check("gửi xong nói có dạy bot hay không (taught)", /d\.taught \? "ht\.act_sent_taught" : "ht\.act_sent"/.test(ONACT));
 check("gửi xong tải lại tin và danh sách; dòng ghi chú sống qua lần vẽ lại khung",
   /await taiTin\(false\)/.test(ONACT) && /tai\(true\)/.test(ONACT) && /_actNote \? '<div class="ht-acts-note/.test(ACT));

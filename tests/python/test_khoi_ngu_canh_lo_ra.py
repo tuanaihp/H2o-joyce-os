@@ -115,7 +115,8 @@ if shutil.which("node"):
            "chào em", "[FILE ĐANG MỞ trong trình sửa của Joyce: a.md chưa đóng khối",
            "[ghi chú] nhớ mua sữa", "", SKILL + _cau_skill, GHIM + SKILL + "viết tiếp giúp anh"]
     _ra = _json.loads(subprocess.run(["node", "-e", _js, _json.dumps(_ca)],
-                                     capture_output=True, text=True, timeout=30).stdout)
+                                     capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                     timeout=30).stdout)
     check("ghim -> còn đúng câu hỏi", _ra[0] == CAU_THAT, _ra[0])
     check("ghim + đính kèm -> còn đúng câu hỏi", _ra[1] == "tóm tắt giúp anh", _ra[1])
     check("chỉ đính kèm -> còn đúng câu hỏi", _ra[2] == "đọc giúp em", _ra[2])

@@ -232,12 +232,12 @@ if _tok_sub:
 #      có route nào ở đó. Nay .html chuyển hướng sang /s/<token>/ và có route /s/<token>/<p>.
 #   2. Trang chạy trong sandbox không allow-same-origin -> origin "null", fetch là chéo nguồn,
 #      thiếu Access-Control-Allow-Origin là trình duyệt chặn đọc dù file đã tải về.
-os.makedirs(os.path.join(BRAIN, "apps", "bang", "con"), exist_ok=True)
+os.makedirs(os.path.join(BRAIN, "apps", "bang", "thu-muc-con"), exist_ok=True)
 with open(os.path.join(BRAIN, "apps", "bang", "index.html"), "w", encoding="utf-8") as f:
     f.write("<!doctype html><h1>Bảng</h1><script>fetch('data.json')</script>")
 with open(os.path.join(BRAIN, "apps", "bang", "data.json"), "w", encoding="utf-8") as f:
     f.write('{"doanh_thu": 12}')
-with open(os.path.join(BRAIN, "apps", "bang", "con", "so.csv"), "w", encoding="utf-8") as f:
+with open(os.path.join(BRAIN, "apps", "bang", "thu-muc-con", "so.csv"), "w", encoding="utf-8") as f:
     f.write("a,b\n1,2\n")
 with open(os.path.join(BRAIN, "apps", "bang", "trang2.html"), "w", encoding="utf-8") as f:
     f.write("<p>trang phụ</p>")
@@ -266,7 +266,7 @@ if _tk:
     check("CANARY: có Access-Control-Allow-Origin: * (trang sandbox có origin null, thiếu là "
           "fetch bị chặn đọc dù file đã tải)", _d.headers.get("access-control-allow-origin") == "*")
     check("csv trong thư mục con của app cũng đọc được",
-          cl.get(f"/s/{_tk}/con/so.csv").status_code == 200)
+          cl.get(f"/s/{_tk}/thu-muc-con/so.csv").status_code == 200)
     check("trang phụ .html của app mở được", cl.get(f"/s/{_tk}/trang2.html").status_code == 200)
     check("ghi chú .md trong thư mục RIÊNG của app đọc được (app ghi chú cần nó)",
           cl.get(f"/s/{_tk}/ghi-chu.md").status_code == 200)

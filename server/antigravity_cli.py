@@ -1327,8 +1327,9 @@ class AntigravityCLI:
                       file=sys.stderr)
                 text += (_CANH_BAO_DOC_HONG if ket.get("da_thu_doc") else _CANH_BAO_CHUA_DOC)
             # Đổi đường rồi mà chữ vẫn hỏng dấu: hết cách trong tầm Joyce. Nói thẳng, đừng để
-            # người dùng ngồi đoán xem mình gõ sai hay máy hỏng.
-            elif "�" in text:
+            # người dùng ngồi đoán xem mình gõ sai hay máy hỏng. Đây là lỗi riêng, độc lập với
+            # chuyện model có đọc được file ngữ cảnh hay không: có cả hai thì nói cả hai.
+            if "�" in text:
                 print("[antigravity] câu trả lời vẫn còn ký tự hỏng sau khi đổi đường",
                       file=sys.stderr)
                 text += _CANH_BAO_HONG_DAU

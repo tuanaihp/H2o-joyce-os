@@ -468,7 +468,7 @@
     const store = Alpine.store("nav");
     const oldTab = { pet: "pet", usage: "usage", logs: "updates" }[id];
     let tab = oldTab || (id === "settings" ? arguments[2] || "general" : null);
-    if (tab && !["general", "voice", "appearance", "pet", "usage", "updates"].includes(tab)) tab = "general";
+    if (tab && !["general", "huongdan", "voice", "appearance", "pet", "usage", "updates"].includes(tab)) tab = "general";
     if (oldTab) id = "settings";
     if (store.active === id && (!tab || store.settingsTab === tab)) return;
     // Cờ `true` (mở trang lúc khởi động, đổi tab Cài đặt) không đáng một bước lùi.
@@ -993,7 +993,13 @@
   // Chức vụ H2O: id -> key i18n. "staff"/"lead" là giá trị hồ sơ cũ, map về
   // nhãn tương đương để không hiện key trần. Mặc định lạ = Nhân viên.
   const STAFF_ROLES = ["ceo", "giam_doc", "truong_phong", "chuyen_gia", "nhan_vien", "hoc_viec"];
-  const roleLbl = (r) => t("staff.role_" + ({ staff: "nhan_vien", lead: "truong_phong" }[r] || r || "nhan_vien"));
+  // Khoá viết đủ cho từng chức vụ (không ghép chuỗi) để test_i18n dò được.
+  const ROLE_KEY = {
+    ceo: "staff.role_ceo", giam_doc: "staff.role_giam_doc", truong_phong: "staff.role_truong_phong",
+    chuyen_gia: "staff.role_chuyen_gia", nhan_vien: "staff.role_nhan_vien", hoc_viec: "staff.role_hoc_viec",
+    staff: "staff.role_staff", lead: "staff.role_lead",
+  };
+  const roleLbl = (r) => t(ROLE_KEY[{ staff: "nhan_vien", lead: "truong_phong" }[r] || r || "nhan_vien"] || ROLE_KEY.nhan_vien);
 
   // Thẻ tự-thông-tin của nhân viên đang đăng nhập (họ không có quyền quản trị):
   // tên, vai trò, SĐT và đúng danh sách model admin đã cấp. Dùng cho cả trang
@@ -1162,7 +1168,7 @@
           <input class="js-input" id="stFSdt" placeholder="${esc(t("staff.f_sdt"))}" inputmode="tel" style="flex:1;min-width:140px">
           <input class="js-input" id="stFPin" placeholder="${esc(t("staff.f_pin"))}" inputmode="numeric" maxlength="8" style="width:130px">
           <select class="js-input" id="stFRole">
-            ${STAFF_ROLES.map(r => `<option value="${r}">${esc(t("staff.role_" + r))}</option>`).join("")}
+            ${STAFF_ROLES.map(r => `<option value="${r}">${esc(t(ROLE_KEY[r]))}</option>`).join("")}
           </select>
         </div>
         <div class="popover-label" style="margin-top:12px">${esc(t("staff.models_lbl"))}</div>
@@ -3305,7 +3311,7 @@
           <button class="s-btn-ghost tl-x" style="margin-left:auto;padding:4px 8px">${ic("x")}</button>
         </div>
         <div class="tl-tabs" style="display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--hairline);flex-wrap:wrap">
-          ${files.map((f, i) => `<button class="tl-tab" data-i="${i}" style="padding:4px 12px;border-radius:8px 8px 0 0;border:1px solid var(--hairline);border-bottom:0;font-size:12px;cursor:pointer;background:${i ? "transparent" : "var(--surface-2,rgba(255,255,255,.08))"};color:var(--text2)">${esc(f.name)}</button>`).join("") || `<span style="color:var(--text3);font-size:12px;padding:4px 0">${esc(t("tl.v_nofiles"))}</span>`}
+          ${files.map((f, i) => `<button class="tl-tab${i ? "" : " on"}" data-i="${i}">${esc(f.name)}</button>`).join("") || `<span style="color:var(--text3);font-size:12px;padding:4px 0">${esc(t("tl.v_nofiles"))}</span>`}
         </div>
         <textarea class="tl-code" spellcheck="false" style="flex:1;min-height:300px;padding:14px 16px;border:0;background:transparent;color:var(--text1);font:12.5px/1.55 ui-monospace,Consolas,monospace;resize:none;outline:none;white-space:pre"></textarea>
         <div style="padding:10px 16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -3322,7 +3328,7 @@
       const moFile = (i) => {
         cur = i;
         ta.value = files[i] ? files[i].content : "";
-        tabs.forEach((b, j) => { b.style.background = j === i ? "var(--surface-2,rgba(255,255,255,.08))" : "transparent"; });
+        tabs.forEach((b, j) => b.classList.toggle("on", j === i));
       };
       tabs.forEach(b => b.onclick = () => moFile(+b.dataset.i));
       if (files.length) moFile(0);
@@ -4568,7 +4574,7 @@
       const result = !reason && t.result ? `<div class="kn-task-result">${esc(t.result.slice(0, 240))}</div>` : "";
       const lane = t.metadata && t.metadata.lane ? `<span title="Intent lane">lane ${esc(t.metadata.lane)}</span>` : "";
       const vf = t.metadata && t.metadata.verify;
-      const verifyBadge = vf ? `<span class="kn-verify-badge ${vf.pass ? "kn-verify-pass" : "kn-verify-fail"}" title="${esc(vf.reason || "")}">${vf.pass ? "✓ " + esc(window.t("kanban.verify_pass")) : "✗ " + esc(window.t("kanban.verify_fail"))}</span>` : "";
+      const verifyBadge = vf ? `<span class="kn-verify-badge ${vf.pass ? "kn-verify-pass" : "kn-verify-fail"}" title="${esc(vf.reason || "")}">${vf.pass ? ic("check") + " " + esc(window.t("kanban.verify_pass")) : ic("x") + " " + esc(window.t("kanban.verify_fail"))}</span>` : "";
       return `<div class="kn-task" data-task="${esc(t.id)}">
         <div class="kn-task-top"><div class="kn-task-title">${_prioIcon(t.priority)} ${esc(t.title)}</div><span class="kn-pill">${esc(_kstatus(t.status))}</span></div>
         <div class="kn-task-meta"><span>${esc(t.capability || "auto")}</span>${lane}<span>attempt ${Number(t.attempts || 0)}/${Number(t.max_attempts || 3)}</span><span>${ago(t.updated_at)}</span></div>
@@ -10787,7 +10793,7 @@
     s.badgeTick++;
   }
 
-  // ---- Command palette (⌘K / Ctrl+K) ----
+  // ---- Command palette (Ctrl+K) ----
   // Một overlay dựng lười, danh mục = mọi trang trong RAIL_ITEMS + vài lệnh nhanh.
   // Lọc bỏ dấu (tái dùng _vtNoAccent) để gõ "vвтор" vẫn ra "Việc".
   let _cmdk = null;        // {root, input, list, idx, items} - dựng một lần
@@ -10914,7 +10920,7 @@
     // refresh ngay khi đổi brain (listener brain-changed ở dưới gọi lại hàm này).
     _pollBadges();
     setInterval(_pollBadges, 60000);
-    // ⌘K / Ctrl+K - command palette (Workstation). Không bắt khi đang gõ trong
+    // Ctrl+K - command palette (Workstation). Không bắt khi đang gõ trong
     // input/textarea/contenteditable - gõ bình thường không được cướp phím.
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {

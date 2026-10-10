@@ -45,7 +45,7 @@ check("tiêu đề và tab cùng một hàng .ht-top", /<div class="ht-top">/.te
 check("tiêu đề lấy từ từ điển của trang (page.conversations.label)", /window\.t\("page\.conversations\.label"\)/.test(CV) && VI["page.conversations.label"] === "Chatbot");
 check("đầu trang chung bị ẩn cho trang này", /\.cview\.cview-hoi-thoai \.cview-head \{ display: none; \}/.test(CSS));
 check("CANARY: lớp cview-hoi-thoai được bật/tắt ở MỌI lần renderPage, trước khi rẽ nhánh theo trang",
-  /cv\.classList\.toggle\("cview-hoi-thoai", id === "conversations" \|\| id === "chatbots"\)/.test(CON) &&
+  /cv\.classList\.toggle\("cview-hoi-thoai", id === "conversations" \|\| id === "chatbots" \|\| id === "kinhdoanh"\)/.test(CON) &&
   CON.indexOf('cv.classList.toggle("cview-hoi-thoai"') < CON.indexOf('if (id === "chat")     return renderChat(el);'));
 check("thân trang không cuộn (từng tab tự cuộn) và đệm gọn hơn", /\.cview\.cview-hoi-thoai \.cview-body \{ padding: 10px 20px 14px; overflow: hidden;/.test(CSS) &&
   /\.ht-tab-body \{[^}]*overflow-y: auto/.test(CSS));

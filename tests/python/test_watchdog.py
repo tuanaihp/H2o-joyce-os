@@ -12,6 +12,9 @@ from _paths import ROOT  # noqa: E402,F401
 import http.server
 import os
 import subprocess
+import shutil
+# Trên Windows CreateProcess tìm "bash" trong System32 TRƯỚC PATH, tức ra WSL chứ không phải Git Bash.
+BASH = shutil.which("bash") or "bash"
 import sys
 import tempfile
 import threading
@@ -28,7 +31,8 @@ def check(name, cond, them=""):
 
 WD = ROOT / "watchdog.sh"
 check("watchdog.sh tồn tại ở gốc repo (cạnh install.sh, update.sh)", WD.exists())
-_syntax = subprocess.run(["bash", "-n", str(WD)], capture_output=True, text=True)
+# Đường dẫn TƯƠNG ĐỐI theo gốc repo: bash trên Windows (Git Bash) không hiểu C:\... của Windows.
+_syntax = subprocess.run([BASH, "-n", WD.relative_to(ROOT).as_posix()], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(ROOT))
 check("cú pháp bash hợp lệ", _syntax.returncode == 0, _syntax.stderr)
 
 SRC = WD.read_text(encoding="utf-8")
@@ -40,11 +44,19 @@ check("nhãn job chính đổi được qua JOYCE_LAUNCHD_LABEL (đồng bộ v�
       "JOYCE_LAUNCHD_LABEL" in SRC)
 
 
+def _duong_bash(p: str) -> str:
+    """Git Bash trên Windows cần đường dẫn kiểu /c/Users/...; trên nơi khác giữ nguyên."""
+    if os.name != "nt":
+        return p
+    drive, rest = os.path.splitdrive(p)
+    return "/" + drive[:1].lower() + rest.replace("\\", "/")
+
+
 def chay(state_dir: str, port: int):
     """Một nhát `watchdog.sh check` với kick giả + state riêng, trả stdout."""
     r = subprocess.run(
-        ["bash", str(WD), "check"], capture_output=True, text=True, cwd=str(ROOT),
-        env={**os.environ, "JOYCE_PORT": str(port), "JOYCE_STATE_DIR": state_dir,
+        [BASH, WD.relative_to(ROOT).as_posix(), "check"], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(ROOT),
+        env={**os.environ, "JOYCE_PORT": str(port), "JOYCE_STATE_DIR": _duong_bash(state_dir),
              "JOYCE_WATCHDOG_FAILS": "3", "JOYCE_WATCHDOG_KICK_CMD": "echo DA_KICK"},
         timeout=30)
     return (r.stdout or "") + (r.stderr or "")

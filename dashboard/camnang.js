@@ -772,7 +772,7 @@
         p: ds.length, s: ds.reduce((s2, d) => s2 + (d.skills || []).length, 0) });
       // Pipeline của đơn vị.
       const buoc = chains[u.chain] || [];
-      chainT.textContent = tw("camnang.pb_chain_" + (u.chain === "wedding" ? "wedding" : u.chain === "academy" ? "academy" : "kl"))
+      chainT.textContent = tw(u.chain === "wedding" ? "camnang.pb_chain_wedding" : u.chain === "academy" ? "camnang.pb_chain_academy" : "camnang.pb_chain_kl")
         + " · " + tw("camnang.pb_step_n", { so: buoc.length });
       lane.innerHTML = buoc.map((s, i) =>
         '<div class="cn-fstep"><b>' + esc(tw("camnang.pb_step", { n: i + 1 })) + '</b>'

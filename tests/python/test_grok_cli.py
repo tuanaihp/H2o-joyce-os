@@ -21,6 +21,7 @@ Bốn chỗ dễ hỏng của mọi driver CLI, cộng hai chỗ riêng của en
 Test dựng một `grok` GIẢ bằng script Python nên chạy được ở CI không có binary thật.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
+from _cli_gia import ghi_cli  # CLI giả chạy được cả Windows lẫn Linux
 import asyncio
 import json
 import os
@@ -168,15 +169,12 @@ def _gia(dong_ra, ma=0, stderr=""):
     d = Path(tempfile.mkdtemp(prefix="joyce-fakegrok-"))
     p = d / "grok"
     body = json.dumps(dong_ra)
-    p.write_text(
-        "#!/usr/bin/env python3\n"
+    p = Path(ghi_cli(p, "#!/usr/bin/env python3\n"
         "import sys, json\n"
         f"for l in {body}:\n"
         "    print(l, flush=True)\n"
         f"sys.stderr.write({stderr!r})\n"
-        f"sys.exit({ma})\n",
-        encoding="utf-8")
-    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        f"sys.exit({ma})\n"))
     return str(p)
 
 
@@ -257,10 +255,11 @@ check("end status=error -> sự kiện error",
 # Đây KHÔNG phải phòng xa: `permission_cho_mode()` fail-closed, nên trên một bản CLI không khai
 # `--permission-mode` nó không truyền cờ nào, và lúc đó không có gì ngoài watchdog gỡ được.
 _treo = Path(tempfile.mkdtemp(prefix="joyce-grokhang-")) / "grok"
-_treo.write_text("#!/usr/bin/env python3\nimport sys, time\n"
+# Trên Windows lệnh giả là .cmd gọi python: khi watchdog giết .cmd, python con vẫn giữ ống stdout nên
+# việc đọc treo tới khi nó thoát. Đóng fd 1, 2 của chính nó trước khi treo để ống được trả về ngay.
+_treo = Path(ghi_cli(_treo, "#!/usr/bin/env python3\nimport os, sys, time\n"
                  "if '--help' in sys.argv:\n    print('  -p, --single')\n"
-                 "else:\n    time.sleep(60)\n", encoding="utf-8")
-_treo.chmod(_treo.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+                 "else:\n    os.close(1); os.close(2)\n    time.sleep(60)\n"))
 _gh = grok_cli.GrokCLI(cwd="/tmp")
 _gh.cli_path = str(_treo)
 _gh.timeout = 2
@@ -313,7 +312,7 @@ check("CANARY: entry MCP dùng khoá `url` - KHÔNG phải `httpUrl` (Gemini) ha
       "url" in _hub and "httpUrl" not in _hub and "serverUrl" not in _hub, _hub)
 _p = grok_cli.ghi_mcp_settings(_brain, _hub)
 check("ghi vào TRONG brain, không đụng ~/.grok của người dùng",
-      _p is not None and str(_brain) in _p and _p.endswith(".grok/config.toml"), _p)
+      _p is not None and str(_brain) in _p and _p.replace("\\", "/").endswith(".grok/config.toml"), _p)
 _st = grok_cli.trang_thai_mcp(_brain)
 check("đọc LẠI chính file vừa ghi thì thấy entry joyce",
       _st["co_joyce"] and _st["url"] == "http://127.0.0.1:8790/mcp" and _st["so_header"] == 3, _st)
@@ -540,8 +539,7 @@ check("và vòng quay kiểm `connected` TRƯỚC khi kêu hết giờ",
 _login_home = tempfile.mkdtemp(prefix="joyce-grokhome-live-")
 _d = Path(tempfile.mkdtemp(prefix="joyce-fakelogin-"))
 _p = _d / "grok"
-_p.write_text(
-    "#!/usr/bin/env python3\n"
+_p = Path(ghi_cli(_p, "#!/usr/bin/env python3\n"
     "import sys, json, time, os, pathlib\n"
     # spinner dùng \r: `readline` của bản cũ đứng chờ \n nên dòng này kẹt trong bộ đệm
     "sys.stdout.write('Waiting for browser...\\r')\n"
@@ -551,9 +549,7 @@ _p.write_text(
     "h = pathlib.Path(os.environ['GROK_HOME']); h.mkdir(parents=True, exist_ok=True)\n"
     "(h/'auth.json').write_text(json.dumps({'oauth': {'accessToken': 'x'*40}},\n"
     "                                      ensure_ascii=False))\n"
-    "print('Logged in as ai@x.ai')\n",
-    encoding="utf-8")
-_p.chmod(_p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    "print('Logged in as ai@x.ai')\n"))
 
 _HOME_CU2 = os.environ.get("GROK_HOME")
 os.environ["GROK_HOME"] = _login_home
@@ -611,8 +607,7 @@ def _gia_kich_ban(than: str):
     """Dựng `grok` giả với thân hàm tự viết, và trỏ cả `co_co` vào nó."""
     d = Path(tempfile.mkdtemp(prefix="joyce-grokq-"))
     q = d / "grok"
-    q.write_text("#!/usr/bin/env python3\nimport sys, json\n" + than, encoding="utf-8")
-    q.chmod(q.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    q = Path(ghi_cli(q, "#!/usr/bin/env python3\nimport sys, json\n" + than))
     return str(q)
 
 

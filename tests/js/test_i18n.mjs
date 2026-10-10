@@ -75,7 +75,9 @@ check("en.json không còn chuỗi tiếng Việt", chuaDich.length === 0,
 // và quốc gia, hoàn toàn hợp lệ - bắt cả chúng thì test thành thứ phải đi vòng qua.
 const XUNG_HO_SAI = /(?<![\p{L}])[Aa]nh(?![\p{L}])/u;
 const NGOAI_LE = /(tiếng|nước|người|giọng)\s+[Aa]nh|[Aa]nh\s+ngữ|toàn\s+Anh/iu;
-for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
+// 2026-09-14 chủ repo bỏ luật "bạn" cho tiếng Việt: xưng hô theo cách người dùng gọi Joyce
+// (xem CLAUDE.md, mục Xưng hô). Nên chỉ còn canh bản tiếng Anh, nơi chỉ có "you"/"I".
+for (const [ten, o] of [["en.json", en]]) {
   const xau = Object.entries(o).filter(([, v]) => {
     const chuoi = String(v);
     return XUNG_HO_SAI.test(chuoi.replace(NGOAI_LE, ""));

@@ -112,7 +112,7 @@
     head.innerHTML =
       '<span class="jd-ico ' + loai + '">' + (ICON[loai] || ICON.info) + '</span>' +
       '<span class="jd-title"></span>' +
-      '<button class="jd-x" aria-label="' + ti("common.close", "Đóng") + '">✕</button>';
+      '<button class="jd-x" aria-label="' + ti("common.close", "Đóng") + '">' + (window.ic ? window.ic("x") : "") + '</button>';
     head.querySelector(".jd-title").textContent =
       v.title || (loai === "err" ? ti("jd.err", "Có lỗi") : loai === "ok" ? ti("jd.ok", "Xong") : ti("jd.info", "Thông báo"));
 

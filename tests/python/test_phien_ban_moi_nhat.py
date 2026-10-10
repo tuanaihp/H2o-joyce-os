@@ -17,6 +17,9 @@ os.environ.setdefault("JOYCE_STATE_DIR", tempfile.mkdtemp(prefix="joyce-banmoi-"
 import httpx  # noqa: E402
 import main  # noqa: E402
 
+# Không có JOYCE_GITHUB_REPO thì _latest_remote_version trả về ngay, không hỏi gì; test cần một nguồn để dò.
+main.GITHUB_REPO = "h2o-team/joyce-os"
+
 _fails = []
 
 

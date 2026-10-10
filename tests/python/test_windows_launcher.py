@@ -48,12 +48,12 @@ check("cd /d về thư mục script trước (không tin working directory kế 
       "cùng bài học với start-joyce.vbs)", 'cd /d "%~dp0"' in bat)
 
 # ---- autostart ----
-check("autostart đặt shortcut trong thư mục Startup của USER (không cần admin)",
-      'GetFolderPath("Startup")' in ps1)
+check("autostart đặt tác vụ theo USER (/rl limited, không cần admin)",
+      "schtasks /create" in ps1 and "/rl limited" in ps1)
 check("shortcut trỏ wscript + start-joyce.vbs (chạy NEN khi đăng nhập, không bật trình duyệt)",
       "wscript.exe" in ps1 and "start-joyce.vbs" in ps1)
 check("có đủ ba việc install/uninstall/status", all(k in ps1 for k in ("install", "uninstall", "status")))
-check("uninstall xoá đúng shortcut đã tạo", "Remove-Item $Lnk" in ps1)
+check("uninstall xoá đúng các tác vụ đã tạo", 'schtasks /delete /tn "JoyceOS-Boot"' in ps1 and 'schtasks /delete /tn "JoyceOS-Watchdog"' in ps1)
 check("wrapper .bat gọi ps1 với ExecutionPolicy Bypass (máy user mặc định chặn ps1)",
       "ExecutionPolicy Bypass" in as_bat)
 

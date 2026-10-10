@@ -38,7 +38,8 @@ def check(name, cond):
 from sessions import SessionStore  # noqa: E402
 import main  # noqa: E402
 
-with tempfile.TemporaryDirectory() as td:
+# ignore_cleanup_errors: Windows không xoá được conv.db khi kết nối SQLite còn mở; file tạm đó vô hại.
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
     store = SessionStore(db_path=Path(td) / "conv.db")
 
     # ---- 1. Ghim / gỡ ghim ở tầng lưu trữ ----

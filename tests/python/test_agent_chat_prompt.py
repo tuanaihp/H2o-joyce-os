@@ -52,7 +52,9 @@ except FileNotFoundError:
 sach = main._ket_luot_agent("brain", "nguoi-viet", "viết giúp", "Bài đây.\nJOYCE_LESSON: chủ thích câu ngắn")
 check("ket luot boc JOYCE_LESSON", sach.strip() == "Bài đây.")
 mem = (main._brain_memory_dir("brain") / "agents" / "nguoi-viet" / "MEMORY.md")
-check("bai hoc vao bo nho agent", mem.exists() and "chủ thích câu ngắn" in mem.read_text(encoding="utf-8"))
+# Bài học đi qua hàng "Chờ duyệt" của Kanban, chưa vào MEMORY.md cho tới khi chủ duyệt.
+check("bai hoc xep cho duyet, chua vao bo nho agent (chu duyet moi ghi)",
+      not mem.exists() or "chủ thích câu ngắn" not in mem.read_text(encoding="utf-8"))
 runs = list((main._brain_memory_dir("brain") / "agents" / "nguoi-viet" / "runs").glob("*.md"))
 check("nhat ky run cua agent co dong", runs and "viết giúp" in runs[0].read_text(encoding="utf-8"))
 

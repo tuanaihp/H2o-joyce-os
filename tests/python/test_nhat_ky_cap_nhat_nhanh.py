@@ -75,6 +75,9 @@ class _HttpxGia:
 # Chặn mọi đường ra ngoài: file này phải chạy được khi CI không có mạng.
 sys.modules["httpx"] = _HttpxGia
 main._read_version = lambda: "0.5.0"
+# Không có JOYCE_GITHUB_REPO (CI không có .env) thì _cl_remote_releases trả về ngay, không hỏi
+# GitHub; test cần một nguồn để thấy bản 0.5.1 "chưa cài".
+main.GITHUB_REPO = "h2o-team/joyce-os"
 main._CL_LOCAL.update({"sig": ("gia",), "releases": main._parse_changelog(LOCAL_MD)})
 main._cl_local_releases = lambda: main._CL_LOCAL["releases"]
 

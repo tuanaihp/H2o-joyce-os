@@ -136,7 +136,8 @@ root = Path(_TMP) / "brain-cu"
 (root / "Memory" / "MEMORY.md").write_text("- [Cũ](Memory/facts/cu.md)\n", encoding="utf-8")
 mem = main._brain_memory_dir(str(root))
 check("brain cũ chỉ có Memory/ hoa vẫn dùng đúng thư mục đó, không bị ép đổi",
-      mem.name == "Memory" and mem.is_dir())
+      mem.is_dir() and os.path.samefile(mem, root / "Memory"))
+# (So sánh bằng samefile: trên Windows `memory` và `Memory` là MỘT thư mục, tên chỉ khác cách gõ.)
 check("brain cũ không mất ký ức nào", _doc(mem / "facts" / "cu.md").strip() == "ký ức cũ")
 check("brain cũ không bị đẻ thêm memory/ thường trống bên cạnh",
       not (root / "memory").is_dir() or not PHAN_BIET_HOA_THUONG)

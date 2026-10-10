@@ -47,7 +47,12 @@ def check(name, cond):
 
 
 def _binary_gia(thu_muc: Path, ten: str) -> Path:
+    """Binary giả tìm được qua PATH. Windows tìm theo PATHEXT nên phải là .cmd; Linux/macOS là file shell."""
     thu_muc.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        f = thu_muc / (ten + ".cmd")
+        f.write_text("@echo off\necho gia\n", encoding="utf-8")
+        return f
     f = thu_muc / ten
     f.write_text("#!/bin/sh\necho gia\n", encoding="utf-8")
     f.chmod(f.stat().st_mode | stat.S_IEXEC)
@@ -61,13 +66,13 @@ _bin_dir = Path(tempfile.mkdtemp(prefix="joyce-fakebin-"))
 _fake = _binary_gia(_bin_dir, "joycefakecli")
 _path_that = os.environ.get("PATH", "")
 os.environ["PATH"] = str(_bin_dir)
-check("tìm được binary trên PATH", cc.tim_binary("joycefakecli") == str(_fake))
+check("tìm được binary trên PATH", os.path.normcase(cc.tim_binary("joycefakecli") or "") == os.path.normcase(str(_fake)))
 
 # Đây là ca Antigravity: PATH bị một installer khác ghi đè/cắt cụt, binary KHÔNG mất.
 os.environ["PATH"] = str(Path(tempfile.mkdtemp(prefix="joyce-empty-")))
 cc._BIN_NHO["data"] = None          # tiến trình mới: đọc lại bản nhớ từ file
 check("PATH bị cắt cụt vẫn dùng lại được chỗ đã nhớ",
-      cc.tim_binary("joycefakecli") == str(_fake))
+      os.path.normcase(cc.tim_binary("joycefakecli") or "") == os.path.normcase(str(_fake)))
 check("bản nhớ ghi xuống file trong STATE_DIR",
       (Path(os.environ["JOYCE_STATE_DIR"]) / "bin_paths.json").exists())
 

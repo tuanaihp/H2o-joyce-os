@@ -36,7 +36,7 @@ def check(name, cond):
 
 
 WS = Path(_TMP) / "du-an"
-(WS / "con").mkdir(parents=True, exist_ok=True)
+(WS / "thu-muc-con").mkdir(parents=True, exist_ok=True)
 (WS / "a.txt").write_text("noi dung a", encoding="utf-8")
 
 
@@ -119,8 +119,8 @@ check("giữ đúng mã thoát", kq.exit_code == 3)
 kq = rc.chay("python -c \"import os; print(os.getcwd())\"", ctx("auto"))
 check("chạy ĐÚNG trong thư mục làm việc", str(WS.resolve()) in kq.output)
 
-kq = rc.chay("python -c \"import os; print(os.getcwd())\"", ctx("auto"), cwd="con")
-check("cwd con được phép", str((WS / "con").resolve()) in kq.output)
+kq = rc.chay("python -c \"import os; print(os.getcwd())\"", ctx("auto"), cwd="thu-muc-con")
+check("cwd con được phép", str((WS / "thu-muc-con").resolve()) in kq.output)
 
 
 # ---- 6. Env lọc trắng: lệnh con KHÔNG thấy bí mật của server ----

@@ -72,14 +72,20 @@ with tempfile.TemporaryDirectory() as td:
     out_sach = _learn("chuyen-vien-test", out_tho)
     check("CANARY: marker bị BÓC khỏi output (không chảy vào {{prev}}/UI)",
           "JOYCE_LESSON" not in out_sach and "Đã xong việc." in out_sach)
+    # Bài học KHÔNG ghi thẳng vào MEMORY.md: nó xếp thành task "Chờ duyệt" trên Kanban của brain.
     mem = (memf / "MEMORY.md").read_text(encoding="utf-8")
-    check("CANARY: bài học vào đúng mục tự học",
+    check("CANARY: bài học CHƯA vào MEMORY.md khi chưa được chủ duyệt",
+          main._BAI_HOC_HEADER not in mem)
+    # Chủ bấm Duyệt trên trang Việc: đó là đúng lời gọi _ghi_bai_hoc (xem _task_move_today).
+    main._ghi_bai_hoc(brain, "chuyen-vien-test", ["Chủ thích báo cáo dạng bảng.", "Kho A thường trễ 2 ngày."])
+    mem = (memf / "MEMORY.md").read_text(encoding="utf-8")
+    check("CANARY: khi chủ duyệt, bài học vào đúng mục tự học",
           main._BAI_HOC_HEADER in mem and "- Chủ thích báo cáo dạng bảng." in mem)
     check("phần chủ viết tay còn NGUYÊN", "# Ghi chú của chủ" in mem
           and "- Khách quen tên Ba." in mem)
 
     # Chống trùng: cùng bài học (khác hoa thường/dấu chấm) không được nhân đôi.
-    _learn("chuyen-vien-test", "ok\nJOYCE_LESSON: chủ thích báo cáo dạng bảng\n")
+    main._ghi_bai_hoc(brain, "chuyen-vien-test", ["chủ thích báo cáo dạng bảng"])
     mem = (memf / "MEMORY.md").read_text(encoding="utf-8")
     check("bài học trùng (khác hoa thường) không nhân đôi",
           mem.count("báo cáo dạng bảng") == 1)

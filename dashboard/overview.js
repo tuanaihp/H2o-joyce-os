@@ -545,7 +545,7 @@
           ${grp("know-hot", "flame", t("ov.ws_know_hot"), (d.hot || []).length, hotHtml)}
           ${grp("know-inbox", "paperclip", t("ov.ws_know_inbox"), c.inbox || 0, inboxHtml)}
           <div class="ovw-know-acts">
-            <button type="button" class="ov-secondary" id="ovwKnowUp">${ic("upload")} ${esc(t("ov.ws_know_up"))}</button>
+            <button type="button" class="ov-secondary" id="ovwKnowUp">${ic("plus")} ${esc(t("ov.ws_know_up"))}</button>
             <button type="button" class="ov-ghost" id="ovwKnowDistill">${ic("sparkles")} ${esc(t("ov.ws_know_distill"))}</button>
             <button type="button" class="ov-ghost" id="ovwKnowBrowse">${ic("folder-open")} ${esc(t("ov.ws_know_browse"))}</button>
             <input type="file" id="ovwKnowFile" hidden>

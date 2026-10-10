@@ -529,17 +529,20 @@ def register(app, deps: TodayDeps):
     @router.get("/api/joyce/v1/brief-ai")
     async def api_brief_ai(brain: str = Query("brain")):
         try:
-            pulse_items, _ = _build_pulse()
-        except Exception:
-            pulse_items = []
-        counts = _counts_now()
-        try:
             apps = _ping_cache["items"] or []   # chỉ cache - không ping mạng ở đây
             conn_down = sum(1 for r in (deps.connect_snapshot() or {}).values()
                             if r.get("ok") is False)
             unread = deps.inbox_unread()
         except Exception:
             apps, conn_down, unread = [], 0, 0
+        # Trước đây gọi _build_pulse() (không tồn tại) và except nuốt lỗi, nên bản tóm tắt AI
+        # không bao giờ có mục Pulse. Giờ gọi đúng _pulse() và ghi lỗi nếu có.
+        try:
+            pulse_items, _ = _pulse(deps, brain, apps)
+        except Exception as e:  # noqa: BLE001
+            _log_pulse_error("brief-ai", e)
+            pulse_items = []
+        counts = _counts_now()
         base = _brief({
             "blocked": int(counts.get("blocked", 0)),
             "review": int(counts.get("approvals", counts.get("review", 0))),

@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix="joyce-codex-context-") as tmp:
             "input_tokens": 378930, "cached_input_tokens": 308480, "output_tokens": 3}},
     ]
     script = "import json\n" + "\n".join(
-        f"print(json.dumps({json.dumps(ev, ensure_ascii=False)}), flush=True)"
+        f"print(json.dumps({json.dumps(ev)}), flush=True)"
         for ev in fake_events
     )
     parser_cli = CodexCLI(cwd=tmp)

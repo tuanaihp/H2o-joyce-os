@@ -64,6 +64,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
                 return provider
 
             class Socket:
+                cookies = {}   # kết nối giả không có cookie: nhân viên/đăng nhập không áp dụng
                 def __init__(self):
                     self.n = 0
 
@@ -91,7 +92,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
             def write_auth():
                 calls["auth"] += 1
 
-            namespace = dict(
+            namespace = dict(h2o_staff_mod=types.SimpleNamespace(staff_by_token=lambda tok: None), _STAFF_SCOPE=__import__('contextvars').ContextVar('staff_scope', default=None), 
                 asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x,
                 cfgmod=types.SimpleNamespace(gate_active=lambda: False,
                                              read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),

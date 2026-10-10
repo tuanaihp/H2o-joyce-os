@@ -319,7 +319,7 @@ check("menu đo chỗ trống thật quanh chip rồi mới đặt",
 
 // ---- 9. Nối vào rail ----
 check("coding có trong RAIL_ITEMS", /"terminal", "coding"/.test(CON));
-check("coding nằm trong NHÓM Code", /ids: \["terminal", "coding"\]/.test(CON));
+check("coding nằm trong NHÓM Code", /id: "code"[^\n]*ids: \[[^\]]*"coding"/.test(CON));
 check("index.html nạp coding.js TRƯỚC console.js",
   HTML.indexOf("coding.js") > 0 && HTML.indexOf("coding.js") < HTML.indexOf("console.js?"));
 check("nhãn trang có ở cả hai từ điển", !!VI["page.coding.label"] && !!EN["page.coding.label"]);

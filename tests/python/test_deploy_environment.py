@@ -77,9 +77,13 @@ deploy_knobs = {"JOYCE_NAME", "JOYCE_HOST_PORT"}
 # Token thì không ai cần đổi nên đã đóng cứng. Giữ nguyên tinh thần cũ: mỗi ô phải kiếm được
 # chỗ của nó, không phải cứ tiện tay là thêm.
 update_knobs = {"JOYCE_AUTO_UPDATE"}
+# Núm thứ tư, thêm ở bản H2O 1.0.0 (a87f344) có chủ đích: JOYCE_IMAGE trỏ image sang registry RIÊNG
+# của H2O (vd ghcr.io/h2o-team/joyce-os:latest). Mặc định là image build local nên bỏ trống vẫn chạy.
+# Nó là nơi duy nhất cho người cài đổi image mà không cần sửa compose.
+image_knobs = {"JOYCE_IMAGE"}
 check(
-    "Hostinger chỉ tham chiếu ba biến nhập liệu + hai núm cài nhiều bản + núm tự cập nhật",
-    hostinger_vars == (hostinger_env - {"WATCHTOWER_TOKEN"}) | deploy_knobs | update_knobs,
+    "Hostinger chỉ tham chiếu ba biến nhập liệu + hai núm cài nhiều bản + núm tự cập nhật + núm image H2O",
+    hostinger_vars == (hostinger_env - {"WATCHTOWER_TOKEN"}) | deploy_knobs | update_knobs | image_knobs,
 )
 check(
     "JOYCE_AUTO_UPDATE có mặc định TẮT → bỏ trống là hành vi cũ, không ai bị tự restart bất ngờ",

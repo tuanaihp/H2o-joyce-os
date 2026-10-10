@@ -87,7 +87,8 @@ check("chiếu sáng đĩa 320px < 80ms (chỉ chạy khi pha/hướng/cỡ đ�
 check("drawMoonDisc dùng ảnh bề mặt, có đường lui đĩa phẳng", /var img = moonImage\(res, p, rot \|\| 0, gl, col\);/.test(PLANET) && /Đường lui/.test(PLANET));
 check("ảnh trăng được giữ giữa các khung (bộ đệm theo cỡ/pha/hướng/độ sáng/màu)", /if \(moonCv && key === moonKey\) return moonCv;/.test(PLANET));
 check("dựng bản đồ lúc trình duyệt rảnh, không chặn khung hình", /requestIdleCallback\(run/.test(PLANET) && /if \(!moonMap\) \{ scheduleMoonMap\(\); return null; \}/.test(PLANET));
-check("ảnh trăng giới hạn 320px (phóng to không làm nặng)", /clamp\(Math\.ceil\(2 \* r \* dprOv \/ 16\) \* 16, 32, 320\)/.test(PLANET));
+// Chế độ HD (3D View siêu nét) cho ảnh trăng tới 512px có chủ đích; chế độ thường 320px.
+check("ảnh trăng giới hạn 320px thường, 512px ở HD (phóng to không làm nặng)", /clamp\(Math\.ceil\(2 \* r \* dprOv \/ 16\) \* 16, 32, hdMode \? 512 : 320\)/.test(PLANET));
 
 if (fails.length) {
   console.log("\n" + fails.length + " FAIL");

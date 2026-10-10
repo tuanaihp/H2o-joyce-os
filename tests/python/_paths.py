@@ -26,6 +26,15 @@ SYSTEM = ROOT / "system"
 if str(SERVER) not in sys.path:
     sys.path.insert(0, str(SERVER))
 
+# Test không đọc file .env của máy đang chạy. CI chạy trên checkout sạch KHÔNG có file đó, nên kết
+# quả trên máy dev (có .env đặt JOYCE_REQUIRE_LOGIN, JOYCE_ENABLE_USER_PLUGINS...) phải giống hệt CI.
+# server/main.py gọi `from dotenv import load_dotenv`, nên vá ở đây là đủ: vá trước khi main được nạp.
+try:
+    import dotenv as _dotenv
+    _dotenv.load_dotenv = lambda *a, **k: False
+except ImportError:
+    pass
+
 
 def moi_route(app):
     """Mọi route của app, ĐI ĐỆ QUY qua các router con. Trả danh sách đối tượng route.
@@ -57,3 +66,10 @@ def moi_route(app):
 def moi_duong_dan(app):
     """Tập hợp đường dẫn của mọi route, đi đệ quy. Xem moi_route()."""
     return {getattr(r, "path", "") for r in moi_route(app)}
+
+
+def correr(coro):
+    """Chạy một coroutine trong test. Từ Python 3.14 `asyncio.get_event_loop()` không còn tự tạo
+    vòng lặp ở luồng chính, nên test dùng hàm này (chạy được trên 3.12 của CI lẫn 3.14 trên máy dev)."""
+    import asyncio
+    return asyncio.run(coro)

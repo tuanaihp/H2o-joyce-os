@@ -13,12 +13,23 @@ có đọc lại được nguyên vẹn không (mật khẩu người ta gõ có
 thoát - mọi thứ làm vỡ một lệnh sed viết theo lối thường gặp).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+# Trên Windows CreateProcess tìm "bash" trong System32 TRƯỚC PATH, tức ra WSL chứ không phải Git Bash.
+BASH = shutil.which("bash") or "bash"
+
+
+def _env_co_python3(thu_muc):
+    """Môi trường có shim `python3` trỏ về đúng trình Python đang chạy test (Ubuntu có sẵn, Windows thì không)."""
+    shim = Path(thu_muc) / "python3"
+    shim.write_text('#!/bin/sh\nexec "%s" "$@"\n' % sys.executable.replace("\\", "/"), encoding="utf-8")
+    shim.chmod(0o755)
+    return {**os.environ, "PATH": str(thu_muc) + os.pathsep + os.environ.get("PATH", "")}
 
 _fails = []
 
@@ -33,7 +44,7 @@ SRC = (ROOT / "install.sh").read_text(encoding="utf-8")
 
 # ---- 1. Cú pháp + hợp đồng của khối ----
 check("install.sh còn chạy được (bash -n)",
-      subprocess.run(["bash", "-n", str(ROOT / "install.sh")]).returncode == 0)
+      subprocess.run([BASH, "-n", "install.sh"], cwd=str(ROOT)).returncode == 0)
 check("có khối đặt sẵn tài khoản quản trị", "JOYCE_ADMIN_PASSWORD" in SRC)
 check("KHÔNG dùng sed để ghi mật khẩu vào .env (mật khẩu chứa | & \\ \" ' là vỡ)",
       not re.search(r"sed .*JOYCE_ADMIN_PASSWORD", SRC))
@@ -64,10 +75,11 @@ def _chay_khoi(env_ban_dau: str, lan: int = 1):
         (tmp / "blok.sh").write_text(
             "log(){ echo \"-> $*\"; }\nok(){ echo \"OK $*\"; }\nwarn(){ echo \"!! $*\"; }\n"
             "set -euo pipefail\n" + khoi, encoding="utf-8")
+        env_chay = _env_co_python3(tmp)   # khối này gọi python3 (xem _env_co_python3)
         out = ""
         for _ in range(lan):
-            r = subprocess.run(["bash", "blok.sh"], cwd=tmp, capture_output=True, text=True,
-                               stdin=subprocess.DEVNULL)
+            r = subprocess.run([BASH, "blok.sh"], cwd=tmp, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               stdin=subprocess.DEVNULL, env=env_chay)
             out += r.stdout + r.stderr
         return (tmp / ".env").read_text(encoding="utf-8"), out
     finally:
@@ -127,7 +139,7 @@ try:
     _fn = SRC[SRC.index("_env_set() {"):SRC.index("_env_has()")]
     (_tmp / "f.sh").write_text("set -euo pipefail\n" + _fn +
                                '\n_env_set JOYCE_ADMIN_PASSWORD "$1"\n', encoding="utf-8")
-    subprocess.run(["bash", "f.sh", _HIEM], cwd=_tmp, check=True, capture_output=True)
+    subprocess.run([BASH, "f.sh", _HIEM], cwd=_tmp, check=True, capture_output=True, env=_env_co_python3(_tmp))
     _sau = (_tmp / ".env").read_text(encoding="utf-8")
     check("mật khẩu hiểm ghi rồi đọc lại NGUYÊN VẸN",
           _doc(_sau, "JOYCE_ADMIN_PASSWORD") == _HIEM)

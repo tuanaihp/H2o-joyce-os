@@ -25,7 +25,7 @@ Kèm luôn cái chốt cho nguyên nhân macOS ở tầng dưới: tiến trình
 giản của launchd, nên `claude`/`codex` cài bằng Homebrew (Apple Silicon: /opt/homebrew/bin) hay
 nvm đều "không tìm thấy" dù gõ trong Terminal vẫn chạy.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER, correr  # noqa: E402,F401
 import asyncio
 import os
 import sys
@@ -80,7 +80,18 @@ check("đăng nhập ChatGPT xong thì cho phép hỏi lại (bộ nhớ 'đã h
 # ============================================================
 # 2. Rỗng thì phải nói VÌ SAO, và nói được câu dùng được
 # ============================================================
+# Ghim trạng thái "chưa cài Codex CLI" để kết quả không phụ thuộc máy chạy test (máy dev có thể đã cài).
+main.find_codex_cli = lambda *a, **k: None
 _m = c.read_settings()["model"]
+
+
+# Không gọi mạng và không đọc ~/.codex của máy: danh sách model "trực tiếp" coi như không lấy được.
+async def _khong_lay_duoc_model(provider, m):
+    return None
+
+
+_fetch_that = main._fetch_provider_models
+main._fetch_provider_models = _khong_lay_duoc_model
 _ly_do = main._vi_sao_khong_co_model("openai-oauth", _m)
 check("đã kết nối + không thấy Codex CLI -> chỉ đúng việc phải làm",
       "Codex" in _ly_do and ("npm i -g @openai/codex" in _ly_do),
@@ -102,7 +113,7 @@ check("không có gì để nói thì im, không bịa lý do",
       main._vi_sao_khong_co_model("anthropic-cli", _m) == "")
 
 # Lý do phải ĐI RA TỚI người dùng, không dừng ở server.
-_r = asyncio.get_event_loop().run_until_complete(
+_r = correr(
     main.provider_models_index("openai-oauth", refresh=True))
 check("/provider/models trả kèm lý do khi danh sách rỗng",
       _r.get("live") is False and bool(_r.get("error")), _r)
@@ -141,7 +152,7 @@ def _bot(commands=None):
 
 _b = _bot()
 _cl = _FakeClient({"ok": True})
-asyncio.get_event_loop().run_until_complete(_b._day_menu_lenh(_cl))
+correr(_b._day_menu_lenh(_cl))
 _scopes = [(g.get("scope") or {}).get("type", "default") for _, g in _cl.goi]
 check("đặt menu cho CẢ BA phạm vi, không chỉ mặc định",
       _scopes == ["default", "all_private_chats", "all_group_chats"], _scopes)
@@ -154,7 +165,7 @@ check("đặt trót lọt thì không báo lỗi gì", _b.loi_menu_lenh == "")
 # Telegram từ chối = HTTP 200 + ok:false. Đây đúng là chỗ bản cũ nuốt mất.
 _b2 = _bot()
 _cl2 = _FakeClient({"ok": False, "description": "BOT_COMMAND_INVALID"})
-asyncio.get_event_loop().run_until_complete(_b2._day_menu_lenh(_cl2))
+correr(_b2._day_menu_lenh(_cl2))
 check("CANARY: ok:false (HTTP 200, không có exception) vẫn bị bắt là hỏng",
       bool(_b2.loi_menu_lenh) and "BOT_COMMAND_INVALID" in _b2.loi_menu_lenh, _b2.loi_menu_lenh)
 check("câu báo nói rõ hậu quả: bot vẫn chạy, chỉ là không tự sổ danh sách",
@@ -167,7 +178,7 @@ class _ClientNo:
 
 
 _b3 = _bot()
-asyncio.get_event_loop().run_until_complete(_b3._day_menu_lenh(_ClientNo()))
+correr(_b3._day_menu_lenh(_ClientNo()))
 check("mạng rớt cũng vào cùng một chỗ báo lỗi, không nổ ra ngoài",
       "OSError" in _b3.loi_menu_lenh)
 
@@ -188,7 +199,7 @@ check("thẻ bot chuyên trách hiện lỗi đó",
 # Bot chuyên trách vẫn phải giữ menu RIÊNG của khách, không bị kéo về menu quản trị.
 _b4 = _bot(commands=[{"command": "help", "description": "Bot này giúp được gì"}])
 _cl4 = _FakeClient({"ok": True})
-asyncio.get_event_loop().run_until_complete(_b4._day_menu_lenh(_cl4))
+correr(_b4._day_menu_lenh(_cl4))
 check("CANARY: menu truyền riêng vào không bị thay bằng menu quản trị",
       all(len(g["commands"]) == 1 for _, g in _cl4.goi))
 
@@ -204,7 +215,8 @@ try:
     check("CANARY: PATH tối giản thì shutil.which KHÔNG thấy - đây là gốc của lỗi",
           __import__("shutil").which("codex") is None)
     _duong = claude_cli._duong_dan_tim_binary()
-    for _d in ("/opt/homebrew/bin", "/usr/local/bin"):
+    # Homebrew chỉ có trên macOS/Linux; trên Windows đường tìm có bộ riêng nên bỏ qua hai mục này.
+    for _d in (("/opt/homebrew/bin", "/usr/local/bin") if os.name != "nt" else ()):
         check(f"đường tìm có {_d}", _d in _duong)
     check("có cả thư mục cài của người dùng (~/.local/bin)",
           str((claude_cli._home_dir() / ".local" / "bin")) in _duong or "/.local/bin" in _duong)
@@ -213,14 +225,15 @@ try:
 
     # Có binary thật trong một thư mục ngoài PATH thì phải tìm ra.
     from pathlib import Path as _P
-    _fake = _P(_tmp) / "codex"
-    _fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    # Windows tìm theo PATHEXT nên phải có đuôi .cmd; Linux/macOS là file shell chạy được.
+    _fake = _P(_tmp) / ("codex.cmd" if os.name == "nt" else "codex")
+    _fake.write_text("@echo off\r\nexit /b 0\r\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n", encoding="utf-8")
     _fake.chmod(0o755)
     _cu_dirs = claude_cli._THU_MUC_BIN_THEM
     try:
         claude_cli._THU_MUC_BIN_THEM = (_tmp,)
         check("tim_binary soi được thư mục cài ngoài PATH",
-              claude_cli.tim_binary("codex") == str(_fake))
+              os.path.normcase(claude_cli.tim_binary("codex") or "") == os.path.normcase(str(_fake)))
     finally:
         claude_cli._THU_MUC_BIN_THEM = _cu_dirs
     check("không có thật thì vẫn trả None, không bịa đường dẫn",

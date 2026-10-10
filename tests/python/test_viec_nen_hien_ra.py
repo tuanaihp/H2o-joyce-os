@@ -209,7 +209,7 @@ check("bỏ cổng sai `not view.get(\"orchestration\")` (chuỗi 'off' luôn tr
       'not view.get("orchestration")' not in PLUGIN)
 check("cổng mới so đúng với 'auto'", '== "auto"' in PLUGIN)
 check("op=add chỉ hứa 'kết quả tự về' khi điều phối THẬT SỰ chạy",
-      re.search(r"if _dieu_phoi_chay\(muc\):\s*\n\s*ra\.append\(\"Việc chạy nền", PLUGIN)
+      re.search(r"if _dieu_phoi_chay\(muc\)[^\n]*:[\s\S]{0,400}?ra\.append\(\"Việc chạy nền", PLUGIN)
       is not None)
 check("op=add cảnh báo khi điều phối tắt", "_CANH_BAO_DIEU_PHOI.format(muc=muc)" in PLUGIN)
 check("cảnh báo dặn model đừng hứa việc đang chạy",

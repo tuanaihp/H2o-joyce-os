@@ -32,7 +32,9 @@
     if (state.reasoning === "low" || state.reasoning === "medium") return "balanced";
     return "fast";
   };
-  const modeLabel = (m) => window.t("mode." + m);
+  // Khoá viết đủ (không ghép chuỗi) để test_i18n dò được; mode lạ thì rơi về cân bằng.
+  const MODE_KEY = { fast: "mode.fast", balanced: "mode.balanced", deep: "mode.deep", private: "mode.private" };
+  const modeLabel = (m) => window.t(MODE_KEY[m] || MODE_KEY.balanced);
   const privateOk = () => state.providers.some((p) => p.id === "ollama-local" && p.configured);
 
   const short = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26) || window.t("models.mp_default");

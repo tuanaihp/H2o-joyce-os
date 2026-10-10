@@ -48,7 +48,13 @@ brain = Path(tempfile.mkdtemp(prefix="joyce-brain-")).resolve()
 (brain / "attachments" / "so do.png").write_bytes(b"\x89PNG")
 ngoai = Path(tempfile.mkdtemp(prefix="joyce-ngoai-")).resolve()
 (ngoai / "lac.md").write_text("z", encoding="utf-8")
-ENC = quote(f"{brain}/wiki/{TEN}")          # dạng model ghi: %20, %C3%A0, %28...
+# Đường dẫn dạng URI: "/C:/..." trên Windows (đúng như file:///C:/... mà model viết), "/..." trên Linux.
+def _duong_uri(p):
+    s = str(p).replace("\\", "/")
+    return s if s.startswith("/") else "/" + s
+B_PATH = _duong_uri(brain)
+N_PATH = _duong_uri(ngoai)
+ENC = quote(f"{B_PATH}/wiki/{TEN}")          # dạng model ghi: %20, %C3%A0, %28...
 
 
 def H(t, w=None):
@@ -76,7 +82,7 @@ check("_go_file_uri: không phải file URI → None",
 check("CANARY: link file:// mã hoá %xx trỏ vào brain → tương đối theo gốc brain",
       H(f"[x](file://{ENC})") == f"[x](wiki/{TEN})", H(f"[x](file://{ENC})"))
 check("file:// với khoảng trắng và ngoặc trần cũng ra đúng",
-      H(f"[x](file://{brain}/wiki/{TEN})") == f"[x](wiki/{TEN})", H(f"[x](file://{brain}/wiki/{TEN})"))
+      H(f"[x](file://{B_PATH}/wiki/{TEN})") == f"[x](wiki/{TEN})", H(f"[x](file://{B_PATH}/wiki/{TEN})"))
 check("file://localhost/... cũng gỡ được",
       H(f"[x](file://localhost{ENC})") == f"[x](wiki/{TEN})")
 check("file:///wiki/x.md (tương đối theo brain nhưng khoác giao thức) → mở được nếu file có thật",
@@ -84,14 +90,14 @@ check("file:///wiki/x.md (tương đối theo brain nhưng khoác giao thức) �
 check("file:///wiki/khong-co.md → giữ nguyên (không bịa)",
       H("[x](file:///wiki/khong-co.md)") == "[x](file:///wiki/khong-co.md)")
 check("CANARY: file:// NGOÀI brain giữ nguyên (không bịa một đường vào brain)",
-      H(f"[x](file://{ngoai}/lac.md)") == f"[x](file://{ngoai}/lac.md)")
+      H(f"[x](file://{N_PATH}/lac.md)") == f"[x](file://{N_PATH}/lac.md)")
 check("ảnh markdown file:// cũng chuẩn hoá",
-      H(f"![sơ đồ](file://{brain}/attachments/so%20do.png)") == "![sơ đồ](attachments/so do.png)")
+      H(f"![sơ đồ](file://{B_PATH}/attachments/so%20do.png)") == "![sơ đồ](attachments/so do.png)")
 check("file:// trong backtick → backtick tương đối",
       H(f"Đã lưu `file://{ENC}`") == f"Đã lưu `wiki/{TEN}`", H(f"Đã lưu `file://{ENC}`"))
 check("file:// TRẦN trong câu → bọc backtick tương đối",
       H(f"Đã lưu file://{ENC} nhé") == f"Đã lưu `wiki/{TEN}` nhé", H(f"Đã lưu file://{ENC} nhé"))
-check("file:// trần ngoài brain giữ nguyên", H(f"xem file://{ngoai}/lac.md đi") == f"xem file://{ngoai}/lac.md đi")
+check("file:// trần ngoài brain giữ nguyên", H(f"xem file://{N_PATH}/lac.md đi") == f"xem file://{N_PATH}/lac.md đi")
 check("autolink <file:///...> không bị đụng", H("xem <file:///x/y.md> nhé") == "xem <file:///x/y.md> nhé")
 check("URL http có (ngoặc) trong query giữ nguyên",
       H("[u](https://a.vn/x?y=(1))") == "[u](https://a.vn/x?y=(1))")
@@ -101,7 +107,8 @@ check("URL http có (ngoặc) trong query giữ nguyên",
 # ============================================================
 check("file:// trỏ đúng file trong brain → không báo", K(f"[x](file://{ENC})") == [])
 check("file:// ngoài brain → báo bằng đường dẫn đã gỡ giao thức",
-      K(f"[x](file://{ngoai}/lac.md)") == [f"{ngoai}/lac.md"], K(f"[x](file://{ngoai}/lac.md)"))
+      K(f"[x](file://{N_PATH}/lac.md)") == [f"{ngoai}/lac.md".replace("\\", "/").lstrip("/")],
+      K(f"[x](file://{N_PATH}/lac.md)"))
 check("file:///wiki/khong-co.md → báo", K("[x](file:///wiki/khong-co.md)") == ["/wiki/khong-co.md"])
 
 # ============================================================

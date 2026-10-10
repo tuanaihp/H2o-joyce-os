@@ -64,7 +64,7 @@ check("console vẫn biết id chatbots (nguồn icon, nhãn, bí danh)", /"chat
 // 0.62.4 nó rơi qua nhánh "mục chưa xếp nhóm" và hiện ra ở CUỐI nhóm Hệ thống - cạnh Tài
 // khoản, đúng chỗ chẳng ai ngờ (chủ repo thấy 21/09). Lọc phải áp cho cả nhánh đó.
 check("CANARY: mục chưa xếp nhóm cũng phải đi qua RAIL_AN",
-  /RAIL_ITEMS\.filter\(i => !seen\.has\(i\.id\) && !RAIL_AN\.has\(i\.id\)\)/.test(CON));
+  /RAIL_ITEMS\.filter\(i => !seen\.has\(i\.id\) && !(?:RAIL_AN\.has\(i\.id\)|an\(i\.id\))\)/.test(CON));
 // Hidden items (including chatbots) are checked through railGroups in test_settings_tabs.js.
 check("console định tuyến sang trang Chatbot",
   /if \(id === "chatbots"\) return renderChatbots\(el\)/.test(CON));
@@ -161,7 +161,7 @@ check("đổi mức là vẽ lại cảnh báo ngay", /input\[name="cbMuc"\]'\)\
 // Chưa tick mà lưu được thì cả khối cảnh báo chỉ là trang trí.
 check("chưa tick đồng ý thì không lưu được",
   /can_xac_nhan && !\(ack && ack\.checked\)/.test(CB));
-check("mức toàn quyền còn hỏi lại một lần nữa", /muc === "full" &&\s*\n?\s*!confirm\(/.test(CB));
+check("mức toàn quyền còn hỏi lại một lần nữa (hộp thoại của app)", /muc === "full" &&\s*\n?\s*!await (?:JoyceDialog\.confirm|confirm)\(/.test(CB));
 check("cảnh báo nói thẳng người điều khiển là người nhắn cho bot",
   noi("cb.intro_6", "người điều khiển bot là người nhắn cho nó")
   || noi("cb.mq_full", "Người điều khiển là người nhắn cho nó"));

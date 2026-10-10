@@ -130,7 +130,7 @@ script = (
     f"p = pathlib.Path({str(out_png)!r}); p.parent.mkdir(parents=True, exist_ok=True)\n"
     f"p.write_bytes({PNG!r})\n"
     f"print(json.dumps({{'type': 'item.completed', 'item': {{'type': 'agent_message', "
-    f"'text': 'Xong: [ảnh](' + p.as_posix() + ')'}}}}), flush=True)\n"
+    f"'text': 'Xong: [\\u1ea3nh](' + p.as_posix() + ')'}}}}), flush=True)\n"
     "print(json.dumps({'type': 'turn.completed', 'usage': {}}), flush=True)\n"
 )
 cli = CodexCLI(cwd=str(repo))
@@ -146,7 +146,7 @@ async def _gom():
 evs = asyncio.run(_gom())
 final = next((e for e in evs if e.get("type") == "final"), {})
 check("CodexCLI: câu cuối nhúng ảnh trong brain",
-      final.get("content") == "Xong: ![ảnh](attachments/codex-019fa10e-call_xyz.png)", final.get("content"))
+      final.get("content") == "Xong: ![\u1ea3nh](attachments/codex-019fa10e-call_xyz.png)", final.get("content"))
 check("CodexCLI: ảnh vào brain chứ không vào repo",
       (vault2 / "attachments" / "codex-019fa10e-call_xyz.png").is_file()
       and not (repo / "attachments").exists())
