@@ -82,6 +82,22 @@ Mỗi mục là một lát nhỏ, làm và kiểm xong rồi mới sang mục sa
 3. **Cách chọn loại đề xuất.** Tiền tố trong task, hay trường trong form? Đề xuất: tiền tố (ít code nhất).
 4. **Ai được đề nghị Change Request, ai duyệt L1.** Đề xuất: mọi nhân viên đề nghị; trưởng phòng duyệt.
 
+## Mẫu frontmatter cho SOP (wiki/quy-trinh/)
+
+```yaml
+---
+type: wiki
+status: active            # active (đang hiệu lực) | superseded (đã thay thế)
+phien_ban: 2              # tăng khi đổi qua Change Request
+ngay_ra_soat: 2026-12-01  # đến ngày này phải rà soát; quá hạn thì trang báo
+thay_the: chup-album-v1   # slug bản cũ, nếu có (bản cũ giữ nguyên, status: superseded)
+---
+```
+
+Quy tắc: SOP có `status: active` không sửa trực tiếp, muốn đổi thì tạo ý tưởng `loai: sua-quy-trinh`.
+Khi bản mới được duyệt, bản cũ đổi `status: superseded` và không xoá. Mã hiệu và lần ban hành
+của SOP gốc (ví dụ CG.CN.0003, lần 01) giữ nguyên trong thân trang.
+
 ## Bước tiếp theo
 
 Sau khi chủ duyệt spec: viết plan theo mẫu trong `docs/dev/quy-trinh-ke-hoach.md`, rồi làm

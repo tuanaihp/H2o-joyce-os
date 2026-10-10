@@ -33,25 +33,25 @@ trang hiện đúng đang ở bước nào.
 
 ## Các task
 
-- [ ] T0 - Đặt xí chỗ 1.3.7 (VERSION, CHANGELOG, plan). Kiểm: `tests/python/test_version_khop_changelog.py`
+- [x] T0 - Đặt xí chỗ 1.3.7 (VERSION, CHANGELOG, plan). Kiểm: `tests/python/test_version_khop_changelog.py`
   và `tests/python/test_phien_ban_moi_nhat.py` đều xanh.
-- [ ] T1 - `server/nghien_cuu.py`: hàm thuần đọc một thư mục brain và trả sáu khu. Không import
+- [x] T1 - `server/nghien_cuu.py`: hàm thuần đọc một thư mục brain và trả sáu khu. Không import
   `main`. Kiểm: `tests/python/test_nghien_cuu.py` dựng brain tạm và kiểm từng khu, gồm trường hợp
   brain rỗng, trang thiếu `giai_doan`, log có dòng lạ, và frontmatter có dấu hai chấm trong giá trị.
-- [ ] T2 - Route `GET /nghien-cuu` trong `server/main.py`, gọi `nghien_cuu.doc_trang(root)`.
+- [x] T2 - Route `GET /nghien-cuu` trong `server/main.py`, gọi `nghien_cuu.doc_trang(root)`.
   Kiểm: `python tests/run.py route_table` xanh sau khi chụp lại có chủ ý; gọi endpoint trả JSON
   đủ sáu khoá.
-- [ ] T3 - Trang `dashboard/nghien-cuu.js` (sáu khu, chỉ đọc, token theme). Nối vào: nhóm
+- [x] T3 - Trang `dashboard/nghien-cuu.js` (sáu khu, chỉ đọc, token theme). Nối vào: nhóm
   `nang_luc` trong `RAIL_ITEMS`, dispatch trong `console.js`, `VIEW_META`, `server/ui_targets.py`
   (PAGES và ALIASES), `dashboard/ui-actions.js` (PAGES), `index.html` (script), `i18n` vi và en.
   Kiểm: `tests/js/test_trang_nghien_cuu.js` mới (nguồn có đủ nối dây), `test_i18n.mjs`,
   `test_giao_dien_toi.js`, `test_tong_quan.js` vẫn xanh.
-- [ ] T4 - Cổng ý tưởng: sao lưu `skills/h2o-y-tuong/SKILL.md` của brain pilot, rồi sửa bước 1 để
+- [x] T4 - Cổng ý tưởng: sao lưu `skills/h2o-y-tuong/SKILL.md` của brain pilot, rồi sửa bước 1 để
   nhận tiền tố `[Ý tưởng][loại]` (loại: Concept, Quy trình mới, Sửa quy trình). Không có tiền tố thì
   skill tự phân loại theo nội dung và ghi lý do. Ghi `loai` và `giai_doan: moi` vào frontmatter.
   Không đổi tiền tố `[Ý tưởng]` nên luồng tự chạy trong `server/tasks.py` và `task_store.py` không đổi.
   Kiểm: đọc lại skill; tạo một trang mẫu trong brain tạm, rồi `nghien_cuu.doc_trang` đọc đúng `loai` và `giai_doan`.
-- [ ] T5 - Tài liệu hoá quy tắc SOP ACTIVE: mẫu frontmatter (`phien_ban`, `thay_the`, `ngay_ra_soat`)
+- [x] T5 - Tài liệu hoá quy tắc SOP ACTIVE: mẫu frontmatter (`phien_ban`, `thay_the`, `ngay_ra_soat`)
   và quy tắc sửa qua Change Request, ghi trong spec. Không khoá quyền ghi ở tầng file (để sau).
   Kiểm: trang trong T1 đọc được các trường này trong brain tạm.
 - [ ] T6 - Bộ test đầy đủ như CI (venv Python 3.12, Linux-equivalent), CHANGELOG hoàn chỉnh,
