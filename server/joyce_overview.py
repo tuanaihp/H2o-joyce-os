@@ -60,6 +60,7 @@ class OverviewDeps:
     # Nhân viên H2O: phạm vi brain của họ (None = quản trị, không khoá) và cấp chức vụ
     staff_scope: Callable[[], Any] = lambda: None
     staff_cap: Callable[[Any], str] = lambda st: "nhan_vien"
+    brain_root: Callable[[str], str] = lambda b: b  # "brain"/tên brain -> đường dẫn tuyệt đối
 
 
 def _log(src: str, e: Exception) -> None:
@@ -278,6 +279,169 @@ def _quy_trinh(brain_path: str) -> dict:
                 out[nhom].append({"ten": _tieu_de_qt(f), "file": f, "rel": rel})
                 tong += 1
     return {"giai_doan": out, "tong": tong}
+
+
+# ---------------------------------------------------------------------------------------
+# Tri thức phòng: trưởng phòng cần trả lời "phòng tôi đang biết gì / còn thiếu gì" chứ
+# không phải cây thư mục kỹ thuật. Gom một lần: sources = đã nạp (đánh dấu chưng cất hay
+# chưa nhờ link 'source:' trong wiki), wiki = tri thức đang dùng gom theo chủ đề, inbox =
+# file Telegram/Zalo nhận về, hot = file hay được mở (đếm từ /files/read).
+# ---------------------------------------------------------------------------------------
+_KNOW_BO_FILE = {"index.md", "log.md", "readme.md", "memory.md"}
+_KNOW_SRC_RE = re.compile(r"^\s*source:\s*\[?\[?([^\]\n]+?)\]?\]?\s*$", re.M | re.I)
+_KNOW_STATUS_RE = re.compile(r"^\s*status:\s*([^\s#]+)", re.M | re.I)
+_KNOW_TEXT_EXT = (".md", ".markdown", ".txt")
+
+
+def _know_scan(root: str, sub: str) -> list:
+    base = os.path.join(root, sub)
+    out = []
+    if not os.path.isdir(base):
+        return out
+    for dp, dns, fns in os.walk(base):
+        dns[:] = [x for x in dns if not x.startswith(".")]
+        for fn in fns:
+            if fn.startswith("."):
+                continue
+            fp = os.path.join(dp, fn)
+            try:
+                st = os.stat(fp)
+            except OSError:
+                continue
+            out.append({"ten": fn, "rel": os.path.relpath(fp, root).replace("\\", "/"),
+                        "abs": fp, "mtime": st.st_mtime, "size": st.st_size})
+    out.sort(key=lambda x: -x["mtime"])
+    return out
+
+
+def _know_head(fp: str) -> str:
+    try:
+        with open(fp, encoding="utf-8", errors="replace") as f:
+            return f.read(4000)
+    except Exception:
+        return ""
+
+
+def _knowledge(root: str) -> dict:
+    out = {"sources": [], "wiki_groups": [], "inbox": [], "hot": [],
+           "counts": {"sources": 0, "wiki": 0, "attachments": 0, "inbox": 0, "facts": 0},
+           "stale": 0}
+    if not root or not os.path.isdir(root):
+        return out
+    now = time.time()
+
+    # --- wiki: đọc đầu mỗi trang để nhặt 'source:' link -> tập nguồn đã chưng cất,
+    # đồng thời gom theo thư mục con (chủ đề) thay vì trả một list phẳng.
+    ref_full, ref_stem, ref_base = set(), set(), set()
+    wgrp: dict = {}
+    wtong = 0
+    for it in _know_scan(root, "wiki"):
+        if not it["rel"].lower().endswith(_KNOW_TEXT_EXT):
+            continue
+        if os.path.basename(it["rel"]).lower() in _KNOW_BO_FILE:
+            continue
+        wtong += 1
+        phan = it["rel"].split("/")
+        chude = phan[1] if len(phan) > 2 else ""
+        wgrp.setdefault(chude, []).append(
+            {"ten": _tieu_de_qt(it["ten"]), "rel": it["rel"], "mtime": it["mtime"]})
+        head = _know_head(it["abs"])
+        for m in _KNOW_SRC_RE.finditer(head):
+            r = m.group(1).strip().strip("[]").replace("\\", "/").lower()
+            if not r:
+                continue
+            ref_full.add(r)
+            ref_stem.add(os.path.splitext(r)[0])
+            ref_base.add(os.path.splitext(os.path.basename(r))[0])
+    out["wiki_groups"] = [{"chude": k, "items": v[:12]} for k, v in wgrp.items()]
+
+    def _distilled(it) -> bool:
+        # Bóc dần đuôi (x.docx.txt -> x.docx -> x): ref trỏ vào bản GỐC .docx nhưng trên
+        # đĩa có thể chỉ còn bản trích xuất .txt, hoặc ngược lại - cả hai cùng là một
+        # tài liệu. Lặp tối đa 3 lần là đủ cho đuôi kép.
+        s = it["rel"].lower()
+        for _ in range(3):
+            if s in ref_full or s in ref_stem:
+                return True
+            if os.path.splitext(os.path.basename(s))[0] in ref_base:
+                return True
+            s2 = os.path.splitext(s)[0]
+            if s2 == s:
+                break
+            s = s2
+        if it["rel"].lower().endswith(_KNOW_TEXT_EXT):
+            st = _KNOW_STATUS_RE.search(_know_head(it["abs"]))
+            if st and st.group(1).strip().lower() not in ("unprocessed", "pending"):
+                return True
+        return False
+
+    # --- sources: tài liệu đã nạp, mới trước. Gộp cặp "X.docx" + "X.docx.txt" (bản
+    # trích xuất chữ của chính file gốc) thành MỘT dòng tên gốc, trường `doc` trỏ bản
+    # .txt để bấm mở là đọc được chữ thay vì file nhị phân.
+    src_all = _know_scan(root, "sources")
+    byrel = {it["rel"].lower(): it for it in src_all}
+    src = []
+    for it in src_all:
+        rel_l = it["rel"].lower()
+        if rel_l.endswith(".txt") and rel_l[:-4] in byrel:
+            continue  # sidecar trích xuất - nhập vào dòng bản gốc
+        twin = byrel.get(rel_l + ".txt")
+        if twin:
+            it["doc"] = twin["rel"]
+        it["distilled"] = _distilled(it)
+        it.pop("abs", None)
+        src.append(it)
+    stale = 0
+    for it in src:
+        if not it["distilled"] and now - it["mtime"] > 7 * _DAY:
+            stale += 1
+            it["cu"] = True
+    out["sources"] = src[:40]
+    out["stale"] = stale
+
+    # --- inbox: file nhận từ kênh ngoài (telegram/zalo/khach...), kenh = thư mục con.
+    inbox = []
+    inbox_all = _know_scan(root, "inbox")
+    for it in inbox_all[:15]:
+        phan = it["rel"].split("/")
+        it["kenh"] = phan[1] if len(phan) > 2 else ""
+        it.pop("abs", None)
+        inbox.append(it)
+    out["inbox"] = inbox
+
+    # --- hot: file hay được mở nhất. Store đếm lượt mở ghi từ /files/read; mới chạy
+    # lần đầu thì rỗng - trả rỗng thay vì bịa xếp hạng.
+    hot = []
+    try:
+        import json as _json
+        import config as _cfg
+        d = _json.loads((_cfg.STATE_DIR / "file-views.json").read_text(encoding="utf-8"))
+        if isinstance(d, dict):
+            pfx = os.path.normcase(os.path.realpath(root)) + "|"
+            for k, v in d.items():
+                if isinstance(k, str) and k.startswith(pfx) and isinstance(v, dict):
+                    hot.append({"ten": v.get("ten") or os.path.basename(k),
+                                "rel": k[len(pfx):], "lan": int(v.get("n") or 0)})
+            hot.sort(key=lambda x: -x["lan"])
+    except Exception:
+        pass
+    out["hot"] = hot[:6]
+
+    # Ký ức = memory/facts/*.md (tôn trọng cả bố cục 'Memory' chữ hoa của brain cũ -
+    # chỉ đọc, không tạo thư mục như _brain_memory_dir).
+    facts = 0
+    for memname in ("memory", "Memory"):
+        fd = os.path.join(root, memname, "facts")
+        try:
+            if os.path.isdir(fd):
+                facts = sum(1 for f in os.listdir(fd) if f.endswith(".md"))
+                break
+        except OSError:
+            pass
+    out["counts"] = {"sources": len(src), "wiki": wtong,
+                     "attachments": len(_know_scan(root, "attachments")),
+                     "inbox": len(inbox_all), "facts": facts}
+    return out
 
 
 # ---------------------------------------------------------------------------------------
@@ -644,6 +808,33 @@ def register(app, deps: OverviewDeps):
         except Exception as e:  # noqa: BLE001
             _log("quy-trinh", e)
             return {"ok": False, "error": "không đọc được quy trình", "giai_doan": {}}
+
+    @router.get("/api/joyce/v1/overview/knowledge")
+    async def api_knowledge(request: Request, brain: str = Query("")):
+        """Panel 'tri thức phòng' trong workspace trưởng phòng: gom nguồn/wiki/inbox/
+        file hay mở một lần thay vì frontend gọi N request /files/list. `brain` là đường
+        dẫn brain (giống quy-trinh) hoặc 'brain' = Brain Default. Trưởng phòng chỉ đọc
+        được brain trong phạm vi được cấp (_cc_trong_pham_vi)."""
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        root = (brain or "brain").strip()
+        if not os.path.isdir(root):
+            try:
+                root = deps.brain_root(root)
+            except Exception:
+                root = ""
+        # Kể cả admin cũng chỉ đọc được ĐÚNG một gốc brain - param này là đường dẫn tự
+        # do nên không siết thì endpoint biến thành máy quét file của toàn ổ đĩa.
+        hop_le = {os.path.normcase(os.path.realpath(str(x))) for x in (deps.brain_paths() or [])}
+        if not root or os.path.normcase(os.path.realpath(root)) not in hop_le \
+                or not _cc_trong_pham_vi(root, scope):
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            return {"ok": True, **_knowledge(os.path.realpath(root))}
+        except Exception as e:  # noqa: BLE001
+            _log("knowledge", e)
+            return {"ok": False, "error": "không đọc được tri thức phòng"}
 
     @router.get("/api/joyce/v1/overview/calendar")
     async def api_calendar(request: Request, start: str = Query(""), days: int = Query(7, ge=1, le=31)):

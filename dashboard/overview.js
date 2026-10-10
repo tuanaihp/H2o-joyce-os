@@ -403,6 +403,23 @@
     };
     const denLoops = () => { dongHet(); chonBrain(brainSel, p.ten); setTimeout(() => go("selfimprove"), 60); };
 
+    // Thu gọn nhóm (data-grp/data-grp-h): drawer phòng đã gắn ở moWorkspace, overlay
+    // "Không gian CEO" thì chưa - gắn ở đây một lần. Cờ __grpBound tránh toggle 2 lần.
+    const grpThu = window.__ovGrpThu || (window.__ovGrpThu = new Set());
+    const grpKhoa = (kk) => String(p.brain || p.ten || "") + "|" + kk;
+    if (!w.__grpBound) {
+      w.__grpBound = true;
+      w.addEventListener("click", (e) => {
+        const h = e.target.closest("[data-grp-h]");
+        if (!h || !w.contains(h)) return;
+        const grp = h.closest("[data-grp]");
+        if (!grp) return;
+        const on = grp.classList.toggle("collapsed");
+        const kk = grpKhoa(grp.dataset.grp);
+        if (on) grpThu.add(kk); else grpThu.delete(kk);
+      });
+    }
+
     // Hiện trạng + bảng việc: một GET /kanban cho cả hai.
     api("/kanban?brain=" + eb).then((r) => {
       if (!w.isConnected) return;
@@ -482,16 +499,80 @@
       const go2 = box.querySelector("[data-ws]"); if (go2) go2.onclick = denLoops;
     });
 
-    // Kho tri thức: nguồn/wiki lấy từ dữ liệu phòng đã có, facts hỏi riêng.
-    api("/memory/stats?brain=" + eb).then((r) => {
-      if (!w.isConnected) return;
-      const box = w.querySelector("#ovwWsKnow");
-      if (!box) return;
-      const facts = r.data && r.data.facts != null ? r.data.facts : null;
-      box.innerHTML = `<div class="ov-dmetric">${[["ov.mem_sources", p.nguon], ["ov.mem_wiki", p.wiki], ["ov.mem_facts", facts]]
-          .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>
-        <p class="ov-dim ovw-sec-d">${esc(t("ov.ws_know_d"))}</p>`;
-    });
+    // Kho tri thức phòng: một GET gom nguồn/wiki/kênh/hay-mở thay vì N request. Trưởng
+    // phòng đọc theo NGHĨA vận hành (đã nạp / đang dùng / hay mở / từ kênh chat), mỗi mục
+    // bấm mở thẳng file - không phải đi đọc cây thư mục sources/wiki/memory.
+    const KENH = { telegram: "Telegram", zalo: "Zalo", khach: t("ov.ws_know_kenh_khach") };
+    const taiKnow = () => {
+      api("/api/joyce/v1/overview/knowledge?brain=" + encodeURIComponent(brainSel)).then((r) => {
+        if (!w.isConnected) return;
+        const box = w.querySelector("#ovwWsKnow");
+        if (!box) return;
+        const d = (r.data && r.data.ok !== false) ? r.data : null;
+        if (!d) { box.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`; return; }
+        const c = d.counts || {};
+        const fmtD = (ms) => { const x = new Date(ms * 1000); return String(x.getDate()).padStart(2, "0") + "/" + String(x.getMonth() + 1).padStart(2, "0"); };
+        const moFile = (rel) => { if (window.JoyceFileEditor) window.JoyceFileEditor.open(rel, { brain: brainSel }); };
+        const dong = (it, meta) => `<div class="ovw-kitem" data-rel="${esc(it.doc || it.rel)}" title="${esc(it.rel)}">`
+          + `<span class="ovw-kname">${esc(it.ten)}</span><span class="ovw-kmeta">${meta}<span class="ovw-kdate">${fmtD(it.mtime || 0)}</span></span></div>`;
+        // Nhóm luôn hiện kể cả khi rỗng (inner rỗng -> câu trống) - trưởng phòng thấy
+        // cấu trúc đủ 4 mục, biết kênh nào CHƯA có dữ liệu thay vì mục đó biến mất.
+        const grp = (khoa, icon, nhan, n, inner) =>
+          `<div class="ovw-capgrp${grpThu.has(grpKhoa(khoa)) ? " collapsed" : ""}" data-grp="${khoa}"><span data-grp-h>${ic(icon)} ${esc(nhan)} <b>${n}</b>${ic("chevron-down")}</span><div>${inner || `<div class="ovw-ksub">${esc(t("ov.ws_know_empty"))}</div>`}</div></div>`;
+
+        const srcHtml = (d.sources || []).map((it) => dong(it,
+          `<b class="ovw-kb ${it.distilled ? "ok" : it.cu ? "old" : "wait"}">${esc(t(it.distilled ? "ov.ws_know_done" : "ov.ws_know_wait"))}</b>`)).join("");
+        const wikiHtml = (d.wiki_groups || []).map((g) =>
+          `<div class="ovw-ksub">${esc(g.chude ? g.chude.replace(/[-_]/g, " ") : t("ov.ws_know_common"))}</div>`
+          + g.items.map((it) => dong(it, "")).join("")).join("");
+        const hotHtml = (d.hot || []).length
+          ? d.hot.map((it) => dong(it, `<span class="ov-dim">${esc(t("ov.ws_know_opens", { n: it.lan }))}</span>`)).join("")
+          : `<div class="ovw-ksub">${esc(t("ov.ws_know_hot_empty"))}</div>`;
+        const inboxHtml = (d.inbox || []).length
+          ? d.inbox.map((it) => dong(it, `<b class="ovw-kb kenh">${esc(KENH[it.kenh] || it.kenh || t("ov.ws_know_kenh_khac"))}</b>`)).join("")
+          : `<div class="ovw-ksub">${esc(t("ov.ws_know_inbox_empty"))}</div>`;
+
+        box.innerHTML = `<div class="ov-dmetric">${[["ov.mem_sources", c.sources], ["ov.mem_wiki", c.wiki], ["ov.mem_facts", c.facts], ["ov.ws_know_inbox_n", c.inbox]]
+            .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>
+          ${d.stale ? `<div class="ovw-kwarn">${ic("triangle-alert")} ${esc(t("ov.ws_know_stale", { n: d.stale }))}</div>` : ""}
+          ${grp("know-src", "inbox", t("ov.ws_know_src"), (d.sources || []).length, srcHtml)}
+          ${grp("know-wiki", "book-open", t("ov.ws_know_wiki"), c.wiki || 0, wikiHtml)}
+          ${grp("know-hot", "flame", t("ov.ws_know_hot"), (d.hot || []).length, hotHtml)}
+          ${grp("know-inbox", "paperclip", t("ov.ws_know_inbox"), c.inbox || 0, inboxHtml)}
+          <div class="ovw-know-acts">
+            <button type="button" class="ov-secondary" id="ovwKnowUp">${ic("upload")} ${esc(t("ov.ws_know_up"))}</button>
+            <button type="button" class="ov-ghost" id="ovwKnowDistill">${ic("sparkles")} ${esc(t("ov.ws_know_distill"))}</button>
+            <button type="button" class="ov-ghost" id="ovwKnowBrowse">${ic("folder-open")} ${esc(t("ov.ws_know_browse"))}</button>
+            <input type="file" id="ovwKnowFile" hidden>
+            <span class="ov-dim ovw-kmsg" id="ovwKnowMsg"></span>
+          </div>`;
+
+        box.querySelectorAll(".ovw-kitem").forEach((el) => (el.onclick = () => moFile(el.dataset.rel)));
+        const inp = box.querySelector("#ovwKnowFile"), msg = box.querySelector("#ovwKnowMsg");
+        box.querySelector("#ovwKnowUp").onclick = () => inp.click();
+        inp.onchange = async () => {
+          if (!inp.files || !inp.files[0]) return;
+          const fd = new FormData();
+          fd.append("brain", brainSel); fd.append("folder", "sources"); fd.append("file", inp.files[0]);
+          try {
+            const rr = await fetch("/files/upload", { method: "POST", body: fd, credentials: "same-origin" });
+            const jj = await rr.json().catch(() => ({}));
+            msg.textContent = jj.ok ? t("ov.ws_know_up_ok", { ten: jj.name || inp.files[0].name }) : (jj.error || t("ov.ws_know_up_err"));
+            if (jj.ok) setTimeout(taiKnow, 400);
+          } catch (e) { msg.textContent = t("ov.ws_know_up_err"); }
+          inp.value = "";
+        };
+        box.querySelector("#ovwKnowDistill").onclick = () => {
+          dongHet(); chonBrain(brainSel, p.ten);
+          setTimeout(() => hoiJoyce(t("ov.ws_know_distill_q", { phong: p.ten })), 120);
+        };
+        box.querySelector("#ovwKnowBrowse").onclick = () => { dongHet(); moBrain(brainSel, p.ten); };
+      }).catch(() => {
+        const box = w.querySelector("#ovwWsKnow");
+        if (box && w.isConnected) box.innerHTML = `<span class="ov-dim">${esc(t("ov.dw_cap_err"))}</span>`;
+      });
+    };
+    taiKnow();
 
     // Giao việc: tiêu đề + yêu cầu, "Chạy qua" = auto | wf:<slug>, tick Cần duyệt khi
     // việc chạm ngoài. Việc luôn vào đúng brain phòng - tránh lỗi giao nhầm não.
@@ -644,6 +725,8 @@
       const k = grpKhoa(grp.dataset.grp);
       if (on) grpThu.add(k); else grpThu.delete(k);
     });
+    w.__grpBound = true;   // napWs kiểm cờ này: overlay CEO chưa bind thì nó tự bind,
+                           // drawer đã bind rồi thì khỏi gắn thêm (toggle hai lần = không đổi)
     // Nạp năng lực thật của brain phòng: agent phụ, workflow, skill.
     const cap = w.querySelector("#ovwCap");
     if (p.has_brain) {
@@ -747,6 +830,19 @@
         if (f.style.display !== "none") { try { w.querySelector("#ovwWsATitle").focus(); } catch (e) {} }
         return;
       }
+      if (a === "files") {
+        // "Thư mục tệp" không nhảy sang cây file nữa - cuộn tới panel Tri thức phòng
+        // ngay trong drawer (xem file thô vẫn có nút riêng "Mở thư mục tệp" trong panel).
+        const kb = w.querySelector("#ovwWsKnow");
+        const sec = kb ? kb.closest("section") : null;
+        if (sec) {
+          sec.scrollIntoView({ behavior: "smooth", block: "start" });
+          sec.classList.remove("ovw-kflash"); void sec.offsetWidth;
+          sec.classList.add("ovw-kflash");
+          setTimeout(() => sec.classList.remove("ovw-kflash"), 1800);
+          return;
+        }
+      }
       dong();
       if (a === "board") { chonBrain(p.brain_path, p.ten); setTimeout(() => go("kanban"), 60); }
       else if (a === "files") moBrain(p.brain_path, p.ten);
@@ -825,7 +921,16 @@
     w.querySelectorAll("[data-ws]").forEach((b) => (b.onclick = () => {
       const a = b.dataset.ws;
       if (a === "board") { dongHet(); chonBrain(p.brain_path || "brain", p.ten); go("kanban"); }
-      else if (a === "files") { dongHet(); moBrain(p.brain_path || "brain", p.ten); }
+      else if (a === "files") {
+        const kb = w.querySelector("#ovwWsKnow");
+        const sec = kb ? kb.closest("section") : null;
+        if (sec) {
+          sec.scrollIntoView({ behavior: "smooth", block: "start" });
+          sec.classList.remove("ovw-kflash"); void sec.offsetWidth;
+          sec.classList.add("ovw-kflash");
+          setTimeout(() => sec.classList.remove("ovw-kflash"), 1800);
+        } else { dongHet(); moBrain(p.brain_path || "brain", p.ten); }
+      }
       else if (a === "improve") {
         dongHet(); chonBrain(p.brain_path || "brain", p.ten);
         setTimeout(() => hoiJoyce(t("ov.dw_improve_q", { phong: p.ten, vai: p.vai || "", nhiemvu: (p.nhiem_vu || []).join("; "), daura: k.dau_ra || "" })), 120);

@@ -7391,6 +7391,39 @@ async def files_md_hong_sua(brain: str = Form("brain"), paths: str = Form("")):
     return {"ok": True, "da_sua": da_sua, "loi": loi}
 
 
+_FILE_VIEWS_CAP = 4000
+
+
+def _file_view_bump(broot: str, rel: str, ten: str) -> None:
+    """Cộng một lượt mở vào STATE_DIR/file-views.json (khoá = brain|rel). Store chỉ đếm
+    FILE nào được mở bao nhiêu lần - không ghi ai mở, đủ cho xếp hạng 'nhân viên hay mở'
+    mà không thành nhật ký theo dõi cá nhân."""
+    p = cfgmod.STATE_DIR / "file-views.json"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(d, dict):
+            d = {}
+    except Exception:
+        d = {}
+    k = os.path.normcase(broot) + "|" + rel
+    it = d.get(k) or {}
+    it["n"] = int(it.get("n") or 0) + 1
+    it["last"] = time.time()
+    it["ten"] = ten
+    d[k] = it
+    if len(d) > _FILE_VIEWS_CAP:
+        for kk in sorted(d, key=lambda x: (d[x].get("last") or 0))[: len(d) - _FILE_VIEWS_CAP]:
+            d.pop(kk, None)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = str(p) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f2:
+            json.dump(d, f2, ensure_ascii=False)
+        os.replace(tmp, p)
+    except Exception:
+        pass
+
+
 @app.get("/files/read")
 async def files_read(brain: str = Query("brain"), path: str = Query(...)):
     try:
@@ -7405,6 +7438,13 @@ async def files_read(brain: str = Query("brain"), path: str = Query(...)):
         text = f.read_text(encoding="utf-8")
     except Exception:
         return JSONResponse({"error": "File nhị phân - không xem được dạng văn bản"}, status_code=415)
+    # Ghi lượt mở cho panel 'tri thức phòng' - chỉ đếm file nằm TRONG gốc brain (file
+    # ngoài trần duyệt không thuộc tri thức của phòng nào nên bỏ qua).
+    try:
+        broot = Path(_brain_root(brain)).resolve()
+        _file_view_bump(str(broot), f.resolve().relative_to(broot).as_posix(), f.name)
+    except Exception:
+        pass
     # `abs` để trình sửa ghim được file đang mở vào khung chat: engine cần ĐƯỜNG DẪN THẬT
     # mới mở được file, mà đường dẫn tương đối ở đây tính theo TRẦN DUYỆT chứ không theo gốc
     # brain (hai cái khác nhau khi trần cao hơn brain) nên client tự ghép là ghép sai.
@@ -17644,6 +17684,7 @@ joyce_overview.register(app, joyce_overview.OverviewDeps(
     skills_count=_overview_skills_count,
     staff_scope=lambda: _STAFF_SCOPE.get(),
     staff_cap=lambda st: _staff_cap(st or {}),
+    brain_root=lambda b: str(_brain_root(b)),
 ))
 
 
