@@ -514,14 +514,19 @@
         const fmtD = (ms) => { const x = new Date(ms * 1000); return String(x.getDate()).padStart(2, "0") + "/" + String(x.getMonth() + 1).padStart(2, "0"); };
         const moFile = (rel) => { if (window.JoyceFileEditor) window.JoyceFileEditor.open(rel, { brain: brainSel }); };
         const dong = (it, meta) => `<div class="ovw-kitem" data-rel="${esc(it.doc || it.rel)}" title="${esc(it.rel)}">`
-          + `<span class="ovw-kname">${esc(it.ten)}</span><span class="ovw-kmeta">${meta}<span class="ovw-kdate">${fmtD(it.mtime || 0)}</span></span></div>`;
+          // Ngày chỉ hiện khi có mtime thật: mục xếp hạng "hay mở" không mang ngày, và trước đây
+          // nó rơi về 0 nên hiện "01/01" ở mọi dòng.
+          + `<span class="ovw-kname">${esc(it.ten)}</span><span class="ovw-kmeta">${meta}${it.mtime ? `<span class="ovw-kdate">${fmtD(it.mtime)}</span>` : ""}</span></div>`;
         // Nhóm luôn hiện kể cả khi rỗng (inner rỗng -> câu trống) - trưởng phòng thấy
         // cấu trúc đủ 4 mục, biết kênh nào CHƯA có dữ liệu thay vì mục đó biến mất.
         const grp = (khoa, icon, nhan, n, inner) =>
           `<div class="ovw-capgrp${grpThu.has(grpKhoa(khoa)) ? " collapsed" : ""}" data-grp="${khoa}"><span data-grp-h>${ic(icon)} ${esc(nhan)} <b>${n}</b>${ic("chevron-down")}</span><div>${inner || `<div class="ovw-ksub">${esc(t("ov.ws_know_empty"))}</div>`}</div></div>`;
 
+        // Server chỉ gửi 40 tài liệu mới nhất: nói rõ phần còn lại thay vì cắt im lặng.
+        const srcCon = Math.max(0, (c.sources || 0) - (d.sources || []).length);
         const srcHtml = (d.sources || []).map((it) => dong(it,
-          `<b class="ovw-kb ${it.distilled ? "ok" : it.cu ? "old" : "wait"}">${esc(t(it.distilled ? "ov.ws_know_done" : "ov.ws_know_wait"))}</b>`)).join("");
+          `<b class="ovw-kb ${it.distilled ? "ok" : it.cu ? "old" : "wait"}">${esc(t(it.distilled ? "ov.ws_know_done" : "ov.ws_know_wait"))}</b>`)).join("")
+          + (srcCon ? `<div class="ovw-ksub">${esc(t("ov.ws_know_more", { n: srcCon }))}</div>` : "");
         const wikiHtml = (d.wiki_groups || []).map((g) =>
           `<div class="ovw-ksub">${esc(g.chude ? g.chude.replace(/[-_]/g, " ") : t("ov.ws_know_common"))}</div>`
           + g.items.map((it) => dong(it, "")).join("")).join("");
@@ -535,7 +540,7 @@
         box.innerHTML = `<div class="ov-dmetric">${[["ov.mem_sources", c.sources], ["ov.mem_wiki", c.wiki], ["ov.mem_facts", c.facts], ["ov.ws_know_inbox_n", c.inbox]]
             .map(([kk, v]) => `<div><strong>${v == null ? "-" : so(v)}</strong><span>${esc(t(kk))}</span></div>`).join("")}</div>
           ${d.stale ? `<div class="ovw-kwarn">${ic("triangle-alert")} ${esc(t("ov.ws_know_stale", { n: d.stale }))}</div>` : ""}
-          ${grp("know-src", "inbox", t("ov.ws_know_src"), (d.sources || []).length, srcHtml)}
+          ${grp("know-src", "inbox", t("ov.ws_know_src"), c.sources || 0, srcHtml)}
           ${grp("know-wiki", "book-open", t("ov.ws_know_wiki"), c.wiki || 0, wikiHtml)}
           ${grp("know-hot", "flame", t("ov.ws_know_hot"), (d.hot || []).length, hotHtml)}
           ${grp("know-inbox", "paperclip", t("ov.ws_know_inbox"), c.inbox || 0, inboxHtml)}

@@ -4299,6 +4299,7 @@
   "ov.ws_know_wait": "chờ xử lý",
   "ov.ws_know_stale": "{n} tài liệu nạp quá 7 ngày chưa được chưng cất lên wiki",
   "ov.ws_know_opens": "{n} lượt mở",
+  "ov.ws_know_more": "… và {n} tài liệu khác, xem đủ trong Tệp tin",
   "ov.ws_know_up": "Nạp tài liệu",
   "ov.ws_know_up_ok": "Đã nạp \"{ten}\" vào nguồn",
   "ov.ws_know_up_err": "Nạp thất bại",

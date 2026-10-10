@@ -243,12 +243,14 @@
   --warn-ink: #fbbf24;    --warn-bg: rgba(240, 192, 32, 0.13);
   --ok-ink: #4ade80;      --ok-bg: rgba(52, 211, 107, 0.13);
   --info: #4c91ff;        /* xanh thông tin (thanh tiến độ Cẩm nang) */
+  --ov-violet: #a855f7; --ov-amber: #f59e0b; --ov-rose: #f43f5e; --ov-indigo: #6366f1; --ov-teal: #14b8a6;
 }
 :root[data-theme="light"] {
   --danger-ink: #b3261e;  --danger-bg: #fbe4e4;
   --warn-ink: #8a4b06;    --warn-bg: rgba(255, 180, 0, 0.14);
   --ok-ink: #2f6f4a;      --ok-bg: rgba(21, 128, 61, 0.1);
   --info: #2563eb;
+  --ov-violet: #7c3aed; --ov-amber: #b45309; --ov-rose: #be123c; --ov-indigo: #4f46e5; --ov-teal: #0d9488;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html {

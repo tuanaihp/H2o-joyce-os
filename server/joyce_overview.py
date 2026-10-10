@@ -25,6 +25,7 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -119,6 +120,9 @@ def _cc_doc_xem() -> dict:
         return {}
 
 
+_CC_XEM_LOCK = threading.Lock()
+
+
 def _cc_ghi_xem(d: dict) -> None:
     import json as _json
     p = _cc_file_xem()
@@ -159,6 +163,19 @@ def _cc_trong_pham_vi(bp: str, scope) -> bool:
         if r == sc or r.startswith(sc.rstrip(os.sep) + os.sep):
             return True
     return False
+
+
+def _brain_trong_phep(bp: str, deps, scope) -> str:
+    """Đường dẫn brain THẬT (đúng một trong danh sách brain của máy) mà người gọi được xem, hoặc
+    chuỗi rỗng. So theo đường dẫn thật (realpath) để không ai lách bằng đường dẫn tương đối,
+    biến thể hoa-thường hay liên kết."""
+    if not bp:
+        return ""
+    k = os.path.normcase(os.path.realpath(str(bp)))
+    for x in deps.brain_paths() or []:
+        if os.path.normcase(os.path.realpath(str(x))) == k:
+            return str(x) if _cc_trong_pham_vi(str(x), scope) else ""
+    return ""
 
 
 def _chung_cat(day: str, brain_paths: list, phong_theo_brain: dict) -> dict:
@@ -293,23 +310,34 @@ _KNOW_STATUS_RE = re.compile(r"^\s*status:\s*([^\s#]+)", re.M | re.I)
 _KNOW_TEXT_EXT = (".md", ".markdown", ".txt")
 
 
+def _thu_muc_that(root: str, ten: str) -> list:
+    """Các thư mục thật của một loại (wiki, sources...), kể cả bản có số thứ tự như '07 - Wiki'
+    của brain cũ. Cùng quy tắc với chung-cat và quy trình, để cả ba trang đếm cùng một thư mục."""
+    pat = re.compile(r"^(\d+\s*[-_.]\s*)?" + re.escape(ten) + r"$", re.I)
+    try:
+        return sorted(n for n in os.listdir(root) if pat.match(n) and os.path.isdir(os.path.join(root, n)))
+    except OSError:
+        return []
+
+
 def _know_scan(root: str, sub: str) -> list:
-    base = os.path.join(root, sub)
     out = []
-    if not os.path.isdir(base):
-        return out
-    for dp, dns, fns in os.walk(base):
-        dns[:] = [x for x in dns if not x.startswith(".")]
-        for fn in fns:
-            if fn.startswith("."):
-                continue
-            fp = os.path.join(dp, fn)
-            try:
-                st = os.stat(fp)
-            except OSError:
-                continue
-            out.append({"ten": fn, "rel": os.path.relpath(fp, root).replace("\\", "/"),
-                        "abs": fp, "mtime": st.st_mtime, "size": st.st_size})
+    for thu_muc in _thu_muc_that(root, sub) or [sub]:
+        base = os.path.join(root, thu_muc)
+        if not os.path.isdir(base):
+            continue
+        for dp, dns, fns in os.walk(base):
+            dns[:] = [x for x in dns if not x.startswith(".")]
+            for fn in fns:
+                if fn.startswith("."):
+                    continue
+                fp = os.path.join(dp, fn)
+                try:
+                    st = os.stat(fp)
+                except OSError:
+                    continue
+                out.append({"ten": fn, "rel": os.path.relpath(fp, root).replace("\\", "/"),
+                            "abs": fp, "mtime": st.st_mtime, "size": st.st_size})
     out.sort(key=lambda x: -x["mtime"])
     return out
 
@@ -419,9 +447,16 @@ def _knowledge(root: str) -> dict:
         if isinstance(d, dict):
             pfx = os.path.normcase(os.path.realpath(root)) + "|"
             for k, v in d.items():
-                if isinstance(k, str) and k.startswith(pfx) and isinstance(v, dict):
-                    hot.append({"ten": v.get("ten") or os.path.basename(k),
-                                "rel": k[len(pfx):], "lan": int(v.get("n") or 0)})
+                if not (isinstance(k, str) and k.startswith(pfx) and isinstance(v, dict)):
+                    continue
+                rel = k[len(pfx):]
+                # File đã bị xoá hoặc đổi tên thì bỏ: bấm vào sẽ ra 404, và không có ngày để hiển thị.
+                try:
+                    mt = os.stat(os.path.join(root, rel)).st_mtime
+                except OSError:
+                    continue
+                hot.append({"ten": v.get("ten") or os.path.basename(rel), "rel": rel,
+                            "lan": int(v.get("n") or 0), "mtime": mt})
             hot.sort(key=lambda x: -x["lan"])
     except Exception:
         pass
@@ -447,7 +482,10 @@ def _knowledge(root: str) -> dict:
 # ---------------------------------------------------------------------------------------
 # Phòng ban: việc (kanban của brain phòng) + dữ liệu đã nạp (sources/wiki trong brain phòng)
 # ---------------------------------------------------------------------------------------
-def _departments(deps: OverviewDeps) -> dict:
+def _departments(deps: OverviewDeps, scope=None) -> dict:
+    """Sổ phòng ban gộp theo đơn vị (brand) và khối. scope=None: quản trị xem tất cả; scope là
+    danh sách brain trưởng phòng được cấp: chỉ phòng có brain nằm trong đó được đưa vào, còn
+    đơn vị và khối được tính lại từ đúng những phòng đó (không lộ số của phòng khác)."""
     d = deps.phong_view() or {}
     khoi = {k.get("id"): k for k in (d.get("khoi") or [])}
     brands = {b.get("id"): b for b in (d.get("brands") or [])}
@@ -458,6 +496,8 @@ def _departments(deps: OverviewDeps) -> dict:
         # chưa có thư mục brain tuyệt đối không được đọc kanban - không thì việc của brain chính
         # bị tính nhầm cho phòng đó.
         has_brain = bool(p.get("brain_ok")) and bool(path) and os.path.isdir(path)
+        if scope is not None and not (has_brain and _cc_trong_pham_vi(path, scope)):
+            continue
         c = None
         if has_brain:
             try:
@@ -519,6 +559,8 @@ def _departments(deps: OverviewDeps) -> dict:
     khois = []
     for k in (d.get("khoi") or []):
         rs = [r for r in rows if r["khoi_id"] == k.get("id")]
+        if scope is not None and not rs:
+            continue  # khối không có phòng nào trong phạm vi thì không hiện với trưởng phòng
         tot = {"done24": 0, "open": 0, "review": 0, "blocked": 0, "running": 0}
         for r in rs:
             for key in tot:
@@ -530,7 +572,8 @@ def _departments(deps: OverviewDeps) -> dict:
             "thu_tu_luong": int(k.get("thu_tu_luong") or 0),
             "trai_dai": bool(k.get("trai_dai")),
             "phong": len(rs), "tasks": tot, "status": _status(tot),
-            "un": tot["blocked"] + tot["review"] + tot["open"],
+            # `open` đã gồm cả kẹt và chờ duyệt (xem _OPEN). Cộng thêm hai số đó là đếm đôi.
+            "un": tot["open"],
         })
     return {"units": units, "phong": rows, "khois": khois}
 
@@ -725,10 +768,13 @@ def register(app, deps: OverviewDeps):
 
     @router.get("/api/joyce/v1/overview/departments")
     async def api_departments(request: Request):
-        if _staff(deps, request):
+        # Quản trị xem cả sổ. Trưởng phòng chỉ thấy phòng trong phạm vi được cấp; nhân viên thường
+        # bị 403 (đúng như trước). Trước đây mọi nhân viên đều bị 403 nên trưởng phòng mất luôn tab.
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
             return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
         try:
-            d = _departments(deps)
+            d = _departments(deps, scope)
         except Exception as e:  # noqa: BLE001
             _log("departments", e)
             return {"ok": False, "error": "không đọc được sổ phòng ban", "units": [], "phong": []}
@@ -785,13 +831,15 @@ def register(app, deps: OverviewDeps):
         full = os.path.join(goc, rel)
         if not os.path.isfile(full):
             return JSONResponse({"ok": False, "error": "không thấy tài liệu"}, status_code=404)
-        d = _cc_doc_xem()
         khoa = f"{goc}|{rel}"
-        if da_xem:
-            d[khoa] = {"mtime": os.stat(full).st_mtime, "luc": time.time()}
-        else:
-            d.pop(khoa, None)
-        _cc_ghi_xem(d)
+        # Đọc-sửa-ghi phải nằm trong cùng một khoá, không thì hai lần bấm gần nhau làm mất dấu của nhau.
+        with _CC_XEM_LOCK:
+            d = _cc_doc_xem()
+            if da_xem:
+                d[khoa] = {"mtime": os.stat(full).st_mtime, "luc": time.time()}
+            else:
+                d.pop(khoa, None)
+            _cc_ghi_xem(d)
         return {"ok": True, "da_xem": da_xem}
 
     @router.get("/api/joyce/v1/overview/quy-trinh")
@@ -801,10 +849,19 @@ def register(app, deps: OverviewDeps):
         Ba cột Trước-Trong-Sau của workspace trưởng phòng trước đây chỉ hiện mô tả vai trò
         lấy từ sổ phòng ban - chữ tĩnh, không nối vào tài liệu nào. Endpoint này trả đúng
         các file quy trình đang có để bấm thẳng vào mà sửa cùng Joyce."""
-        if _staff(deps, request):
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        # Chỉ đọc brain THẬT trong danh sách brain của máy, và trưởng phòng chỉ trong phạm vi
+        # của mình. Đường dẫn tự do ở đây sẽ liệt kê wiki của bất kỳ thư mục nào trên ổ đĩa.
+        if not (brain or "").strip():
+            return {"ok": True, **_quy_trinh("")}
+        bp = deps.brain_root("brain") if brain.strip() == "brain" else brain
+        root = _brain_trong_phep(bp, deps, scope)
+        if not root:
             return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
         try:
-            return {"ok": True, **_quy_trinh(brain)}
+            return {"ok": True, **_quy_trinh(root)}
         except Exception as e:  # noqa: BLE001
             _log("quy-trinh", e)
             return {"ok": False, "error": "không đọc được quy trình", "giai_doan": {}}
@@ -818,17 +875,12 @@ def register(app, deps: OverviewDeps):
         duoc, scope = _cc_quyen(request, deps)
         if not duoc:
             return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
-        root = (brain or "brain").strip()
-        if not os.path.isdir(root):
-            try:
-                root = deps.brain_root(root)
-            except Exception:
-                root = ""
-        # Kể cả admin cũng chỉ đọc được ĐÚNG một gốc brain - param này là đường dẫn tự
-        # do nên không siết thì endpoint biến thành máy quét file của toàn ổ đĩa.
-        hop_le = {os.path.normcase(os.path.realpath(str(x))) for x in (deps.brain_paths() or [])}
-        if not root or os.path.normcase(os.path.realpath(root)) not in hop_le \
-                or not _cc_trong_pham_vi(root, scope):
+        # "brain" = Brain Default: quy về đúng gốc mặc định qua deps (có áp phạm vi nhân viên).
+        # Tên hay đường dẫn khác thì phải là brain thật của máy - KHÔNG đoán theo thư mục hiện
+        # hành, nên một tên lạ không bao giờ rơi lặng lẽ vào brain mặc định.
+        bp = deps.brain_root("brain") if (brain or "brain").strip() in ("", "brain") else brain
+        root = _brain_trong_phep(bp, deps, scope)
+        if not root:
             return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
         try:
             return {"ok": True, **_knowledge(os.path.realpath(root))}

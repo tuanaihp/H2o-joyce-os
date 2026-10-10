@@ -1,8 +1,14 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
 ## [1.3.5] - 2026-10-10
+### Thêm mới
+- **Trưởng phòng xem được phòng của mình**: tab Phòng ban và Tài liệu chưng cất hiện với trưởng phòng, chỉ gồm phòng và tài liệu của phòng đó. Quản trị vẫn xem tất cả, nhân viên thường không thấy hai tab này.
+
 ### Sửa lỗi
-- Đang rà soát tab Phòng ban (nội dung đầy đủ sẽ được viết trước khi merge).
+- Số việc trên mũi tên sơ đồ khối không còn bị đếm trùng: việc vừa kẹt vừa chờ duyệt từng được cộng hai lần.
+- Mục "hay mở" trong Tri thức phòng không còn hiện ngày 01/01, và file đã xoá không còn xuất hiện ở đó.
+- Tri thức phòng ghi rõ khi còn tài liệu chưa hiện, thay vì cắt im lặng. Con số trên đầu khớp với toàn bộ tài liệu.
+- Bấm "đã xem" liên tục hoặc nhiều người cùng bấm không còn làm mất dấu của nhau.
 
 ## [1.3.4] - 2026-10-09
 ### Thêm mới
@@ -134,7 +140,7 @@
 - **Phòng ban**: từng phòng của từng thương hiệu, phòng có việc kẹt lên đầu; bấm vào là mở brain của phòng hoặc hỏi Joyce. **Lịch** gom nhắc hẹn mọi brain trong 7 ngày. **Báo cáo** dẫn tới đúng chỗ giữ số liệu hoặc nhờ Joyce viết.
 - Nói "mở tổng quan", "mở báo cáo"... bằng giọng nói cũng tới đúng trang.
 
-## [1.0.0-h2o] — 2026-10-07
+## [1.0.0] - 2026-10-07
 
 ### Bản phát hành nội bộ đầu tiên của H2O
 - Fork độc lập từ Joyce OS (MIT), giữ nguyên LICENSE và ghi công tác giả gốc.

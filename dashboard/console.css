@@ -3372,23 +3372,18 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ov-dcard[data-cat="0"] .ov-cat-tag { background: rgba(34,211,238,.15); color: var(--accent-ink); }
 .ov-dcard[data-cat="1"] .ov-dcard-bar { background: var(--info); }
 .ov-dcard[data-cat="1"] .ov-cat-tag { background: rgba(76,145,255,.15); color: var(--info); }
-.ov-dcard[data-cat="2"] .ov-dcard-bar { background: #a855f7; }
-.ov-dcard[data-cat="2"] .ov-cat-tag { background: rgba(168,85,247,.15); color: #a855f7; }
+.ov-dcard[data-cat="2"] .ov-dcard-bar { background: var(--ov-violet); }
+.ov-dcard[data-cat="2"] .ov-cat-tag { background: rgba(168,85,247,.15); color: var(--ov-violet); }
 .ov-dcard[data-cat="3"] .ov-dcard-bar { background: var(--ok-ink); }
 .ov-dcard[data-cat="3"] .ov-cat-tag { background: rgba(74,222,128,.15); color: var(--ok-ink); }
-.ov-dcard[data-cat="4"] .ov-dcard-bar { background: #f59e0b; }
-.ov-dcard[data-cat="4"] .ov-cat-tag { background: rgba(251,191,36,.15); color: #f59e0b; }
-.ov-dcard[data-cat="5"] .ov-dcard-bar { background: #f43f5e; }
-.ov-dcard[data-cat="5"] .ov-cat-tag { background: rgba(244,63,94,.15); color: #f43f5e; }
-.ov-dcard[data-cat="6"] .ov-dcard-bar { background: #6366f1; }
-.ov-dcard[data-cat="6"] .ov-cat-tag { background: rgba(99,102,241,.15); color: #6366f1; }
-.ov-dcard[data-cat="7"] .ov-dcard-bar { background: #14b8a6; }
-.ov-dcard[data-cat="7"] .ov-cat-tag { background: rgba(20,184,166,.15); color: #14b8a6; }
-:root[data-theme="light"] .ov-dcard[data-cat="2"] .ov-cat-tag { color: #7c3aed; }
-:root[data-theme="light"] .ov-dcard[data-cat="4"] .ov-cat-tag { color: #b45309; }
-:root[data-theme="light"] .ov-dcard[data-cat="5"] .ov-cat-tag { color: #be123c; }
-:root[data-theme="light"] .ov-dcard[data-cat="6"] .ov-cat-tag { color: #4f46e5; }
-:root[data-theme="light"] .ov-dcard[data-cat="7"] .ov-cat-tag { color: #0d9488; }
+.ov-dcard[data-cat="4"] .ov-dcard-bar { background: var(--ov-amber); }
+.ov-dcard[data-cat="4"] .ov-cat-tag { background: rgba(251,191,36,.15); color: var(--ov-amber); }
+.ov-dcard[data-cat="5"] .ov-dcard-bar { background: var(--ov-rose); }
+.ov-dcard[data-cat="5"] .ov-cat-tag { background: rgba(244,63,94,.15); color: var(--ov-rose); }
+.ov-dcard[data-cat="6"] .ov-dcard-bar { background: var(--ov-indigo); }
+.ov-dcard[data-cat="6"] .ov-cat-tag { background: rgba(99,102,241,.15); color: var(--ov-indigo); }
+.ov-dcard[data-cat="7"] .ov-dcard-bar { background: var(--ov-teal); }
+.ov-dcard[data-cat="7"] .ov-cat-tag { background: rgba(20,184,166,.15); color: var(--ov-teal); }
 #ovDrawer .ov-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .42); }
 .ov-drawer { position: fixed; right: 0; top: 0; bottom: 0; width: min(400px, 92vw); z-index: 61; background: var(--bg); border-left: 1px solid var(--line);
   box-shadow: -20px 0 50px rgba(0, 0, 0, .3); display: flex; flex-direction: column; color: var(--text); }
@@ -3438,12 +3433,12 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ov-rep:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
 .ov-rep-i { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; }
 .ov-rep-i svg { width: 20px; height: 20px; }
-.ov-rep:nth-child(1) .ov-rep-i { background: rgba(251,191,36,.15); color: #f59e0b; }
+.ov-rep:nth-child(1) .ov-rep-i { background: rgba(251,191,36,.15); color: var(--ov-amber); }
 .ov-rep:nth-child(2) .ov-rep-i { background: rgba(74,222,128,.15); color: var(--ok-ink); }
 .ov-rep:nth-child(3) .ov-rep-i { background: rgba(76,145,255,.15); color: var(--info); }
-.ov-rep:nth-child(4) .ov-rep-i { background: rgba(168,85,247,.15); color: #a855f7; }
+.ov-rep:nth-child(4) .ov-rep-i { background: rgba(168,85,247,.15); color: var(--ov-violet); }
 .ov-rep:nth-child(5) .ov-rep-i { background: rgba(34,211,238,.15); color: var(--accent); }
-.ov-rep:nth-child(6) .ov-rep-i { background: rgba(99,102,241,.15); color: #6366f1; }
+.ov-rep:nth-child(6) .ov-rep-i { background: rgba(99,102,241,.15); color: var(--ov-indigo); }
 .ov-rep h3 { margin: 14px 0 5px; font-size: 14.5px; color: var(--text); font-weight: 700; }
 .ov-rep p { margin: 0; color: var(--text3); font-size: 12px; line-height: 1.55; flex: 1; }
 .ov-rep-meta { margin: 14px 0; color: var(--text3); font-size: 11px; }
@@ -3453,9 +3448,6 @@ button.staff-chip:hover { border-color: var(--acc); }
 :root[data-theme="light"] .ov-primary { box-shadow: 0 2px 8px rgba(14,116,144,.2); }
 :root[data-theme="light"] .ov-primary:hover { box-shadow: 0 4px 14px rgba(14,116,144,.25); }
 :root[data-theme="light"] .ov-calcol.today { box-shadow: 0 0 0 1px var(--accent-line), 0 2px 12px rgba(8,145,178,.1); }
-:root[data-theme="light"] .ov-rep:nth-child(1) .ov-rep-i { color: #b45309; }
-:root[data-theme="light"] .ov-rep:nth-child(4) .ov-rep-i { color: #7c3aed; }
-:root[data-theme="light"] .ov-rep:nth-child(6) .ov-rep-i { color: #4f46e5; }
 
 @media (max-width: 1260px) {
   .ov-kpis { grid-template-columns: repeat(3, 1fr); }
@@ -3579,7 +3571,7 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .ovw-kb { font-size: 10px; padding: 1px 7px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
 .ovw-kb.ok { background: var(--ok-wash); color: var(--ok-ink); }
 .ovw-kb.wait { background: var(--warn-wash); color: var(--warn-ink); }
-.ovw-kb.old { background: rgba(244, 86, 90, .12); color: var(--red); }
+.ovw-kb.old { background: var(--danger-wash); color: var(--danger-ink); }
 .ovw-kb.kenh { background: var(--accent-wash-2); color: var(--accent-ink); }
 .ovw-ksub { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3);
   padding: 7px 8px 1px; }
@@ -3695,7 +3687,7 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
   text-transform: uppercase; letter-spacing: .04em; }
 .ovw-tgrp.run > b { color: var(--green); }
 .ovw-tgrp.rev > b { color: var(--warn-ink); }
-.ovw-tgrp.blk > b { color: var(--err, #d64545); }
+.ovw-tgrp.blk > b { color: var(--danger-ink); }
 .ovw-task { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
   font: inherit; font-size: 12.5px; color: var(--text); padding: 5px 9px; margin: 3px 0;
   border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer; }

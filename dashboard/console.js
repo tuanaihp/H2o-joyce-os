@@ -185,9 +185,12 @@
   // Còn lại: Hôm nay, Bộ não (đồ thị, trò chuyện, tệp tin, tự học), Trợ lý, Hội thoại,
   // Kỹ năng, Việc, và trang Nhân viên (thẻ của chính họ).
   // Tổng quan (trừ Hôm nay) là mặt quản trị toàn hệ thống: server trả 403 cho nhân viên.
-  const RAIL_AN_NHAN_VIEN = new Set(["command", "departments", "calendar", "reports",
+  const RAIL_AN_NHAN_VIEN = new Set(["command", "calendar", "reports",
     "terminal", "coding", "projects", "plugins", "selfimprove",
     "mcp", "packs", "channels", "models", "tools", "settings", "share", "account"]);
+  // Phòng ban và Tài liệu chưng cất: trưởng phòng (quan_ly) thấy đúng phòng/brain của mình (server
+  // lọc theo phạm vi); nhân viên thường và học việc không thấy (server trả 403 cho họ).
+  const RAIL_AN_KHONG_QUAN_LY = new Set(["departments", "chungcat"]);
   // typeof: rail còn được dựng trong môi trường không có window (test chạy console.js trong vm).
   const _laNhanVien = () => typeof window !== "undefined" && !!(window.__h2oStaff || window.__h2oStaffNav);
   // Nhóm quyền theo chức vụ, khớp _STAFF_CAP phía server: "admin" | "quan_ly" | "nhan_vien" | "hoc_viec".
@@ -202,9 +205,12 @@
   function railGroups() {
     const seen = new Set();
     const nv = _laNhanVien();
+    const quanLy = nv && _quyenNV() === "quan_ly";
+    const an = (id) => RAIL_AN.has(id) || (nv && RAIL_AN_NHAN_VIEN.has(id))
+      || (nv && !quanLy && RAIL_AN_KHONG_QUAN_LY.has(id));
     const groups = RAIL_GROUPS.map(g => {
       const items = (g.ids || [])
-        .map(id => { seen.add(id); return (RAIL_AN.has(id) || (nv && RAIL_AN_NHAN_VIEN.has(id))) ? null : RAIL_BY_ID[id]; })
+        .map(id => { seen.add(id); return an(id) ? null : RAIL_BY_ID[id]; })
         .filter(Boolean);
       return { label: g.label, icon: g.icon || "", foot: !!g.foot, items };
     }).filter(g => g.items.length);
@@ -213,7 +219,7 @@
     // nào, nên `seen` không bao giờ chứa nó, nên nó rơi vào nhánh "dồn vào nhóm cuối" và
     // hiện ra ở cuối nhóm Hệ thống - đúng chỗ chẳng ai ngờ (chủ repo thấy 21/09). Chú thích
     // của RAIL_AN thì vẫn khẳng định nó đã bị ẩn.
-    const rest = RAIL_ITEMS.filter(i => !seen.has(i.id) && !RAIL_AN.has(i.id) && !(nv && RAIL_AN_NHAN_VIEN.has(i.id)));
+    const rest = RAIL_ITEMS.filter(i => !seen.has(i.id) && !an(i.id));
     if (rest.length) {
       const foot = groups.find(g => g.foot);
       if (foot) foot.items.push(...rest); else groups.push({ label: t("nav.group.khac"), foot: false, items: rest });

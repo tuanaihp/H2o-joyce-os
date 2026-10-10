@@ -7392,6 +7392,9 @@ async def files_md_hong_sua(brain: str = Form("brain"), paths: str = Form("")):
 
 
 _FILE_VIEWS_CAP = 4000
+# Hai lượt mở cùng lúc đọc-rồi-ghi cùng một file: không khoá thì một lượt bị mất, và cả hai ghi
+# chung một tên .tmp nên có thể hỏng file. Một tiến trình server nên một khoá là đủ.
+_FILE_VIEWS_LOCK = threading.Lock()
 
 
 def _file_view_bump(broot: str, rel: str, ten: str) -> None:
@@ -7399,29 +7402,30 @@ def _file_view_bump(broot: str, rel: str, ten: str) -> None:
     FILE nào được mở bao nhiêu lần - không ghi ai mở, đủ cho xếp hạng 'nhân viên hay mở'
     mà không thành nhật ký theo dõi cá nhân."""
     p = cfgmod.STATE_DIR / "file-views.json"
-    try:
-        d = json.loads(p.read_text(encoding="utf-8"))
-        if not isinstance(d, dict):
+    with _FILE_VIEWS_LOCK:
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if not isinstance(d, dict):
+                d = {}
+        except Exception:
             d = {}
-    except Exception:
-        d = {}
-    k = os.path.normcase(broot) + "|" + rel
-    it = d.get(k) or {}
-    it["n"] = int(it.get("n") or 0) + 1
-    it["last"] = time.time()
-    it["ten"] = ten
-    d[k] = it
-    if len(d) > _FILE_VIEWS_CAP:
-        for kk in sorted(d, key=lambda x: (d[x].get("last") or 0))[: len(d) - _FILE_VIEWS_CAP]:
-            d.pop(kk, None)
-    try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = str(p) + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f2:
-            json.dump(d, f2, ensure_ascii=False)
-        os.replace(tmp, p)
-    except Exception:
-        pass
+        k = os.path.normcase(broot) + "|" + rel
+        it = d.get(k) or {}
+        it["n"] = int(it.get("n") or 0) + 1
+        it["last"] = time.time()
+        it["ten"] = ten
+        d[k] = it
+        if len(d) > _FILE_VIEWS_CAP:
+            for kk in sorted(d, key=lambda x: (d[x].get("last") or 0))[: len(d) - _FILE_VIEWS_CAP]:
+                d.pop(kk, None)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = str(p) + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f2:
+                json.dump(d, f2, ensure_ascii=False)
+            os.replace(tmp, p)
+        except Exception:
+            pass
 
 
 @app.get("/files/read")

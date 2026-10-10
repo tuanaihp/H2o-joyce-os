@@ -4297,6 +4297,7 @@
   "ov.ws_know_wait": "pending",
   "ov.ws_know_stale": "{n} documents older than 7 days not yet distilled to wiki",
   "ov.ws_know_opens": "{n} opens",
+  "ov.ws_know_more": "… and {n} more documents, see all in Files",
   "ov.ws_know_up": "Ingest document",
   "ov.ws_know_up_ok": "Ingested \"{ten}\" into sources",
   "ov.ws_know_up_err": "Upload failed",
