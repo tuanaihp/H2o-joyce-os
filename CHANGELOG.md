@@ -1,5 +1,9 @@
 # Nhật ký phiên bản — H2O Joyce OS
 
+## [1.3.5] - 2026-10-10
+### Sửa lỗi
+- Đang rà soát tab Phòng ban (nội dung đầy đủ sẽ được viết trước khi merge).
+
 ## [1.3.4] - 2026-10-09
 ### Thêm mới
 - **Chọn cả khối trong ô chọn brain**: ngoài từng phòng, giờ có mục `★ Toàn khối Bán Hàng` ghim đầu mỗi nhóm, kèm tổng số note của cả khối. Đứng ở đó hỏi "tổng doanh số cả khối" thì Joyce đọc được dữ liệu của mọi phòng trong khối, còn ghi thì vẫn vào đúng brain của từng phòng.
