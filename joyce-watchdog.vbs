@@ -54,6 +54,33 @@ If alive Then
       sh0.Run """" & root & "\.venv\Scripts\python.exe"" """ & root & "\tools\tunnel_notify.py""", 0, False
     End If
   End If
+
+  ' Ollama: server song nhung nao local chet giua ngay (autostart hong, AV giet,
+  ' updater tu tat ma khong bat lai) -> bat lai. Khong ngu gi nen khong so bi AV
+  ' diet nhu vong cho cua start-joyce. Process nao ten co "ollama" thi khong
+  ' spawn chong - de tick sau kiem lai.
+  ollamaUp = False
+  http.setTimeouts 1500, 1500, 1500, 1500
+  http.Open "GET", "http://127.0.0.1:11434/api/tags", False
+  http.Send
+  ' VBScript "And" khong short-circuit: doc http.Status khi request loi se throw,
+  ' nen phai long If - khong duoc gop dieu kien.
+  If Err.Number = 0 Then
+    If http.Status = 200 Then ollamaUp = True
+  End If
+  Err.Clear
+  If Not ollamaUp Then
+    Set sh2 = CreateObject("WScript.Shell")
+    Dim oAll : oAll = sh2.Exec("cmd /c tasklist /NH").StdOut.ReadAll
+    Dim oExe : oExe = sh2.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Programs\Ollama\ollama.exe"
+    If InStr(LCase(oAll), "ollama") = 0 And fso0.FileExists(oExe) Then
+      sh2.Run "cmd /c set ""OLLAMA_MODELS=E:\Ollama\models"" && set ""OLLAMA_CONTEXT_LENGTH=16384"" && """ & oExe & """ serve >> """ & root & "\server\ollama.log"" 2>&1", 0, False
+      Set olg = fso.OpenTextFile(root & "\server\watchdog.log", 8, True)
+      olg.WriteLine Now & " ollama chet -> da spawn lai serve"
+      olg.Close
+    End If
+  End If
+
   WScript.Quit
 End If
 

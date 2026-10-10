@@ -27,43 +27,32 @@ sh.Run "cmd /c cd /d """ & root & """ && .venv\Scripts\python.exe server\main.py
 ' tools\tunnel_notify.py tự bỏ qua nếu cloudflared đã chạy sẵn.
 sh.Run "cmd /c cd /d """ & root & """ && .venv\Scripts\python.exe tools\tunnel_notify.py > tools\tunnel-notify.log 2>&1", 0, False
 
-' Ollama local (não miễn phí chạy offline): chỉ bật "ollama serve" khi port 11434
-' chưa có ai nghe - nếu anh đã mở Ollama app bằng tay thì bước này tự bỏ qua,
-' không spawn chồng process.
-' Thử tới 4 lần, cách nhau 10s: lúc vừa logon Ollama app (Startup) có thể đang
-' khởi động dở, hoặc auto-updater của nó vừa tự tắt app để nâng cấp (đã gặp:
-' bản 0.34.2 -> 0.35.1 tự giết server lúc 5:50 sáng rồi không bật lại). Nếu
-' hết 4 lần vẫn chết thì tự mở "ollama serve" headless, sau đó chờ nó lên tới
-' 60s để Joyce kết nối ngay được thay vì phải bấm Kết nối tay.
-Dim http, ollamaUp, ollamaTry
+' Ollama local (não miễn phí chạy offline): probe NHANH đúng 1 lần rồi spawn luôn,
+' KHÔNG vòng ngủ dài - wscript ngủ 40s trong cửa sổ logon đúng dáng dropper nên 360
+' từng diệt script giữa chừng (chết im, không tới được nhánh fallback). Nếu lượt
+' này sót thì Watchdog 5 phút/tick sẽ bật lại - lớp đó không ngủ nên an toàn.
+Dim http, ollamaUp, ollamaExe, olOut, olLog
 ollamaUp = False
 Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-For ollamaTry = 1 To 4
-  On Error Resume Next
-  http.setTimeouts 1500, 1500, 1500, 1500
-  http.Open "GET", "http://127.0.0.1:11434/api/tags", False
-  http.Send
-  If http.Status = 200 Then ollamaUp = True
-  On Error GoTo 0
-  If ollamaUp Then Exit For
-  WScript.Sleep 10000
-Next
+On Error Resume Next
+http.setTimeouts 1500, 1500, 1500, 1500
+http.Open "GET", "http://127.0.0.1:11434/api/tags", False
+http.Send
+If http.Status = 200 Then ollamaUp = True
+On Error GoTo 0
 If Not ollamaUp Then
   ollamaExe = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\Programs\Ollama\ollama.exe"
-  ' Kho model đặt ở E:\Ollama\models (ổ C: ít chỗ) + khung ngữ cảnh 16K
-  ' (mặc định Ollama chỉ 4096 - prompt Joyce vài nghìn token sẽ bị 400
-  ' "exceeds the available context size"). Set env ngay trong lệnh để không
-  ' phụ thuộc biến môi trường user có kịp nạp hay không.
-  sh.Run "cmd /c set ""OLLAMA_MODELS=E:\Ollama\models"" && set ""OLLAMA_CONTEXT_LENGTH=16384"" && """ & ollamaExe & """ serve > """ & root & "\server\ollama.log"" 2>&1", 0, False
-  ' Chờ serve sẵn sàng (tối đa 60s) trước khi script kết thúc.
-  For ollamaTry = 1 To 12
-    WScript.Sleep 5000
-    On Error Resume Next
-    http.setTimeouts 1500, 1500, 1500, 1500
-    http.Open "GET", "http://127.0.0.1:11434/api/tags", False
-    http.Send
-    If http.Status = 200 Then ollamaUp = True
-    On Error GoTo 0
-    If ollamaUp Then Exit For
-  Next
+  ' Tray app đang khởi động dở thì có process mà chưa mở port - đừng spawn chồng
+  ' serve (hai cái đấu port), Watchdog sẽ lo nếu nó chết hẳn.
+  olOut = sh.Exec("cmd /c tasklist /NH").StdOut.ReadAll
+  Set olLog = fso.OpenTextFile(root & "\server\ollama.log", 8, True)
+  If InStr(LCase(olOut), "ollama") = 0 And fso.FileExists(ollamaExe) Then
+    olLog.WriteLine Now & " [boot] port 11434 chưa lên, không thấy process ollama -> spawn serve"
+    ' Kho model ở E:\Ollama\models (ổ C: ít chỗ) + ngữ cảnh 16K (mặc định 4096 thì
+    ' prompt Joyce bị 400). Set env trong lệnh, không dựa vào biến user.
+    sh.Run "cmd /c set ""OLLAMA_MODELS=E:\Ollama\models"" && set ""OLLAMA_CONTEXT_LENGTH=16384"" && """ & ollamaExe & """ serve >> """ & root & "\server\ollama.log"" 2>&1", 0, False
+  Else
+    olLog.WriteLine Now & " [boot] port 11434 chưa lên nhưng ollama đang chạy -> để watchdog lo"
+  End If
+  olLog.Close
 End If
