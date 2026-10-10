@@ -87,6 +87,7 @@ import inbox         # hòm thư: mọi kết quả chạy nền để lại m�
 import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import contextvars
 import h2o_departments   # sổ phòng ban H2O: mỗi phòng một brain + brain chung H2O Studio
+import nghien_cuu        # trang Nghiên cứu: sáu khu đọc từ brain phòng Nghiên cứu concept (chỉ đọc)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
@@ -17740,7 +17741,7 @@ _STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins",
                "/ollama-local", "/update", "/brand", "/domain", "/chatbots",
                "/secrets", "/brains", "/brain/", "/reminders", "/loops", "/h2o-projects",
                "/projects", "/telegram", "/zalo", "/h2o-departments", "/learn",
-               "/vault", "/social/facebook/pages/")
+               "/nghien-cuu", "/vault", "/social/facebook/pages/")
 
 # Chặn MỌI method: mặt chạm tới đĩa NGOÀI brain phòng ban (duyệt ổ đĩa, kiểm đường dẫn tuyệt
 # đối, repo của trang Coding) và /ingest-upload (nhận thẳng đường dẫn thư mục đích từ client,
@@ -18055,6 +18056,16 @@ async def h2o_departments_list(request: Request):
     if _staff_req(request):
         return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
     return {"ok": True, **_h2o_phong_view()}
+
+
+@app.get("/nghien-cuu")
+async def nghien_cuu_trang(request: Request):
+    """Trang Nghiên cứu: sáu khu của brain phòng Nghiên cứu concept. Chỉ đọc, chỉ admin
+    (cùng quyền với Phòng ban). Thiết kế: docs/dev/2026-10-process-factory-design.md."""
+    if _staff_req(request):
+        return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+    root = Path(BRAINS_DIR) / nghien_cuu.PILOT_BRAIN
+    return {"ok": True, **await asyncio.to_thread(nghien_cuu.doc_trang, root)}
 
 
 @app.post("/h2o-departments/seed")
