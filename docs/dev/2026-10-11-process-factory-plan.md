@@ -74,8 +74,11 @@ trang hiện đúng đang ở bước nào.
 
 ## Kết quả kiểm cuối (T6)
 
-Chạy trên worktree sạch ở `e622e8f`, toàn bộ 580 file test (Python và JS), mỗi file một tiến trình:
-574 xanh, 6 đỏ. Sáu file đỏ đều là quyết định chủ repo, không do batch này:
-`test_go_chatgpt_web`, `test_tai_lieu_song_ngu` (thiếu tài liệu trong docs/dev), `test_prompt_budget`
-(CLAUDE.md và prompt cố định vượt trần), `test_logo_linh_vat`, `test_pet_bang_mau`,
-`test_pet_thanh_truot_mau` (mascot và bảng màu mặc định).
+Chạy trên worktree sạch ở `dd91376`, toàn bộ 580 file test (Python và JS), mỗi file một tiến trình:
+580 xanh, 0 đỏ.
+
+Trước khi đạt kết quả này, sáu file đỏ được sửa theo đúng nguyên nhân (không nới trần, không xoá kiểm):
+- `test_pet_*`, `test_logo_linh_vat`: mặc định là ngôi sao (khớp logo và chú thích); "cam" là aqua thương hiệu.
+- `test_prompt_budget`: CLAUDE.md cắt bốn mục lặp lại (34.453 -> 29.780 ký tự), giữ nguyên các cụm luật canary đọc.
+- `test_go_chatgpt_web`: hồ sơ ngắn ghi việc đã gỡ (`docs/dev/2026-09-chatgpt-web-model-spec.md`).
+- `test_tai_lieu_song_ngu`: sổ tay thêm ngôn ngữ theo `lang_registry`, bỏ link CLI chết, README đếm đúng.
