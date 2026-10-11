@@ -191,7 +191,7 @@ Because almost everything that makes Joyce what it is demands a **long-lived** p
 
 Building a second implementation means copying all of it then letting the two drift apart, and whichever has fewer users keeps its bugs quietly. So the CLI goes through **the very same core** the dashboard and Telegram use. In exchange: a new feature added to Joyce appears in the CLI immediately, with nothing to fix in two places.
 
-Design details in the [CLI spec](../dev/2026-08-cli-spec.md).
+The CLI design spec (2026-08) is no longer in the repo; the sections above are the current reference.
 
 ## Related
 

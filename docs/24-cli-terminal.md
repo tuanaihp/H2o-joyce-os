@@ -191,7 +191,7 @@ Vì gần như mọi thứ làm nên Joyce đều đòi một tiến trình **s�
 
 Làm bản thứ hai nghĩa là chép lại toàn bộ rồi để hai bản trôi lệch nhau - và bản nào ít người dùng hơn thì lỗi cứ nằm im ở đó. Nên CLI đi qua **đúng cái lõi** mà dashboard và Telegram đang dùng. Đổi lại: tính năng mới vào Joyce là CLI thấy ngay, không phải sửa hai chỗ.
 
-Chi tiết thiết kế ở [spec CLI](dev/2026-08-cli-spec.md).
+Spec thiết kế CLI (2026-08) không còn trong repo; phần trên là bản hiện hành.
 
 ## Liên quan
 

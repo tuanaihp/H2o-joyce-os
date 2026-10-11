@@ -185,7 +185,7 @@ Mở Joyce → bộ cài đặt sẽ dẫn bạn qua:
 
 > 📚 **Tài liệu chi tiết:** xem thư mục **[docs/](docs/README.md)** - hướng dẫn từng chức năng (mở ở đâu, bấm gì, dùng thế nào). Bảng dưới là bản đồ nhanh; cột **Chi tiết** dẫn tới trang hướng dẫn tương ứng.
 
-Thanh điều hướng bên trái gom **22 trang** thành **6 nhóm** (bấm tên nhóm để mở):
+Thanh điều hướng bên trái gom **31 trang** thành **7 nhóm** (bấm tên nhóm để mở):
 
 | Nhóm | Mục | Làm gì | Chi tiết |
 |---|---|---|---|
@@ -374,6 +374,6 @@ Không tiện donate cũng không sao - dùng Joyce, góp ý, hay gửi một Pu
 
 <div align="center">
 
-**H2O Joyce OS** — bản phân phối nội bộ của H2O
+**H2O Joyce OS** - bản phân phối nội bộ của H2O
 
 </div>

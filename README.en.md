@@ -157,7 +157,7 @@ Open Joyce and the setup wizard walks you through:
 
 > 📚 **Detailed docs:** see the **[docs/](docs/README.md)** folder - a guide per feature (where to open it, what to press, how to use it). Most pages are in Vietnamese; [docs/en/](docs/en/README.md) has the translated ones. The table below is a quick map.
 
-The left navigation rail groups **22 pages** into **6 groups** (click a group name to open it):
+The left navigation rail groups **31 pages** into **7 groups** (click a group name to open it):
 
 | Group | Item | What it does | Guide |
 |---|---|---|---|
@@ -348,6 +348,6 @@ Can't donate? No worries - using Joyce, sending feedback, or opening a Pull Requ
 
 <div align="center">
 
-**H2O Joyce OS** — internal H2O distribution
+**H2O Joyce OS** - internal H2O distribution
 
 </div>
