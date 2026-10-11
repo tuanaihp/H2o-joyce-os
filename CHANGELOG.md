@@ -4,6 +4,7 @@
 ### Thêm mới
 - **Trang Nghiên cứu**: một chỗ để xem ý tưởng concept đang ở bước nào, thư viện concept, SOP liên quan, bản tin xu hướng và nhật ký quyết định của phòng Nghiên cứu concept hình ảnh.
 - **Phân loại ý tưởng**: ý tưởng gửi vào phòng ghi rõ là concept, quy trình mới hay sửa quy trình cũ, để kết quả không lẫn vào nhau.
+- **Linh vật mặc định là ngôi sao cam**, đúng logo của Joyce. Ai đã tự chọn hình thì giữ nguyên lựa chọn của mình.
 
 ## [1.3.6] - 2026-10-10
 ### Sửa lỗi
