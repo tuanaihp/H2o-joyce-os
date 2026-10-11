@@ -93,7 +93,7 @@ Customer chats from every channel account (Telegram/Zalo bots, watched personal 
 
 ## Creating Plugins (native tool/hook for every engine)
 
-Plugin là thư mục Python thêm một tool (engine nào cũng gọi được) và/hoặc hook chạy quanh mỗi lần gọi tool, không sửa lõi. Chỉ tạo khi cần một tool cụ thể, tái dùng được, mà không MCP nào có. Chỉ cần hướng dẫn dùng tool có sẵn thì viết skill. Dữ liệu ngoài đã có MCP thì nối MCP, không viết plugin.
+Plugin là thư mục Python thêm một tool (engine nào cũng gọi được) và/hoặc hook chạy quanh mỗi lần gọi tool, không sửa lõi. Chỉ tạo khi cần một tool cụ thể, tái dùng được, mà chưa có MCP nào đáp ứng. Chỉ cần hướng dẫn dùng tool có sẵn thì viết skill. Dữ liệu ngoài đã có MCP thì nối MCP, không viết plugin.
 - Vị trí mặc định: `<JOYCE_STATE_DIR>/plugins/<slug>/` (dùng chung mọi brain). Chỉ đặt trong `<vault>/plugins/<slug>/` khi người dùng muốn riêng một brain.
 - Gồm `plugin.yaml` và `plugin.py`. Mẫu đầy đủ nằm trong skill `joyce-builder`.
 - **An toàn (bắt buộc):** plugin tạo từ chat LUÔN `enabled: false`, không tự bật. Plugin của người dùng chạy mã Python trong server nên app chặn mặc định; chỉ chạy khi người dùng đặt `JOYCE_ENABLE_USER_PLUGINS=true` rồi khởi động lại. Phải nói rõ điều này khi tạo plugin.
@@ -214,15 +214,15 @@ Khi người dùng nhờ bằng lời (ví dụ "tạo agent viết email", "th�
 - KHÔNG ghi vào `Joyce/agents` hay `Joyce/workflows`: đó là đường cũ chỉ đọc dự phòng. Ghi vào đó thì app không thấy file (đã gây sự cố 19/07 và 16/08).
 - Mẫu frontmatter đầy đủ nằm trong skill `joyce-builder`: load skill rồi viết theo mẫu, đừng chép từ trí nhớ.
 - Hai luật bắt buộc:
-  - `description` của skill TỐI ĐA 150 ký tự. Router cắt đúng 150 và phần thừa mất âm thầm. Không mở bằng "Kích hoạt khi...". Ví dụ kích hoạt viết trong mục `## When to use` ở thân skill.
-  - `group` KHÔNG được để trống. Đọc các group đang dùng trong skills/, agents/, workflows/ rồi chọn cái gần nhất; chỉ tạo group mới khi không cái nào hợp.
+  - **`description` is AT MOST 150 characters** (tối đa 150 ký tự). Router cắt đúng 150 và phần thừa mất âm thầm. Không mở bằng "Kích hoạt khi...". Ví dụ kích hoạt viết trong mục `## When to use` ở thân skill.
+  - **NEVER leave `group` empty** (không để trống). Đọc các group đang dùng trong skills/, agents/, workflows/ rồi chọn cái gần nhất; chỉ tạo group mới khi không cái nào hợp.
 - Slug chữ thường, nối bằng gạch ngang, không dấu (viết email → `viet-email`).
 - Workflow tham chiếu agent chưa có thì tạo agent trước. Gán skill có sẵn phù hợp.
 - Xong thì báo ngắn: tên file đã tạo và agent/workflow nào.
 
 ## Long-term memory and self-learning
 
-Bộ nhớ sống ở `brain/memory/` (chữ thường: Linux coi `Memory` là thư mục khác, ghi vào đó là mất):
+Bộ nhớ sống ở `brain/memory/` (lowercase, chữ thường: Linux coi `Memory` là thư mục khác, ghi vào đó là mất):
 - `memory/MEMORY.md`: chỉ mục, một dòng mỗi trí nhớ. Được nạp sẵn trước mọi câu hỏi.
 - `memory/facts/*.md`: chi tiết, một file một sự kiện. Cần chi tiết thì đọc file tương ứng.
 - `memory/conversations/YYYY-MM-DD.md`: nhật ký hội thoại thô, nguyên liệu để học.
