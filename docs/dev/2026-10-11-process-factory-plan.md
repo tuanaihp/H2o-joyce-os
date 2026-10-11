@@ -54,7 +54,7 @@ trang hiện đúng đang ở bước nào.
 - [x] T5 - Tài liệu hoá quy tắc SOP ACTIVE: mẫu frontmatter (`phien_ban`, `thay_the`, `ngay_ra_soat`)
   và quy tắc sửa qua Change Request, ghi trong spec. Không khoá quyền ghi ở tầng file (để sau).
   Kiểm: trang trong T1 đọc được các trường này trong brain tạm.
-- [ ] T6 - Bộ test đầy đủ như CI (venv Python 3.12, Linux-equivalent), CHANGELOG hoàn chỉnh,
+- [x] T6 - Bộ test đầy đủ như CI (venv Python 3.12, Linux-equivalent), CHANGELOG hoàn chỉnh,
   commit từng việc, push nhánh. Không merge vào `main`: CI phải xanh trước.
 
 ## Quyết định đã chốt
@@ -71,3 +71,11 @@ trang hiện đúng đang ở bước nào.
 - Nguồn booking theo concept (chưa có kết nối). Cột booking ghi "chưa nối nguồn".
 - Các brain khác ngoài pilot.
 - Sửa `CLAUDE.md` hoặc thêm `workflows/` ở gốc repo.
+
+## Kết quả kiểm cuối (T6)
+
+Chạy trên worktree sạch ở `e622e8f`, toàn bộ 580 file test (Python và JS), mỗi file một tiến trình:
+574 xanh, 6 đỏ. Sáu file đỏ đều là quyết định chủ repo, không do batch này:
+`test_go_chatgpt_web`, `test_tai_lieu_song_ngu` (thiếu tài liệu trong docs/dev), `test_prompt_budget`
+(CLAUDE.md và prompt cố định vượt trần), `test_logo_linh_vat`, `test_pet_bang_mau`,
+`test_pet_thanh_truot_mau` (mascot và bảng màu mặc định).
