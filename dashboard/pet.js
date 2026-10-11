@@ -142,7 +142,7 @@
   // `color` / `eyeColor` là mã màu của ô TỰ CHỌN. Chúng nằm sẵn trong cấu hình kể cả khi đang
   // dùng màu có sẵn, để bấm lại ô tự chọn là ra đúng màu lần trước chứ không về một màu lạ.
   // Mặc định là LINH VẬT CHÍNH THỨC: ngôi sao màu cam, trùng logo (chủ dự án chốt 24/09, 0.64.47).
-  var MAC_DINH = { enabled: true, shape: "drop", palette: "cam", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#06b6d4", eyeColor: "#0e7490" };
+  var MAC_DINH = { enabled: true, shape: "star", palette: "cam", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#06b6d4", eyeColor: "#0e7490" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;

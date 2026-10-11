@@ -29,8 +29,9 @@ check("nút Đặt lại trả về đúng ngôi sao cam",
   /P\.setCfg\(\{ shape: "star", palette: "cam",/.test(read("dashboard/console.js")));
 check("logo.svg vẽ ĐÚNG đường ngôi sao của linh vật", dSao.length > 50 && svg.split(dSao).length - 1 === 2,
   "số lần xuất hiện: " + (svg.split(dSao).length - 1));
-check("thân logo cùng màu thân bảng Cam", !!cam[1] && svg.includes('fill="' + cam[1] + '"'), cam[1]);
-check("viền logo cùng màu vành bảng Cam", !!cam[2] && svg.includes('stroke="' + cam[2] + '"'), cam[2]);
+// So sánh không phân biệt hoa thường: bảng màu viết #06B6D4, logo viết #06b6d4 (cùng một màu).
+check("thân logo cùng màu thân bảng Cam", !!cam[1] && svg.toLowerCase().includes('fill="' + cam[1].toLowerCase() + '"'), cam[1]);
+check("viền logo cùng màu vành bảng Cam", !!cam[2] && svg.toLowerCase().includes('stroke="' + cam[2].toLowerCase() + '"'), cam[2]);
 const dMat = (/<path d="(M[^"]+)"\s+fill="none" stroke="#1F1F1F"/.exec(svg) || [])[1] || "";
 check("logo có đôi mắt cười ^^ (đúng hai cung, đầu bo tròn)", (dMat.match(/Q/g) || []).length === 2 && /stroke-linecap="round"/.test(svg), dMat);
 check("logo nền trong suốt (không có hình nền)", !/<rect/.test(svg));

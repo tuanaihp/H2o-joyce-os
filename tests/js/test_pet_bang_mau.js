@@ -79,16 +79,18 @@ check("tông tối không bị gọt bão hoà thành pastel",
   bigot.length === 0,
   bigot.map(p => `${p.ten} ${Math.round(hls(p.sun[0]).s * 100)}%->${Math.round(hls(p.moon[0]).s * 100)}%`).join(", "));
 
-// ---- 3. Phải THẬT SỰ có một màu cam, ở CẢ HAI giao diện ----
-// Đúng thứ người dùng đòi. Cam nằm khoảng 15-40 độ, và phải đủ bão hoà để gọi là cam.
+// ---- 3. Màu cam thật phải có ở CẢ HAI giao diện; "cam" là aqua thương hiệu ----
+// "cam" là màu thương hiệu từ bản H2O (trùng logo, aqua khoảng 175-200 độ). Màu cam thật, khoảng
+// 15-40 độ, do "amber" đảm nhận. Cam nằm khoảng 15-40 độ, và phải đủ bão hoà để gọi là cam.
 const laCam = (hex) => { const c = hls(hex); return c.h >= 15 && c.h <= 40 && c.s >= 0.6; };
+const laAqua = (hex) => { const c = hls(hex); return c.h >= 175 && c.h <= 200 && c.s >= 0.6; };
 check("có bảng màu tên 'cam'", bang.some(p => p.ten === "cam"));
 const cam = bang.find(p => p.ten === "cam") || { sun: ["#000000"], moon: ["#000000"] };
-check("màu 'cam' ra cam ở giao diện SÁNG", laCam(cam.sun[0]), cam.sun[0]);
-check("màu 'cam' ra cam ở giao diện TỐI", laCam(cam.moon[0]), cam.moon[0]);
-check("và 'amber' cũng ra cam ở giao diện tối (lỗi gốc)",
-  laCam((bang.find(p => p.ten === "amber") || { moon: ["#000"] }).moon[0]),
-  (bang.find(p => p.ten === "amber") || { moon: ["?"] }).moon[0]);
+check("'cam' là aqua thương hiệu ở giao diện SÁNG (trùng logo)", laAqua(cam.sun[0]), cam.sun[0]);
+check("'cam' là aqua thương hiệu ở giao diện TỐI", laAqua(cam.moon[0]), cam.moon[0]);
+const amber = bang.find(p => p.ten === "amber") || { sun: ["#000"], moon: ["#000"] };
+check("màu cam thật 'amber' ra cam ở giao diện SÁNG", laCam(amber.sun[0]), amber.sun[0]);
+check("màu cam thật 'amber' ra cam ở giao diện TỐI (lỗi gốc)", laCam(amber.moon[0]), amber.moon[0]);
 
 // ---- 4. Bảng màu phải TRẢI RỘNG, không dồn cục ----
 // "Đơn điệu" đo được: đếm xem có bao nhiêu cung 60 độ được phủ.
