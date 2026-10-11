@@ -16,6 +16,9 @@ os.environ["JOYCE_SESSIONS_DB"] = str(Path(state) / "sessions.db")
 
 import main  # noqa: E402
 import nghien_cuu  # noqa: E402
+
+# Gán thẳng thuộc tính: nếu một test khác đã import main trước, biến môi trường ở trên không còn tác dụng.
+main.BRAINS_DIR = str(Path(state) / "brains")
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
