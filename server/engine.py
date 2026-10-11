@@ -490,13 +490,9 @@ def ollama_local_url() -> str:
     return (ep + "/v1/chat/completions") if ep else ""
 
 def openai_compat_base() -> str:
-    """Base URL của endpoint openai-compat ĐANG ACTIVE (tính tới /v1, không có gạch chéo
-    cuối). "" = chưa đặt. Sổ endpoint nằm ở compat_providers - preset nhà nào thì URL
-    nhà đó, key và danh sách model của từng nhà đều được giữ riêng."""
+    """Base URL của provider 'openai-compat' (tính tới /v1, không có gạch chéo cuối). "" = chưa đặt."""
     import config as cfgmod
-    import compat_providers
-    m = cfgmod.read_settings().get("model", {})
-    ep = (compat_providers.ep(m).get("base") or "").strip().rstrip("/")
+    ep = (cfgmod.read_settings().get("model", {}).get("openai_compat_base") or "").strip().rstrip("/")
     # Người dùng hay dán nguyên URL chat thay vì base - cắt đuôi đó đi thay vì báo lỗi.
     if ep.endswith("/chat/completions"):
         ep = ep[: -len("/chat/completions")]
