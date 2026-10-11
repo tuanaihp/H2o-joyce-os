@@ -76,7 +76,7 @@ import mcp_hub
 import connect_health   # sức khoẻ kết nối: vòng check nền + phân loại lỗi tiếng người
 import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất của việc dọn dấu vết
 import core_off       # năng lực MẶC ĐỊNH gỡ được: trạng thái ghi ở STATE_DIR, không sửa cây code
-import h2o_gateway    # cổng /h2o OpenAI-compatible cho app ngoài (H2O Legacy) — proxy sang Ollama
+import h2o_gateway    # cổng /h2o OpenAI-compatible cho app ngoài (H2O Legacy) - proxy sang Ollama
 import packs          # GÓI mở rộng: thả thư mục vào STATE_DIR/packs là có thêm connector
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
@@ -337,7 +337,7 @@ def _token_ok(request, path: str) -> bool:
     return False
 
 # Cổng /h2o cho app ngoài (H2O Legacy): đăng ký SAU CORS+csrf+auth để middleware của nó
-# chạy NGOÀI CÙNG — xử lý OPTIONS preflight (PNA) trước các rào; request thường vẫn qua
+# chạy NGOÀI CÙNG - xử lý OPTIONS preflight (PNA) trước các rào; request thường vẫn qua
 # đủ auth (Bearer token) + csrf (origin trong JOYCE_ALLOWED_HOSTS/settings.domain.custom).
 h2o_gateway.setup(app)
 
@@ -17709,7 +17709,7 @@ joyce_overview.register(app, joyce_overview.OverviewDeps(
 
 
 # ============================================================
-# NHÂN VIÊN H2O — server/h2o_staff.py. Admin quản lý ở Cài đặt → Nhân viên;
+# NHÂN VIÊN H2O - server/h2o_staff.py. Admin quản lý ở Cài đặt → Nhân viên;
 # nhân viên tự đăng nhập bằng SĐT + PIN (cookie h2o_staff, public ở 3 đường
 # login/me/logout). Model được cấp là danh sách "provider:model" - rỗng = tất cả.
 # ============================================================
@@ -18417,7 +18417,7 @@ async def staff_models_catalog(request: Request):
         if not p.get("configured"):
             continue
         groups.append({"id": p["id"] + ":*", "provider": p["id"],
-                       "label": (p.get("label") or p["id"]) + " — mọi model"})
+                       "label": (p.get("label") or p["id"]) + " - mọi model"})
     ep, key = _ol_cfg()
     names = []
     if ep:
