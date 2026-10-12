@@ -2231,8 +2231,9 @@ function appendUserMessage(text, attachments, ts) {
   const attHtml = attachHtml(attachments);
   // Tin dài (>10 dòng hoặc >900 ký tự) thu gọn lại, bấm "Xem thêm" để mở
   const isLong = text && (text.split("\n").length > 10 || text.length > 900);
+  const _escText = escapeHtml(text);
   const textHtml = text
-    ? `<div class="utext${isLong ? " clamped" : ""}">${escapeHtml(text)}</div>` +
+    ? `<div class="utext${isLong ? " clamped" : ""}">${window.JoyceChatFile ? window.JoyceChatFile.linkifyMd(_escText) : _escText}</div>` +
       (isLong ? `<button class="clamp-more" type="button">${window.t("app.show_more")}</button>` : "")
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
@@ -2492,6 +2493,21 @@ function runMsgAct(btn) {
         : (msgEl.dataset.text || b.innerText);
       copyText(value).then(() => flashCopied(btn, "⧉"));
     }
+    return;
+  }
+  if (act === "remember") {
+    // Ghi nguyen van tin vao sources/ cua brain -> lo ingest chung cat len wiki sau.
+    // Tin Joyce lay markdown goc (dataset.md), tin nguoi dung lay chu da go.
+    if (!window.JoyceChatFile) return;
+    const raw = msgEl.classList.contains("msg-joyce")
+      ? window.JoyceVisibleMarkdown(msgEl.dataset.md || "")
+      : (msgEl.dataset.text || "");
+    const ts = msgEl.querySelector(".msg-time") ? Date.now() : Date.now();
+    window.JoyceChatFile.remember(raw, ts).then((p) => {
+      btn.innerHTML = ic("check", { cls: "ic-ok" });
+      btn.title = p;
+      setTimeout(() => { btn.textContent = "★"; btn.title = window.t("cact.remember"); }, 1600);
+    }).catch((e) => { btn.title = e.message || String(e); });
     return;
   }
   // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.
@@ -3619,6 +3635,10 @@ function taiLaiDinhKem(i) {
 }
 
 document.getElementById("attachBtn").addEventListener("click", () => fileInput.click());
+// Nut 📄: chon file .md trong brain -> chen `path` vao o nhap de Joyce doc/tom tat/sua.
+document.getElementById("brainFileBtn").addEventListener("click", (e) => {
+  if (window.JoyceChatFile) window.JoyceChatFile.toggle(e.currentTarget);
+});
 fileInput.addEventListener("change", () => {
   [...fileInput.files].forEach(f => uploadFile(f));
   fileInput.value = "";

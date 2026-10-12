@@ -550,6 +550,11 @@
         </svg>
       </button>
       <input type="file" id="fileInput" multiple style="display:none">
+      <button class="attach-btn" id="brainFileBtn" title="Gọi file .md trong brain (wiki, skill, quy trình)" data-i18n-title="bar.brainfile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/>
+        </svg>
+      </button>
       <textarea id="chatInput" class="voice-input" placeholder="Bạn muốn tôi làm điều gì?" data-i18n-ph="bar.input_ph" rows="1"></textarea>
       <button class="stop-btn" id="stopBtn" title="Ngắt lệnh / dừng đọc (Esc)" data-i18n-title="bar.stop" style="display:none">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
@@ -967,7 +972,9 @@
   <!-- Lệnh "/" hệ thống (/status /model /compact /plan /goal ...): chạy lệnh mà chat-slash.js vừa nhận
        diện. Phải nạp TRƯỚC app.js (sendMessage gọi window.JoyceLenh) và SAU chat-slash.js (đọc menu). -->
   <script src="/static/chat-lenh.js?v=1"></script>
-  <script src="/static/chat-acts.js?v=2"></script>
+  <script src="/static/chat-acts.js?v=3"></script>
+  <!-- Goi file brain tu khung chat + ghi nho tin nhan vao sources/. Nap truoc app.js. -->
+  <script src="/static/chat-file.js?v=1"></script>
   <script src="/static/chat-marks.js?v=3"></script>
   <!-- Khối tiến trình từng bước trong khung chat: phải đứng TRƯỚC app.js vì app.js gọi
        window.JoyceSteps ngay khi khung tool_call đầu tiên về. -->
@@ -981,7 +988,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/mic-dialog.js?v=2"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=136"></script>
+  <script src="/static/app.js?v=137"></script>
   <!-- Sau app.js: dải việc nền đọc window.JoyceSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và

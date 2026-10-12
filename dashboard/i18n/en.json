@@ -4430,5 +4430,12 @@
   "look.lava_speed": "Lava flow speed",
   "look.slow": "Slow",
   "look.fast": "Fast",
-  "settings.tab.huongdan": "Joyce Operations Guide"
+  "settings.tab.huongdan": "Joyce Operations Guide",
+  "bar.brainfile": "Insert a brain .md file (wiki, skill, workflow)",
+  "cact.remember": "Save this message to brain (sources/)",
+  "bf.title": "Pick a brain file",
+  "bf.search_ph": "Search files by name…",
+  "bf.empty": "No files",
+  "bf.err": "Could not load file list",
+  "bf.rem_empty": "Empty message, nothing to save"
 }

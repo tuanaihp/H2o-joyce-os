@@ -4430,5 +4430,12 @@
   "look.lava_speed": "Tốc độ dòng dung nham",
   "look.slow": "Chậm",
   "look.fast": "Nhanh",
-  "settings.tab.huongdan": "Hướng dẫn vận hành Joyce"
+  "settings.tab.huongdan": "Hướng dẫn vận hành Joyce",
+  "bar.brainfile": "Gọi file .md trong brain (wiki, skill, quy trình)",
+  "cact.remember": "Ghi nhớ tin này vào brain (sources/)",
+  "bf.title": "Chọn file trong brain",
+  "bf.search_ph": "Tìm file theo tên… (vd: SKILL, quy trinh)",
+  "bf.empty": "Không có file nào",
+  "bf.err": "Không đọc được danh sách file",
+  "bf.rem_empty": "Tin trống, không có gì để nhớ"
 }

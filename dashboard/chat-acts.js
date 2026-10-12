@@ -81,6 +81,7 @@
     }
     return '<div class="msg-acts">' + time + send +
       '<button class="msg-act" type="button" data-act="copy" title="' + esc(tw("cact.copy")) + '">⧉</button>' +
+      '<button class="msg-act" type="button" data-act="remember" title="' + esc(tw("cact.remember")) + '">★</button>' +
       "</div>";
   }
 
