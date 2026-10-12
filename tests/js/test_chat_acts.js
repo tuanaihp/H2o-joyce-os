@@ -35,7 +35,9 @@ check("tin user: giờ đầy đủ nằm ở title", has(h, "27/07/2026 06:38")
 check("tin user: có nút gửi lại", has(h, 'data-act="retry"'));
 check("tin user: có nút sửa lại", has(h, 'data-act="edit"'));
 check("tin user: có nút copy", has(h, 'data-act="copy"'));
-check("tin user: nút không submit form", (h.match(/type="button"/g) || []).length === 3);
+// 4 nut: gui lai + sua lai + copy + ★ ghi nho (them o chat-file.js, d257b02).
+check("tin user: nút không submit form", (h.match(/type="button"/g) || []).length === 4);
+check("tin user: có nút ★ ghi nhớ", has(h, 'data-act="remember"'));
 
 // ---- 4. Tin Joyce: CHỈ giờ + copy ----
 // Nút "Trả lời lại câu hỏi phía trên" bỏ ở 0.52.13 (chủ repo yêu cầu): nó nằm ngay cạnh nút
@@ -46,7 +48,9 @@ check("tin joyce: có giờ", has(h, "msg-time"));
 check("tin joyce: KHÔNG còn nút chạy lại", !has(h, 'data-act="retry"'));
 check("tin joyce: KHÔNG có nút sửa", !has(h, 'data-act="edit"'));
 check("tin joyce: có copy", has(h, 'data-act="copy"'));
-check("tin joyce: chỉ còn đúng 1 nút", (h.match(/class="msg-act"/g) || []).length === 1);
+// Copy + ★ ghi nho - van KHONG co nut chay lai.
+check("tin joyce: chỉ còn copy + ghi nhớ", (h.match(/class="msg-act"/g) || []).length === 2);
+check("tin joyce: có nút ★ ghi nhớ", has(h, 'data-act="remember"'));
 // Đường hỏi lại KHÔNG mất: nó nằm trên chính bong bóng câu hỏi của người dùng.
 check("gửi lại vẫn còn ở tin người dùng", has(A.actsHtml("user", TS), 'data-act="retry"'));
 
@@ -86,7 +90,7 @@ check("chỉ có ảnh: bỏ nút gửi lại", !has(h, 'data-act="retry"'));
 check("chỉ có ảnh: bỏ nút sửa lại", !has(h, 'data-act="edit"'));
 check("chỉ có ảnh: vẫn còn nút copy", has(h, 'data-act="copy"'));
 check("chỉ có ảnh: vẫn còn giờ", has(h, "msg-time"));
-check("chỉ có ảnh: chỉ còn đúng 1 nút", (h.match(/class="msg-act"/g) || []).length === 1);
+check("chỉ có ảnh: chỉ còn copy + ghi nhớ", (h.match(/class="msg-act"/g) || []).length === 2);
 
 h = A.actsHtml("joyce", TS, false);
 check("joyce không có câu hỏi chữ: bỏ nút gửi lại", !has(h, 'data-act="retry"'));
@@ -94,8 +98,8 @@ check("joyce không có câu hỏi chữ: vẫn còn copy", has(h, 'data-act="co
 
 // Bỏ trống tham số thì giữ nguyên hành vi cũ (các chỗ gọi cũ không đổi)
 h = A.actsHtml("user", TS);
-check("không truyền canResend: vẫn đủ 3 nút", (h.match(/class="msg-act"/g) || []).length === 3);
-check("canResend=true: vẫn đủ 3 nút", (A.actsHtml("user", TS, true).match(/class="msg-act"/g) || []).length === 3);
+check("không truyền canResend: vẫn đủ 4 nút", (h.match(/class="msg-act"/g) || []).length === 4);
+check("canResend=true: vẫn đủ 4 nút", (A.actsHtml("user", TS, true).match(/class="msg-act"/g) || []).length === 4);
 
 // ---- 8. Escape: nhãn/giờ nhét vào HTML không được mở thẻ ----
 check("hàng nút không chứa thẻ lạ", !has(A.actsHtml("user", TS), "<script"));

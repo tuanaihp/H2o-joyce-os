@@ -2502,12 +2502,24 @@ function runMsgAct(btn) {
     const raw = msgEl.classList.contains("msg-joyce")
       ? window.JoyceVisibleMarkdown(msgEl.dataset.md || "")
       : (msgEl.dataset.text || "");
-    const ts = msgEl.querySelector(".msg-time") ? Date.now() : Date.now();
-    window.JoyceChatFile.remember(raw, ts).then((p) => {
+    // Bam dup / bam lai cung mot tin = 2 file trung trong sources/ -> chan, chi bao lai cho da ghi.
+    if (btn.disabled) return;
+    if (msgEl.dataset.remembered) {
+      if (window.toast) window.toast(window.t("cact.remembered") + " " + msgEl.dataset.remembered);
+      return;
+    }
+    btn.disabled = true;
+    window.JoyceChatFile.remember(raw, Date.now()).then((p) => {
+      msgEl.dataset.remembered = p;
       btn.innerHTML = ic("check", { cls: "ic-ok" });
       btn.title = p;
-      setTimeout(() => { btn.textContent = "★"; btn.title = window.t("cact.remember"); }, 1600);
-    }).catch((e) => { btn.title = e.message || String(e); });
+      if (window.toast) window.toast(window.t("cact.remembered") + " " + p);
+      setTimeout(() => { btn.textContent = "★"; btn.title = p; btn.disabled = false; }, 1600);
+    }).catch((e) => {
+      btn.disabled = false;
+      btn.title = e.message || String(e);
+      if (window.toast) window.toast(e.message || String(e), true);
+    });
     return;
   }
   // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.

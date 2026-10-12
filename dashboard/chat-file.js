@@ -23,7 +23,9 @@
   }
 
   // -------- 1) Bo chon file brain --------------------------------------
-  var panel = null, home = "", seq = 0;
+  // `home` (goc brain, tuong doi tran) cache THEO TUNG BRAIN: doi brain ma dung lai home cu
+  // la ghi nho roi vao sources/ cua brain truoc.
+  var panel = null, homes = {}, home = "", seq = 0;
 
   function ensurePanel() {
     if (panel) return panel;
@@ -62,11 +64,12 @@
       '<span class="slash-desc">' + esc(it.path) + "</span></div>";
   }
 
-  async function listDir(path) {
-    var r = await fetch("/files/list?brain=" + encodeURIComponent(curBrain()) +
+  async function listDir(path, brain) {
+    brain = brain || curBrain();
+    var r = await fetch("/files/list?brain=" + encodeURIComponent(brain) +
       (path ? "&path=" + encodeURIComponent(path) : ""));
     var d = await r.json().catch(function () { return {}; });
-    if (d.home != null) home = d.home;
+    if (d.home != null) { homes[brain] = d.home; if (brain === curBrain()) home = d.home; }
     return d;
   }
 
@@ -85,7 +88,7 @@
     panel.innerHTML = headHtml +
       '<div style="padding:6px 8px;border-bottom:1px solid var(--line,rgba(0,0,0,.08))">' +
       '<input id="bfQ" class="bf-q" placeholder="' + esc(tw("bf.search_ph")) + '" ' +
-      'style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line,#ccc);border-radius:8px;font:inherit;background:var(--bg-2,#fff);color:inherit"></div>' +
+      'style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line,#ccc);border-radius:8px;font:inherit;background:var(--field-bg,var(--bg));color:inherit"></div>' +
       '<div class="bf-list" style="overflow:auto">' +
       // Chi cho "len" khi dang SAU HON goc brain - khong leo ra ngoai tran duyet.
       (home && d.path && d.path.indexOf(home + "/") === 0 ? '<div class="slash-item bf-up">⬅ ..</div>' : "") +
@@ -145,6 +148,7 @@
 
   async function open(path) {
     ensurePanel();
+    home = homes[curBrain()] != null ? homes[curBrain()] : "";
     panel.dataset.cur = path || "";
     panel.innerHTML = '<div class="slash-item" style="opacity:.6">…</div>';
     panel.style.display = "block";
@@ -186,15 +190,25 @@
   async function remember(text, ts) {
     text = String(text || "").trim();
     if (!text) throw new Error(tw("bf.rem_empty"));
-    if (!home) { try { await listDir(""); } catch (e) {} }
+    // Chot brain MOT lan cho ca luot ghi - nguoi dung doi brain giua chung khong lam lech.
+    var brain = curBrain();
+    if (homes[brain] == null) { try { await listDir("", brain); } catch (e) {} }
+    // Chua biet goc brain thi KHONG ghi: home "" hop le (tran = goc brain), nhung "khong biet"
+    // ma doan "" la ghi ra sources/ o TRAN (tren localhost tran la ca o dia).
+    if (homes[brain] == null) throw new Error(tw("bf.err"));
+    var h = homes[brain];
     var d = ts ? new Date(ts) : new Date();
+    // Them ms + duoi ngau nhien: /files/write GHI DE im lang, 2 tin ghi nho cung giay la mat 1.
     var stamp = d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) +
-      "-" + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
-    var path = (home ? home.replace(/\/+$/, "") + "/" : "") + "sources/ghi-nho-" + stamp + ".md";
-    var content = "---\ntype: source\nsource_kind: chat\nstatus: unprocessed\ncreated: " +
-      d.toISOString() + "\n---\n\n" + text + "\n";
+      "-" + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds()) +
+      "-" + String(d.getMilliseconds()).padStart(3, "0") + Math.random().toString(36).slice(2, 5);
+    var path = (h ? h.replace(/\/+$/, "") + "/" : "") + "sources/ghi-nho-" + stamp + ".md";
+    // title giup lo ingest/wiki doc nhanh; JSON.stringify = chuoi YAML hai-nhay hop le.
+    var title = text.replace(/\s+/g, " ").slice(0, 80);
+    var content = "---\ntype: source\nsource_kind: chat\nstatus: unprocessed\ntitle: " +
+      JSON.stringify(title) + "\ncreated: " + d.toISOString() + "\n---\n\n" + text + "\n";
     var fd = new FormData();
-    fd.append("brain", curBrain());
+    fd.append("brain", brain);
     fd.append("path", path);
     fd.append("content", content);
     var r = await fetch("/files/write", { method: "POST", body: fd });

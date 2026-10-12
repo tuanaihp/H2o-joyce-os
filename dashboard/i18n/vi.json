@@ -4433,6 +4433,7 @@
   "settings.tab.huongdan": "Hướng dẫn vận hành Joyce",
   "bar.brainfile": "Gọi file .md trong brain (wiki, skill, quy trình)",
   "cact.remember": "Ghi nhớ tin này vào brain (sources/)",
+  "cact.remembered": "Đã ghi nhớ:",
   "bf.title": "Chọn file trong brain",
   "bf.search_ph": "Tìm file theo tên… (vd: SKILL, quy trinh)",
   "bf.empty": "Không có file nào",

@@ -4433,6 +4433,7 @@
   "settings.tab.huongdan": "Joyce Operations Guide",
   "bar.brainfile": "Insert a brain .md file (wiki, skill, workflow)",
   "cact.remember": "Save this message to brain (sources/)",
+  "cact.remembered": "Remembered:",
   "bf.title": "Pick a brain file",
   "bf.search_ph": "Search files by name…",
   "bf.empty": "No files",
