@@ -56,6 +56,8 @@ BOT_COMMANDS = [
     {"command": "agents", "description": "Liệt kê agent + việc đang chạy"},
     {"command": "workflows", "description": "Liệt kê workflow"},
     {"command": "model", "description": "Xem hoặc đổi model"},
+    {"command": "link", "description": "Link truy cập Joyce (tunnel + local)"},
+    {"command": "openclaw", "description": "OpenClaw Gateway: /openclaw mo|tat hoặc không tham số = trạng thái"},
     {"command": "brain", "description": "Xem hoặc đổi brain (vault) của phiên này"},
     {"command": "retry", "description": "Gửi lại câu hỏi gần nhất"},
     {"command": "usage", "description": "Token và chi phí đã dùng"},

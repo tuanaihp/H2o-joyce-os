@@ -2351,6 +2351,54 @@ def _chat_provider_bot(mcfg, bot):
                                              "pinned_model": g["model"]})
 
 
+def _tunnel_link_hien_tai() -> str:
+    """Link trycloudflare mới nhất của tunnel ĐANG CHẠY ("" nếu chưa có).
+
+    Cùng luật với plugin joyce-access: tunnel.log ưu tiên vì nó giữ link của tunnel sống
+    (log bị xoá mỗi lần cloudflared mở lại), tunnel-last.json chỉ là "link đã gửi Tele"
+    nên có thể là bản cũ đã chết khi lần gửi trước xịt."""
+    lg = ""
+    try:
+        _d = json.loads((PROJECT_ROOT / "tools" / "tunnel-last.json")
+                        .read_text(encoding="utf-8"))
+        lg = str(_d.get("link") or "")
+    except Exception:
+        pass
+    try:
+        _m = re.findall(r"https://[a-z0-9-]+\.trycloudflare\.com",
+                        (PROJECT_ROOT / "tools" / "tunnel.log")
+                        .read_text(encoding="utf-8", errors="replace"))
+        if _m and _m[-1] != lg:
+            lg = _m[-1]
+    except Exception:
+        pass
+    return lg
+
+
+_OPENCLAW_PLUGIN = None
+
+
+def _openclaw_chay(hanh_dong: str) -> str:
+    """Gọi thẳng plugin openclaw-bridge (nạp lazy bằng importlib, cache lại).
+
+    Đường lệnh CỨNG `/openclaw` + intercept "mở openclaw" phải chạy được kể cả khi
+    model chết, nên không đi qua engine/tool-call mà import file plugin và gọi hàm
+    `chay(hanh_dong)` đồng bộ của nó (caller bọc asyncio.to_thread)."""
+    global _OPENCLAW_PLUGIN
+    try:
+        if _OPENCLAW_PLUGIN is None:
+            import importlib.util
+            _p = PROJECT_ROOT / "server" / "plugins" / "openclaw-bridge" / "plugin.py"
+            _spec = importlib.util.spec_from_file_location("openclaw_bridge_plugin", _p)
+            _m = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_m)
+            _OPENCLAW_PLUGIN = _m
+        return _OPENCLAW_PLUGIN.chay(hanh_dong)
+    except Exception as e:
+        return (f"ERROR: plugin openclaw-bridge chưa chạy được "
+                f"({type(e).__name__}: {e}). Kiểm tra server/plugins/openclaw-bridge/.")
+
+
 def _chat_provider_kenh(mcfg, channel):
     """Provider cho một lượt theo KÊNH: Telegram có ghim riêng thì theo ghim, còn lại theo
     model chính. Dùng lại đúng luật rơi-về của ghim phiên web (`_chat_provider_for_session`):
@@ -2362,6 +2410,89 @@ def _chat_provider_kenh(mcfg, channel):
         return _chat_provider(mcfg)
     return _chat_provider_for_session(mcfg, {"pinned_provider": g["provider"],
                                              "pinned_model": g["model"]})
+
+
+# ---------------------------------------------------------------- auto-fallback
+# Provider đang chọn chết (model không hỗ trợ tool, key 401/403, hết quota 429) mà trả
+# thẳng lỗi về Telegram nghĩa là user tự khắc phục từ điện thoại - không được. Máy luôn
+# còn một não nữa có thể chạy (Claude CLI subscription, Ollama local, nhà khác đã có key),
+# nên khi một lượt API/CLI trả lỗi thì vỏ `_tg_answer` thử lần lượt chuỗi này, và nếu một
+# ứng viên trả lời được thì GHI LUÔN nó thành model mới - lượt sau không đập lại tường cũ.
+
+# Model Ollama local có tool-call tốt, xếp theo mức phù hợp chat+điều phối của Joyce.
+_OLLAMA_FALLBACK_UU_TIEN = ("qwen3-coder:30b", "qwen3:14b", "gpt-oss:20b", "llama3.1:8b",
+                          "qwen2.5-coder:7b", "mistral-small:24b", "gemma3:27b",
+                          "gemma3:4b", "deepseek-r1:14b", "qwen3-vl:8b")
+
+# Model Groq CÓ tool calling - chuỗi dự phòng khi model user ghim không chạy được
+# (ca thật 11/10/2026: allam-2-7b trên Groq báo "tool calling not supported"; account
+# free chỉ có gpt-oss-120b/20b là chat + tool được - đã verify qua /v1/models).
+_GROQ_FALLBACK_MODELS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
+
+
+def _ollama_model_local_song(mcfg) -> str:
+    """Model Ollama local đầu tiên trong bảng ưu tiên đang được pull sẵn trên máy.
+
+    Hỏi /api/tags live (chỉ gọi trên đường lỗi nên rẻ); daemon tắt/không model nào khớp
+    bảng ưu tiên thì trả tên đầu tiên bất kỳ, không có gì thì "" để chuỗi bỏ qua nhà này."""
+    ep = (mcfg.get("ollama_local_endpoint") or "").strip().rstrip("/")
+    if not ep:
+        return ""
+    try:
+        import urllib.request as _ur
+        data = _ur.urlopen(ep + "/api/tags", timeout=3).read()
+        tags = [str(m.get("name") or "") for m in
+                (json.loads(data).get("models") or []) if m.get("name")]
+    except Exception:
+        return ""
+    for m in _OLLAMA_FALLBACK_UU_TIEN:
+        if m in tags:
+            return m
+    return tags[0] if tags else ""
+
+
+def _fallback_chain(mcfg, cur_prov, cur_model):
+    """Chuỗi (prov, kind, key, model) thay thế khi provider hiện tại hỏng, theo thứ tự
+    ưu tiên: CLI đã cài (Claude/Codex/Grok/Antigravity - subscription sẵn có, tool đầy
+    đủ) -> Ollama local (miễn phí, đang chạy) -> Groq với model tool-capable -> mọi API
+    khác đã có key. Provider = provider hiện tại bị loại; model giống hệt cũng loại để
+    cùng một nhà vẫn được thử với model khác."""
+    chain, seen = [], set()
+
+    def _add(pid, model=""):
+        if (pid, model or "") in seen or (pid == cur_prov and (model or "") == (cur_model or "")):
+            return
+        d = _provider_def(pid)
+        if not d:
+            return
+        kind = d.get("kind", "cli")
+        key = _provider_key(mcfg, d)
+        if kind == "api" and not key:
+            return                      # nhà API chưa có key thì thử cũng chỉ trả 401
+        seen.add((pid, model or ""))
+        chain.append((pid, kind, key, model))
+
+    # kind=cli/oauth chỉ chạy được khi binary có trên máy - shutil.which lọc trước để
+    # chuỗi không chứa nhà chắc chắn hỏng ngay từ đầu.
+    for pid, binary in (("anthropic-cli", "claude"), ("openai-oauth", "codex"),
+                        ("grok-cli", "grok"), ("antigravity-cli", "agy")):
+        if shutil.which(binary):
+            # anthropic-cli: claude_model có thể chứa tên model nhà khác (vd ollama tag
+            # từng được gán nhầm) - ghim "sonnet" cho chắc thay vì để rỗng kế thừa tên lạ.
+            _add(pid, "sonnet" if pid == "anthropic-cli" else "")
+
+    _mdl = _ollama_model_local_song(mcfg)
+    if _mdl:
+        _add("ollama-local", _mdl)
+
+    if (mcfg.get("groq_api_key") or "").strip():
+        for gm in _GROQ_FALLBACK_MODELS:
+            _add("groq", gm)
+
+    for pid in ("openrouter", "anthropic-api", "openai", "gemini", "ollama",
+                "openai-compat"):
+        _add(pid, "")
+    return chain
 
 
 def _claude_api_model(model: str) -> str:
@@ -19980,16 +20111,99 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     except Exception as e:
         print(f"[{channel} session] {e}", file=__import__('sys').stderr)
 
+    # ĐƯỜNG TẮT "GỬI LINK": câu đòi link truy cập Joyce đọc file tunnel trả lời luôn,
+    # không qua model - ca dùng thật là model chết (hết quota, key mất) đúng lúc user
+    # cần link để vào dashboard đổi não. Điều kiện khớp CỐ Ý chặt: phải có "link" VÀ một
+    # từ khoá chỉ Joyce (joyce/truy cập/tunnel/dashboard/đăng nhập) để "gửi link bài
+    # viết" không ăn nhầm. Bot chuyên trách không qua đây. Đi qua luồng chuẩn (persist +
+    # quality) phía dưới chứ không return sớm - câu trả lời phải vào lịch sử như mọi lượt.
+    _link_nhanh = ""
+    _oc_nhanh = ""
+    if not bot:
+        _tl = text.lower()
+        if "link" in _tl and any(k in _tl for k in
+                                 ("joyce", "truy cập", "truy cap", "tunnel", "dashboard",
+                                  "đăng nhập", "dang nhap", "vào joyce", "vao joyce")):
+            _lg = _tunnel_link_hien_tai()
+            if _lg:
+                _link_nhanh = (f"🔗 Link Joyce (mở trên điện thoại):\n{_lg}\n\n"
+                               f"Link local (trong nhà): http://127.0.0.1:7777")
+        # ĐƯỜNG TẮT OPENCLAW: "mở/tắt openclaw" là lệnh vận hành máy, chạy thẳng plugin
+        # openclaw-bridge không qua model - lệnh phải đi được kể cả khi LLM chết. Bắt
+        # theo TỪ (split) chứ không phải chuỗi con, và ưu tiên câu HỎI trạng thái
+        # ("openclaw chạy chưa") trước động từ để "chạy" không ăn nhầm thành lệnh mở.
+        _w = set(_tl.replace(",", " ").replace("?", " ").replace(".", " ").split())
+        if "openclaw" in _w:
+            if (_w & {"chưa", "chua", "status", "đâu", "dau"}
+                    or "trạng thái" in _tl or "trang thai" in _tl):
+                _oc_nhanh = "xem"
+            elif _w & {"tắt", "tat", "dừng", "dung", "stop", "kill", "ngừng", "ngung"}:
+                _oc_nhanh = "tat"
+            elif (_w & {"mở", "mo", "bật", "bat", "chạy", "chay", "start", "lên", "len"}
+                    or "khởi động" in _tl or "khoi dong" in _tl):
+                _oc_nhanh = "mo"
+            elif len(_w) <= 3:
+                _oc_nhanh = "xem"
+
     runtime_trace = _CONTEXT_RUNTIME.start_turn(
         conv_sid or f"{channel}:{chat_id}", brain, channel)
     _CONTEXT_RUNTIME.set_route(runtime_trace, engine_label,
                                api_model or mcfg.get("claude_model") or "mặc định")
     _trace_token = context_runtime.bind_trace(runtime_trace)
     try:
-        out = await _tg_answer_engine(
-            text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
-            prov=prov, kind=kind, api_key=api_key, api_model=api_model,
-            store=store, conv_sid=conv_sid, channel=channel, bot=bot)
+        if _link_nhanh:
+            out = {"text": _link_nhanh, "files": []}
+        elif _oc_nhanh:
+            # Mở gateway chờ port lên tới ~40s - chạy trong thread để không khoá vòng lặp.
+            _r = await asyncio.to_thread(_openclaw_chay, _oc_nhanh)
+            out = {"text": _r, "files": []}
+        else:
+            out = await _tg_answer_engine(
+                text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
+                prov=prov, kind=kind, api_key=api_key, api_model=api_model,
+                store=store, conv_sid=conv_sid, channel=channel, bot=bot)
+
+        # TỰ ĐỔI NÃO KHI PROVIDER CHẾT: lượt trả về CHUỖI lỗi (quy ước của lõi) thay vì
+        # câu trả lời -> thử lần lượt `_fallback_chain`. Não nào trả lời được thì GHI LUÔN
+        # nó làm model mới (ô Telegram nếu đang ghim, không thì model chính) để lượt sau
+        # không đập lại tường cũ. Chỉ kênh của chủ; bot chuyên trách và staff giữ nguyên -
+        # bot phục vụ khách ngoài thì lặng lẽ đổi model của nó sang nhà khác là tự ý phá
+        # cấu hình chủ đã chọn cho Agent.
+        if (isinstance(out, str) and not bot
+                and str(channel or "") in ("telegram", "zalo", "cli")
+                and mcfg.get("auto_fallback", True)):
+            for _fp, _fk, _fkey, _fm in _fallback_chain(mcfg, prov, api_model):
+                # Engine vừa hỏng đã append user msg và build system prompt có nhãn nhà cũ
+                # vào sess["or"]. Reset luôn: lịch sử được mồi lại từ kho phiên, system
+                # prompt dựng lại đúng nhãn của nhà mới.
+                sess["or"] = None
+                if progress:
+                    try:
+                        await progress(f"↻ {_api_label(prov)} lỗi - thử {_api_label(_fp)}…")
+                    except Exception:
+                        pass
+                try:
+                    _o2 = await _tg_answer_engine(
+                        text, meta, progress, chat_id=chat_id, sess=sess, brain=brain,
+                        mcfg=mcfg, prov=_fp, kind=_fk, api_key=_fkey, api_model=_fm,
+                        store=store, conv_sid=conv_sid, channel=channel, bot=None)
+                except Exception:
+                    _o2 = None
+                if isinstance(_o2, dict):
+                    try:
+                        _s2 = cfgmod.read_settings()
+                        _tg_dat_model(_s2, _fp, _fm)
+                        cfgmod.write_settings(_s2)
+                    except Exception as _e:
+                        print(f"[auto-fallback model] {type(_e).__name__}: {_e}",
+                              file=__import__('sys').stderr)
+                    _o2["text"] = (f"(tự chuyển não: {_api_label(prov)} "
+                                   f"{api_model or 'mặc định'} lỗi → {_api_label(_fp)} "
+                                   f"{_fm or 'mặc định'})\n\n" + (_o2.get("text") or ""))
+                    out, prov, kind, api_key, api_model = _o2, _fp, _fk, _fkey, _fm
+                    break
+                if isinstance(_o2, str):
+                    out = _o2    # giữ thông báo lỗi MỚI NHẤT - gần nguyên nhân thật hơn
 
         # Cùng luật với dashboard: hứa "xong em báo" mà không có việc nền nào thì nói thẳng.
         # Ở kênh này tin nhắn CHƯA gửi đi nên nối luôn vào cuối, khỏi phải bắn thêm một tin.
@@ -20946,6 +21160,8 @@ async def _tg_help_text(brain):
         "/workflows - liệt kê workflow\n"
         "/model - xem/đổi model: gõ /model để chọn bằng nút (mọi nhà cung cấp đã kết nối), hoặc /model <tên model>\n"
         "/model ghim - khoá Telegram vào model đang dùng (web đổi không kéo theo) · /model theo - bỏ ghim\n"
+        "/link - link truy cập Joyce mới nhất (tunnel Cloudflare + local), kể cả khi model hỏng\n"
+        "/openclaw mo|tat - bật/tắt OpenClaw Gateway trên máy · /openclaw - trạng thái\n"
         "/brain - xem/đổi brain (vault) cho riêng phiên của bạn (vd /brain hoặc /brain <tên>)\n"
         "/cli - engine Claude (có MCP/skill)\n"
         "/or - engine OpenRouter (chat + MCP đa-model)\n"
@@ -21292,6 +21508,19 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
                           f"Brain: {bname} (đổi bằng /brain)\n"
                           f"Phiên: {chat_key} (ngữ cảnh riêng)\n"
                           f"Đang xử lý: {'có (gửi /stop để dừng)' if busy else 'rảnh'}")}
+    if cmd in ("link", "truy-cap", "truycap"):
+        # Lệnh CỨNG, không qua model: link tunnel đọc từ file nên kể cả khi LLM chết
+        # (hết quota, model không tool) thì "gửi lại link" vẫn trả lời được.
+        _lg = _tunnel_link_hien_tai()
+        if _lg:
+            return {"reply": (f"🔗 Link Joyce (mở trên điện thoại):\n{_lg}\n\n"
+                              f"Link local (trong nhà): http://127.0.0.1:7777")}
+        return {"reply": ("⚠ Chưa thấy link tunnel nào được ghi. Tunnel có thể đang tắt - "
+                          "kiểm tra cloudflared hoặc nhắn 'mở lại tunnel' khi model sống.")}
+    if cmd == "openclaw":
+        # Lệnh CỨNG, không qua model: mở/tắt/xem OpenClaw Gateway trên máy qua plugin
+        # openclaw-bridge. Mở chờ port lên tới ~40s nên chạy trong thread.
+        return {"reply": await asyncio.to_thread(_openclaw_chay, arg.strip() or "xem")}
     if cmd == "model":
         s = cfgmod.read_settings(); m = s["model"]
         a = arg.strip()
