@@ -6,6 +6,9 @@
 - **Lệnh Telegram `/openclaw mo` và `/openclaw tat`**: bật hoặc tắt cổng OpenClaw từ xa ngay trong Telegram.
 - Trên Windows, Joyce nhận ra Grok Build cài bằng bộ cài của x.ai (thư mục `~/.grok/bin`).
 
+### Sửa lỗi
+- Khi não chính lỗi và các não dự phòng cũng lỗi, Joyce báo đúng lỗi gốc (ví dụ hết hạn đăng nhập) thay vì lỗi của một não bạn không chọn.
+
 ## [1.3.7] - 2026-10-11
 ### Thêm mới
 - **Trang Nghiên cứu**: một chỗ để xem ý tưởng concept đang ở bước nào, thư viện concept, SOP liên quan, bản tin xu hướng và nhật ký quyết định của phòng Nghiên cứu concept hình ảnh.
