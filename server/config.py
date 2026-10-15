@@ -804,7 +804,36 @@ def write_settings(cfg):
                 t["secret"] = cu
     except Exception:
         pass
+    # Cùng luật đó cho MỌI secret (token Telegram, Zalo, API key...): khoá đang lỗi thì
+    # read_settings giải mã ra "", và lần ghi kế tiếp xoá trắng token thật. Chủ studio mất
+    # token bot Telegram đúng kiểu này (15/10). Giữ blob cũ khi giá trị mới RỖNG và blob cũ
+    # KHÔNG giải mã được lúc này. Khoá còn tốt mà người dùng chủ động xoá thì blob cũ giải mã
+    # được, nên vẫn xoá như thường.
+    try:
+        _giu_secret_khi_khoa_hong(out)
+    except Exception as e:
+        print(f"[config] giữ secret khi khoá hỏng: {e}", file=__import__('sys').stderr)
     SETTINGS_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _giu_secret_khi_khoa_hong(out: dict) -> None:
+    if not SETTINGS_PATH.exists():
+        return
+    import secrets_store
+    raw_cu = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    for path in _SECRET_PATHS:
+        # 2FA có luật riêng ngay trên (giữ khi enabled, cho xoá khi totp_tat tắt hẳn).
+        if path.endswith(".*") or path == "auth.totp.secret":
+            continue
+        moi = _secret_keys(out, path)
+        cu = _secret_keys(raw_cu, path)
+        if not moi or not cu:
+            continue
+        (parent_moi, key), (parent_cu, key_cu) = moi[0], cu[0]
+        gia_tri_cu = parent_cu.get(key_cu)
+        if (not str(parent_moi.get(key) or "") and isinstance(gia_tri_cu, str)
+                and gia_tri_cu.startswith("enc:") and not secrets_store.decrypt(gia_tri_cu)):
+            parent_moi[key] = gia_tri_cu
 
 
 _TOOL_ENV_OWNED = False   # ELEVENLABS_API_KEY trong env hiện do apply_tool_env đặt → được phép gỡ khi user xoá key

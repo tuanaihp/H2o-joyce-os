@@ -88,6 +88,7 @@ import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã ho�
 import contextvars
 import h2o_departments   # sổ phòng ban H2O: mỗi phòng một brain + brain chung H2O Studio
 import nghien_cuu        # trang Nghiên cứu: sáu khu đọc từ brain phòng Nghiên cứu concept (chỉ đọc)
+import kenh_du_phong     # bản dự phòng token và chat ID Telegram, ngoài settings.json
 import lo_trinh          # tab Lộ trình: kích hoạt lộ trình học viên, mở bài theo ngày, chấm điểm không gọi model
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
@@ -21945,6 +21946,12 @@ def restart_telegram():
 async def telegram_status():
     t = cfgmod.read_settings().get("telegram", {})
     running = bool(_TG_BOT and _TG_BOT._task and not _TG_BOT._task.done())
+    # Bot đang nhận tin = cấu hình này CHẠY ĐƯỢC: cập nhật bản dự phòng nếu khác bản đang giữ.
+    if _TG_BOT and _TG_BOT.status == "polling" and t.get("token"):
+        try:
+            await asyncio.to_thread(kenh_du_phong.tu_dong, t.get("token"), t.get("chat_id", ""))
+        except Exception as e:
+            print(f"[telegram dự phòng] {type(e).__name__}: {e}", file=sys.stderr)
     return {"enabled": bool(t.get("enabled")), "token_set": bool(t.get("token")),
             "chat_id": t.get("chat_id", ""), "chat_ids": tg_parse_ids(t.get("chat_id")),
             "running": running,
@@ -21958,6 +21965,40 @@ async def telegram_status():
 @app.post("/telegram/restart")
 async def telegram_restart():
     return {"ok": True, "running": restart_telegram()}
+
+
+@app.get("/telegram/du-phong")
+async def telegram_du_phong_xem(request: Request):
+    """Bản dự phòng token và chat ID (server/kenh_du_phong.py). Không trả token, chỉ 4 ký tự cuối."""
+    if _staff_req(request):
+        return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+    return {"ok": True, **await asyncio.to_thread(kenh_du_phong.xem, "telegram")}
+
+
+@app.post("/telegram/du-phong")
+async def telegram_du_phong(request: Request, payload: dict = Body(...)):
+    """hanh_dong="luu": chép cấu hình đang có sang bản dự phòng. hanh_dong="dung": đưa bản dự
+    phòng trở lại settings, bật bot và khởi động lại. Nhân viên không gọi được (cũng nằm trong
+    _STAFF_DENY qua tiền tố /telegram)."""
+    if _staff_req(request):
+        return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+    hd = str(payload.get("hanh_dong") or "")
+    if hd == "luu":
+        t = cfgmod.read_settings().get("telegram", {})
+        if not t.get("token"):
+            return JSONResponse({"ok": False, "error": "chua_co_token"}, status_code=400)
+        await asyncio.to_thread(kenh_du_phong.luu, t.get("token"), t.get("chat_id", ""), "tay")
+        return {"ok": True, **kenh_du_phong.xem("telegram")}
+    if hd == "dung":
+        token, chat = await asyncio.to_thread(kenh_du_phong.lay, "telegram")
+        if not token:
+            return JSONResponse({"ok": False, "error": "chua_co_du_phong"}, status_code=400)
+        s = cfgmod.read_settings()
+        tg = s.setdefault("telegram", {})
+        tg.update({"token": token, "chat_id": chat, "enabled": True})
+        cfgmod.write_settings(s)
+        return {"ok": True, "running": restart_telegram(), "chat_id": chat}
+    return JSONResponse({"ok": False, "error": "hanh_dong_sai"}, status_code=400)
 
 
 # ============================================================
@@ -22325,6 +22366,12 @@ async def telegram_test():
                         errs.append(f"{cid}: {d.get('description', 'lỗi')}")
                 except Exception as e:
                     errs.append(f"{cid}: {type(e).__name__}")
+        if sent > 0:
+            # Gửi được thật = cấu hình tốt: giữ một bản dự phòng (kenh_du_phong.py).
+            try:
+                await asyncio.to_thread(kenh_du_phong.tu_dong, t["token"], t.get("chat_id", ""))
+            except Exception as e:
+                print(f"[telegram dự phòng] {type(e).__name__}: {e}", file=sys.stderr)
         return {"ok": sent > 0, "sent": sent, "total": len(ids),
                 "error": "; ".join(errs)[:300]}
     except Exception as e:

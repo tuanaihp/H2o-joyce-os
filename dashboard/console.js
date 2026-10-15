@@ -7611,6 +7611,7 @@
     el.innerHTML = `
       <div class="cview-section">
         <h3>Telegram</h3>
+        <div class="ch-hang">
         <div class="gcard" style="max-width:560px">
           <label class="js-row"><span>${esc(window.t("cs.ch_tg_enable"))}</span><input type="checkbox" id="tgEnabled" ${tg.enabled ? "checked" : ""}></label>
           <label class="js-lbl">Bot token ${tg.token_set ? '<span class="dim">' + esc(window.t("cs.ch_token_set")) + '</span>' : ""}</label>
@@ -7619,6 +7620,17 @@
           <input class="js-input" id="tgChat" value="${esc(tg.chat_id || "")}" placeholder="${esc(window.t("cs.ch_tg_ids_ph"))}">
           <div class="js-actions"><button class="gcard-btn" id="tgSave">${esc(window.t("cs.ch_save_enable"))}</button><button class="gcard-btn ghost" id="tgTest">${esc(window.t("cs.ch_send_test"))}</button></div>
           <div class="gcard-meta" id="tgStatus"></div>
+        </div>
+        <div class="gcard ch-du-phong" id="tgBk">
+          <label class="js-lbl">${esc(window.t("cs.ch_bk_title"))}</label>
+          <div class="gcard-meta">${esc(window.t("cs.ch_bk_hint"))}</div>
+          <label class="js-lbl">${esc(window.t("cs.ch_bk_chat"))}</label>
+          <input class="js-input" id="tgBkChat" readonly>
+          <label class="js-lbl">${esc(window.t("cs.ch_bk_token"))}</label>
+          <input class="js-input" id="tgBkToken" readonly>
+          <div class="js-actions"><button class="gcard-btn ghost" id="tgBkSave">${esc(window.t("cs.ch_bk_save"))}</button><button class="gcard-btn" id="tgBkUse">${esc(window.t("cs.ch_bk_use"))}</button></div>
+          <div class="gcard-meta" id="tgBkStatus"></div>
+        </div>
         </div>
       </div>
       <div class="cview-section">
@@ -7654,6 +7666,44 @@
       st.innerHTML = line;  // line chứa thẻ <svg> của icon - textContent sẽ in nguyên mã ra chữ
     }
     refreshTgStatus();
+    // ---- Bản dự phòng token + chat ID (server/kenh_du_phong.py): settings.json có mất thì bấm Dùng lại.
+    const bkSt = document.getElementById("tgBkStatus");
+    async function refreshTgBk() {
+      let d; try { d = await (await fetch("/telegram/du-phong")).json(); } catch (e) { return; }
+      const chat = document.getElementById("tgBkChat"), tok = document.getElementById("tgBkToken");
+      if (!d || !d.ok || !d.co) {
+        chat.value = ""; tok.value = "";
+        chat.placeholder = window.t("cs.ch_bk_empty"); tok.placeholder = window.t("cs.ch_bk_empty");
+        document.getElementById("tgBkUse").disabled = true;
+        return;
+      }
+      chat.value = d.chat_id || "";
+      tok.value = "••••••••" + (d.token_cuoi || "");
+      document.getElementById("tgBkUse").disabled = false;
+      const luc = d.luc ? new Date(d.luc * 1000).toLocaleString() : "";
+      bkSt.textContent = window.t(d.nguon === "tay" ? "cs.ch_bk_saved_manual" : "cs.ch_bk_saved_auto", { luc });
+    }
+    refreshTgBk();
+    const bkPost = async (hanh_dong) => {
+      try {
+        return await (await fetch("/telegram/du-phong", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hanh_dong }) })).json();
+      } catch (e) { return null; }
+    };
+    document.getElementById("tgBkSave").onclick = async () => {
+      const r = await bkPost("luu");
+      if (!r || !r.ok) { bkSt.textContent = window.t(r && r.error === "chua_co_token" ? "cs.ch_bk_no_token" : "cs.ch_net_err"); return; }
+      refreshTgBk();
+    };
+    document.getElementById("tgBkUse").onclick = async () => {
+      if (!confirm(window.t("cs.ch_bk_confirm"))) return;
+      const r = await bkPost("dung");
+      if (!r || !r.ok) { bkSt.textContent = window.t("cs.ch_net_err"); return; }
+      bkSt.textContent = window.t("cs.ch_bk_restored");
+      document.getElementById("tgEnabled").checked = true;
+      document.getElementById("tgChat").value = r.chat_id || "";
+      setTimeout(refreshTgStatus, 1800);
+    };
     document.getElementById("tgSave").onclick = async () => {
       const data = { enabled: document.getElementById("tgEnabled").checked, chat_id: document.getElementById("tgChat").value.trim() };
       const tok = document.getElementById("tgToken").value.trim();
@@ -7661,7 +7711,8 @@
       st.textContent = window.t("settings.saving");
       const r = await saveSetting("telegram", data);
       st.innerHTML = r.ok ? OK_ICON + " " + esc(window.t("cs.ch_saved_starting")) : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
-      if (r.ok) setTimeout(refreshTgStatus, 1800);
+      // refreshTgStatus gọi /telegram/status: bot chạy được thì server tự cập nhật bản dự phòng.
+      if (r.ok) setTimeout(() => { refreshTgStatus().then(refreshTgBk); }, 1800);
     };
     document.getElementById("tgTest").onclick = async () => {
       st.textContent = window.t("cs.ch_sending_test");
@@ -7670,6 +7721,7 @@
         st.innerHTML = r.ok
           ? (r.total > 1 ? `${OK_ICON} ${esc(window.t("cs.ch_test_sent_n", { sent: Number(r.sent) || 0, tong: Number(r.total) || 0 }))}` + (r.error ? " " + esc(window.t("app.err_cap")) + ": " + esc(r.error) : "") : OK_ICON + " " + esc(window.t("cs.ch_test_sent")))
           : Icons.warn(r.error || window.t("cs.ch_no_bot_cfg"));
+        if (r.ok) refreshTgBk();
       }
       catch (e) { st.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
     };

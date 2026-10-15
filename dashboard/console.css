@@ -3816,3 +3816,9 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .lt-chon.lt-dap-an { font-weight: 600; color: var(--ok-ink); }
 .lt-giai { font-size: 12px; color: var(--text2); margin: 6px 0 0; }
 .lt-de-xuat .lt-tag { font-size: 13px; padding: 3px 10px; }
+
+/* Trang Kênh: thẻ Telegram và thẻ Bản dự phòng đứng cạnh nhau, màn hẹp thì xuống dòng (1.3.10). */
+.ch-hang { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.ch-hang > .gcard { flex: 1 1 320px; }
+.ch-du-phong { max-width: 420px; }
+.ch-du-phong input[readonly] { opacity: .85; }
