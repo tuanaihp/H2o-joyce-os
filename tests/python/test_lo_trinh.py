@@ -366,6 +366,43 @@ def test_gui_tin_dung_chat_id_mot_lan_va_sau_7_gio(moi):
     assert asyncio.run(lo_trinh.gui_bai_hom_nay(deps)) == 1       # sang ngày mới gửi bài mới
 
 
+def test_sua_chat_id_sau_khi_kich_hoat(moi):
+    c, trang, deps = moi
+    eid = _kich_hoat(c, trang).json()["id"]                     # kích hoạt KHÔNG có chat ID
+    assert asyncio.run(lo_trinh.gui_bai_hom_nay(deps)) == 0
+    # Chỉ quản trị và trưởng phòng cùng phòng được sửa; mentor và học viên thì không.
+    for ai in (MENTOR, HOC_VIEN, TP_KHAC):
+        trang["ai"] = ai
+        assert c.post(f"/lo-trinh/hoc-vien/{eid}/telegram", json={"telegram_chat_id": "111"}).status_code == 403
+    trang["ai"] = TP_MAKEUP
+    assert c.post(f"/lo-trinh/hoc-vien/{eid}/telegram", json={"telegram_chat_id": "12ab"}).json()["error"] == "chat_id_sai"
+    r = c.post(f"/lo-trinh/hoc-vien/{eid}/telegram", json={"telegram_chat_id": "55555", "gui_thu": True}).json()
+    assert r["ok"] and r["gui_thu"] is True and trang["gui"][-1][0] == "55555"
+    assert c.get(f"/lo-trinh/hoc-vien/{eid}").json()["telegram_chat_id"] == "55555"
+    # Có chat ID rồi thì vòng gửi bài hằng ngày nhắn đúng chat mới.
+    assert asyncio.run(lo_trinh.gui_bai_hom_nay(deps)) == 1 and trang["gui"][-1][0] == "55555"
+    # Mentor xem chi tiết không thấy chat ID.
+    trang["ai"] = MENTOR
+    assert c.get(f"/lo-trinh/hoc-vien/{eid}").json()["telegram_chat_id"] == ""
+    # Xoá chat ID: chuỗi rỗng.
+    trang["ai"] = TP_MAKEUP
+    assert c.post(f"/lo-trinh/hoc-vien/{eid}/telegram", json={"telegram_chat_id": ""}).json()["telegram_chat_id"] == ""
+    trang["hom_nay"] = "2026-10-11"
+    assert asyncio.run(lo_trinh.gui_bai_hom_nay(deps)) == 0
+
+
+def test_gui_thu_loi_van_luu_chat_id(moi):
+    c, trang, deps = moi
+    eid = _kich_hoat(c, trang).json()["id"]
+
+    async def chua_start(chat, text):
+        return False, "Bad Request: chat not found"
+    deps.tg_send = chua_start
+    r = c.post(f"/lo-trinh/hoc-vien/{eid}/telegram", json={"telegram_chat_id": "77777", "gui_thu": True}).json()
+    assert r["ok"] and r["gui_thu"] is False and "chat not found" in r["loi_gui"]
+    assert c.get(f"/lo-trinh/hoc-vien/{eid}").json()["telegram_chat_id"] == "77777"
+
+
 def test_gui_loi_thi_khong_danh_dau_de_lan_sau_thu_lai(moi):
     c, trang, deps = moi
     _kich_hoat(c, trang, telegram_chat_id="98765")

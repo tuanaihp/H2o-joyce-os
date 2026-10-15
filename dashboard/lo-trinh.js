@@ -40,7 +40,7 @@
     da_kich_hoat: "lt.loi.da_kich_hoat", cap_chua_co_bai: "lt.loi.cap_chua_co_bai",
     ngay_sai: "lt.loi.ngay_sai", mentor_sai: "lt.loi.mentor_sai", het_luot: "lt.loi.het_luot",
     chua_mo: "lt.loi.chua_mo", can_ly_do: "lt.loi.can_ly_do", lo_trinh_da_dong: "lt.loi.lo_trinh_da_dong",
-    rubric_sai: "lt.loi.rubric_sai", khao_sat_sai: "lt.loi.khao_sat_sai",
+    rubric_sai: "lt.loi.rubric_sai", khao_sat_sai: "lt.loi.khao_sat_sai", chat_id_sai: "lt.loi.chat_id_sai",
   };
   const loiChu = (ma) => t(LOI_KEY[ma] || "lt.loi.chung");
 
@@ -209,6 +209,13 @@
         h += khu("nghi", t("lt.khu.nghi"), `<div class="lt-form" data-form="nghi">` +
           `<p class="lt-phu">${esc((d.ngay_nghi || []).length ? t("lt.nghi.da", { ds: d.ngay_nghi.join(", ") }) : t("lt.nghi.chua"))}</p>` +
           `<label>${esc(t("lt.nghi.ngay"))}<input type="date" name="ngay"></label>` + nut("them-nghi", t("lt.nut.them_nghi")) + `</div>`);
+        h += khu("telegram", t("lt.khu.telegram"), `<div class="lt-form" data-form="telegram">` +
+          `<p class="lt-phu">${esc(d.telegram_chat_id ? t("lt.tg.dang_gui", { id: d.telegram_chat_id }) : t("lt.tg.chua_co"))}</p>` +
+          `<label>${esc(t("lt.kich_hoat.telegram"))}<input type="text" name="telegram_chat_id" inputmode="numeric" ` +
+          `value="${esc(d.telegram_chat_id || "")}" placeholder="${esc(t("lt.kich_hoat.telegram_ph"))}"></label>` +
+          `<p class="lt-phu">${esc(t("lt.kich_hoat.goi_y_telegram"))}</p>` +
+          nut("luu-telegram", t("lt.nut.luu")) + nut("thu-telegram", t("lt.nut.gui_thu")) +
+          `<p class="lt-bao" data-bao="telegram"></p></div>`);
         h += khu("ket_luan", t("lt.khu.ket_luan"), formKetLuan(d));
       }
     }
@@ -351,6 +358,20 @@
       const r = await goi(`/lo-trinh/hoc-vien/${encodeURIComponent(_xem.id)}/nghi`, { ngay: giaTri(form, "ngay") });
       if (!r || !r.ok) { bao("hoc-vien", loiChu(r && r.error)); return; }
       return moHocVien(_xem.id);
+    }
+    if (act === "luu-telegram" || act === "thu-telegram") {
+      const thu = act === "thu-telegram";
+      const r = await goi(`/lo-trinh/hoc-vien/${encodeURIComponent(_xem.id)}/telegram`,
+        { telegram_chat_id: giaTri(form, "telegram_chat_id"), gui_thu: thu });
+      if (!r || !r.ok) { bao("telegram", loiChu(r && r.error)); return; }
+      await moHocVien(_xem.id);
+      let chu = t("lt.da_luu");
+      if (thu) {
+        chu = !r.telegram_chat_id ? t("lt.tg.can_id")
+          : r.gui_thu ? t("lt.tg.thu_ok") : t("lt.tg.thu_loi", { loi: r.loi_gui || "" });
+      }
+      bao("telegram", chu);
+      return;
     }
     if (act === "ket-luan") {
       const r = await goi(`/lo-trinh/hoc-vien/${encodeURIComponent(_xem.id)}/ket-luan`,

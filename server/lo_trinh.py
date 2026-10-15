@@ -575,6 +575,8 @@ def register(app, deps: LoTrinhDeps):
                 "rubric": hv.get("rubric") or {}, "must_pass": hv.get("must_pass") or {},
                 "de_xuat": de_xuat(hv, bai, ngay_ht), "ket_luan": hv.get("ket_luan") or {},
                 "ngay_nghi": hv.get("ngay_nghi") or [], "telegram": bool(hv.get("telegram_chat_id")),
+                # Chat ID chỉ người sửa được (quản trị, trưởng phòng cùng phòng) mới thấy; mentor không cần.
+                "telegram_chat_id": ((hv.get("telegram_chat_id") or "") if _quan_ly_duoc(vai, st, hv, deps) else ""),
                 "lich_su": (hv.get("lich_su") or [])[-20:],
                 "cap_tiep": TEN_CAP.get(CAP_TIEP.get(hv["cap_do"], ""), ""),
             })
@@ -749,6 +751,41 @@ def register(app, deps: LoTrinhDeps):
                      ("bỏ ngày nghỉ " if body.get("bo") else "duyệt ngày nghỉ ") + ngay)
             _ghi(deps.state_path(), d)
         return {"ok": True, "ngay_nghi": hv["ngay_nghi"]}
+
+    @router.post("/lo-trinh/hoc-vien/{eid}/telegram")
+    async def lo_trinh_telegram(eid: str, request: Request, body: dict = Body(...)):
+        """Thêm, đổi hoặc xoá (chuỗi rỗng) chat ID Telegram sau khi đã kích hoạt. `gui_thu` gửi một
+        tin thử ngay: Telegram trả "chat not found" khi học viên chưa bấm Start với bot."""
+        vai, st = _vai(deps, request)
+        chat = str(body.get("telegram_chat_id") or "").strip()
+        if chat and not re.fullmatch(r"-?\d{3,20}", chat):
+            return _loi("chat_id_sai")
+        nguoi = (st or {}).get("ten") or "quản trị"
+        with _LOCK:
+            d = _doc(deps.state_path())
+            hv = _tim(d, eid)
+            if not hv:
+                return _loi("khong_thay", 404)
+            if not _quan_ly_duoc(vai, st, hv, deps):
+                return _loi("khong_du_quyen", 403)
+            cu = hv.get("telegram_chat_id") or ""
+            if chat != cu:
+                hv["telegram_chat_id"] = chat
+                _lich_su(hv, nguoi, "xoá chat ID Telegram" if not chat else "đặt chat ID Telegram")
+                _ghi(deps.state_path(), d)
+            ten = hv.get("ten") or ""
+        out = {"ok": True, "telegram_chat_id": chat}
+        if body.get("gui_thu") and chat:
+            if deps.tg_send is None:
+                out.update({"gui_thu": False, "loi_gui": "chưa nối Telegram"})
+            else:
+                try:
+                    ok, loi = await deps.tg_send(chat, f"Joyce - Lộ trình học việc\nChào {ten}, đây là tin thử. "
+                                                       f"Từ mai 7 giờ sáng Joyce sẽ nhắn bài học mỗi ngày ở đây.")
+                except Exception as e:  # noqa: BLE001 - gửi thử lỗi không được làm hỏng việc lưu
+                    ok, loi = False, type(e).__name__
+                out.update({"gui_thu": bool(ok), "loi_gui": "" if ok else str(loi or "")[:200]})
+        return out
 
     @router.post("/lo-trinh/hoc-vien/{eid}/ket-luan")
     async def lo_trinh_ket_luan(eid: str, request: Request, body: dict = Body(...)):

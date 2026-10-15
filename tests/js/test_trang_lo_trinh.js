@@ -149,6 +149,11 @@ const TONG_HV = { ...TONG_QL, vai: "hoc_viec", hoc_vien: [], ung_vien: [], cua_t
     h3.includes('data-form="rubric"') && h3.includes('data-form="nghi"') && h3.includes('data-form="ket-luan"'));
   const h4 = ve.veHocVien({ ...CT, quan_ly_duoc: false });
   check("mentor không thấy form kết luận", !h4.includes('data-form="ket-luan"') && h4.includes('data-form="rubric"'));
+  check("người quản lý sửa được chat ID Telegram, có nút gửi thử",
+    h3.includes('data-form="telegram"') && h3.includes('data-act="luu-telegram"') && h3.includes('data-act="thu-telegram"'));
+  check("mentor không thấy ô chat ID Telegram", !h4.includes('data-form="telegram"'));
+  const h5 = ve.veHocVien({ ...CT, telegram_chat_id: "55555" });
+  check("đã có chat ID thì hiện sẵn trong ô và ghi đang nhắn", h5.includes('value="55555"') && h5.includes("chat ID 55555"));
 
   console.log(KHONG_CO.length === 0 ? "\nOK - test_trang_lo_trinh" : `\nĐỎ: ${KHONG_CO.length} - ${KHONG_CO.join(" | ")}`);
   process.exit(KHONG_CO.length ? 1 : 0);
