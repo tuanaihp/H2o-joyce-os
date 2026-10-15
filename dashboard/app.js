@@ -2514,7 +2514,7 @@ function runMsgAct(btn) {
       btn.innerHTML = ic("check", { cls: "ic-ok" });
       btn.title = p;
       if (window.toast) window.toast(window.t("cact.remembered") + " " + p);
-      setTimeout(() => { btn.textContent = "★"; btn.title = p; btn.disabled = false; }, 1600);
+      setTimeout(() => { btn.innerHTML = ic("star"); btn.title = p; btn.disabled = false; }, 1600);
     }).catch((e) => {
       btn.disabled = false;
       btn.title = e.message || String(e);
@@ -3647,7 +3647,7 @@ function taiLaiDinhKem(i) {
 }
 
 document.getElementById("attachBtn").addEventListener("click", () => fileInput.click());
-// Nut 📄: chon file .md trong brain -> chen `path` vao o nhap de Joyce doc/tom tat/sua.
+// Nut file (icon file-text): chon file .md trong brain -> chen `path` vao o nhap de Joyce doc/tom tat/sua.
 document.getElementById("brainFileBtn").addEventListener("click", (e) => {
   if (window.JoyceChatFile) window.JoyceChatFile.toggle(e.currentTarget);
 });

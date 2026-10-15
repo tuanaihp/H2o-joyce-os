@@ -20172,6 +20172,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         if (isinstance(out, str) and not bot
                 and str(channel or "") in ("telegram", "zalo", "cli")
                 and mcfg.get("auto_fallback", True)):
+            # Lỗi GỐC phải tới tay user ("hết hạn đăng nhập", "hết quota"): đó là việc họ cần
+            # sửa. Bản đầu ghi đè nó bằng lỗi của não dự phòng cuối cùng, nên khi mọi não đều
+            # hỏng user chỉ thấy lỗi của một nhà họ không hề chọn (test_dispatch_hai_kenh (5)).
+            _loi_goc, _loi_du_phong = out, ""
             for _fp, _fk, _fkey, _fm in _fallback_chain(mcfg, prov, api_model):
                 # Engine vừa hỏng đã append user msg và build system prompt có nhãn nhà cũ
                 # vào sess["or"]. Reset luôn: lịch sử được mồi lại từ kho phiên, system
@@ -20203,7 +20207,9 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                     out, prov, kind, api_key, api_model = _o2, _fp, _fk, _fkey, _fm
                     break
                 if isinstance(_o2, str):
-                    out = _o2    # giữ thông báo lỗi MỚI NHẤT - gần nguyên nhân thật hơn
+                    _loi_du_phong = f"{_api_label(_fp)}: {_o2}"
+            if isinstance(out, str) and _loi_du_phong:
+                out = f"{_loi_goc}\n\n(Đã thử não dự phòng nhưng cũng lỗi. {_loi_du_phong})"
 
         # Cùng luật với dashboard: hứa "xong em báo" mà không có việc nền nào thì nói thẳng.
         # Ở kênh này tin nhắn CHƯA gửi đi nên nối luôn vào cuối, khỏi phải bắn thêm một tin.

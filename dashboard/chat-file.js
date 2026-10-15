@@ -1,11 +1,11 @@
 /* chat-file.js - file brain trong khung chat Joyce.
 
    Hai nang luc:
-   1) Nut 📄 canh nut ghim (brainFileBtn): mo panel chon file .md trong brain (duyet thu muc
+   1) Nut file (icon file-text) canh nut ghim (brainFileBtn): mo panel chon file .md trong brain (duyet thu muc
       hoac tim theo ten) -> chen `path` vao o nhap. AI doc duoc file qua vault tools, nen chi
       can "tom tat `wiki/x.md`" la no mo dung file do. Tin nguoi dung co `path.md` duoc
       linkifyMd bien thanh link bam mo trinh sua (handler jv-floc document-level co san).
-   2) Nut ★ "Ghi nho" (data-act="remember") tren moi bong bong: ghi NGUYEN VAN tin vao
+   2) Nut "Ghi nho" (icon star) (data-act="remember") tren moi bong bong: ghi NGUYEN VAN tin vao
       sources/ cua brain dang choi (frontmatter type: source, source_kind: chat) - lo
       ingest-source / loop se chung cat len wiki sau. Day la cach bo nho "moc dan" moi ngay.
 
@@ -57,10 +57,13 @@
     try { input.focus(); input.setSelectionRange(s + ins.length, s + ins.length); } catch (err) {}
   }
 
+  // Icon Lucide thay emoji (tests/python/test_icons.py): đổi màu theo theme như mọi icon khác.
+  function icon(ten) { return window.ic ? window.ic(ten) + " " : ""; }
+
   function rowHtml(it) {
     return '<div class="slash-item" data-p="' + esc(it.path) + '" data-nav="' + esc(it.dirPath || it.path) +
       '" data-dir="' + (it.type === "dir" ? 1 : 0) + '">' +
-      '<span class="slash-name">' + (it.type === "dir" ? "📁 " : "📄 ") + esc(it.name) + "</span>" +
+      '<span class="slash-name">' + icon(it.type === "dir" ? "folder" : "file-text") + esc(it.name) + "</span>" +
       '<span class="slash-desc">' + esc(it.path) + "</span></div>";
   }
 
@@ -91,7 +94,7 @@
       'style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--line,#ccc);border-radius:8px;font:inherit;background:var(--field-bg,var(--bg));color:inherit"></div>' +
       '<div class="bf-list" style="overflow:auto">' +
       // Chi cho "len" khi dang SAU HON goc brain - khong leo ra ngoai tran duyet.
-      (home && d.path && d.path.indexOf(home + "/") === 0 ? '<div class="slash-item bf-up">⬅ ..</div>' : "") +
+      (home && d.path && d.path.indexOf(home + "/") === 0 ? '<div class="slash-item bf-up">' + icon("arrow-left") + '..</div>' : "") +
       (rows || '<div class="slash-item" style="opacity:.6">' + esc(tw("bf.empty")) + "</div>") +
       "</div>";
     wire();

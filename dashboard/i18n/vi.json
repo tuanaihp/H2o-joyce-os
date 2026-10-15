@@ -4435,7 +4435,7 @@
   "cact.remember": "Ghi nhớ tin này vào brain (sources/)",
   "cact.remembered": "Đã ghi nhớ:",
   "bf.title": "Chọn file trong brain",
-  "bf.search_ph": "Tìm file theo tên… (vd: SKILL, quy trinh)",
+  "bf.search_ph": "Tìm file theo tên… (ví dụ: SKILL, quy trình)",
   "bf.empty": "Không có file nào",
   "bf.err": "Không đọc được danh sách file",
   "bf.rem_empty": "Tin trống, không có gì để nhớ"
