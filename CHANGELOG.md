@@ -1,5 +1,11 @@
 # Nhật ký phiên bản - H2O Joyce OS
 
+## [1.3.8] - 2026-10-15
+### Thêm mới
+- **Lệnh Telegram `/link`**: nhắn `/link` cho bot là nhận lại đường link đăng nhập Joyce đang chạy, không phải mở máy để xem.
+- **Lệnh Telegram `/openclaw mo` và `/openclaw tat`**: bật hoặc tắt cổng OpenClaw từ xa ngay trong Telegram.
+- Trên Windows, Joyce nhận ra Grok Build cài bằng bộ cài của x.ai (thư mục `~/.grok/bin`).
+
 ## [1.3.7] - 2026-10-11
 ### Thêm mới
 - **Trang Nghiên cứu**: một chỗ để xem ý tưởng concept đang ở bước nào, thư viện concept, SOP liên quan, bản tin xu hướng và nhật ký quyết định của phòng Nghiên cứu concept hình ảnh.
