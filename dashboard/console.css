@@ -3764,3 +3764,55 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .nc-bang th { color: var(--text2); font-weight: 600; }
 .nc-tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--wash); color: var(--text2); }
 .nc-tag-canh { background: var(--danger-bg); color: var(--danger-ink); }
+
+/* Tab Lộ trình (1.3.9, dashboard/lo-trinh.js). Chỉ dùng token theme để giao diện tối và sáng đều đọc được. */
+.lt-trang { padding: 16px; max-width: 1100px; }
+.lt-dau h2 { margin: 0 0 4px; font-size: 20px; color: var(--text); }
+.lt-dau p { margin: 0 0 12px; }
+.lt-dau .lt-nut { margin: 0 0 8px; }
+.lt-khu { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0 0 12px; }
+.lt-khu-tieu { margin: 0 0 10px; font-size: 15px; color: var(--text); }
+.lt-phu { color: var(--text3); font-size: 12px; }
+.lt-loi { color: var(--danger-ink); }
+.lt-bao { color: var(--text2); font-size: 12px; min-height: 1em; margin: 6px 0 0; }
+.lt-so { color: var(--text); margin: 6px 0; }
+.lt-hom { color: var(--text); margin: 6px 0; }
+.lt-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.lt-the { background: var(--wash); border-radius: 8px; padding: 10px 12px; }
+.lt-the-dau { display: flex; justify-content: space-between; gap: 8px; color: var(--text); }
+.lt-thanh { height: 6px; border-radius: 999px; background: var(--line); margin: 8px 0 4px; overflow: hidden; }
+.lt-thanh span { display: block; height: 100%; background: var(--accent); }
+.lt-thang { display: flex; flex-wrap: wrap; gap: 8px; }
+.lt-bac { flex: 1 1 140px; background: var(--wash); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; color: var(--text2); }
+.lt-bac b { color: var(--text); font-size: 13px; }
+.lt-bac small { color: var(--text3); }
+.lt-bac.lt-bac-co { border-color: var(--accent); }
+.lt-bac.lt-bac-co small { color: var(--ok-ink); }
+.lt-nut { display: inline-block; margin: 6px 6px 0 0; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; }
+.lt-nut:hover { border-color: var(--accent); }
+.lt-form { display: flex; flex-direction: column; gap: 6px; }
+.lt-form h4 { margin: 0 0 4px; font-size: 13px; color: var(--text2); }
+.lt-form label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--text2); }
+.lt-form input, .lt-form select { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 13px; }
+.lt-luoi-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.lt-bang { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
+.lt-bang th, .lt-bang td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.lt-bang th { color: var(--text2); font-weight: 600; }
+.lt-bang .lt-nut { margin: 0; }
+.lt-tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--wash); color: var(--text2); }
+.lt-tag.lt-ok, .lt-tag.lt-dx-dat { background: var(--ok-bg); color: var(--ok-ink); }
+.lt-tag.lt-dx-can_bo_sung { background: var(--warn-bg); color: var(--warn-ink); }
+.lt-tag.lt-dx-truong_phong_xem_xet, .lt-tag.lt-canh { background: var(--danger-bg); color: var(--danger-ink); }
+.lt-danh-sach { margin: 6px 0 0; padding-left: 18px; color: var(--text); }
+.lt-danh-sach li { margin: 3px 0; }
+.lt-noi-dung { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 0 0 12px; color: var(--text); line-height: 1.55; }
+.lt-tho { white-space: pre-wrap; color: var(--text); font: inherit; margin: 0; }
+.lt-cau { margin: 0; padding-left: 20px; color: var(--text); }
+.lt-cau > li { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; }
+.lt-cau > li p { margin: 0 0 6px; }
+.lt-cau > li.lt-dung { border-color: var(--ok-ink); background: var(--ok-bg); }
+.lt-cau > li.lt-sai { border-color: var(--danger-ink); background: var(--danger-bg); }
+.lt-chon { display: block; padding: 3px 0; font-size: 13px; color: var(--text); cursor: pointer; }
+.lt-chon.lt-dap-an { font-weight: 600; color: var(--ok-ink); }
+.lt-giai { font-size: 12px; color: var(--text2); margin: 6px 0 0; }
+.lt-de-xuat .lt-tag { font-size: 13px; padding: 3px 10px; }
