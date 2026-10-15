@@ -1,5 +1,9 @@
 # Nhật ký phiên bản - H2O Joyce OS
 
+## [1.3.10] - 2026-10-15
+### Thêm mới
+- **Sửa chat ID Telegram sau khi đã kích hoạt**: trong màn chi tiết học viên ở tab Lộ trình, trưởng phòng thêm, đổi hoặc xoá chat ID để Joyce nhắn bài hằng ngày đúng người. Có nút gửi thử để biết học viên đã bấm Start với bot chưa.
+
 ## [1.3.9] - 2026-10-15
 ### Thêm mới
 - **Tab Lộ trình**: trưởng phòng bấm Kích hoạt lộ trình cho người mới, chọn mentor và ngày bắt đầu. Mỗi ngày bài học tự mở cho học viên, có chat ID Telegram thì 7 giờ sáng Joyce tự nhắn tên bài.
