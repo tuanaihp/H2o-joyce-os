@@ -860,12 +860,14 @@ class SessionStore:
         p = self.get_project(project_id)
         if not p:
             return None
+        # rowid phân định khi hai mục trùng added_at: trên Windows time.time() chỉ nhảy khoảng 15 ms,
+        # nên hai file thêm liền nhau cùng mốc và thứ tự ra ngẫu nhiên (test_project_khung chập chờn).
         p["files"] = [dict(r) for r in self._read(
             "SELECT id, path, name, pinned, added_at FROM project_files "
-            "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC", (project_id,))]
+            "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC, rowid DESC", (project_id,))]
         p["links"] = [dict(r) for r in self._read(
             "SELECT id, url, label, pinned, added_at FROM project_links "
-            "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC", (project_id,))]
+            "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC, rowid DESC", (project_id,))]
         return p
 
     def update_project(self, project_id: str, *, name: Optional[str] = None,
