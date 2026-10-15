@@ -1,5 +1,12 @@
 # Nhật ký phiên bản - H2O Joyce OS
 
+## [1.3.9] - 2026-10-15
+### Thêm mới
+- **Tab Lộ trình**: trưởng phòng bấm Kích hoạt lộ trình cho người mới, chọn mentor và ngày bắt đầu. Mỗi ngày bài học tự mở cho học viên, có chat ID Telegram thì 7 giờ sáng Joyce tự nhắn tên bài.
+- **Bài kiểm tra chấm tự động, không tốn quota**: học viên làm trắc nghiệm ngay trong tab, nộp tối đa hai lần, lựa chọn được xáo riêng cho từng người nên không đoán theo vị trí được.
+- **Mentor chấm, trưởng phòng kết luận**: Gate 1, khảo sát tuần, rubric 100 điểm và must-pass nhập ngay trong tab. Joyce đưa đề xuất Đạt, Cần bổ sung hay Trưởng phòng xem xét kèm lý do, người bấm kết luận cuối.
+- Học việc Makeup có sẵn 15 bài (ngày 0 đến 14) soạn từ quy trình thật của phòng Makeup. Ngày nghỉ được duyệt không tính, lịch tự lùi.
+
 ## [1.3.8] - 2026-10-15
 ### Thêm mới
 - **Lệnh Telegram `/link`**: nhắn `/link` cho bot là nhận lại đường link đăng nhập Joyce đang chạy, không phải mở máy để xem.
