@@ -88,6 +88,7 @@ import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã ho�
 import contextvars
 import h2o_departments   # sổ phòng ban H2O: mỗi phòng một brain + brain chung H2O Studio
 import nghien_cuu        # trang Nghiên cứu: sáu khu đọc từ brain phòng Nghiên cứu concept (chỉ đọc)
+import lo_trinh          # tab Lộ trình: kích hoạt lộ trình học viên, mở bài theo ngày, chấm điểm không gọi model
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
@@ -18101,6 +18102,60 @@ async def _h2o_dung_brain_khoi():
             print(f"[phòng ban] dựng {len(moi)} brain khối: {', '.join(moi)}", file=sys.stderr)
     except Exception as e:
         print(f"[phòng ban] dựng brain khối: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+# ============================================================
+# LỘ TRÌNH HỌC VIÊN - server/lo_trinh.py (spec docs/dev/2026-10-lo-trinh-hoc-vien-design.md).
+# Không gọi model ở bước nào. Quyền kiểm ngay trong module (học viên phải GHI được bài nộp của
+# mình), nên /lo-trinh KHÔNG nằm trong _STAFF_DENY.
+# ============================================================
+async def _lo_trinh_tg_gui(chat_id: str, text: str) -> tuple:
+    """Gửi ĐÚNG chat_id của học viên. Không dùng _tg_send_to: hàm đó đổi hướng sang chủ bot khi
+    chat_id nằm ngoài whitelist, nên bài học của học viên sẽ rơi vào máy chủ studio."""
+    tg = cfgmod.read_settings().get("telegram", {})
+    token = tg.get("token")
+    cid = str(chat_id or "").strip()
+    if not (tg.get("enabled") and token and cid):
+        return False, "Bot Telegram chưa bật hoặc thiếu chat_id"
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                             json={"chat_id": cid, "text": text})
+            d = r.json() if r.content else {}
+            return bool(d.get("ok")), str(d.get("description") or "")
+    except Exception as e:
+        return False, type(e).__name__
+
+
+def _lo_trinh_hom_nay() -> str:
+    import localefmt
+    return localefmt.today_str()
+
+
+def _lo_trinh_gio() -> int:
+    import localefmt
+    return localefmt.now().hour
+
+
+_lo_trinh_deps = lo_trinh.LoTrinhDeps(
+    brains_dir=lambda: BRAINS_DIR,
+    state_path=lambda: cfgmod.STATE_DIR / "lo_trinh.json",
+    staff_of=lambda request: _staff_req(request),
+    staff_cap=lambda st: _staff_cap(st or {}),
+    list_staff=lambda: h2o_staff_mod.list_staff(),
+    get_staff=lambda sid: h2o_staff_mod.get(sid) if sid else None,
+    today=_lo_trinh_hom_nay,
+    now_hour=_lo_trinh_gio,
+    tg_send=_lo_trinh_tg_gui,
+)
+lo_trinh.register(app, _lo_trinh_deps)
+
+
+@app.on_event("startup")
+async def _lo_trinh_vong_gui():
+    """Gửi tin "bài hôm nay" cho học viên có chat ID Telegram, 30 phút một lượt, từ 7 giờ sáng."""
+    asyncio.create_task(lo_trinh.vong_gui_bai(_lo_trinh_deps))
 
 
 def _h2o_ghi_so_do(shared: Path = None) -> None:
