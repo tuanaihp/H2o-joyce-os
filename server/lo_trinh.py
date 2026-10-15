@@ -39,10 +39,7 @@ from typing import Any, Awaitable, Callable
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
-try:
-    import yaml as _yaml
-except Exception:  # pragma: no cover - pyyaml nằm trong requirements, đây chỉ là lưới an toàn
-    _yaml = None
+import fastyaml   # bộ nạp YAML dùng libyaml, tự rơi về bộ nạp Python khi thiếu (quy ước repo)
 
 BRAIN_GIAO_TRINH = "ThuyH2O - Hoc Viec"
 THU_MUC_CAP = Path("wiki") / "hoc-viec" / "cap-do"
@@ -112,12 +109,10 @@ def _tach_frontmatter(text: str) -> tuple:
     m = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n?(.*)$", text, re.S)
     if not m:
         return {}, text
-    fm = {}
-    if _yaml is not None:
-        try:
-            fm = _yaml.safe_load(m.group(1)) or {}
-        except Exception:
-            fm = {}
+    try:
+        fm = fastyaml.safe_load(m.group(1)) or {}
+    except Exception:
+        fm = {}
     return (fm if isinstance(fm, dict) else {}), m.group(2)
 
 
