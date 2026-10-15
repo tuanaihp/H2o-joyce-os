@@ -3,6 +3,10 @@
 ## [1.3.10] - 2026-10-15
 ### Thêm mới
 - **Sửa chat ID Telegram sau khi đã kích hoạt**: trong màn chi tiết học viên ở tab Lộ trình, trưởng phòng thêm, đổi hoặc xoá chat ID để Joyce nhắn bài hằng ngày đúng người. Có nút gửi thử để biết học viên đã bấm Start với bot chưa.
+- **Bản dự phòng bot Telegram**: trang Kênh có thẻ Bản dự phòng cạnh thẻ Telegram, giữ token (chỉ hiện 4 ký tự cuối) và chat ID. Joyce tự lưu mỗi khi bot chạy được; lỡ mất cấu hình thì bấm Dùng lại bản này.
+
+### Sửa lỗi
+- Token Telegram, Zalo và các khoá API không còn bị xoá trắng khi Joyce tạm thời không giải mã được chúng.
 
 ## [1.3.9] - 2026-10-15
 ### Thêm mới
