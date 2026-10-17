@@ -223,6 +223,372 @@ def _chung_cat(day: str, brain_paths: list, phong_theo_brain: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------------------
+# Hàng chờ DUYỆT chưng cất (3 nhóm trên trang Tài liệu chưng cất):
+#   1. Draft mới hôm nay      - cần duyệt ngay
+#   2. Draft còn lại          - hàng chờ tích luỹ
+#   3. Đã chưng cất gần đây   - chủ xem lại chất lượng
+#
+# Draft = file .md nằm trong `wiki/_cho-duyet/` hoặc `wiki/_cho_duyet/` (hai biến thể dấu
+# tồn tại song song - `_gop_cho_duyet` chuẩn hoá về `_cho-duyet`, tên khớp tag `cho-duyet`
+# và plans/ke-hoach-ingest-o-D.md), HOẶC file wiki có frontmatter `status: draft` kèm
+# `staging: cho-duyet` hay tag `cho-duyet`.
+# ---------------------------------------------------------------------------------------
+_CC_STAGING_RE = re.compile(r"^_cho[-_]duyet$", re.I)
+_CC_STAGING_CHUAN = "_cho-duyet"
+_CC_FM_RE = re.compile(r"^---[ \t]*\r?\n(.*?)\r?\n---", re.S)
+_CC_GAN_DAY = 7 * _DAY          # "đã chưng cất gần đây" = sửa trong 7 ngày
+_CC_RECENT_MAX = 60             # trần tổng số trang đã chưng cất trả về
+
+
+def _cc_fm(text: str) -> dict:
+    """Frontmatter (dict) của một file .md; {} khi thiếu hoặc YAML hỏng."""
+    m = _CC_FM_RE.match(text or "")
+    if not m:
+        return {}
+    try:
+        import fastyaml
+        d = fastyaml.safe_load(m.group(1)) or {}
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _cc_head(fp: str, n: int = 4000) -> str:
+    try:
+        with open(fp, encoding="utf-8", errors="replace") as f:
+            return f.read(n)
+    except Exception:
+        return ""
+
+
+def _cc_tags(meta: dict) -> list:
+    t = (meta or {}).get("tags")
+    if isinstance(t, list):
+        return [str(x).strip() for x in t if str(x).strip()]
+    if isinstance(t, str):
+        return [x.strip() for x in t.split(",") if x.strip()]
+    return []
+
+
+def _cc_la_nhap(meta: dict, trong_staging: bool) -> bool:
+    """True khi file là bản nháp chờ duyệt: nằm trong thư mục staging, hoặc frontmatter
+    tự nói `status: draft` + dấu hiệu cho-duyet (staging field hoặc tag)."""
+    if trong_staging:
+        return True
+    st = str((meta or {}).get("status") or "").strip().lower()
+    if st != "draft":
+        return False
+    tags = {x.lower().replace("_", "-") for x in _cc_tags(meta)}
+    staging = str(meta.get("staging") or "").strip().lower().replace("_", "-")
+    return "cho-duyet" in tags or staging == "cho-duyet"
+
+
+def _cc_ngay_tao(meta: dict, mt: float) -> str:
+    """Ngày tạo YYYY-MM-DD: ưu tiên frontmatter `created`, rơi về mtime file."""
+    c = str((meta or {}).get("created") or "").strip()[:10]
+    try:
+        _dt.datetime.strptime(c, "%Y-%m-%d")
+        return c
+    except ValueError:
+        return _dt.datetime.fromtimestamp(mt).strftime("%Y-%m-%d")
+
+
+def _duyet_scan_brain(root: str, xem: dict, hom_nay: str, now: float) -> dict:
+    """Quét một brain -> {moi, cho, da_duyet, lech}. `lech` = số file còn nằm trong thư
+    mục staging biến thể gạch dưới `_cho_duyet` (để giao diện đề nghị gộp về `_cho-duyet`)."""
+    moi, cho, da_duyet = [], [], []
+    lech = 0
+    for sub in ("wiki", "07 - Wiki"):
+        wdir = os.path.join(root, sub)
+        if not os.path.isdir(wdir):
+            continue
+        for dp, dns, fns in os.walk(wdir):
+            dns[:] = [x for x in dns if not x.startswith(".")]
+            rel_dir = os.path.relpath(dp, wdir).replace("\\", "/")
+            trong = rel_dir != "." and _CC_STAGING_RE.match(rel_dir.split("/")[0] or "") is not None
+            for f in fns:
+                if not f.lower().endswith(".md"):
+                    continue
+                full = os.path.join(dp, f)
+                try:
+                    mt = os.stat(full).st_mtime
+                except OSError:
+                    continue
+                rel = os.path.relpath(full, root).replace("\\", "/")
+                if trong:
+                    meta = _cc_fm(_cc_head(full))
+                    if rel_dir.split("/")[0].lower() != _CC_STAGING_CHUAN:
+                        lech += 1
+                    tao = _cc_ngay_tao(meta, mt)
+                    item = {"ten": f[:-3], "rel": rel, "gio": _dt.datetime.fromtimestamp(mt).strftime("%H:%M"),
+                            "mtime": mt, "tao": tao, "trang_thai": "draft",
+                            "thu_muc": rel_dir.split("/")[0],
+                            "cho_ngay": max(0, (_dt.datetime.now() - _dt.datetime.fromtimestamp(mt)).days)}
+                    (moi if tao == hom_nay else cho).append(item)
+                    continue
+                # Ngoài staging: draft theo frontmatter -> hàng chờ; còn lại là wiki
+                # chính thức, nếu mới sửa gần đây thì xếp vào nhóm "đã chưng cất".
+                if f.startswith("_") or f in _CC_BO_QUA:
+                    continue
+                meta = _cc_fm(_cc_head(full))
+                if _cc_la_nhap(meta, False):
+                    tao = _cc_ngay_tao(meta, mt)
+                    item = {"ten": f[:-3], "rel": rel, "gio": _dt.datetime.fromtimestamp(mt).strftime("%H:%M"),
+                            "mtime": mt, "tao": tao, "trang_thai": "draft", "thu_muc": "wiki",
+                            "cho_ngay": max(0, (_dt.datetime.now() - _dt.datetime.fromtimestamp(mt)).days)}
+                    (moi if tao == hom_nay else cho).append(item)
+                    continue
+                st = str(meta.get("status") or "").strip().lower()
+                if st == "draft" or now - mt > _CC_GAN_DAY:
+                    continue
+                khoa = f"{root}|{rel}"
+                da = abs(float((xem.get(khoa) or {}).get("mtime") or 0) - mt) < 1
+                da_duyet.append({"ten": f[:-3], "rel": rel,
+                                 "gio": _dt.datetime.fromtimestamp(mt).strftime("%H:%M"),
+                                 "ngay": _dt.datetime.fromtimestamp(mt).strftime("%Y-%m-%d"),
+                                 "mtime": mt, "trang_thai": "active", "da_xem": da,
+                                 "moi_duyet": bool(meta.get("approved"))})
+    moi.sort(key=lambda x: -x["mtime"])
+    cho.sort(key=lambda x: x["mtime"])          # chờ lâu nhất lên đầu
+    da_duyet.sort(key=lambda x: -x["mtime"])    # mới chưng cất trước
+    return {"moi": moi, "cho": cho, "da_duyet": da_duyet, "lech": lech}
+
+
+def _hang_cho_duyet(brain_paths: list, phong_theo_brain: dict) -> dict:
+    xem = _cc_doc_xem()
+    hom_nay = _dt.datetime.now().strftime("%Y-%m-%d")
+    now = time.time()
+    moi, cho, da_duyet, lech = [], [], [], []
+    for bp in brain_paths:
+        root = str(bp)
+        ph = phong_theo_brain.get(os.path.normcase(root)) or {}
+        phong = ph.get("ten") or os.path.basename(root)
+        khoi = ph.get("khoi") or "Chung"
+        try:
+            r = _duyet_scan_brain(root, xem, hom_nay, now)
+        except Exception as e:  # noqa: BLE001 - một brain lỗi không làm trắng trang
+            _log("duyet/" + os.path.basename(root), e)
+            continue
+        tag = {"brain": os.path.basename(root), "brain_path": root, "phong": phong, "khoi": khoi}
+        moi += [{**x, **tag} for x in r["moi"]]
+        cho += [{**x, **tag} for x in r["cho"]]
+        da_duyet += [{**x, **tag} for x in r["da_duyet"]]
+        if r["lech"]:
+            lech.append({"brain_path": root, "brain": os.path.basename(root),
+                         "phong": phong, "so_file": r["lech"]})
+    moi.sort(key=lambda x: -x["mtime"])
+    cho.sort(key=lambda x: x["mtime"])
+    da_duyet.sort(key=lambda x: -x["mtime"])
+    return {"moi": moi, "cho": cho, "da_duyet": da_duyet[:_CC_RECENT_MAX],
+            "lech_thu_muc": lech, "tong_cho": len(moi) + len(cho)}
+
+
+def _cc_dump_fm(meta: dict) -> str:
+    """Serialise frontmatter dict về YAML block (giữ thứ tự khoá), tags dạng inline list
+    cho khớp phong cách tay của các bản nháp hiện có."""
+    import yaml
+    return yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip()
+
+
+def _cc_cap_nhat_fm(text: str, hom_nay: str) -> str:
+    """draft -> active: bỏ `staging`, bỏ tag cho-duyet/cho_duyet, cập nhật `updated`,
+    đánh dấu `approved`. File không có frontmatter thì thêm khối tối thiểu."""
+    m = _CC_FM_RE.match(text or "")
+    if m:
+        try:
+            import fastyaml
+            meta = fastyaml.safe_load(m.group(1)) or {}
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        body = text[m.end():]
+    else:
+        meta, body = {}, text
+    meta["status"] = "active"
+    meta.pop("staging", None)
+    tags = [x for x in _cc_tags(meta) if x.lower().replace("_", "-") != "cho-duyet"]
+    if tags or meta.get("tags") is not None:
+        meta["tags"] = tags
+    meta["updated"] = hom_nay
+    meta["approved"] = hom_nay
+    return "---\n" + _cc_dump_fm(meta) + "\n---" + (body if body.startswith("\n") else "\n" + body)
+
+
+def _cc_dich_duyet(root: str, wiki_dir: str, rel: str) -> str:
+    """Đường đích trong wiki chính thức cho một bản nháp. Tên file ưu tiên đặt ngay gốc
+    wiki (cấu trúc phẳng đang dùng); trùng tên thì giữ thư mục nhóm của staging; vẫn
+    trùng thì đuôi -2, -3..."""
+    ten = os.path.basename(rel)
+    phan = rel.split("/")
+    # phan = [wiki_dir, _cho-*, (nhóm...)/]ten — nhóm là phần giữa staging và tên file
+    nhom = "/".join(phan[2:-1])
+    cand = f"{wiki_dir}/{ten}"
+    if not os.path.exists(os.path.join(root, cand.replace("/", os.sep))):
+        return cand
+    if nhom:
+        cand2 = f"{wiki_dir}/{nhom}/{ten}"
+        if not os.path.exists(os.path.join(root, cand2.replace("/", os.sep))):
+            return cand2
+    stem, ext = os.path.splitext(ten)
+    for i in range(2, 50):
+        cand = f"{wiki_dir}/{stem}-{i}{ext}"
+        if not os.path.exists(os.path.join(root, cand.replace("/", os.sep))):
+            return cand
+    return f"{wiki_dir}/{ten}"
+
+
+def _cc_mo_ta(body: str) -> str:
+    """Một dòng mô tả cho index.md: dòng chữ đầu tiên sau tiêu đề, tối đa ~90 ký tự."""
+    for ln in (body or "").splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#") or s.startswith("---"):
+            continue
+        return s[:90]
+    return ""
+
+
+def _cc_ghi_index(root: str, wiki_dir: str, link: str, mo_ta: str) -> None:
+    """Thêm dòng `- [[link]] — mô tả` vào cuối wiki/index.md (bảng catalog cho phép mục
+    lục phẳng; chủ có thể xếp lại nhóm sau). Không có index.md thì tạo khung tối thiểu."""
+    p = os.path.join(root, wiki_dir, "index.md")
+    try:
+        cur = open(p, encoding="utf-8").read() if os.path.isfile(p) else ""
+    except Exception:
+        cur = ""
+    if f"[[{link}]]" in cur:
+        return
+    if not cur.strip():
+        cur = "# Wiki Index\n\nCatalog nội dung wiki (cập nhật mỗi lần INGEST).\n"
+    dong = f"- [[{link}]] — {mo_ta}" if mo_ta else f"- [[{link}]]"
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(cur.rstrip() + "\n" + dong + "\n")
+    os.replace(tmp, p)
+
+
+def _cc_ghi_log(root: str, wiki_dir: str, ten: str, link: str, rel_cu: str, hom_nay: str) -> None:
+    p = os.path.join(root, wiki_dir, "log.md")
+    try:
+        cur = open(p, encoding="utf-8").read() if os.path.isfile(p) else ""
+    except Exception:
+        cur = ""
+    if not cur.strip():
+        cur = "# Wiki Log\n\nNhật ký thời gian (append-only).\n"
+    entry = (f"\n\n## [{hom_nay}] duyet | {ten}\n\n"
+             f"- Wiki: [[{link}]]\n- Từ bản nháp: {rel_cu}\n")
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(cur.rstrip() + entry)
+    os.replace(tmp, p)
+
+
+def _atomic_ghi(path: str, content: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(content)
+    os.replace(tmp, path)
+
+
+def _don_rong_staging(root: str, wiki_dir: str, staging_dir: str) -> None:
+    """Xoá thư mục rỗng BÊN TRONG thư mục staging sau khi file đã chuyển đi (không đụng
+    gì ngoài staging)."""
+    base = os.path.join(root, wiki_dir, staging_dir)
+    for dp, dns, fns in os.walk(base, topdown=False):
+        if dns or fns:
+            continue
+        try:
+            os.rmdir(dp)
+        except OSError:
+            pass
+    try:
+        if os.path.isdir(base) and not os.listdir(base):
+            os.rmdir(base)
+    except OSError:
+        pass
+
+
+def _duyet_mot_file(root: str, rel: str) -> dict:
+    """Duyệt một bản nháp lên wiki chính thức. Trả {ok, rel_moi, ten, error}."""
+    rel = str(rel or "").replace("\\", "/").strip("/")
+    phan = rel.split("/")
+    if len(phan) < 2 or ".." in phan or not rel.lower().endswith(".md"):
+        return {"ok": False, "error": "đường dẫn không hợp lệ"}
+    wiki_dir = phan[0]
+    if wiki_dir.lower() not in ("wiki", "07 - wiki"):
+        return {"ok": False, "error": "không nằm trong wiki"}
+    full = os.path.join(root, *phan)
+    if not os.path.isfile(full):
+        return {"ok": False, "error": "không thấy tài liệu"}
+    try:
+        text = open(full, encoding="utf-8").read()
+    except Exception as e:
+        return {"ok": False, "error": f"không đọc được: {e}"}
+    trong_staging = len(phan) >= 3 and _CC_STAGING_RE.match(phan[1]) is not None
+    meta = _cc_fm(text)
+    # Ngoài thư mục staging thì ít nhất phải là bản nháp (status: draft) - tránh nút
+    # duyệt đụng nhầm trang wiki đang active.
+    if not trong_staging and str(meta.get("status") or "").strip().lower() != "draft":
+        return {"ok": False, "error": "tài liệu này không ở trạng thái chờ duyệt"}
+
+    hom_nay = _dt.datetime.now().strftime("%Y-%m-%d")
+    moi = _cc_cap_nhat_fm(text, hom_nay)
+    if trong_staging:
+        rel_moi = _cc_dich_duyet(root, wiki_dir, rel)
+    else:
+        rel_moi = rel                     # draft ngoài staging: đổi trạng thái tại chỗ
+    dich = os.path.join(root, *rel_moi.split("/"))
+    try:
+        _atomic_ghi(dich, moi)
+        if rel_moi != rel:
+            os.remove(full)
+            _don_rong_staging(root, wiki_dir, phan[1])
+    except Exception as e:
+        return {"ok": False, "error": f"không ghi được: {e}"}
+
+    link = "/".join(rel_moi.split("/")[1:])[:-3]      # bỏ 'wiki/' và đuôi .md
+    m2 = _CC_FM_RE.match(moi)
+    mo_ta = _cc_mo_ta(moi[m2.end():] if m2 else moi)
+    try:
+        _cc_ghi_index(root, wiki_dir, link, mo_ta)
+    except Exception as e:
+        _log("duyet/index", e)
+    try:
+        _cc_ghi_log(root, wiki_dir, os.path.basename(rel_moi)[:-3], link, rel, hom_nay)
+    except Exception as e:
+        _log("duyet/log", e)
+    return {"ok": True, "rel_moi": rel_moi, "ten": os.path.basename(rel_moi)[:-3]}
+
+
+def _gop_cho_duyet(root: str) -> dict:
+    """Gộp `wiki/_cho_duyet` (gạch dưới) vào `_cho-duyet` (gạch ngang, tên chuẩn theo
+    tag + kế hoạch ingest). Giữ cây thư mục con; trùng tên thì đuôi -2; xoá thư mục rỗng."""
+    moved = 0
+    for sub in ("wiki", "07 - Wiki"):
+        cu = os.path.join(root, sub, "_cho_duyet")
+        moi = os.path.join(root, sub, _CC_STAGING_CHUAN)
+        if not os.path.isdir(cu):
+            continue
+        for dp, dns, fns in os.walk(cu):
+            for f in fns:
+                src = os.path.join(dp, f)
+                rel_in = os.path.relpath(src, cu).replace("\\", "/")
+                dst = os.path.join(moi, rel_in)
+                if os.path.exists(dst):
+                    stem, ext = os.path.splitext(rel_in)
+                    for i in range(2, 50):
+                        dst = os.path.join(moi, f"{stem}-{i}{ext}")
+                        if not os.path.exists(dst):
+                            break
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                os.replace(src, dst)
+                moved += 1
+        _don_rong_staging(root, sub, "_cho_duyet")
+    return {"moved": moved}
+
+
+# ---------------------------------------------------------------------------------------
 # Quy trình của một phòng, xếp theo giai đoạn Trước / Trong / Sau dịch vụ
 # ---------------------------------------------------------------------------------------
 # Quy ước đặt tên có sẵn trong vault của chủ: hậu tố "- Trước/Trong/Sau dịch vụ.md" (108
@@ -841,6 +1207,89 @@ def register(app, deps: OverviewDeps):
                 d.pop(khoa, None)
             _cc_ghi_xem(d)
         return {"ok": True, "da_xem": da_xem}
+
+    @router.get("/api/joyce/v1/overview/chung-cat/duyet")
+    async def api_chung_cat_hang_cho(request: Request):
+        """Bảng duyệt tài liệu chưng cất: draft mới hôm nay, hàng chờ tích luỹ, và các
+        trang vừa chưng cất trong 7 ngày để chủ xem lại. Phạm vi giống chung-cat/xem."""
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            pv = deps.phong_view() or {}
+            ten_khoi = {k.get("id"): k.get("ten") for k in (pv.get("khoi") or [])}
+            phong = {}
+            for p in pv.get("phong") or []:
+                bp = str(p.get("brain_path") or "")
+                if bp:
+                    phong[os.path.normcase(bp)] = {"ten": p.get("ten"), "khoi": ten_khoi.get(p.get("khoi_id")) or "",
+                                                   "brand": (p.get("brand") or {}).get("ten") or ""}
+            ds = [str(x) for x in (deps.brain_paths() or []) if _cc_trong_pham_vi(str(x), scope)]
+            d = _hang_cho_duyet(ds, phong)
+            return {"ok": True, "generated_at": time.time(), **d}
+        except Exception as e:  # noqa: BLE001
+            _log("chung-cat/duyet", e)
+            return {"ok": False, "error": "không đọc được hàng chờ duyệt",
+                    "moi": [], "cho": [], "da_duyet": [], "lech_thu_muc": []}
+
+    @router.post("/api/joyce/v1/overview/chung-cat/duyet")
+    async def api_chung_cat_duyet(request: Request):
+        """Duyệt một bản nháp: frontmatter draft -> active (bỏ staging, bỏ tag cho-duyet,
+        đánh `approved`), chuyển file ra wiki chính thức, cập nhật index.md + log.md."""
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "thiếu dữ liệu"}, status_code=400)
+        bp = str(body.get("brain_path") or "")
+        rel = str(body.get("rel") or "").replace("\\", "/")
+        brains = {os.path.normcase(str(x)): str(x) for x in (deps.brain_paths() or [])}
+        goc = brains.get(os.path.normcase(bp))
+        if goc and not _cc_trong_pham_vi(goc, scope):
+            goc = None
+        if not goc:
+            return JSONResponse({"ok": False, "error": "tài liệu không hợp lệ"}, status_code=400)
+        try:
+            r = _duyet_mot_file(goc, rel)
+        except Exception as e:  # noqa: BLE001
+            _log("chung-cat/duyet POST", e)
+            return JSONResponse({"ok": False, "error": "không duyệt được tài liệu"}, status_code=500)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        return r
+
+    @router.post("/api/joyce/v1/overview/chung-cat/gop-thu-muc")
+    async def api_chung_cat_gop(request: Request):
+        """Chuẩn hoá tên thư mục staging: gộp `wiki/_cho_duyet` (gạch dưới) về
+        `wiki/_cho-duyet` (gạch ngang - tên chuẩn khớp tag cho-duyet và kế hoạch ingest).
+        `brain_path` rỗng = gộp mọi brain trong phạm vi."""
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        bp = str(body.get("brain_path") or "")
+        brains = {os.path.normcase(str(x)): str(x) for x in (deps.brain_paths() or [])}
+        if bp:
+            goc = brains.get(os.path.normcase(bp))
+            ds = [goc] if goc and _cc_trong_pham_vi(goc, scope) else []
+            if not ds:
+                return JSONResponse({"ok": False, "error": "brain không hợp lệ"}, status_code=400)
+        else:
+            ds = [str(x) for x in brains.values() if _cc_trong_pham_vi(str(x), scope)]
+        moved = 0
+        try:
+            for goc in ds:
+                moved += int(_gop_cho_duyet(goc).get("moved") or 0)
+        except Exception as e:  # noqa: BLE001
+            _log("chung-cat/gop-thu-muc", e)
+            return JSONResponse({"ok": False, "error": "gộp thư mục lỗi giữa chừng", "moved": moved},
+                                status_code=500)
+        return {"ok": True, "moved": moved, "brains": len(ds)}
 
     @router.get("/api/joyce/v1/overview/quy-trinh")
     async def api_quy_trinh(request: Request, brain: str = Query("")):

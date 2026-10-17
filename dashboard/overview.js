@@ -1006,80 +1006,142 @@
   }
 
   // ============================================================
-  // TÀI LIỆU CHƯNG CẤT: wiki được Joyce tạo/sửa trong một ngày, gom theo khối > phòng.
-  // Không có bước duyệt trước (Joyce ghi thẳng vào wiki). Trang này để xem lại và đánh dấu
-  // "đã xem"; bấm tên tài liệu là mở đúng trình đọc/sửa như mọi tài liệu khác.
+  // TÀI LIỆU CHƯNG CẤT - bảng duyệt 3 nhóm để chủ nhìn là biết hôm nay cần duyệt gì:
+  //   1) Chờ duyệt hôm nay : bản nháp mới tạo hôm nay (nổi bật, lên đầu)
+  //   2) Hàng chờ tích luỹ : mọi bản nháp chưa chưng cất còn lại, chờ lâu nhất lên đầu
+  //   3) Đã chưng cất      : trang wiki sửa trong 7 ngày, mới nhất trước - xem lại
+  //                          chất lượng rồi đánh dấu "đã xem"
+  // Draft = file trong wiki/_cho-duyet|_cho_duyet, hoặc có status: draft + cho-duyet.
+  // Nút Duyệt -> POST chung-cat/duyet: server đổi status -> active, bỏ staging + tag
+  // cho-duyet, chuyển file ra wiki chính thức, cập nhật wiki/index.md + log.md.
   // ============================================================
-  let _ccDay = null;   // "YYYY-MM-DD"; null = hôm nay
+  let _ccMsg = null;    // {ok, text} - kết quả thao tác duyệt/gộp gần nhất
   async function renderChungCat(el) {
     el.innerHTML = loading();
-    const day = _ccDay || isoDay(new Date());
-    const r = await api("/api/joyce/v1/overview/chung-cat?day=" + encodeURIComponent(day));
+    const r = await api("/api/joyce/v1/overview/chung-cat/duyet");
     if (!el.isConnected) return;
     if (!r.ok && r.status === 403) { el.innerHTML = `<div class="ov-page">${loiTrang(t("ov.staff_denied"))}</div>`; return; }
     if (!r.ok) { el.innerHTML = `<div class="ov-page">${loiTrang(t("ov.cc_err"))}</div>`; return; }
     const d = r.data || {};
-    const nhom = d.nhom || [];
-    const homNay = day === isoDay(new Date());
+    const moi = d.moi || [], cho = d.cho || [], da = d.da_duyet || [], lech = d.lech_thu_muc || [];
 
-    // Gom theo khối, giữ thứ tự khối như danh sách đã sắp.
-    const khoiMap = new Map();
-    nhom.forEach((g) => {
-      if (!khoiMap.has(g.khoi)) khoiMap.set(g.khoi, []);
-      khoiMap.get(g.khoi).push(g);
-    });
-
-    const dongPhong = (g) => {
-      const ds = g.items.map((x) => `
-        <div class="ov-cc-row${x.da_xem ? " seen" : ""}" data-rel="${esc(x.rel)}" data-brain="${esc(g.brain_path)}">
+    const choBaoLau = (x) => x.cho_ngay >= 1 ? t("ov.cc_wait_d", { n: so(x.cho_ngay) }) : t("ov.cc_wait_today");
+    const hangNhap = (x) => `
+      <div class="ov-cc-row" data-rel="${esc(x.rel)}" data-brain="${esc(x.brain_path)}">
+        <div class="ov-cc-main">
           <button type="button" class="ov-cc-name" title="${esc(x.rel)}">
-            ${ic("file-text")}<span>${esc(x.ten)}</span><time>${esc(x.gio)}</time>
+            ${ic("file-text")}<span>${esc(x.ten)}</span>
           </button>
+          <div class="ov-cc-sub">${esc(x.phong || x.brain)} · ${esc(x.rel)} · ${esc(t("ov.cc_created", { ngay: x.tao || "-", gio: x.gio }))}</div>
+        </div>
+        <div class="ov-cc-right">
+          <span class="ov-cc-age">${esc(choBaoLau(x))}</span>
+          ${pill("wait", t("ov.cc_state_draft"))}
+          <button type="button" class="ov-cc-ok">${ic("check")} ${esc(t("ov.cc_approve"))}</button>
+        </div>
+      </div>`;
+    const hangDaDuyet = (x) => `
+      <div class="ov-cc-row${x.da_xem ? " seen" : ""}" data-rel="${esc(x.rel)}" data-brain="${esc(x.brain_path)}">
+        <div class="ov-cc-main">
+          <button type="button" class="ov-cc-name" title="${esc(x.rel)}">
+            ${ic("file-text")}<span>${esc(x.ten)}</span>
+          </button>
+          <div class="ov-cc-sub">${esc(x.phong || x.brain)} · ${esc(x.rel)} · ${esc(x.ngay || "")} ${esc(x.gio)}</div>
+        </div>
+        <div class="ov-cc-right">
+          ${x.moi_duyet ? pill("good", t("ov.cc_just")) : pill("good", t("ov.cc_state_done"))}
           <button type="button" class="ov-cc-seen" aria-pressed="${x.da_xem ? "true" : "false"}">
             ${ic(x.da_xem ? "circle-check" : "circle")}<span>${esc(t(x.da_xem ? "ov.cc_seen" : "ov.cc_mark"))}</span>
           </button>
-        </div>`).join("");
-      return `<div class="ov-cc-phong">
-        <div class="ov-cc-phead"><b>${esc(g.phong)}</b>
-          <span class="ov-dim">${esc(t("ov.cc_count", { so: g.items.length }))}</span>
-          ${g.chua_xem ? `<span class="ov-cc-badge">${esc(t("ov.cc_unseen", { so: g.chua_xem }))}</span>` : ""}</div>
-        <div class="ov-cc-list">${ds}</div>
+        </div>
       </div>`;
-    };
 
-    const khoiHtml = [...khoiMap.entries()].map(([ten, gs]) => panel(
-      ten, t("ov.cc_khoi_d", { so: gs.length }),
-      `<div class="ov-cc-khoi">${gs.map(dongPhong).join("")}</div>`
-    )).join("");
+    // Nhóm 2 và 3 gom theo phòng để đọc được danh sách dài nhiều brain.
+    const gomPhong = (ds) => {
+      const m = new Map();
+      ds.forEach((x) => { const k = x.phong || x.brain; if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+      return [...m.entries()];
+    };
+    const khoiPhong = (ds, ve) => gomPhong(ds).map(([phong, xs]) => `
+      <div class="ov-cc-phong">
+        <div class="ov-cc-phead"><b>${esc(phong)}</b><span class="ov-dim">${esc(t("ov.cc_count", { so: xs.length }))}</span>
+          ${xs.some((x) => x.da_xem === false) ? `<span class="ov-cc-badge">${esc(t("ov.cc_unseen", { so: xs.filter((x) => !x.da_xem).length }))}</span>` : ""}</div>
+        <div class="ov-cc-list">${xs.map(ve).join("")}</div>
+      </div>`).join("");
+
+    const nhom1 = moi.length ? `<div class="ov-cc-khoi">${moi.map(hangNhap).join("")}</div>`
+      : `<div class="ov-empty">${ic("circle-check")} ${esc(t("ov.cc_empty_g1"))}</div>`;
+    const nhom2 = cho.length ? `<div class="ov-cc-khoi">${khoiPhong(cho, hangNhap)}</div>`
+      : `<div class="ov-empty">${ic("circle-check")} ${esc(t("ov.cc_empty_q"))}</div>`;
+    const nhom3 = da.length ? `<div class="ov-cc-khoi">${khoiPhong(da, hangDaDuyet)}</div>`
+      : `<div class="ov-empty">${esc(t("ov.cc_empty_g3"))}</div>`;
+
+    const canhBao = lech.length ? `<div class="ov-cc-lech">
+        ${ic("triangle-alert")}<div><b>${esc(t("ov.cc_merge"))}</b>
+        <span>${esc(t("ov.cc_merge_d", { so: lech.length }))}</span></div>
+        <button type="button" class="ov-secondary" id="ovCcMerge">${ic("git-branch")} ${esc(t("ov.cc_merge"))}</button>
+      </div>` : "";
+    const msg = _ccMsg ? `<div class="ov-cc-msg ${_ccMsg.ok ? "ok" : "err"}">${ic(_ccMsg.ok ? "circle-check" : "triangle-alert")} ${esc(_ccMsg.text)}</div>` : "";
 
     el.innerHTML = `<div class="ov-page">
-      <div class="ov-toolbar"><div class="ov-chips">
-        <button type="button" class="ov-chip" id="ovCcPrev">${ic("chevron-left")} ${esc(t("ov.cal_prev"))}</button>
-        <button type="button" class="ov-chip" id="ovCcToday"${homNay ? " disabled" : ""}>${esc(t("ov.cal_today"))}</button>
-        <button type="button" class="ov-chip" id="ovCcNext">${esc(t("ov.cal_next"))} ${ic("chevron-right")}</button></div>
-        <span class="ov-synced">${esc(t("ov.cc_summary", { ngay: day, tong: d.tong || 0, chua: d.chua_xem || 0 }))}</span></div>
-      ${nhom.length ? khoiHtml : `<div class="ov-empty big">${esc(t("ov.cc_empty", { ngay: day }))}</div>`}
+      <div class="ov-toolbar">
+        <span class="ov-synced">${esc(t("ov.cc_sum", { cho: d.tong_cho || 0, moi: moi.length, xong: da.length }))}</span>
+        <button type="button" class="ov-refresh" id="ovCcRefresh">${ic("rotate-cw")} ${esc(t("ov.refresh"))}</button></div>
+      ${msg}${canhBao}
+      ${panel(t("ov.cc_g1"), t("ov.cc_g1_d"), nhom1)}
+      ${panel(t("ov.cc_g2"), t("ov.cc_g2_d"), nhom2)}
+      ${panel(t("ov.cc_g3"), t("ov.cc_g3_d"), nhom3)}
     </div>`;
 
-    el.querySelector("#ovCcPrev").onclick = () => { _ccDay = dichNgay(day, -1); renderChungCat(el); };
-    el.querySelector("#ovCcNext").onclick = () => { _ccDay = dichNgay(day, 1); renderChungCat(el); };
-    el.querySelector("#ovCcToday").onclick = () => { _ccDay = null; renderChungCat(el); };
+    el.querySelector("#ovCcRefresh").onclick = () => { _ccMsg = null; renderChungCat(el); };
+    const nutGop = el.querySelector("#ovCcMerge");
+    if (nutGop) nutGop.onclick = async () => {
+      nutGop.disabled = true;
+      try {
+        const res = await fetch("/api/joyce/v1/overview/chung-cat/gop-thu-muc", {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json" }, body: "{}",
+        });
+        const dj = await res.json().catch(() => ({}));
+        _ccMsg = res.ok && dj.ok !== false
+          ? { ok: true, text: t("ov.cc_merge_done", { so: dj.moved || 0 }) }
+          : { ok: false, text: t("ov.cc_fail", { loi: ": " + ((dj && dj.error) || res.status) }) };
+      } catch (e) { _ccMsg = { ok: false, text: t("ov.cc_merge_fail") }; }
+      if (el.isConnected) renderChungCat(el);
+    };
 
     el.querySelectorAll(".ov-cc-row").forEach((row) => {
       const brain = row.dataset.brain, rel = row.dataset.rel;
       row.querySelector(".ov-cc-name").onclick = () => {
         if (window.JoyceFileEditor) window.JoyceFileEditor.open(rel, { brain });
       };
+      const nutDuyet = row.querySelector(".ov-cc-ok");
+      if (nutDuyet) nutDuyet.onclick = async () => {
+        nutDuyet.disabled = true;
+        nutDuyet.innerHTML = esc(t("ov.cc_approving"));
+        try {
+          const res = await fetch("/api/joyce/v1/overview/chung-cat/duyet", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brain_path: brain, rel }),
+          });
+          const dj = await res.json().catch(() => ({}));
+          _ccMsg = res.ok && dj.ok !== false
+            ? { ok: true, text: t("ov.cc_done", { ten: dj.ten || rel, path: dj.rel_moi || "" }) }
+            : { ok: false, text: t("ov.cc_fail", { loi: ": " + ((dj && dj.error) || res.status) }) };
+        } catch (e) { _ccMsg = { ok: false, text: t("ov.cc_fail", { loi: "" }) }; }
+        if (el.isConnected) renderChungCat(el);
+      };
       const nut = row.querySelector(".ov-cc-seen");
-      nut.onclick = async () => {
+      if (nut) nut.onclick = async () => {
         const dangXem = !row.classList.contains("seen");
         nut.disabled = true;
-        const fd = { brain_path: brain, rel, da_xem: dangXem };
         let ok = false;
         try {
           const res = await fetch("/api/joyce/v1/overview/chung-cat/xem", {
             method: "POST", credentials: "same-origin",
-            headers: { "Content-Type": "application/json" }, body: JSON.stringify(fd),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brain_path: brain, rel, da_xem: dangXem }),
           });
           ok = res.ok;
         } catch (e) { ok = false; }
