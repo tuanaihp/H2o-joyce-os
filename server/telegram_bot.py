@@ -64,6 +64,7 @@ BOT_COMMANDS = [
     {"command": "tasks", "description": "Việc nền đang chạy hoặc xếp hàng"},
     {"command": "memory", "description": "Mục lục bộ nhớ dài hạn của brain"},
     {"command": "plan", "description": "Chỉ lập kế hoạch, chưa làm gì ra ngoài"},
+    {"command": "id", "description": "Lấy chat_id của cuộc trò chuyện này (để khai nhóm cho bot)"},
     {"command": "stop", "description": "Dừng câu đang trả lời"},
     {"command": "reset", "description": "Bắt đầu hội thoại mới"},
     {"command": "cli", "description": "Engine Claude Code (MCP Joyce + lệnh máy)"},
@@ -838,6 +839,14 @@ class TelegramBot(HangLuot):
                         # Tin dịch vụ đi TRƯỚC whitelist: "bot vừa bị thả vào nhóm nào" là
                         # chuyện phải biết kể cả (nhất là) khi nhóm đó chưa được cho phép.
                         await self._bao_su_kien(msg)
+                        # /id đi TRƯỚC whitelist: đây là đường duy nhất chủ lấy được id của
+                        # một nhóm CHƯA khai — chặn nó thì nhóm lạ không bao giờ vào whitelist
+                        # được (tin nhóm bị chặn trước dispatch nên /id không tới nơi). Trả
+                        # thẳng ở đây, không qua command_fn, vì _tg_command cũng chỉ trả chat_id.
+                        cmd0 = (msg.get("text") or "").strip().split(maxsplit=1)[0].lower()
+                        if cmd0.split("@")[0] == "/id":
+                            await self._send(client, chat, f"chat_id: {chat}")
+                            continue
                         if self.chat_ids and chat not in self.chat_ids:
                             await self._send(client, chat, "Bạn không có quyền dùng bot Joyce này.")
                             continue

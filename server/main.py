@@ -21555,6 +21555,14 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
             return {"reply": "⚠ Chưa có OpenRouter key - đặt trong Models trên dashboard trước."}
         _tg_dat_model(s, "openrouter", s["model"].get("openrouter_model")); cfgmod.write_settings(s)
         return {"reply": f"✅ Provider: OpenRouter ({s['model'].get('openrouter_model')}) - chat + MCP đa-model."}
+    if cmd == "id":
+        # Trả id của cuộc trò chuyện — chủ gõ trong nhóm để lấy id rồi khai vào whitelist
+        # (thẻ Telegram trong Cài đặt). Tin nhóm chưa khai được _loop trả lời TRƯỚC whitelist.
+        loai = str((meta or {}).get("chat_type") or "")
+        nguoi = str((meta or {}).get("user_id") or "")
+        return {"reply": (f"chat_id: {chat_key}"
+                          + (f"\nloại: {loai}" if loai else "")
+                          + (f"\nuser_id của bạn: {nguoi}" if nguoi else ""))}
     if cmd in ("help", "menu", "start"):
         return {"reply": await _tg_help_text(brain)}
     if cmd == "skills":
