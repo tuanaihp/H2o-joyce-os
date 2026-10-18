@@ -56,9 +56,13 @@
   var ERR_COL  = [1.00, 0.35, 0.30];
 
   var ASSEMBLY_S = 1.9;          // giây lắp ráp intro
-  var FIG = { head: [0, 0.52, 0], headR: [0.165, 0.215, 0.16],
-              neckY: [0.305, 0.385], neckR: 0.052,
-              sho: [0, -0.03, 0], shoR: [0.52, 0.34, 0.19], shoCutY: 0.22 };
+  // Tỷ lệ pho tượng bán thân: đầu nhỏ trên cổ ngắn, thanh vai cong + lồng ngực
+  // bên dưới. Tách "vai" và "ngực" thành 2 ellipsoid chồng nhau - một ellipsoid
+  // dẹt duy nhất (thiết kế đầu) nhìn ra đĩa bay chứ không ra người.
+  var FIG = { head: [0, 0.44, 0], headR: [0.15, 0.20, 0.145],
+              neckY: [0.18, 0.30], neckR: 0.05,
+              sho:  { c: [0, 0.03, 0],  r: [0.50, 0.14, 0.16] },
+              chest:{ c: [0, -0.15, 0], r: [0.32, 0.25, 0.15] } };
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, k) { return a + (b - a) * k; }
@@ -94,26 +98,33 @@
       pos[i * 3 + 2] = cz + z * rz + (rand() - 0.5) * jitter;
     }
 
-    var nHead = Math.round(nBody * 0.44), nNeck = Math.round(nBody * 0.06),
-        nSho = nBody - nHead - nNeck, b0 = 0;
-    for (i = 0; i < nHead; i++) { b0 = i; ellipsoid(FIG.head[0], FIG.head[1], FIG.head[2], FIG.headR[0], FIG.headR[1], FIG.headR[2], 0.008); }
+    // Phân bổ thân: đầu 30% (ít hơn bản đầu - đầu nhỏ lại, đỡ cháy sáng),
+    // cổ 5%, thanh vai 35%, lồng ngực 30%.
+    var nHead = Math.round(nBody * 0.30), nNeck = Math.round(nBody * 0.05),
+        nSho = Math.round(nBody * 0.35), nChest = nBody - nHead - nNeck - nSho, b0 = 0;
+    for (i = 0; i < nHead; i++) { b0 = i; ellipsoid(FIG.head[0], FIG.head[1], FIG.head[2], FIG.headR[0], FIG.headR[1], FIG.headR[2], 0.007); }
     for (i = b0 + 1; i < b0 + 1 + nNeck; i++) {
       th = rand() * Math.PI * 2; y = lerp(FIG.neckY[0], FIG.neckY[1], rand());
       pos[i * 3] = Math.cos(th) * FIG.neckR; pos[i * 3 + 1] = y; pos[i * 3 + 2] = Math.sin(th) * FIG.neckR;
     }
-    // Vai/ngực: bán ellipsoid cắt ngang trên (y <= shoCutY) - lấy mẫu lại tới đủ.
-    var placed = 0;
-    while (placed < nSho) {
-      i = b0 + 1 + nNeck + placed;
+    // Thanh vai: ellipsoid rộng-thấp, đỉnh cong rủ xuống hai bên; bóp thêm
+    // chiều sâu z theo |x| để cánh tay thon dần ra mép - bớt dáng "đĩa bay".
+    for (i = b0 + 1 + nNeck; i < b0 + 1 + nNeck + nSho; i++) {
       th = rand() * Math.PI * 2; ph = Math.acos(1 - 2 * rand());
-      x = Math.sin(ph) * Math.cos(th) * FIG.shoR[0];
-      y = Math.cos(ph) * FIG.shoR[1];
-      z = Math.sin(ph) * Math.sin(th) * FIG.shoR[2];
-      if (y > FIG.shoCutY) continue;
-      pos[i * 3] = FIG.sho[0] + x + (rand() - 0.5) * 0.01;
-      pos[i * 3 + 1] = FIG.sho[1] + y + (rand() - 0.5) * 0.01;
-      pos[i * 3 + 2] = FIG.sho[2] + z + (rand() - 0.5) * 0.01;
-      placed++;
+      x = Math.sin(ph) * Math.cos(th) * FIG.sho.r[0];
+      y = Math.cos(ph) * FIG.sho.r[1];
+      z = Math.sin(ph) * Math.sin(th) * FIG.sho.r[2];
+      var tap = 1 - 0.42 * Math.pow(Math.min(1, Math.abs(x) / FIG.sho.r[0]), 2);
+      pos[i * 3] = FIG.sho.c[0] + x + (rand() - 0.5) * 0.008;
+      pos[i * 3 + 1] = FIG.sho.c[1] + y + (rand() - 0.5) * 0.008;
+      pos[i * 3 + 2] = FIG.sho.c[2] + z * tap + (rand() - 0.5) * 0.008;
+    }
+    // Lồng ngực: ellipsoid hẹp hơn vai, đứng hơn - thân dưới thanh vai.
+    for (i = b0 + 1 + nNeck + nSho; i < nBody; i++) {
+      th = rand() * Math.PI * 2; ph = Math.acos(1 - 2 * rand());
+      pos[i * 3] = FIG.chest.c[0] + Math.sin(ph) * Math.cos(th) * FIG.chest.r[0] + (rand() - 0.5) * 0.008;
+      pos[i * 3 + 1] = FIG.chest.c[1] + Math.cos(ph) * FIG.chest.r[1] + (rand() - 0.5) * 0.008;
+      pos[i * 3 + 2] = FIG.chest.c[2] + Math.sin(ph) * Math.sin(th) * FIG.chest.r[2] + (rand() - 0.5) * 0.008;
     }
     // Lõi não: cụm hạt nhỏ gọn trong đầu, hơi lệch trước.
     for (i = nBody; i < nBody + nCore; i++) {
@@ -172,7 +183,7 @@
     "  pos.x += sin(uT*3.1+aSeed.x*37.0)*jit*0.012;",
     "  pos.y += sin(uT*2.7+aSeed.y*41.0)*jit*0.012;",
     "  pos.z += sin(uT*3.7+aSeed.z*43.0)*jit*0.012;",
-    "  float mouth = (1.0-smoothstep(0.0,0.045,abs(pos.y-0.455)))*step(0.0,pos.z)*step(aKind,0.5);",
+    "  float mouth = (1.0-smoothstep(0.0,0.045,abs(pos.y-0.40)))*step(0.0,pos.z)*step(aKind,0.5);",
     "  pos.z += mouth*sin(uT*9.0+aSeed.w*40.0)*uLevel*jit*0.05;",
     "  pos.z += uLean*0.10*(0.4+pos.y); pos.y -= uLean*0.02;",
     "  float yaw = sin(uT*0.15)*0.10*(1.0-uReduced);",
@@ -184,13 +195,14 @@
     "  float tw = 1.0 + uTwOn*0.35*sin(uT*aSeed.y+aSeed.x*6.283);",
     "  gl_PointSize = max(1.0, aSeed.w*uSizeK*uPR*tw*(1.0+uLevel*(aKind>0.5?0.9:0.3)));",
     "  float hue = h1(aSeed.z*5.17);",
-    "  vec3 col = mix(vec3(0.10,0.87,1.00), vec3(0.75,0.93,1.00), hue*0.6);",
-    "  if (aKind>1.5) col = vec3(0.45,0.80,1.00)*0.55;",
-    "  else if (aKind>0.5) col = mix(vec3(1.00,0.71,0.30), vec3(1.00,0.85,0.55), hue);",
+    "  vec3 col = mix(vec3(0.10,0.87,1.00), vec3(0.75,0.93,1.00), hue*0.3);",
+    "  float lum = 0.72;",
+    "  if (aKind>1.5) { col = vec3(0.45,0.80,1.00); lum = 0.30; }",
+    "  else if (aKind>0.5) { col = mix(vec3(1.00,0.71,0.30), vec3(1.00,0.85,0.55), hue); lum = 1.0; }",
     "  col = mix(col, vec3(1.00,0.35,0.30), uErr*0.7);",
     "  float pulse = 1.0 + (aKind>0.5 ? uLevel*0.8 + 0.18*sin(uT*2.3) : 0.0);",
     "  float fade = p < 1.0 ? (0.35+0.65*p) : 1.0;",
-    "  vC = col * uDim * pulse * fade * (0.55+0.45*tw);",
+    "  vC = col * lum * uDim * pulse * fade * (0.55+0.45*tw);",
     "}"].join("\n");
 
   var FS = "#version 300 es\nprecision highp float;\n" + [
@@ -349,9 +361,9 @@
       gl.uniform1f(uni.uErr, cur.err);
       gl.uniform1f(uni.uTwOn, pr.twinkle && !reduced ? 1 : 0);
       gl.uniform1f(uni.uAspect, W / H);
-      // Pho tượng chiếm ~62% nửa chiều cao khung; kẹp lại khi khoang quá hẹp
+      // Pho tượng chiếm ~70% nửa chiều cao khung; kẹp lại khi khoang quá hẹp
       // ngang (mobile dọc) để vai không tràn mép.
-      gl.uniform1f(uni.uFit, Math.min(0.62, 1.5 * (W / H)));
+      gl.uniform1f(uni.uFit, Math.min(0.70, 1.5 * (W / H)));
       gl.uniform1f(uni.uReduced, reduced ? 1 : 0);
       gl.drawArrays(gl.POINTS, 0, fig.n);
       gl.bindVertexArray(null);
@@ -371,10 +383,13 @@
       host = el; mounted = true;
       cv = document.createElement("canvas");
       cv.className = "humanoid-gl"; cv.setAttribute("aria-hidden", "true");
-      cv.hidden = true;   // chỉ hiện khi activate(true) - mount một mình không lộ gì
+      // Ẩn bằng style.display, KHÔNG bằng thuộc tính hidden: CSS ".planet-stage >
+      // canvas { display:block }" và ".humanoid-gl { display:block }" đều có độ
+      // ưu tiên cao hơn [hidden] nên hidden không bao giờ giấu được canvas.
+      cv.style.display = "none";
       st = document.createElement("div");
       st.className = "hum-status"; st.setAttribute("aria-hidden", "true");
-      st.hidden = true;
+      st.style.display = "none";
       host.appendChild(cv); host.appendChild(st);
       if (host.dataset) host.dataset.quality = profile;
       initGL(); resize(); syncStatus();
@@ -398,8 +413,10 @@
       if (on === active) return;
       active = on;
       if (host) host.classList.toggle("humanoid-on", on);
-      if (cv) cv.hidden = !on;
-      if (st) st.hidden = !on;
+      // "" = trả về display:block của stylesheet; "none" = giấu hẳn (xem lý do
+      // ở mount - [hidden] thua specificity nên không dùng được).
+      if (cv) cv.style.display = on ? "" : "none";
+      if (st) st.style.display = on ? "" : "none";
       if (on) {
         asmDone = false; asmT = 0;
         paused = false;

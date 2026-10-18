@@ -65,21 +65,23 @@ check("tổng hạt = thân + lõi + bụi", fig.n === NB + NC + NM && fig.pos.l
 check("có vị trí xuất phát intro (aFrom)", fig.from.length === fig.n * 3);
 check("có seed 4 kênh (phase/rate/twinkle/size)", fig.seed.length === fig.n * 4);
 
-let head = 0, sho = 0, inBox = true;
+let head = 0, sho = 0, chest = 0, inBox = true;
 for (let i = 0; i < NB; i++) {
   const x = fig.pos[i * 3], y = fig.pos[i * 3 + 1], z = fig.pos[i * 3 + 2];
-  if (Math.abs(x) > 0.8 || y > 0.8 || y < -0.45 || Math.abs(z) > 0.5) inBox = false;
-  if (y > 0.55) head++;
-  if (Math.abs(x) > 0.3 && y < 0.2) sho++;
+  if (Math.abs(x) > 0.65 || y > 0.72 || y < -0.5 || Math.abs(z) > 0.3) inBox = false;
+  if (y > 0.45) head++;
+  if (Math.abs(x) > 0.3 && y < 0.15) sho++;
+  if (y < -0.25) chest++;
 }
-check("thân nằm trong hộp pho tượng (đầu ~0.73, vai rộng ~0.55)", inBox);
-check("có khối đầu (hạt trên y>0.55)", head > NB * 0.15, head + " hạt");
-check("có khối vai (hạt |x|>0.3 dưới cổ)", sho > NB * 0.08, sho + " hạt");
+check("thân nằm trong hộp pho tượng (đầu ~0.64, vai rộng ~0.5)", inBox);
+check("có khối đầu (hạt trên y>0.45)", head > NB * 0.10, head + " hạt");
+check("có thanh vai (hạt |x|>0.3 dưới cổ)", sho > NB * 0.08, sho + " hạt");
+check("có lồng ngực (hạt dưới y<-0.25, không phải đĩa bay)", chest > NB * 0.08, chest + " hạt");
 
 let coreOK = true, moteOK = true, coreInHead = 0;
 for (let i = NB; i < NB + NC; i++) {
   if (fig.kind[i] !== 1) coreOK = false;
-  const dy = fig.pos[i * 3 + 1] - 0.52;
+  const dy = fig.pos[i * 3 + 1] - 0.455;
   if (Math.abs(dy) < 0.12 && Math.abs(fig.pos[i * 3]) < 0.1) coreInHead++;
 }
 for (let i = NB + NC; i < fig.n; i++) {
