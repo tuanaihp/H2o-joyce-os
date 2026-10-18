@@ -337,7 +337,9 @@
       gl.uniform1f(uni.uT, t0);
       gl.uniform1f(uni.uAsm, reduced ? 1 : asm);
       gl.uniform1f(uni.uPR, dpr);
-      gl.uniform1f(uni.uSizeK, Math.min(cv.height, cv.width) / 620);
+      // uSizeK tính theo pixel CSS (H/W), dpr đi qua uPR riêng trong shader -
+      // dùng cv.height (đã nhân dpr) ở đây sẽ nhân đôi dpr và phồng cỡ hạt.
+      gl.uniform1f(uni.uSizeK, Math.min(H, W) / 620);
       gl.uniform1f(uni.uAgit, cur.agit);
       gl.uniform1f(uni.uLevel, amp);
       gl.uniform1f(uni.uSwirl, cur.swirl);
