@@ -26,6 +26,7 @@
 .jh-panel strong{display:block;color:#19ddff;letter-spacing:.12em;margin-bottom:8px;font-weight:400}
 .jh-panel p{margin:8px 0 16px}
 .jh-panel button{padding:8px 12px;width:100%;min-height:40px}
+.jh-cam{position:absolute;right:14px;bottom:14px;width:110px;border-radius:8px;border:1px solid #19ddff66;transform:scaleX(-1);z-index:6;opacity:.85;pointer-events:none;background:#000}
 .jh [hidden]{display:none!important}
 @media(max-width:650px){.jh-status{left:auto;right:5%;top:18%;max-width:38%}.jh-controls{flex-wrap:wrap;justify-content:center;width:96%;bottom:12px;gap:5px}.jh-controls button{min-height:38px;padding:6px 9px;font-size:10px}.jh-top{left:12px;top:12px;gap:7px}.jh-top button{padding:0 11px}.jh-notice{bottom:104px}.jh-entry h1{font-size:19px}.jh-panel{left:12px}}
 @media(prefers-reduced-motion:reduce){.jh *{transition:none!important}}

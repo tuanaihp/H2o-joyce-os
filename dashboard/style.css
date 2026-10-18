@@ -3985,6 +3985,11 @@ body.ne-full-on .cview { z-index: 250; }
 #planetStage .hum-status[data-st="error"], #planetStage .hum-status[data-st="reconnecting"] { color: var(--red); }
 #planetStage.humanoid-on .planet-gl { opacity: .10; transition: opacity .45s ease; }
 #planetStage.humanoid-on .planet-ov { opacity: .18; transition: opacity .45s ease; }
+/* Ở lớp nhìn 3D Joyce pho tượng chính là "gương mặt" cuộc gọi (vùng miệng +
+   lõi não khuấy theo giọng) nên thẻ hologram Joyce (ảnh giọt nước + SCANNING)
+   phải ẩn đi không để nó che hình. Về Lõi nước giữa cuộc gọi thì thẻ tự hiện
+   lại đúng như cũ vì class .on vẫn giữ; nút Tắt mic/Cúp máy còn ở thanh chat. */
+#hudView.hum-mode .holo-screen { display: none; }
 /* Thẻ Đọc nhanh của bầu trời tri thức (hud.js openKnow) dùng lại khung .planet-ctx. */
 .planet-tip .pt-know { font-size: 10.5px; color: var(--text2); margin-top: 3px; letter-spacing: .3px; }
 .planet-ctx .pc-know-dot { color: var(--accent); }

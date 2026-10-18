@@ -2,6 +2,14 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.14] - 2026-10-19
+### Thêm mới
+- **Nhận diện bàn tay thật qua camera trong 3D Joyce**: nút "HAND CAM" bật camera (chỉ khi bấm), MediaPipe HandLandmarker chạy tại máy - đầu ngón trỏ lái sự chú ý của pho tượng, chụm ngón cái + trỏ tạo sóng năng lượng, mở lòng bàn tay làm pho tượng dịu lại. Camera tự tắt khi thoát lớp nhìn/đổi tab, tự mở lại khi quay về; có ô preview nhỏ góc phải và cảnh báo rõ không gửi hình ảnh đi đâu.
+- **Cảm giác 3D hơn**: pho tượng nghiêng nhẹ theo con trỏ/bàn tay (parallax shear trong shader), kết hợp sự chú ý vùng mặt đã có.
+
+### Sửa lỗi
+- Thẻ hologram Joyce (ảnh giọt nước + SCANNING) không còn đè lên mặt pho tượng khi đang gọi ở lớp nhìn 3D Joyce - pho tượng chính là gương mặt cuộc gọi. Về Lõi nước giữa cuộc gọi thẻ hiện lại bình thường.
+
 ## [1.3.13] - 2026-10-19
 ### Thêm mới
 - **3D Joyce nâng cấp lên renderer tham chiếu APEX**: lớp nhìn giờ dùng bộ render lấy cảm hứng apex-humanoid (plates WebP + trường hạt 2.5D) do Astra chuẩn bị - hình người contour rỗng ruột, não vàng, sống lưng tết và địa hình năng lượng đúng hình mẫu, thay pho tượng tham số hoá trước đó. Cảnh lắp ráp, nút EXIT (quay về Lõi nước), ripple khi chạm vào pho tượng và sự chú ý theo con trỏ đi kèm sẵn.

@@ -2,6 +2,14 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.14] - 2026-10-19
+### Added
+- **Real hand tracking via camera in 3D Joyce**: the "HAND CAM" button enables the camera (opt-in only); an on-device MediaPipe HandLandmarker drives the figure - the index fingertip steers its attention, a thumb-index pinch emits an energy ripple, and an open palm calms it. The camera releases on view exit/tab switch, restarts on return, shows a small corner preview, and clearly states nothing leaves the device.
+- **Stronger 3D feel**: the figure tilts subtly with pointer/hand movement (parallax shear in the shader) on top of the existing face-attention offset.
+
+### Fixed
+- The Joyce hologram card (water-drop avatar + SCANNING) no longer covers the figure's face during calls in the 3D Joyce view - the figure itself is the call face. Switching back to Water Core mid-call brings the card back as before.
+
 ## [1.3.13] - 2026-10-19
 ### Added
 - **3D Joyce upgraded to the APEX reference renderer**: the view now runs the apex-humanoid-inspired renderer prepared by Astra (WebP plates + a 2.5D particle field) - a hollow contour figure with a golden brain, braided spine and energy terrain matching the reference, replacing the earlier parameterized figure. Assembly intro, an EXIT button (back to Water Core), touch ripples and pointer attention come built in.

@@ -246,9 +246,19 @@ check("apex-humanoid.js: export global JoyceHumanoidApex", /global\.JoyceHumanoi
 check("apex-humanoid.js: KHÔNG đè global JoyceHumanoid", !/global\.JoyceHumanoid\s*=/.test(APEX));
 check("apex-humanoid.js: assetsBase mặc định ./assets/ (wrapper ghi đè /static/humanoid/)", /assetsBase\|\|'\.\/assets\/'/.test(APEX));
 check("apex-humanoid.js: class JoyceHumanoid có API enter/setState/setLevel/pause/resume/dispose", ["enter", "setState", "setLevel", "pause", "resume", "dispose"].every((m) => new RegExp("\\n\\s{4}" + m + "\\(").test(APEX)));
+// Hand-tracking camera (MediaPipe, tại máy): nút gesture -> toggleHands,
+// detectHands đọc landmarks, pause/exit/dispose giải phóng camera.
+check("apex-humanoid.js: có toggleHands + detectHands + stopHands", /async toggleHands\(/.test(APEX) && /detectHands\(\)\{/.test(APEX) && /stopHands\(\)\{/.test(APEX));
+check("apex-humanoid.js: gesture action -> toggleHands", /a==='gesture'\)\{this\.toggleHands\(\)/.test(APEX));
+check("apex-humanoid.js: pause/exit/dispose giải phóng camera", /pause\(\)\{[^}]*stopHands\(\)/.test(APEX) && /exit\(\)\{[^}]*stopHands\(\)/.test(APEX) && /dispose\(\)\{[^}]*stopHands\(\)/.test(APEX));
+check("apex-humanoid.js: resume/enter tự mở lại camera khi handsWanted", /resume\(\)\{[^}]*handsWanted[^}]*toggleHands\(\)/.test(APEX) && /enter\(\)\{[^}]*handsWanted[^}]*toggleHands\(\)/.test(APEX));
+check("apex-humanoid.js: nạp vision_bundle.mjs + hand_landmarker.task từ assetsBase", /vision_bundle\.mjs/.test(APEX) && /hand_landmarker\.task/.test(APEX));
+check("apex-humanoid.js: open palm -> quiet giảm level", /hands&&this\.hands\.quiet\)target\*=\.3/.test(APEX));
+check("apex-humanoid.js: parallax tilt theo attention trong shader", /q\.y-\.5\)\*attention\.x\*/.test(APEX));
+check("apex-humanoid.js: có video preview .jh-cam", /class="jh-cam"/.test(APEX));
 check("humanoid.css: đã gỡ rule demo-host html,body + #joyce-humanoid", !/html,body\{/.test(HCSS) && !/#joyce-humanoid\{/.test(HCSS));
-check("humanoid.css: giữ scoped .jh", /\.jh\{/.test(HCSS));
-check("style.css: có rule .hum-layer", /\.hum-layer/.test(CSS));
+check("humanoid.css: giữ scoped .jh + style .jh-cam", /\.jh\{/.test(HCSS) && /\.jh-cam\{/.test(HCSS));
+check("style.css: có rule .hum-layer + ẩn holo-screen khi 3D Joyce", /\.hum-layer/.test(CSS) && /hum-mode \.holo-screen/.test(CSS));
 check(".gitignore chặn dashboard/humanoid/ (artwork license chưa xác minh)", /^dashboard\/humanoid\//m.test(GI));
 const ADIR = path.join(__dirname, "../../dashboard/humanoid");
 if (fs.existsSync(ADIR)) {
@@ -256,6 +266,8 @@ if (fs.existsSync(ADIR)) {
   let wOK = true;
   for (const f of need) { const p = path.join(ADIR, f); if (!fs.existsSync(p)) { wOK = false; break; } const b = fs.readFileSync(p); if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WEBP") wOK = false; }
   check("assets APEX đủ 8 plate WebP hợp lệ trong dashboard/humanoid/", wOK);
+  const mp = ["mediapipe/vision_bundle.mjs", "mediapipe/wasm/vision_wasm_internal.wasm", "mediapipe/wasm/vision_wasm_nosimd_internal.wasm", "hand_landmarker.task"];
+  check("mediapipe hand-tracking đủ bundle + wasm + model", mp.every((f) => { const p = path.join(ADIR, f); return fs.existsSync(p) && fs.statSync(p).size > 50000; }));
 } else {
   console.log("info  dashboard/humanoid/ vắng trên máy này -> renderer sẽ tự rơi về procedural (đúng thiết kế)");
 }
