@@ -56,13 +56,13 @@
   var ERR_COL  = [1.00, 0.35, 0.30];
 
   var ASSEMBLY_S = 1.9;          // giây lắp ráp intro
-  // Tỷ lệ pho tượng bán thân: đầu nhỏ trên cổ ngắn, thanh vai cong + lồng ngực
-  // bên dưới. Tách "vai" và "ngực" thành 2 ellipsoid chồng nhau - một ellipsoid
-  // dẹt duy nhất (thiết kế đầu) nhìn ra đĩa bay chứ không ra người.
-  var FIG = { head: [0, 0.44, 0], headR: [0.15, 0.20, 0.145],
-              neckY: [0.18, 0.30], neckR: 0.05,
-              sho:  { c: [0, 0.03, 0],  r: [0.50, 0.14, 0.16] },
-              chest:{ c: [0, -0.15, 0], r: [0.32, 0.25, 0.15] } };
+  // Pho tượng kiểu "contour MRI" (đúng ảnh mẫu chủ duyệt): hạt nằm trên các
+  // VÀNH NGANG rời nhau nên ruột rỗng, viền sáng rõ, lõi vàng lộ ra xuyên qua
+  // đầu-ngực - khác hẳn khối đặc phủ mặt. Biên dạng điều khiển bằng 2 hàm
+  // profile bán kính theo chiều cao: headRx (cằm->sọ) và torsoRx (eo->vai).
+  var FIG = { headY: [0.27, 0.65], headMaxR: 0.155, brain: [0, 0.46, 0.01],
+              neckY: [0.16, 0.29], neckR: 0.048,
+              torsoY: [-0.42, 0.20], waistR: 0.24, shoR: 0.50 };
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, k) { return a + (b - a) * k; }
@@ -85,54 +85,89 @@
     var n = nBody + nCore + nMote;
     var pos = new Float32Array(n * 3), from = new Float32Array(n * 3),
         seed = new Float32Array(n * 4), kind = new Float32Array(n);
-    var i, x, y, z, th, ph, r, k;
+    var i, th, ph, r;
 
-    // Mặt cầu đều (Fibonacci) co vào elip.
-    function ellipsoid(cx, cy, cz, rx, ry, rz, jitter) {
-      var t = (i + 0.5) / nBody, y0 = 1 - 2 * t;
-      var rr = Math.sqrt(Math.max(0, 1 - y0 * y0));
-      th = i * 2.39996322972865332;
-      x = rr * Math.cos(th); y = y0; z = rr * Math.sin(th);
-      pos[i * 3] = cx + x * rx + (rand() - 0.5) * jitter;
-      pos[i * 3 + 1] = cy + y * ry + (rand() - 0.5) * jitter;
-      pos[i * 3 + 2] = cz + z * rz + (rand() - 0.5) * jitter;
+    // Biên dạng đầu theo chiều cao y: cằm nhọn -> hàm -> thái dương rộng nhất
+    // -> đỉnh sọ khép dần. Trả về bán kính ngang rx tại mỗi vành.
+    function headRx(y) {
+      var t = clamp((y - FIG.headY[0]) / (FIG.headY[1] - FIG.headY[0]), 0, 1);
+      if (t <= 0.10) return 0.028 + t / 0.10 * 0.052;           // cằm -> hàm
+      if (t <= 0.45) return 0.080 + (t - 0.10) / 0.35 * 0.075;  // hàm -> thái dương
+      if (t <= 0.80) return 0.155 - (t - 0.45) / 0.35 * 0.028;  // sọ
+      var u = (t - 0.80) / 0.20;                                 // đỉnh đầu khép
+      return 0.127 * Math.sqrt(Math.max(0, 1 - u * u));
+    }
+    // Biên dạng thân: eo hẹp -> ngực -> vai loe mạnh -> dome rủ về cổ.
+    function torsoRx(y) {
+      var t = clamp((y - FIG.torsoY[0]) / (FIG.torsoY[1] - FIG.torsoY[0]), 0, 1);
+      if (t < 0.50) return FIG.waistR + t / 0.5 * 0.12;          // eo -> ngực
+      if (t < 0.78) return 0.36 + (t - 0.5) / 0.28 * 0.14;       // loe ra vai
+      var u = (t - 0.78) / 0.22;                                  // dome vai -> cổ
+      return FIG.shoR - u * u * 0.43;
     }
 
-    // Phân bổ thân: đầu 30% (ít hơn bản đầu - đầu nhỏ lại, đỡ cháy sáng),
-    // cổ 5%, thanh vai 35%, lồng ngực 30%.
-    var nHead = Math.round(nBody * 0.30), nNeck = Math.round(nBody * 0.05),
-        nSho = Math.round(nBody * 0.35), nChest = nBody - nHead - nNeck - nSho, b0 = 0;
-    for (i = 0; i < nHead; i++) { b0 = i; ellipsoid(FIG.head[0], FIG.head[1], FIG.head[2], FIG.headR[0], FIG.headR[1], FIG.headR[2], 0.007); }
-    for (i = b0 + 1; i < b0 + 1 + nNeck; i++) {
-      th = rand() * Math.PI * 2; y = lerp(FIG.neckY[0], FIG.neckY[1], rand());
-      pos[i * 3] = Math.cos(th) * FIG.neckR; pos[i * 3 + 1] = y; pos[i * 3 + 2] = Math.sin(th) * FIG.neckR;
+    // Danh sách vành ngang [y, rx, rz]. Bước y quyết định "độ nét" contour -
+    // đủ thưa để thấy rõ vân, đủ dày để hình liền.
+    var rings = [], ry, rx;
+    for (ry = FIG.headY[0]; ry <= FIG.headY[1]; ry += 0.0125) {
+      rx = headRx(ry);
+      if (rx > 0.012) rings.push([ry, rx, rx * 1.05, 0]);        // đầu (z hơi sâu hơn x)
     }
-    // Thanh vai: ellipsoid rộng-thấp, đỉnh cong rủ xuống hai bên; bóp thêm
-    // chiều sâu z theo |x| để cánh tay thon dần ra mép - bớt dáng "đĩa bay".
-    for (i = b0 + 1 + nNeck; i < b0 + 1 + nNeck + nSho; i++) {
-      th = rand() * Math.PI * 2; ph = Math.acos(1 - 2 * rand());
-      x = Math.sin(ph) * Math.cos(th) * FIG.sho.r[0];
-      y = Math.cos(ph) * FIG.sho.r[1];
-      z = Math.sin(ph) * Math.sin(th) * FIG.sho.r[2];
-      var tap = 1 - 0.42 * Math.pow(Math.min(1, Math.abs(x) / FIG.sho.r[0]), 2);
-      pos[i * 3] = FIG.sho.c[0] + x + (rand() - 0.5) * 0.008;
-      pos[i * 3 + 1] = FIG.sho.c[1] + y + (rand() - 0.5) * 0.008;
-      pos[i * 3 + 2] = FIG.sho.c[2] + z * tap + (rand() - 0.5) * 0.008;
+    for (ry = FIG.neckY[0]; ry <= FIG.neckY[1]; ry += 0.014) {
+      rings.push([ry, FIG.neckR, FIG.neckR * 1.1, 0]);           // cổ
     }
-    // Lồng ngực: ellipsoid hẹp hơn vai, đứng hơn - thân dưới thanh vai.
-    for (i = b0 + 1 + nNeck + nSho; i < nBody; i++) {
-      th = rand() * Math.PI * 2; ph = Math.acos(1 - 2 * rand());
-      pos[i * 3] = FIG.chest.c[0] + Math.sin(ph) * Math.cos(th) * FIG.chest.r[0] + (rand() - 0.5) * 0.008;
-      pos[i * 3 + 1] = FIG.chest.c[1] + Math.cos(ph) * FIG.chest.r[1] + (rand() - 0.5) * 0.008;
-      pos[i * 3 + 2] = FIG.chest.c[2] + Math.sin(ph) * Math.sin(th) * FIG.chest.r[2] + (rand() - 0.5) * 0.008;
+    for (ry = FIG.torsoY[0]; ry <= FIG.torsoY[1]; ry += 0.013) {
+      rx = torsoRx(ry);
+      rings.push([ry, rx, 0.10 + rx * 0.28, 0]);                 // thân/vai (z ~0.28x)
     }
-    // Lõi não: cụm hạt nhỏ gọn trong đầu, hơi lệch trước.
-    for (i = nBody; i < nBody + nCore; i++) {
-      var u = rand() * 2 - 1, t2 = rand() * Math.PI * 2, rr2 = Math.sqrt(1 - u * u);
+    // Chia hạt theo chu vi vành (vành rộng nhận nhiều hạt hơn).
+    var circ = rings.map(function (rg) { return Math.PI * (rg[1] + rg[2]); });
+    var totCirc = circ.reduce(function (a, c) { return a + c; }, 0);
+    var cnts = circ.map(function (c) { return Math.max(4, Math.round(nBody * c / totCirc)); });
+    var diff = cnts.reduce(function (a, c) { return a + c; }, 0) - nBody;
+    var ki = 0;
+    while (diff !== 0) {   // cân cho khớp nBody: bớt/thêm vào vành lớn nhất
+      var bi = 0; for (var q = 0; q < cnts.length; q++) if (circ[q] > circ[bi]) bi = q;
+      if (diff > 0 && cnts[bi] > 4) { cnts[bi]--; diff--; } else if (diff < 0) { cnts[bi]++; diff++; } else diff = 0;
+      if (++ki > 9999) break;
+    }
+    i = 0;
+    for (var ri = 0; ri < rings.length && i < nBody; ri++) {
+      var rg = rings[ri], cnt = Math.min(cnts[ri], nBody - i);
+      for (var pj = 0; pj < cnt; pj++, i++) {
+        var a = (pj / cnt) * Math.PI * 2 + rand() * 0.12;        // đều quanh vành + rung nhẹ
+        pos[i * 3] = Math.cos(a) * rg[1] + (rand() - 0.5) * 0.006;
+        pos[i * 3 + 1] = rg[0] + (rand() - 0.5) * 0.005;
+        pos[i * 3 + 2] = Math.sin(a) * rg[2] + (rand() - 0.5) * 0.006;
+      }
+    }
+    while (i < nBody) { i++; pos[(i - 1) * 3 + 1] = 0.4; }       // an toàn: phần dư chụm vào cổ
+
+    // Lõi vàng (kind=1) = não + sống lưng + nốt ngực, như "hệ thần kinh" phát
+    // sáng chạy xuyên pho tượng - nét nhận diện chính trong ảnh mẫu.
+    var nBrain = Math.round(nCore * 0.45), nSpine = Math.round(nCore * 0.30),
+        nChestN = nCore - nBrain - nSpine;
+    for (i = nBody; i < nBody + nBrain; i++) {                    // não: cụm trong đầu
+      var u2 = rand() * 2 - 1, t2 = rand() * Math.PI * 2, rr2 = Math.sqrt(1 - u2 * u2);
       r = Math.cbrt(rand());
-      pos[i * 3] = rr2 * Math.cos(t2) * 0.055 * r;
-      pos[i * 3 + 1] = FIG.head[1] + 0.015 + u * 0.075 * r;
-      pos[i * 3 + 2] = 0.02 + rr2 * Math.sin(t2) * 0.05 * r;
+      pos[i * 3] = FIG.brain[0] + rr2 * Math.cos(t2) * 0.055 * r;
+      pos[i * 3 + 1] = FIG.brain[1] + u2 * 0.08 * r;
+      pos[i * 3 + 2] = FIG.brain[2] + rr2 * Math.sin(t2) * 0.05 * r;
+      kind[i] = 1;
+    }
+    for (i = nBody + nBrain; i < nBody + nBrain + nSpine; i++) {  // sống lưng xoắn nhẹ
+      var sy = lerp(-0.05, 0.42, rand());
+      pos[i * 3] = Math.sin(sy * 9) * 0.016 + (rand() - 0.5) * 0.006;
+      pos[i * 3 + 1] = sy;
+      pos[i * 3 + 2] = 0.01 + Math.cos(sy * 9) * 0.016 + (rand() - 0.5) * 0.006;
+      kind[i] = 1;
+    }
+    for (i = nBody + nBrain + nSpine; i < nBody + nCore; i++) {   // nốt ngực sáng
+      var u3 = rand() * 2 - 1, t3 = rand() * Math.PI * 2, rr3 = Math.sqrt(1 - u3 * u3);
+      r = Math.cbrt(rand());
+      pos[i * 3] = rr3 * Math.cos(t3) * 0.042 * r;
+      pos[i * 3 + 1] = -0.07 + u3 * 0.05 * r;
+      pos[i * 3 + 2] = 0.05 + rr3 * Math.sin(t3) * 0.035 * r;
       kind[i] = 1;
     }
     // Bụi mờ quanh thân (vỏ cầu r 0.55..1.0 quanh tâm tượng).
@@ -183,7 +218,7 @@
     "  pos.x += sin(uT*3.1+aSeed.x*37.0)*jit*0.012;",
     "  pos.y += sin(uT*2.7+aSeed.y*41.0)*jit*0.012;",
     "  pos.z += sin(uT*3.7+aSeed.z*43.0)*jit*0.012;",
-    "  float mouth = (1.0-smoothstep(0.0,0.045,abs(pos.y-0.40)))*step(0.0,pos.z)*step(aKind,0.5);",
+    "  float mouth = (1.0-smoothstep(0.0,0.045,abs(pos.y-0.36)))*step(0.0,pos.z)*step(aKind,0.5);",
     "  pos.z += mouth*sin(uT*9.0+aSeed.w*40.0)*uLevel*jit*0.05;",
     "  pos.z += uLean*0.10*(0.4+pos.y); pos.y -= uLean*0.02;",
     "  float yaw = sin(uT*0.15)*0.10*(1.0-uReduced);",

@@ -78,16 +78,22 @@ check("có khối đầu (hạt trên y>0.45)", head > NB * 0.10, head + " hạt
 check("có thanh vai (hạt |x|>0.3 dưới cổ)", sho > NB * 0.08, sho + " hạt");
 check("có lồng ngực (hạt dưới y<-0.25, không phải đĩa bay)", chest > NB * 0.08, chest + " hạt");
 
-let coreOK = true, moteOK = true, coreInHead = 0;
+let coreOK = true, moteOK = true, coreInHead = 0, spinePts = 0, chestNode = 0;
 for (let i = NB; i < NB + NC; i++) {
   if (fig.kind[i] !== 1) coreOK = false;
-  const dy = fig.pos[i * 3 + 1] - 0.455;
-  if (Math.abs(dy) < 0.12 && Math.abs(fig.pos[i * 3]) < 0.1) coreInHead++;
+  const x = fig.pos[i * 3], y = fig.pos[i * 3 + 1];
+  if (Math.abs(y - 0.46) < 0.12 && Math.abs(x) < 0.1) coreInHead++;      // cụm não
+  if (Math.abs(x) < 0.05 && y > 0.0 && y < 0.42) spinePts++;             // sống lưng
+  if (y < -0.02 && y > -0.16) chestNode++;                               // nốt ngực
 }
 for (let i = NB + NC; i < fig.n; i++) {
   if (fig.kind[i] !== 2) moteOK = false;
 }
-check("lõi não kind=1, nằm gọn trong đầu", coreOK && coreInHead > NC * 0.7, coreInHead + "/" + NC);
+// Lõi vàng = não (~45%) + sống lưng (~30%) + nốt ngực (~25%) - đúng ảnh mẫu:
+// não sáng trong đầu, cột vàng chạy cổ xuống ngực.
+check("lõi kind=1: cụm não trong đầu", coreOK && coreInHead > NC * 0.35, coreInHead + "/" + NC);
+check("lõi kind=1: sống lưng cổ-ngực", spinePts > NC * 0.2, spinePts + " hạt");
+check("lõi kind=1: nốt ngực", chestNode > NC * 0.15, chestNode + " hạt");
 check("bụi mờ kind=2", moteOK);
 
 const fig2 = H.sampleFigure(NB, NC, NM);
