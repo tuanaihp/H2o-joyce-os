@@ -24,6 +24,7 @@
     uniform vec2 viewport;uniform vec4 rect;
     uniform float mixAmount;uniform float clock;uniform float level;uniform float reveal;
     uniform vec2 attention;uniform float reduceMotion;
+    uniform float yaw;
     varying vec2 uv;
     void main(){
       vec2 px=vec2(uv.x,1.-uv.y)*viewport;
@@ -31,15 +32,21 @@
       if(q.x<0.||q.x>1.||q.y<0.||q.y>1.){gl_FragColor=vec4(0.);return;}
       float face=exp(-pow((q.y-.43)*5.,2.)-pow((q.x-.5)*4.,2.));
       float motion=1.-reduceMotion;
+      // Quay đầu giả-3D (yaw): nén ngang theo cos góc (foreshorten) rồi cho
+      // vùng mặt trong trượt nhiều hơn viền silhouette - đọc là đầu quay
+      // trái/phải ~20 độ, đúng kiểu tham chiếu.
+      float turn=clamp(yaw,-1.,1.)*motion;
+      float inner=exp(-pow((q.y-.42)*4.5,2.)-pow((q.x-.5)*3.2,2.));
+      q.x=.5+(q.x-.5)/max(.62,cos(turn*.42));
+      q.x-=turn*(.012+.038*inner);
+      // Nghiêng nhẹ theo con trỏ (attention) + gợn sóng khi nói.
+      q.x-=(q.y-.5)*attention.x*.014*motion;
       q.x+=sin(q.y*40.-clock*2.)*.0015*level*face*motion;
-      // Parallax tilt: shear nhẹ theo con trỏ/bàn tay - cảm giác pho tượng
-      // nghiêng theo ánh nhìn (pseudo-3D trên plate phẳng).
-      q.x-=(q.y-.5)*attention.x*.016*motion;
-      q.x+=attention.x*.006*face*motion;
       q+=attention*.004*face*motion;
       vec3 col=mix(texture2D(plateA,q).rgb,texture2D(plateB,q).rgb,mixAmount);
       float mouth=exp(-pow((q.y-.45)*12.,2.)-pow((q.x-.5)*9.,2.));
-      col+=vec3(1.,.28,.015)*mouth*level*.09;
+      // Lõi miệng đập có nhịp: biên độ rung theo clock + độ lớn tiếng.
+      col+=vec3(1.,.28,.015)*mouth*level*(.06+.05*(.5+.5*sin(clock*7.+level*6.)));
       col*=reveal;
       gl_FragColor=vec4(col,1.);
     }`;
@@ -57,16 +64,16 @@
       gl.useProgram(this.program);this.buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);
       gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
       const pos=gl.getAttribLocation(this.program,'position');gl.enableVertexAttribArray(pos);gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);
-      this.u={};for(const n of ['plateA','plateB','viewport','rect','mixAmount','clock','level','reveal','attention','reduceMotion'])this.u[n]=gl.getUniformLocation(this.program,n);
+      this.u={};for(const n of ['plateA','plateB','viewport','rect','mixAmount','clock','level','reveal','attention','reduceMotion','yaw'])this.u[n]=gl.getUniformLocation(this.program,n);
       this.textures={};
     }
     load(images){const gl=this.gl;for(const [key,img] of Object.entries(images)){if(key==='backdrop')continue;const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);this.textures[key]=t;}}
-    draw(a,b,mix,r,w,h,t,level,reveal,attention,reduced){const g=this.gl;if(g.isContextLost())return;
+    draw(a,b,mix,r,w,h,t,level,reveal,attention,reduced,yaw){const g=this.gl;if(g.isContextLost())return;
       g.viewport(0,0,this.canvas.width,this.canvas.height);g.useProgram(this.program);
       g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.textures[a]||this.textures.idle);g.uniform1i(this.u.plateA,0);
       g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,this.textures[b]||this.textures.idle);g.uniform1i(this.u.plateB,1);
       g.uniform2f(this.u.viewport,w,h);g.uniform4f(this.u.rect,r.x,r.y,r.w,r.h);g.uniform1f(this.u.mixAmount,mix);g.uniform1f(this.u.clock,t);
-      g.uniform1f(this.u.level,level);g.uniform1f(this.u.reveal,reveal);g.uniform2f(this.u.attention,attention.x,attention.y);g.uniform1f(this.u.reduceMotion,reduced?1:0);g.drawArrays(g.TRIANGLES,0,6);
+      g.uniform1f(this.u.level,level);g.uniform1f(this.u.reveal,reveal);g.uniform2f(this.u.attention,attention.x,attention.y);g.uniform1f(this.u.reduceMotion,reduced?1:0);g.uniform1f(this.u.yaw,yaw||0);g.drawArrays(g.TRIANGLES,0,6);
     }
     dispose(){const g=this.gl;Object.values(this.textures).forEach(t=>g.deleteTexture(t));g.deleteBuffer(this.buffer);g.deleteProgram(this.program);}
   }
@@ -205,7 +212,13 @@
       const r=figureRect(this.w,this.h,this.aspect||.926);const plateReveal=smooth((p-.5)/.5),backgroundReveal=smooth((p-.82)/.18);
       this.bg.style.opacity=String(backgroundReveal*(.92+this.level*.08));
       const mix=smooth((now-this.transitionAt)/320);
-      if(this.renderer&&!this.glCanvas.hidden)this.renderer.draw(this.previous,this.plate,mix,r,this.w,this.h,t,this.level,plateReveal,this.pointer,this.reduced);
+      // Đầu quay trái/phải: bám con trỏ/bàn tay (pointer.x -1..1) cộng đung đưa
+      // nhẹ lúc idle; nội suy mềm để không giật.
+      const targetYaw=clamp(this.pointer.x*.6+Math.sin(t*.42)*.09,-1,1);
+      this.yaw=(this.yaw||0)+(targetYaw-(this.yaw||0))*.085;
+      // Nhịp nói: mỗi lần level vọt qua ngưỡng -> vòng sóng phát từ miệng.
+      if(this.state==='speaking'&&this.level>.48&&now-(this._beatAt||0)>650){this._beatAt=now;this.pulse(.5,(r.y+r.h*.44)/this.h);}
+      if(this.renderer&&!this.glCanvas.hidden)this.renderer.draw(this.previous,this.plate,mix,r,this.w,this.h,t,this.level,plateReveal,this.pointer,this.reduced,this.yaw);
       else{this.fallback.src=this.images[this.plate].src;this.fallback.style.opacity=String(plateReveal);}
       const message=p<1?'ASSEMBLING... '+Math.round(p*100)+'%':'STATUS: '+this.state.toUpperCase();if(message!==this.status.textContent)this.status.textContent=message;
       if(p===1&&!this.ignited){this.ignited=true;this.pulse(.5,(r.y+r.h*.44)/this.h);}
@@ -213,12 +226,17 @@
     }
     drawParticles(t,p,r,now){const c=this.ctx;c.clearRect(0,0,this.w,this.h);if(this.reduced)return;c.globalCompositeOperation='lighter';
       const settling=smooth(p),unformed=1-settling;
+      // Xoay cùng góc yaw với plate: nén ngang + vùng mặt trượt nhiều hơn viền,
+      // để lớp hạt không phản bội cảm giác đầu quay.
+      const turn=clamp(this.yaw||0,-1,1),fw=Math.max(.62,Math.cos(turn*.42));
+      const speakBoost=this.state==='speaking'?1+this.level*.9:1;
       for(const pt of this.particles||[]){const delay=pt.v*.14;const convergence=smooth(clamp((p-delay)/.86));const spread=1-convergence;
-        const tx=r.x+pt.u*r.w,ty=r.y+pt.v*r.h;
+        const dx=pt.u-.5,inner=Math.exp(-Math.pow((pt.v-.42)*4.5,2)-Math.pow(dx*3.2,2));
+        const tx=r.x+(.5+dx/fw-turn*(.012+.038*inner))*r.w,ty=r.y+pt.v*r.h;
         const angle=pt.phase+t*(.35+pt.scatter*.2),radius=spread*(60+pt.scatter*this.w*.42);
         const x=tx+Math.cos(angle)*radius+this.pointer.x*pt.scatter*3;
         const y=ty+Math.sin(angle)*radius+spread*this.h*.15;
-        const shimmer=.35+.65*(.5+.5*Math.sin(t*(.8+pt.scatter)+pt.phase));
+        const shimmer=(.35+.65*(.5+.5*Math.sin(t*(.8+pt.scatter)+pt.phase)))*speakBoost;
         c.globalAlpha=clamp((.18+unformed*.7)*shimmer*(p<.05?p/.05:1));c.fillStyle=pt.color;c.fillRect(x,y,pt.size,pt.size);
       }
       c.globalAlpha=1;

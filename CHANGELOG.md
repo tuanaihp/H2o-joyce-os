@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.15] - 2026-10-19
+### Thêm mới
+- **Đầu pho tượng quay trái/phải như bản tham chiếu**: shader giờ nén ngang theo góc yaw (foreshorten) và cho vùng mặt trong trượt nhiều hơn viền silhouette, tạo cảm giác quay đầu khoảng 20 độ thay vì chỉ nghiêng nhẹ. Đầu bám con trỏ hoặc đầu ngón trỏ (khi bật HAND CAM), tự đung đưa nhẹ khi thả trôi; lớp hạt bụi xoay cùng góc nên không phản bội ảo giác.
+- **Hiệu ứng nói có nhịp**: lõi miệng đập theo nhịp sin + biên độ tiếng, lớp hạt rung mạnh hơn khi đang nói, và mỗi lần giọng vọt ngưỡng phát một vòng sóng lan từ miệng - phản ứng tần số đọc như nhịp thở thay vì trơn đều.
+
 ## [1.3.14] - 2026-10-19
 ### Thêm mới
 - **Nhận diện bàn tay thật qua camera trong 3D Joyce**: nút "HAND CAM" bật camera (chỉ khi bấm), MediaPipe HandLandmarker chạy tại máy - đầu ngón trỏ lái sự chú ý của pho tượng, chụm ngón cái + trỏ tạo sóng năng lượng, mở lòng bàn tay làm pho tượng dịu lại. Camera tự tắt khi thoát lớp nhìn/đổi tab, tự mở lại khi quay về; có ô preview nhỏ góc phải và cảnh báo rõ không gửi hình ảnh đi đâu.

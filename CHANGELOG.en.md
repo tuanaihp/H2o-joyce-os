@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.15] - 2026-10-19
+### Added
+- **Head now turns left/right like the reference**: the shader compresses the plate horizontally with yaw (foreshortening) and lets the inner face region slide further than the silhouette edge, reading as roughly a 20-degree head turn instead of a mild tilt. The head follows the pointer or fingertip (with HAND CAM on) and sways gently at rest; the dust-particle layer rotates by the same angle so it never betrays the illusion.
+- **Rhythmic speaking response**: the mouth core pulses on a sine beat scaled by loudness, the particle field shimmers harder while speaking, and each voice burst past threshold emits a ripple from the mouth - the frequency reaction reads as a heartbeat instead of a flat line.
+
 ## [1.3.14] - 2026-10-19
 ### Added
 - **Real hand tracking via camera in 3D Joyce**: the "HAND CAM" button enables the camera (opt-in only); an on-device MediaPipe HandLandmarker drives the figure - the index fingertip steers its attention, a thumb-index pinch emits an energy ripple, and an open palm calms it. The camera releases on view exit/tab switch, restarts on return, shows a small corner preview, and clearly states nothing leaves the device.

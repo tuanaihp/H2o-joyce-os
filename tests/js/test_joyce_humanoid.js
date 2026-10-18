@@ -256,6 +256,13 @@ check("apex-humanoid.js: nạp vision_bundle.mjs + hand_landmarker.task từ ass
 check("apex-humanoid.js: open palm -> quiet giảm level", /hands&&this\.hands\.quiet\)target\*=\.3/.test(APEX));
 check("apex-humanoid.js: parallax tilt theo attention trong shader", /q\.y-\.5\)\*attention\.x\*/.test(APEX));
 check("apex-humanoid.js: có video preview .jh-cam", /class="jh-cam"/.test(APEX));
+// Quay đầu giả-3D: yaw uniform, nén ngang foreshorten, vùng mặt trượt hơn viền.
+check("apex-humanoid.js: yaw uniform + foreshorten ngang trong shader", /uniform float yaw/.test(APEX) && /cos\(turn\*\.42\)/.test(APEX));
+check("apex-humanoid.js: vùng mặt trượt nhiều hơn viền khi quay", /\.012\+\.038\*inner/.test(APEX));
+check("apex-humanoid.js: yaw bám con trỏ/bàn tay + sway idle", /targetYaw=clamp\(this\.pointer\.x\*\.6/.test(APEX));
+check("apex-humanoid.js: lớp hạt xoay cùng góc yaw", /dx\/fw-turn/.test(APEX));
+check("apex-humanoid.js: hạt + lõi miệng nhịp theo tiếng", /speakBoost/.test(APEX) && /sin\(clock\*7\./.test(APEX));
+check("apex-humanoid.js: ripple nhịp từ miệng khi nói", /level>\.48.*_beatAt/.test(APEX));
 check("humanoid.css: đã gỡ rule demo-host html,body + #joyce-humanoid", !/html,body\{/.test(HCSS) && !/#joyce-humanoid\{/.test(HCSS));
 check("humanoid.css: giữ scoped .jh + style .jh-cam", /\.jh\{/.test(HCSS) && /\.jh-cam\{/.test(HCSS));
 check("style.css: có rule .hum-layer + ẩn holo-screen khi 3D Joyce", /\.hum-layer/.test(CSS) && /hum-mode \.holo-screen/.test(CSS));
