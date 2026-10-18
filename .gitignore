@@ -222,6 +222,7 @@ server/tg_brain.json
 server/loop_beat.json
 server/loop_restarts.json
 server/joyce_core.json
+server/agent_notify.json
 server/agent-calls.sqlite3*
 server/agent-review.sqlite3*
 server/incident_desk.sqlite3*
