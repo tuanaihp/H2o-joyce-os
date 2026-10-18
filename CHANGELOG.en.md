@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.11] - 2026-10-18
+### Added
+- **Recurring-job scheduling no longer needs mental minute math**: the loop form replaces the raw "interval (minutes)" box with friendly presets (every 15 min, hourly, daily, weekly...) plus custom day-hour-minute fields.
+- **Pin a fixed daily run time**: a loop with an interval of one day or more can now run at a fixed clock time (e.g. "daily at 21:00") instead of drifting on the previous run. A new loop waits for the first pinned time after it is enabled; it does not catch up on missed occurrences.
+- Job cards, the Overview page, the Handbook and the capability index sent to engines now show intervals in plain words ("daily at 21:00") instead of "every 1445 minutes".
+
 ## [1.3.10] - 2026-10-15
 ### Added
 - **Edit a Telegram chat ID after onboarding is live**: in the trainee detail screen of the Roadmap tab, a department head can add, change or remove the chat ID so Joyce messages the daily lesson to the right person. A test-send button shows whether the trainee has pressed Start on the bot.

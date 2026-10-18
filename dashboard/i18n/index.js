@@ -228,12 +228,36 @@
     return v === khoa ? goc : v;
   }
 
+  /* "mỗi N phút" -> "mỗi 2 giờ" / "mỗi ngày" / "mỗi 3 ngày" / "mỗi 2 giờ 30 phút".
+   * Chia sẻ cho thẻ loop (console.js), trang Tổng quan, Cẩm nang - chỗ nào cũng một lời,
+   * đỡ phải tự nhẩm 1445 phút là bao lâu. */
+  function fmtInterval(min) {
+    var n = Math.max(0, Math.round(Number(min) || 0));
+    if (n >= 10080 && n % 10080 === 0) {
+      var w = n / 10080;
+      return w === 1 ? t("cs.si_every_w1") : t("cs.si_every_w", { so: w });
+    }
+    if (n >= 1440 && n % 1440 === 0) {
+      var d = n / 1440;
+      return d === 1 ? t("cs.si_every_d1") : t("cs.si_every_d", { so: d });
+    }
+    if (n >= 60 && n % 60 === 0) {
+      var h = n / 60;
+      return h === 1 ? t("cs.si_every_h1") : t("cs.si_every_h", { so: h });
+    }
+    if (n >= 60) {
+      return t("cs.si_every_hm", { gio: Math.floor(n / 60), phut: n % 60 });
+    }
+    return t("cs.si_every", { so: n });
+  }
+
   window.JoyceI18n = {
     t: t,
     catLabel: catLabel,
     init: init,
     setLang: setLang,
     applyDom: applyDom,
+    fmtInterval: fmtInterval,
     lang: function () { return _lang; },
     ready: function () { return _san_sang; },
     /* true = máy này đã CHỌN ngôn ngữ (lưu trong localStorage), false = đang đoán theo trình
@@ -245,6 +269,7 @@
   };
   // Bí danh ngắn: `t("nav.viec")` đọc dễ hơn `JoyceI18n.t("nav.viec")` ở chỗ dựng HTML.
   window.t = t;
+  window.fmtInterval = fmtInterval;
 
   // Nạp NGAY, không chờ ai gọi. Script này đứng đầu danh sách trong index.html nên nó khởi
   // động sớm nhất có thể; các script sau vẫn chạy ngay (fetch là bất đồng bộ) và tự vẽ lại

@@ -13231,7 +13231,8 @@ def _gather_capabilities(brain: str, skills=None) -> dict:
         st = loop_feature.read_state(brain)
         for lp in loop_feature.list_loops(brain):
             caps["loops"].append({"slug": lp["slug"], "name": lp["name"], "enabled": lp["enabled"],
-                "mode": lp["mode"], "interval_min": lp["interval_min"], "goal": lp["goal"],
+                "mode": lp["mode"], "interval_min": lp["interval_min"], "run_at": lp.get("run_at", ""),
+                "goal": lp["goal"],
                 "paused": bool(st.get(lp["slug"], {}).get("auto_paused_reason"))})
     except Exception:
         pass
@@ -13321,7 +13322,7 @@ def _render_joyce_index(caps: dict) -> str:
     if caps["loops"]:
         for l in caps["loops"]:
             stt = "⚠ tự tạm dừng" if l["paused"] else ("bật" if l["enabled"] else "tắt")
-            L.append(f"- **{l['name']}** (`{l['slug']}`) - {stt} · {l['goal']}/{l['mode']} · mỗi {l['interval_min']} phút")
+            L.append(f"- **{l['name']}** (`{l['slug']}`) - {stt} · {l['goal']}/{l['mode']} · {self_improve._fmt_chu_ky(l['interval_min'], l.get('run_at', ''))}")
     else:
         L.append("_(chưa có)_")
     if plugins:

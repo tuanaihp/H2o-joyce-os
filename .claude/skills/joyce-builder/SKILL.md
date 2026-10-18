@@ -133,7 +133,9 @@ schedule="120m" hoặc "mỗi 2 tiếng") thay vì tự ghi file. Tool tự đ�
 (kể cả `goal: custom` bên dưới - thiếu field này là lỗi thật đã xảy ra: self_improve.py mặc định
 `goal: business`, loop chỉ đọc số liệu MCP và BỎ QUA HOÀN TOÀN nhiệm vụ ở thân file), và chặn
 trùng tên. **CHỈ tự ghi file tay** (mẫu dưới) khi: (a) SỬA loop ĐÃ CÓ, hoặc (b) cần trường nâng
-cao mà tool chưa nhận - `quiet_hours` (giờ im lặng, vd "23-07"), `max_runs_per_day`, `workspace`
+cao mà tool chưa nhận - `quiet_hours` (giờ im lặng, vd "23-07"), `max_runs_per_day`, `run_at`
+(ghim GIỜ CỐ ĐỊNH "HH:MM" cho loop chu kỳ >= 1 ngày - vd `interval_min: 1440` + `run_at: "21:00"`
+= chạy mỗi tối 21h), `workspace`
 (+ `tools_profile: code` khi loop sửa mã trên thư mục ngoài - có Bash/Web, KHÔNG MCP),
 `ambient_mcp` (cho loop THẤY connector claude.ai của máy - Gmail/Drive/lịch; MẶC ĐỊNH tắt để bản
 fork sạch, chỉ bật khi user yêu cầu rõ; vẫn chặn cứng Bash/Web), `notify: false` (loop quá ồn thì
@@ -147,7 +149,8 @@ enabled: false            # LUÔN tạo ở trạng thái TẮT - user bấm B�
 mode: full                # full=toàn quyền (MẶC ĐỊNH) | auto=chỉ ghi nháp | suggest=chỉ đọc/đề xuất
 goal: custom              # BẮT BUỘC khi ghi tay - thiếu dòng này self_improve.py mặc định
                            # 'business' (chỉ đọc số liệu MCP, bỏ qua hoàn toàn thân file dưới đây)
-interval_min: 120         # tối thiểu 5
+interval_min: 120         # tối thiểu 5; 1440 = mỗi ngày, 10080 = mỗi tuần
+run_at: "21:00"           # TUỲ CHỌN, chỉ khi interval_min >= 1440: ghim giờ cố định mỗi kỳ
 owner_chat: "<chat_id>"   # chat_id NGƯỜI YÊU CẦU (tạo qua chat Telegram) - để báo đúng người;
                            # bỏ trống nếu tạo trên web (báo về ID Telegram đầu tiên)
 updated: <YYYY-MM-DD>

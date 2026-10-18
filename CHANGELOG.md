@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.11] - 2026-10-18
+### Thêm mới
+- **Cài giờ cho việc định kỳ không còn phải tự cộng phút**: form tạo/sửa việc lặp đổi ô "chu kỳ (phút)" thành preset dễ chọn (mỗi 15 phút, mỗi giờ, mỗi ngày, mỗi tuần...) kèm ô tuỳ chỉnh ngày - giờ - phút.
+- **Ghim giờ chạy cố định hằng ngày**: việc lặp có chu kỳ từ 1 ngày trở lên chọn được giờ chạy cố định (ví dụ "mỗi ngày lúc 21:00") thay vì trôi theo mốc lần chạy trước. Việc mới đợi đúng giờ đã ghim kể từ lúc bật, không chạy bù các mốc đã lỡ.
+- Thẻ việc, trang Tổng quan, Cẩm nang và chỉ mục năng lực gửi engine hiển thị chu kỳ bằng tiếng người ("mỗi ngày lúc 21:00") thay vì "mỗi 1445 phút".
+
 ## [1.3.10] - 2026-10-15
 ### Thêm mới
 - **Sửa chat ID Telegram sau khi đã kích hoạt**: trong màn chi tiết học viên ở tab Lộ trình, trưởng phòng thêm, đổi hoặc xoá chat ID để Joyce nhắn bài hằng ngày đúng người. Có nút gửi thử để biết học viên đã bấm Start với bot chưa.

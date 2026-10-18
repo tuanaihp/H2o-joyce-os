@@ -671,7 +671,7 @@
     rows.sort(function (a, b) { return (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0); });
     var tr = rows.slice(0, 8).map(function (r) {
       return "<tr><td>" + esc(r.name) + '<div style="font-size:11px;color:var(--text3)">'
-        + esc(r.brainName || "") + (r.interval ? " · " + window.t("usage.loop.moi_phut", { count: r.interval }) : "")
+        + esc(r.brainName || "") + (r.interval ? " · " + (window.fmtInterval ? window.fmtInterval(r.interval) : window.t("usage.loop.moi_phut", { count: r.interval })) : "")
         + (r.mode ? " · " + esc(r.mode) : "") + "</div></td>"
         + '<td class="num">' + (r.enabled ? window.t("usage.loop.on") : window.t("usage.loop.off")) + "</td>"
         + '<td class="act"><button class="tk-go' + (r.enabled ? " on" : "") + '" data-loop="'

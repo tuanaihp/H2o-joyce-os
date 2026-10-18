@@ -3460,6 +3460,37 @@
       return window.t("cs.si_left_day", { so: Math.round(s / 86400) });
     }
 
+    // Chu kỳ nhập theo NGÀY/GIỜ/PHÚT qua preset + ô tuỳ chỉnh, thay vì bắt chủ cộng tay
+    // thành phút ("1445 phút là bao lâu?"). Backend vẫn nhận interval_min - đổi ở đây không
+    // phải đổi file loop cũ. `run_at` (ô giờ) chỉ hiện khi chu kỳ >= 1 ngày.
+    const IV_PRESETS = [5, 15, 30, 60, 120, 240, 360, 480, 720, 1440, 2880, 4320, 10080];
+    function intervalFromUI() {
+      const v = el.querySelector("#lpPreset").value;
+      if (v !== "custom") return parseInt(v, 10) || 120;
+      const d = parseInt(el.querySelector("#lpIvDay").value, 10) || 0;
+      const h = parseInt(el.querySelector("#lpIvHour").value, 10) || 0;
+      const m = parseInt(el.querySelector("#lpIvMin").value, 10) || 0;
+      return Math.max(5, d * 1440 + h * 60 + m);
+    }
+    function syncRunAt() {
+      const show = intervalFromUI() >= 1440;
+      el.querySelector("#lpRunAtWrap").style.display = show ? "inline-flex" : "none";
+      el.querySelector("#lpRunAtHint").style.display = show ? "block" : "none";
+    }
+    function syncIntervalUI(min) {
+      const sel = el.querySelector("#lpPreset");
+      const cus = el.querySelector("#lpIvCustom");
+      const hit = IV_PRESETS.includes(min);
+      sel.value = hit ? String(min) : "custom";
+      cus.style.display = hit ? "none" : "inline-flex";
+      if (!hit) {
+        el.querySelector("#lpIvDay").value = Math.floor(min / 1440);
+        el.querySelector("#lpIvHour").value = Math.floor((min % 1440) / 60);
+        el.querySelector("#lpIvMin").value = min % 60;
+      }
+      syncRunAt();
+    }
+
     el.innerHTML = `<div class="cview-section">
       <p style="color:var(--text3);font-size:15px;max-width:680px;margin:0 0 14px">${esc(window.t("cs.si_intro_a"))} <b>loop</b> ${esc(window.t("cs.si_intro_b"))} <b>${esc(window.t("cs.si_intro_c"))}</b> ${esc(window.t("cs.si_intro_d"))} <b>${esc(window.t("cs.si_intro_e"))}</b> ${esc(window.t("cs.si_intro_f"))} <b>${esc(window.t("cs.si_intro_g"))}</b> ${esc(window.t("cs.si_intro_h"))}</p>
       <div class="si-actions" style="margin-bottom:14px">
@@ -3483,7 +3514,20 @@
                 <button class="si-chip" data-mode="suggest">${esc(window.t("cs.si_mode_suggest"))}</button>
                 <button class="si-chip" data-mode="auto">${esc(window.t("cs.si_mode_auto"))}</button>
                 <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
-              <div class="si-field"><label>${esc(window.t("cs.si_interval"))}</label><input type="number" id="lpInterval" min="5" value="120" style="max-width:120px"></div>
+              <div class="si-field"><label>${esc(window.t("cs.si_interval"))}</label><div class="si-row" style="gap:8px;align-items:center;flex-wrap:wrap">
+                <select id="lpPreset" class="loop-sel" style="min-width:140px"></select>
+                <span id="lpIvCustom" style="display:none;align-items:center;gap:5px">
+                  <input type="number" id="lpIvDay" min="0" max="365" value="0" style="max-width:60px"> <span style="font-size:12px;color:var(--text3)">${esc(window.t("cs.si_iv_day"))}</span>
+                  <input type="number" id="lpIvHour" min="0" max="23" value="0" style="max-width:54px"> <span style="font-size:12px;color:var(--text3)">${esc(window.t("cs.si_iv_hour"))}</span>
+                  <input type="number" id="lpIvMin" min="0" max="59" value="0" style="max-width:54px"> <span style="font-size:12px;color:var(--text3)">${esc(window.t("cs.si_iv_min"))}</span>
+                </span>
+                <span id="lpRunAtWrap" style="display:none;align-items:center;gap:6px">
+                  <label for="lpRunAt" style="font-size:12px;color:var(--text3);white-space:nowrap">${esc(window.t("cs.si_runat"))}</label>
+                  <input type="time" id="lpRunAt" style="max-width:104px">
+                </span>
+              </div>
+              <div class="dim" id="lpRunAtHint" style="display:none;font-size:12px;color:var(--text3);margin-top:4px">${esc(window.t("cs.si_runat_hint"))}</div>
+            </div>
             </div>
           </div>
           <div id="lpRemFields" style="display:none">
@@ -3541,6 +3585,21 @@
       el.querySelectorAll("#lpModes .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mode === fcur.mode));
     }
     el.querySelectorAll("#lpModes .si-chip").forEach(c => c.onclick = () => { fcur.mode = c.dataset.mode; syncFormChips(); });
+
+    // Đổ preset chu kỳ (mỗi 15 phút / mỗi giờ / mỗi ngày / mỗi tuần...); "tuỳ chỉnh" mở
+    // 3 ô ngày-giờ-phút. Ô giờ cố định (run_at) chỉ hiện khi chu kỳ >= 1 ngày.
+    const lpPreset = el.querySelector("#lpPreset");
+    lpPreset.innerHTML = IV_PRESETS.map(v => `<option value="${v}">${esc(fmtInterval(v))}</option>`).join("")
+      + `<option value="custom">${esc(window.t("cs.si_iv_custom"))}</option>`;
+    lpPreset.onchange = () => {
+      const show = lpPreset.value === "custom";
+      el.querySelector("#lpIvCustom").style.display = show ? "inline-flex" : "none";
+      if (show && intervalFromUI() < 5) {
+        el.querySelector("#lpIvDay").value = 0; el.querySelector("#lpIvHour").value = 2; el.querySelector("#lpIvMin").value = 0;
+      }
+      syncRunAt();
+    };
+    ["#lpIvDay", "#lpIvHour", "#lpIvMin"].forEach(id => el.querySelector(id).addEventListener("input", syncRunAt));
 
     // Chuyển giao diện form theo loại việc: loop hiện chế độ + chu kỳ; nhắc hẹn hiện thời điểm + kiểu.
     function syncKindUI() {
@@ -3660,7 +3719,8 @@
       el.querySelector("#lpRemId").value = rem ? rem.id : "";
       el.querySelector("#lpName").value = rem ? (rem.label || "") : (lp ? lp.name : "");
       el.querySelector("#lpBody").value = rem ? (rem.text || "") : (lp ? (lp.body || "") : "");
-      el.querySelector("#lpInterval").value = lp ? lp.interval_min : 120;
+      syncIntervalUI(lp ? (lp.interval_min || 120) : 120);
+      el.querySelector("#lpRunAt").value = (lp && lp.run_at) || "";
       // Cron sửa được nguyên văn (không phụ thuộc múi giờ). Hẹn MỘT LẦN thì để trống + nói rõ
       // "trống = giữ nguyên", vì viết lại mốc giờ tuyệt đối dễ lệch múi giờ máy người dùng.
       const when = el.querySelector("#lpRemWhen");
@@ -3762,7 +3822,8 @@
       fd.append("slug", el.querySelector("#lpSlug").value);
       fd.append("name", name);
       fd.append("mode", fcur.mode);
-      fd.append("interval_min", el.querySelector("#lpInterval").value || "120");
+      fd.append("interval_min", String(intervalFromUI()));
+      fd.append("run_at", intervalFromUI() >= 1440 ? (el.querySelector("#lpRunAt").value || "") : "");
       fd.append("body", body);
       fd.append("brain", brainVal);
       // Không gửi goal/workspace/tools_profile/quiet/maxruns → server giữ giá trị cũ (khi sửa)
@@ -3860,7 +3921,7 @@
       const modeLbl = lp.mode === "full" ? window.t("cs.si_mode_full_low")
         : lp.mode === "auto" ? window.t("cs.si_mode_auto_low") : window.t("cs.si_mode_suggest_low");
       const extra = [
-        `${modeLbl} · ${window.t("cs.si_every", { so: lp.interval_min })}`,
+        `${modeLbl} · ${window.fmtInterval ? window.fmtInterval(lp.interval_min) : window.t("cs.si_every", { so: lp.interval_min })}${lp.run_at ? " · " + esc(window.t("cs.si_every_at", { gio: lp.run_at })) : ""}`,
         (lp.goal && lp.goal !== "custom") ? (GNAME[lp.goal] || lp.goal) : "",
         lp.quiet_hours ? window.t("cs.si_quiet", { gio: lp.quiet_hours }) : "",
         lp.max_runs_per_day ? window.t("cs.si_maxruns", { so: lp.max_runs_per_day, da: lp.runs_today }) : "",

@@ -248,7 +248,7 @@
       h += '<div class="cn-job"><span class="cdot ' + (bat ? "on" : "") + '">●</span>'
         + '<div class="cn-job-t"><b>' + esc(l.name || l.slug) + '</b>'
         + '<span class="cn-sub">' + ic("repeat") + ' '
-        + esc(tw("camnang.ops_job_loop", { phut: String(l.interval_min || "?") })) + '</span></div></div>';
+        + esc(tw("camnang.ops_job_loop", { chu_ky: l.interval_min ? fmtInterval(l.interval_min) : "?" })) + '</span></div></div>';
     });
     nhac.forEach(r => {
       h += '<div class="cn-job"><span class="cdot on">●</span>'

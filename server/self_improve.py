@@ -140,6 +140,66 @@ def _in_quiet_hours(spec: str, hour: int) -> bool:
     return (a <= hour < b) if a < b else (hour >= a or hour < b)
 
 
+_RUN_AT_RE = re.compile(r"^\s*(\d{1,2})\s*:\s*(\d{1,2})\s*$")
+
+
+def _norm_run_at(v) -> str:
+    """'21:30' -> '21:30'; sai format -> ''."""
+    m = _RUN_AT_RE.match(str(v or ""))
+    if not m:
+        return ""
+    h, mi = int(m.group(1)), int(m.group(2))
+    if not (0 <= h <= 23 and 0 <= mi <= 59):
+        return ""
+    return f"{h:02d}:{mi:02d}"
+
+
+def _run_at_after(run_at: str, threshold: float) -> float:
+    """Lần run_at 'HH:MM' (giờ đã cấu hình) đầu tiên SAU `threshold`. Tìm theo bước ngày -
+    mỗi ngày đúng một mốc."""
+    h, m = int(run_at[:2]), int(run_at[3:5])
+    t = datetime.fromtimestamp(threshold, localefmt.tz()).replace(hour=h, minute=m, second=0, microsecond=0)
+    while t.timestamp() <= threshold:
+        t += timedelta(days=1)
+    return t.timestamp()
+
+
+def _next_run_at(run_at: str, last_run: float, interval_min: int, now_ts: float,
+                 armed_at: float = 0) -> float:
+    """Mốc chạy kế tiếp khi loop ghim GIỜ CỐ ĐỊNH hằng ngày (run_at 'HH:MM'), chỉ áp khi
+    chu kỳ >= 1 ngày. Trả 0 khi không áp (interval < 1 ngày hoặc không ghim giờ).
+
+    Đã chạy: mốc = lần run_at đầu tiên SAU `last_run` cách nó ít nhất (interval - 1 ngày)
+    - vd chu kỳ 30 ngày ghim 21:00: lần 21:00 đầu tiên tính từ last_run + 29 ngày.
+    Chưa chạy (last_run=0): đếm từ `armed_at` (lúc loop được BẬT) - loop mới đợi đúng giờ
+    ghim, KHÔNG chạy bù các mốc đã lỡ trước khi nó tồn tại. Thiếu armed_at (file viết tay /
+    bật qua phiên bản cũ) coi như vừa bật xong."""
+    if not run_at or int(interval_min) < 1440:
+        return 0.0
+    if last_run > 0:
+        threshold = float(last_run) + max(0, int(interval_min) - 1440) * 60
+    else:
+        threshold = float(armed_at) if armed_at else now_ts - 60
+    return _run_at_after(run_at, threshold)
+
+
+def _fmt_chu_ky(interval_min: int, run_at: str = "") -> str:
+    """'mỗi 1445 phút' -> 'mỗi ngày lúc 21:00' - chu kỳ loop nói tiếng người, dùng trong
+    chỉ mục năng lực gửi engine (engine đọc '1445' không biết là bao lâu)."""
+    n = max(0, int(interval_min or 0))
+    if n >= 10080 and n % 10080 == 0:
+        s = "mỗi tuần" if n == 10080 else f"mỗi {n // 10080} tuần"
+    elif n >= 1440 and n % 1440 == 0:
+        s = "mỗi ngày" if n == 1440 else f"mỗi {n // 1440} ngày"
+    elif n >= 60 and n % 60 == 0:
+        s = "mỗi giờ" if n == 60 else f"mỗi {n // 60} giờ"
+    elif n >= 60:
+        s = f"mỗi {n // 60} giờ {n % 60} phút"
+    else:
+        s = f"mỗi {n} phút"
+    return f"{s} lúc {run_at}" if run_at else s
+
+
 def _accepts(fn, name: str) -> bool:
     """`fn` takes keyword `name` (or **kwargs). Lets a report hook gain fields without breaking test fakes."""
     import inspect
@@ -326,6 +386,9 @@ class LoopFeature:
             "tools_profile": prof,
             "quiet_hours": str(fm.get("quiet_hours", "") or "").strip(),
             "max_runs_per_day": maxr,
+            # run_at = GHIM GIỜ CỐ ĐỊNH hằng ngày 'HH:MM' (chỉ có nghĩa khi chu kỳ >= 1 ngày).
+            # Rỗng = chạy suốt theo chu kỳ (last_run + interval) như cũ.
+            "run_at": _norm_run_at(fm.get("run_at", "")),
             # owner_chat = chat_id người YÊU CẦU loop (để báo về đúng người). Rỗng = web → ID đầu.
             "owner_chat": str(fm.get("owner_chat", "") or "").strip(),
             "notify": notify,
@@ -382,6 +445,9 @@ class LoopFeature:
             "owner_chat": loop.get("owner_chat", ""), "notify": bool(loop.get("notify", True)),
             "updated": _today(),
         }
+        # Chỉ ghi run_at khi ghim giờ - giữ file loop mặc định sạch.
+        if loop.get("run_at"):
+            fm["run_at"] = loop["run_at"]
         # Chỉ ghi ambient_mcp khi BẬT - giữ file loop mặc định sạch (fork không thấy cờ lạ).
         if loop.get("ambient_mcp"):
             fm["ambient_mcp"] = True
@@ -590,6 +656,12 @@ class LoopFeature:
             runs = int(st.get("runs_today", 0)) if st.get("day") == _today() else 0
             if runs >= loop["max_runs_per_day"]:
                 return None
+        # Loop ghim giờ cố định hằng ngày (run_at + chu kỳ >= 1 ngày): hết hạn khi qua mốc
+        # run_at kế tiếp sau last_run (hoặc sau lúc BẬT) - không dùng công thức last_run + interval.
+        if loop.get("run_at") and loop["interval_min"] >= 1440:
+            moc = _next_run_at(loop["run_at"], float(st.get("last_run", 0)),
+                               loop["interval_min"], now_ts, float(st.get("armed_at", 0)))
+            return (now_ts - moc) if moc and now_ts >= moc else None
         overdue = now_ts - float(st.get("last_run", 0)) - loop["interval_min"] * 60
         return overdue if overdue >= 0 else None
 
@@ -1055,6 +1127,10 @@ class LoopFeature:
         last_run = float(st.get("last_run", 0))
         running = bool(self._running and self._running[1] == lp["slug"]
                        and self._running[0] == str(Path(self.deps.brain_root(brain)).resolve()))
+        nxt = _next_run_at(lp.get("run_at", ""), last_run, lp["interval_min"], time.time(),
+                           float(st.get("armed_at", 0)))
+        if not nxt:
+            nxt = (last_run + lp["interval_min"] * 60) if (lp["enabled"] and not st.get("auto_paused_reason")) else 0
         return {
             **lp,
             "last_run": last_run,
@@ -1063,7 +1139,7 @@ class LoopFeature:
             "runs_today": int(st.get("runs_today", 0)) if st.get("day") == today else 0,
             "fail_streak": int(st.get("fail_streak", 0)),
             "auto_paused_reason": st.get("auto_paused_reason", ""),
-            "next_run": (last_run + lp["interval_min"] * 60) if (lp["enabled"] and not st.get("auto_paused_reason")) else 0,
+            "next_run": nxt if (lp["enabled"] and not st.get("auto_paused_reason")) else 0,
             "running": running,
         }
 
@@ -1073,7 +1149,14 @@ class LoopFeature:
             return None
         lp["enabled"] = not lp["enabled"]
         if lp["enabled"]:   # bật lại = user chủ động → xoá auto-pause
-            self._update_state(brain, slug, auto_paused_reason="", fail_streak=0)
+            patch = {"auto_paused_reason": "", "fail_streak": 0}
+            # Loop ghim giờ cố định chưa chạy lần nào: ghi armed_at = lúc BẬT, để _next_run_at
+            # đợi đúng mốc giờ đầu tiên TỪ BÂY GIỜ thay vì chạy bù các mốc đã qua.
+            if lp.get("run_at"):
+                st = self.read_state(brain).get(slug, {})
+                if not st.get("last_run"):
+                    patch["armed_at"] = time.time()
+            self._update_state(brain, slug, **patch)
         self.save_loop(brain, lp)
         self.register_brain(brain)
         return lp
@@ -1100,6 +1183,7 @@ class LoopFeature:
         async def loops_save(
             name: str = Form(...), slug: str = Form(""), enabled: str = Form(None),
             goal: str = Form(None), mode: str = Form("full"), interval_min: str = Form("60"),
+            run_at: str = Form(None),
             workspace: str = Form(None), tools_profile: str = Form(None),
             quiet_hours: str = Form(None), max_runs_per_day: str = Form(None),
             owner_chat: str = Form(None), notify: str = Form(None),
@@ -1133,6 +1217,11 @@ class LoopFeature:
                 iv = max(5, int(interval_min or 60))
             except ValueError:
                 iv = 60
+            # run_at: không gửi (None) -> giữ của loop cũ; gửi rỗng -> xoá ghim; 'HH:MM' -> ghim.
+            # Chỉ có nghĩa khi chu kỳ >= 1 ngày - chu kỳ ngắn thì bỏ luôn.
+            ra = _norm_run_at(run_at) if run_at is not None else (old["run_at"] if old else "")
+            if iv < 1440:
+                ra = ""
             try:
                 mr = max(0, int(max_runs_per_day or 0))
             except ValueError:
@@ -1145,7 +1234,7 @@ class LoopFeature:
                 else (bool(old["notify"]) if old else True)
             loop = self.save_loop(brain, {
                 "slug": s, "name": name.strip() or s, "enabled": en, "goal": goal, "mode": mode,
-                "interval_min": iv, "workspace": ws, "tools_profile": tools_profile,
+                "interval_min": iv, "run_at": ra, "workspace": ws, "tools_profile": tools_profile,
                 "quiet_hours": quiet_hours.strip(), "max_runs_per_day": mr,
                 "owner_chat": (oc or "").strip(), "notify": nf, "body": body,
             })

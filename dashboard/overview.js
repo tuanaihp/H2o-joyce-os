@@ -492,7 +492,7 @@
       if (!loops.length) { box.innerHTML = `<p class="ov-dim">${esc(t("ov.ws_no_loops"))}</p>`; return; }
       box.innerHTML = loops.map((l) => `<div class="ovw-loop">
           <span class="ovw-loop-s ${l.enabled ? "on" : "off"}">${ic(l.enabled ? "repeat" : "minus")}</span>
-          <span class="ovw-loop-n"><b>${esc(l.name || l.slug)}</b><i>${esc(t("ov.ws_loop_min", { n: l.interval_min || 0 }))}${l.enabled ? "" : " · " + esc(t("ov.ws_loop_off"))}${l.auto_paused_reason ? " · " + esc(l.auto_paused_reason) : ""}</i></span>
+          <span class="ovw-loop-n"><b>${esc(l.name || l.slug)}</b><i>${esc(window.fmtInterval ? window.fmtInterval(l.interval_min || 0) : t("ov.ws_loop_min", { n: l.interval_min || 0 }))}${l.run_at ? " " + esc(l.run_at) : ""}${l.enabled ? "" : " · " + esc(t("ov.ws_loop_off"))}${l.auto_paused_reason ? " · " + esc(l.auto_paused_reason) : ""}</i></span>
           <span class="ovw-loop-r">${l.last_status ? esc(l.last_status) : ""}${l.fail_streak ? ` · ${esc(t("ov.ws_loop_fail", { n: l.fail_streak }))}` : ""}${l.next_run ? ` · ${esc(gioCapNhat(l.next_run))}` : ""}</span>
         </div>`).join("")
         + `<button type="button" class="ov-link" data-ws="loops">${esc(t("ov.ws_loops_go"))} ${ic("chevron-right")}</button>`;
