@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.12] - 2026-10-19
+### Added
+- **"3D Joyce" view replaces "3D View"**: the brain chamber's first tab now shows a particle humanoid bust built from over 13,000 glowing points (pure WebGL2, no external library) instead of the old high-definition planet mode. The figure reacts to Joyce's real state: drifting gently when ready, leaning in while listening, particles orbiting while thinking, agitating with audio level while speaking, dimming when interrupted, and a red tint on error. The mouth band and the golden brain core pulse with speech.
+- Opening the view replays a particle assembly intro; the planet beneath dims into a starry backdrop while its satellites and knowledge stars stay clickable. The choice persists across sessions.
+- It inherits the planet's full safety ladder: four quality profiles (high/balanced/safe/reduced), automatic downgrade on low FPS, WebGL context-loss recovery, and prefers-reduced-motion support.
+
 ## [1.3.11] - 2026-10-18
 ### Added
 - **Recurring-job scheduling no longer needs mental minute math**: the loop form replaces the raw "interval (minutes)" box with friendly presets (every 15 min, hourly, daily, weekly...) plus custom day-hour-minute fields.

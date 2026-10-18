@@ -25,6 +25,12 @@
   // H2O Alien Intelligence Planet (brain-planet.js). null = đang dùng quả cầu 2D cũ
   // (cờ joyce_alien_intelligence_planet_v1 = "0", hoặc file chưa nạp).
   var planet = null;
+  // 3D Joyce (joyce-humanoid.js): pho tượng hạt thay thế lớp nhìn "3D View" cũ.
+  // _humOn = lựa chọn của người dùng (nhớ qua localStorage); renderer chỉ thật
+  // sự bật khi HUD đang hiện (applyHum).
+  var humanoid = null, _humOn = false;
+  var HKEY = "joyce.hudHumanoid";       // "1" = tab 3D Joyce, "0"/vắng = Lõi nước
+  try { _humOn = localStorage.getItem(HKEY) === "1"; } catch (e) {}
   var _insets = null, _insetsAt = 0;
 
   // Dữ liệu panel (nạp từ API)
@@ -883,7 +889,7 @@
 
   function loop(now) {
     if (!active) return;
-    if (planet) feedPlanet();
+    if (planet || humanoid) feedPlanet();
     drawWave();
     rafId = requestAnimationFrame(loop);
   }
@@ -916,14 +922,21 @@
     _lvl += (target - _lvl) * 0.12;
     var call = inCallNow();
     var st = joyceState();
-    planet.setJoyceState(st);
-    planet.setAudioAmplitude(_lvl);
-    planet.setInCall(call);
+    if (planet) {
+      planet.setJoyceState(st);
+      planet.setAudioAmplitude(_lvl);
+      planet.setInCall(call);
+    }
+    if (humanoid) {
+      humanoid.setJoyceState(st);
+      humanoid.setAudioAmplitude(_lvl);
+      humanoid.setInCall(call);
+    }
     updateHolo(call, st);
     applyCelestialLight();
   }
   function applyCelestialLight() {
-    if (!planet.celestialInfo) return;
+    if (!planet || !planet.celestialInfo) return;
     var ci = planet.celestialInfo();
     var os = document.getElementById("orbState");
     if (!os || !host) return;
@@ -1029,6 +1042,41 @@
     closeCtx();
     updateHolo(false, "READY");
     view.classList.remove("planet-mode");
+  }
+
+  // ---------- 3D Joyce (joyce-humanoid.js) ----------
+  // Lazy: chỉ tạo context WebGL thứ hai khi người dùng lần đầu bấm tab 3D Joyce,
+  // để khoang Lõi nước không trả giá một context suốt thời gian chạy.
+  function mountHumanoid() {
+    if (humanoid || !built || !window.JoyceHumanoid) return;
+    var stage = view.querySelector("#planetStage");
+    if (!stage) return;
+    try {
+      humanoid = window.JoyceHumanoid.create({});
+      humanoid.mount(stage);
+    } catch (e) {
+      try { console.warn("[hud] humanoid không dựng được:", e); } catch (_) {}
+      if (humanoid) { try { humanoid.destroy(); } catch (_) {} }
+      humanoid = null;
+    }
+  }
+  // Áp lựa chọn _humOn vào renderer thật. Chỉ bật khi HUD đang hiện - ẩn HUD
+  // (Tinh vân) thì humanoid dừng vòng lặp nhường GPU, tinh cầu được trả lại.
+  function applyHum() {
+    var want = _humOn && active;
+    if (want) mountHumanoid();
+    if (humanoid) humanoid.activate(want);
+    if (view) view.classList.toggle("hum-mode", want);
+    if (planet) { if (want) planet.pause(); else if (active) planet.resume(); }
+  }
+  function setHumanoid(on) {
+    on = !!on;
+    if (on === _humOn) return;
+    _humOn = on;
+    try { localStorage.setItem(HKEY, on ? "1" : "0"); } catch (e) {}
+    applyHum();
+    // Đồng bộ công tắc Lõi nước / 3D Joyce / Tinh vân bên brain-v2.js.
+    try { window.dispatchEvent(new Event("joyce:hud-view")); } catch (e) {}
   }
 
   // ---------- Ngăn kéo ngữ cảnh dự án (bấm vệ tinh) ----------
@@ -1229,6 +1277,7 @@
     host.classList.add("hud-on");
     mountPlanet();
     if (planet) planet.resume();
+    applyHum();   // khôi phục tab 3D Joyce nếu người dùng đã chọn (planet bị pause lại)
     sizeCanvases();
     tickClock(); paintPanels(); refresh();
     clockId = setInterval(tickClock, 1000);
@@ -1255,6 +1304,7 @@
     active = false;
     host.classList.remove("hud-on");
     if (planet) planet.pause();
+    applyHum();   // want=false: humanoid tắt vòng lặp, bỏ lớp .hum-mode
     closeCtx();
     cancelAnimationFrame(rafId);
     clearInterval(clockId); clearInterval(dataId); clearInterval(napId); clearInterval(knowId);
@@ -1270,6 +1320,10 @@
     isOn: function () { return active; },
     set: function (on) { if (!!on !== active) (on ? show : hide)(); },
     planet: function () { return planet; },
+    humanoid: function () { return humanoid; },
+    humanoidOn: function () { return _humOn; },
+    // Tab "3D Joyce" bên brain-v2.js gọi vào đây (thay JoycePlanet.setHdMode cũ).
+    setHumanoid: setHumanoid,
   };
 
   // Bật/tắt cờ joyce_alien_intelligence_planet_v1 lúc đang chạy (JoycePlanet.setEnabled):
@@ -1280,6 +1334,7 @@
     unmountPlanet();
     mountPlanet();
     if (planet && active) planet.resume();
+    applyHum();   // planet mới dựng lại vẫn phải nhường GPU nếu 3D Joyce đang bật
   });
   // Nhân viên vừa đổi ảnh hồ sơ -> khung hologram dùng ảnh mới ngay.
   window.addEventListener("joyce:staff-avatar", function () { paintHoloFace(true); });

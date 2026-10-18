@@ -3970,6 +3970,19 @@ body.ne-full-on .cview { z-index: 250; }
 .hud-center.hud-on.brain-overlays-hidden.hud-peek-b .fv-ctl { opacity: 1; pointer-events: auto; }
 .planet-hd canvas:first-child { filter: contrast(1.08) saturate(1.15); }
 .planet-hd { --planet-glow: drop-shadow(0 0 30px rgba(80,180,255,.25)); }
+/* 3D Joyce (joyce-humanoid.js): pho tượng ~16 nghìn hạt phát sáng phủ lên khoang.
+   Canvas trong suốt nên tinh cầu bên dưới (đang pause) làm phông sao mờ - khi bật
+   lớp humanoid-on thì tinh cầu hạ mờ để pho tượng nổi bật. Click xuyên qua
+   (pointer-events none) nên vệ tinh / sao tri thức của tinh cầu vẫn bấm được. */
+#planetStage .humanoid-gl { position: absolute; left: 0; top: 0; display: block; pointer-events: none; z-index: 1; }
+#planetStage .hum-status {
+  position: absolute; left: 16px; bottom: 14px; z-index: 1; pointer-events: none;
+  font-family: var(--font); font-size: 10px; font-weight: 700; letter-spacing: 1.8px;
+  color: var(--text3); text-transform: uppercase; opacity: .85;
+}
+#planetStage .hum-status[data-st="error"], #planetStage .hum-status[data-st="reconnecting"] { color: var(--red); }
+#planetStage.humanoid-on .planet-gl { opacity: .10; transition: opacity .45s ease; }
+#planetStage.humanoid-on .planet-ov { opacity: .18; transition: opacity .45s ease; }
 /* Thẻ Đọc nhanh của bầu trời tri thức (hud.js openKnow) dùng lại khung .planet-ctx. */
 .planet-tip .pt-know { font-size: 10.5px; color: var(--text2); margin-top: 3px; letter-spacing: .3px; }
 .planet-ctx .pc-know-dot { color: var(--accent); }

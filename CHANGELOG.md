@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.12] - 2026-10-19
+### Thêm mới
+- **Lớp nhìn "3D Joyce" thay "3D View"**: tab đầu của khoang não giờ hiện pho tượng bán thân dựng từ hơn 13 nghìn hạt phát sáng (WebGL2 thuần, không thư viện ngoài) thay cho chế độ tinh cầu siêu nét cũ. Pho tượng phản ứng theo trạng thái thật của Joyce: lơ lửng khi sẵn sàng, nghiêng tới trước khi lắng nghe, hạt quay vòng khi đang nghĩ, khuấy động theo mức âm khi nói, mờ đi khi bị ngắt, tông đỏ khi lỗi. Vùng miệng và lõi não vàng cam đập theo giọng nói.
+- Mở lớp nhìn lần đầu có cảnh hạt lắp ráp thành hình; tinh cầu bên dưới mờ thành phông sao nhưng vệ tinh và sao tri thức vẫn bấm được. Lựa chọn được nhớ giữa các phiên.
+- Kế thừa đầy đủ cơ chế an toàn của tinh cầu: bốn hồ sơ chất lượng (cao/cân bằng/nhẹ/tối giản), tự hạ bậc khi FPS thấp, dựng lại khi mất ngữ cảnh WebGL, tôn trọng prefers-reduced-motion.
+
 ## [1.3.11] - 2026-10-18
 ### Thêm mới
 - **Cài giờ cho việc định kỳ không còn phải tự cộng phút**: form tạo/sửa việc lặp đổi ô "chu kỳ (phút)" thành preset dễ chọn (mỗi 15 phút, mỗi giờ, mỗi ngày, mỗi tuần...) kèm ô tuỳ chỉnh ngày - giờ - phút.

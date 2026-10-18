@@ -20,10 +20,12 @@
 
     function paint() {
       var onHud = !!(window.JoyceHud && window.JoyceHud.isOn());
-      var hdOn = !!(window.JoycePlanet && window.JoycePlanet.hdMode && window.JoycePlanet.hdMode());
+      // Tab "hd" = 3D Joyce (pho tượng hạt, joyce-humanoid.js). humOn là lựa chọn
+      // người dùng, không phải renderer - nên vẫn sáng đúng khi HUD vừa bật lại.
+      var humOn = !!(window.JoyceHud && window.JoyceHud.humanoidOn && window.JoyceHud.humanoidOn());
       ["hd", "core", "graph"].forEach(function (v) {
         var b = btns[v]; if (!b) return;
-        var active = v === "hd" ? (onHud && hdOn) : v === "core" ? (onHud && !hdOn) : !onHud;
+        var active = v === "hd" ? (onHud && humOn) : v === "core" ? (onHud && !humOn) : !onHud;
         b.classList.toggle("active", active);
         b.setAttribute("aria-selected", active ? "true" : "false");
       });
@@ -34,9 +36,11 @@
       if (!b || !window.JoyceHud) return;
       var v = b.dataset.view;
       if (v === "hd" || v === "core") {
+        // Đặt lựa chọn humanoid TRƯỚC khi bật HUD: show() -> applyHum() đọc _humOn
+        // một lần, khỏi lắp ráp rồi tắt ngay khi chuyển giữa hai lớp nhìn.
+        if (window.JoyceHud.setHumanoid) window.JoyceHud.setHumanoid(v === "hd");
         if (typeof window.JoyceHud.set === "function") window.JoyceHud.set(true);
         else window.JoyceHud.toggle();
-        if (window.JoycePlanet && window.JoycePlanet.setHdMode) window.JoycePlanet.setHdMode(v === "hd");
       } else {
         if (typeof window.JoyceHud.set === "function") window.JoyceHud.set(false);
         else window.JoyceHud.toggle();
@@ -47,7 +51,7 @@
     // Lớp nhìn còn đổi từ nơi khác (phím tắt, localStorage của tab khác, nút icon cũ
     // nếu ai đó bật lại) - hud.js bắn sự kiện này sau mỗi lần show/hide.
     window.addEventListener("joyce:hud-view", paint);
-    window.addEventListener("joyce:hd-mode", paint);
+    window.addEventListener("joyce:humanoid-view", paint);
     window.addEventListener("joyce:i18n", paint);
     paint();
   }
