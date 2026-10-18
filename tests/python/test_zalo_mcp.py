@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 
-os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="joyce-zalo-mcp-"))
+os.environ.setdefault("JOYCE_STATE_DIR", tempfile.mkdtemp(prefix="joyce-zalo-mcp-"))
 
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import mcp_catalog  # noqa: E402
