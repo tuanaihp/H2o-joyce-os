@@ -25,17 +25,24 @@ let stopTag = null;        // tag phiên chat server phát qua message hello →
 function updateStopBtn() {
   const active = isProcessing || voice.isSpeaking();
   stopBtn.style.display = active ? "flex" : "none";
-  // Nút Gửi KHÔNG ẩn khi đang bận nữa: bấm nó (hay Enter) giờ là XẾP HÀNG tin kế tiếp.
-  // Trước đây nút biến mất nên điện thoại - không có phím Enter gửi - không cách nào
-  // thêm lệnh trong lúc Joyce trả lời (đúng nhận xét của chủ dự án).
-  sendBtn.style.display = "flex";
+  // 1.4.0: lúc Joyce đang làm, chữ đã gõ vẫn gửi được (bổ sung vào lượt đang chạy), nên nút
+  // Gửi hiện lại cạnh nút Dừng ngay khi có gì đó để gửi; lượt chạy mà ô trống thì ẩn.
+  const boSung = coTheGuiBoSung();
+  sendBtn.style.display = active && !boSung ? "none" : "flex";
+  sendBtn.title = boSung ? window.t("app.steer_send") : window.t("bar.send");
+}
+function coTheGuiBoSung() {
+  try { return isProcessing && !handsFreeActive() && !!(chatInput.value.trim() || pendingAttachments.some(a => a.path)); }
+  catch (e) { return false; }
 }
 
 // Đồng bộ nút gửi/dừng + cờ isProcessing theo lượt của phiên ĐANG XEM (savedSessionId).
 function syncActiveUI() {
   const t = savedSessionId ? turns[savedSessionId] : null;
   isProcessing = !!(t && t.running);
-  // Không khoá nút gửi: đang bận mà bấm/Enter là xếp hàng (xepTinGo), không phải nuốt tin.
+  // Workspace may lock send while its session is not ready (dataset.wsLock); both reasons count.
+  // Đang bận mà đã có chữ vẫn gửi được (bổ sung vào lượt); chỉ khoá khi bận mà ô trống.
+  sendBtn.disabled = (isProcessing && !coTheGuiBoSung()) || sendBtn.dataset.wsLock === "1";
   // Đang trả lời thì khoá nút gửi lại của mọi tin (CSS .transcript.busy) cho khỏi chồng lượt.
   try { chatArea.classList.toggle("busy", isProcessing); } catch (e) {}
   updateStopBtn();
@@ -49,9 +56,11 @@ function stopCurrent() {
   if (sid && adaptiveCurrent.has(sid)) adaptiveCancelled.add(adaptiveCurrent.get(sid));
   // Dừng ĐÚNG phiên đang xem (phiên nền khác vẫn chạy). Server huỷ lượt + gửi turn_done về.
   if (sid && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ action: "stop", session_id: sid }));
-  } else if (sid) {
-    // WebSocket đang reconnect vẫn Stop được qua HTTP; job không còn phụ thuộc connection cũ.
+    try { ws.send(JSON.stringify({ action: "stop", session_id: sid })); } catch (e) {}
+  }
+  if (sid) {
+    // Luôn gửi thêm qua HTTP: socket có thể OPEN trên giấy mà đã chết (máy ngủ, đổi Wi-Fi), lệnh
+    // Dừng gửi vào đó là rơi mất. Dừng hai lần vô hại, server huỷ theo phiên.
     fetch("/stop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -67,6 +76,32 @@ function stopCurrent() {
   syncActiveUI();
 }
 function handsFreeActive() { return typeof handsFree !== "undefined" && handsFree; }
+// Một dòng trong chat báo hội thoại đang mở thuộc brain khác, kèm nút chuyển dashboard sang đó.
+// Server đã trả lời trên brain của hội thoại; dòng này làm điều đó nhìn thấy được.
+function veNhanBrain(ten, uiVal) {
+  try {
+    const area = document.getElementById("chatArea");
+    if (!area || !ten) return;
+    const cu = area.querySelector(".jv-brain-note");
+    if (cu) cu.remove();
+    const d = document.createElement("div");
+    d.className = "jv-brain-note";
+    d.setAttribute("role", "status");
+    const sp = document.createElement("span");
+    sp.textContent = window.t("app.brain_of_chat", { name: ten });
+    d.appendChild(sp);
+    const gs = document.getElementById("graphSource");
+    if (gs && uiVal && [...gs.options].some(o => o.value === uiVal)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "jv-brain-note-btn";
+      b.textContent = window.t("app.brain_switch_to", { name: ten });
+      b.onclick = () => { gs.value = uiVal; gs.dispatchEvent(new Event("change")); d.remove(); };
+      d.appendChild(b);
+    }
+    area.insertBefore(d, area.firstChild);
+  } catch (e) {}
+}
 function currentBrainPath() {
   const v = document.getElementById("graphSource").value;
   return v.startsWith("path:") ? v.slice(5) : "brain";
@@ -340,7 +375,7 @@ function ketThucTheoLoi(biNgat) {
   if (biNgat && s.shown > 0 && s.shown < tong) {
     host.innerHTML = escapeHtml(window.JoyceVoiceChunker.takeWords(full, s.shown)) + " …";
   } else {
-    host.innerHTML = markdownToHtml(s.text);
+    host.innerHTML = markdownToHtml(s.text, undefined, s.el.dataset.anhV);
   }
   if (s.ask) window.JoyceAsk.render(s.el, s.ask, true);
   if (s.live && window.JoyceVoiceLive) window.JoyceVoiceLive.resetProgress();
@@ -812,7 +847,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
       if (!_liveJoyceBubble) _liveJoyceBubble = createStreamingBubble();
       _liveJoyceBubble.dataset.md = _liveJoyceText;   // copy ra markdown gốc, kể cả hội thoại bằng giọng
       if (dangTheoLoi()) batTheoLoi(_liveJoyceBubble, _liveJoyceText, null, true);   // V3: chữ theo tiếng
-      else { _liveJoyceBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJoyceText); scrollBottom(); }
+      else { _liveJoyceBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJoyceText, undefined, _liveJoyceBubble.dataset.anhV); scrollBottom(); }
     },
     onTurnDone: () => {
       _liveBusyUntil = 0; attention.keepActive();
@@ -906,14 +941,85 @@ function connect() {
   // không có chốt này là hai socket song song, mọi tin nhắn về gấp đôi.
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   ws = new WebSocket(WS_URL);
+  _wsLastFrameAt = Date.now(); _wsPingAt = 0;
+  // Bắt tay treo (server bận, proxy giữ request) từng để trang "đang nối lại" hàng phút vì không
+  // ai thử lại socket kẹt ở CONNECTING. Cho nó WS_MO_MS rồi đóng: onclose tự nối lại.
+  const dangMo = ws;
+  setTimeout(() => {
+    if (dangMo === ws && dangMo.readyState === WebSocket.CONNECTING) { _ghiDut("connect_timeout", false, 0); try { dangMo.close(); } catch (e) {} }
+  }, WS_MO_MS);
+  ws.onopen = () => { _wsMoLuc = Date.now(); };
   // Mất socket là trạng thái THẬT người dùng cần thấy ("ĐANG KẾT NỐI LẠI"), không phải đoán.
-  ws.onclose = () => {
-    try { runActions(turn.wsDown()); } catch (e) {}
+  ws.onclose = (e) => {
+    _ghiDut(e && e.code, !!(e && e.wasClean), _wsMoLuc);
+    _wsMoLuc = 0;
+    try { runActions(turn.wsDown()); } catch (e2) {}
     baoDutMang(true);
     setTimeout(connect, 3000);
   };
-  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  ws.onmessage = (e) => {
+    _wsLastFrameAt = Date.now(); _wsPingAt = 0;
+    const data = JSON.parse(e.data);
+    if (data.type !== "pong") handleMessage(data);
+  };
 }
+
+// ---- Socket chết mà không đóng ----
+// Máy ngủ, đổi Wi-Fi, router rớt kết nối: trình duyệt vẫn giữ socket ở trạng thái OPEN và không
+// bao giờ gọi onclose. Lượt chat vẫn chạy xong trên server, nhưng câu trả lời không tới được, nên
+// chữ "Joyce đang suy nghĩ..." đếm mãi, người dùng phải gửi lại câu lệnh.
+// Im quá WS_IM_MS thì hỏi server một tiếng; không ai đáp trong WS_PONG_MS là socket chết thật:
+// bỏ nó, nối socket mới. Lời chào "hello" của socket mới đồng bộ lại lượt đang chạy và câu trả lời
+// đã xong trong lúc đứt.
+const WS_IM_MS = 30000, WS_PONG_MS = 20000, WS_MO_MS = 10000;
+let _wsLastFrameAt = 0, _wsPingAt = 0;
+
+// ---- Dấu vết đứt kết nối ----
+// Mỗi lần đứt ghi mã đóng (1006 = đứt không lời chào, "ping" = socket im không đáp,
+// "connect_timeout" = bắt tay treo), socket đã sống bao lâu, mốc bắt đầu đứt; nối lại được thì gửi
+// một lần về máy chủ (POST /diag/ws-drops, xem ở /health/loop). Chỉ giữ 10 lần gần nhất.
+let _wsMoLuc = 0, _wsDut = [], _wsDutTu = 0;
+function _ghiDut(code, clean, moLuc) {
+  const now = Date.now();
+  if (!_wsDutTu) _wsDutTu = now;
+  _wsDut.push({ code: String(code == null ? "" : code), clean: !!clean, open_s: moLuc ? (now - moLuc) / 1000 : 0,
+    at: now / 1000 });
+  if (_wsDut.length > 10) _wsDut.shift();
+}
+function _baoDutVeMayChu() {
+  if (!_wsDut.length) return;
+  const body = { ua: navigator.userAgent, down_s: _wsDutTu ? (Date.now() - _wsDutTu) / 1000 : 0, drops: _wsDut };
+  _wsDut = []; _wsDutTu = 0;
+  try {
+    fetch("/diag/ws-drops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .catch(() => {});
+  } catch (e) {}
+}
+function _dropDeadSocket() {
+  _ghiDut("ping", false, _wsMoLuc);
+  _wsMoLuc = 0;
+  const cu = ws;
+  ws = null;
+  if (cu) {
+    cu.onclose = null; cu.onmessage = null;
+    try { cu.close(); } catch (e) {}
+  }
+  try { runActions(turn.wsDown()); } catch (e) {}
+  baoDutMang(true);
+  connect();
+}
+function _checkSocket() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || document.hidden) return;
+  const now = Date.now();
+  if (_wsPingAt) {
+    if (now - _wsPingAt > WS_PONG_MS) _dropDeadSocket();
+    return;
+  }
+  if (now - _wsLastFrameAt < WS_IM_MS) return;
+  _wsPingAt = now;
+  try { ws.send(JSON.stringify({ action: "ping" })); } catch (e) { _dropDeadSocket(); }
+}
+setInterval(_checkSocket, 5000);
 
 // ---- Hồi sức sau giấc ngủ nền (app "Thêm vào màn hình chính" trên iPhone) ----
 // iOS đóng băng toàn bộ JS khi app xuống nền: socket chết, tin nhắn đến trong lúc ngủ
@@ -976,6 +1082,12 @@ function handleMessage(data) {
     // Socket NỐI LẠI (không phải lần chào đầu): tin tới trong lúc đứt có thể đã rơi mất, ví dụ
     // câu trả lời của một lượt chạy xong khi điện thoại đang tắt màn hình. Đồng bộ nhẹ.
     if (_daChao) setTimeout(_dongBoNeuLech, 300);
+    // Nhóm chat: gói team_message/team_replies lỡ trong lúc mất kết nối không được gửi lại, nên trang Nhóm
+    // tự tải lại tin và kết cục lượt trả lời của nhóm đang mở khi socket nối lại.
+    if (_daChao) { try { window.dispatchEvent(new CustomEvent("joyce:team-event", { detail: { type: "team_resync" } })); } catch (e) {} }
+    // Gói chat_reaction (trạng thái host đổi) lỡ trong lúc mất kết nối: hỏi lại reaction của phiên đang mở.
+    if (_daChao) { try { if (window.JoyceChatReactions && savedSessionId) window.JoyceChatReactions.refresh(savedSessionId); } catch (e) {} }
+    _baoDutVeMayChu();
     _daChao = true;
     adaptiveCapable = (data.capabilities || []).includes("adaptive_voice_v1");
     stopTag = data.stop_tag || null;
@@ -995,6 +1107,9 @@ function handleMessage(data) {
       };
       setSessionRunning(sid, true);
     });
+    // Lượt của phiên đang xem đã xong trong lúc đứt (lỗi hoặc không có chữ thì không có gì để tải
+    // lại): bỏ chip "đang suy nghĩ" còn sót, không thì nó đếm mãi trong khi nút Gửi đã mở lại.
+    if (savedSessionId && !(turns[savedSessionId] && turns[savedSessionId].running)) hideActivity();
     syncActiveUI();
     notifySessions();
     // Lượt đang chờ gói thuê bao mở lại hạn mức: dựng lại thẻ "tự chạy lại" cho phiên đang xem.
@@ -1029,6 +1144,12 @@ function handleMessage(data) {
     // Tool joyce_ui (server) bảo dashboard mở trang / file / việc. ui-actions.js kiểm rồi làm
     // và tự trả ui_result về server để tool trả lời model ngay trong lượt.
     try { if (window.JoyceUiActions) window.JoyceUiActions.handle(data); } catch (e) {}
+    return;
+  }
+  if (data.type === "steer_ack" || data.type === "steer_read" || data.type === "steer_turn") {
+    // 1.4.0 (port Javis 0.206.0): tin gửi lúc Joyce đang làm đã được nhận / đã được lượt chạy
+    // đọc / vừa tự thành một lượt riêng. Dòng trạng thái nhỏ dưới bong bóng đổi theo.
+    try { trangThaiBoSung(data); } catch (e) {}
     return;
   }
 
@@ -1079,16 +1200,60 @@ function handleMessage(data) {
   if (sid && _luotDaDung[sid] != null && data.type !== "turn_done" && KHUNG_LUOT.includes(data.type)
       && t && t.id && t.id !== _luotDaDung[sid]) delete _luotDaDung[sid];
 
+  if (data.type === "team_message" || data.type === "team_state" || data.type === "team_replies" || data.type === "team_typing" ||
+      data.type === "team_read") {
+    // Nhóm chat team (T1): tin mới của thành viên, hàng đợi đổi. Trang Nhóm (teams.js) nghe sự kiện này để vẽ lại;
+    // trang khác bỏ qua. Không đụng khung chat chính.
+    try { window.dispatchEvent(new CustomEvent("joyce:team-event", { detail: data })); } catch (e) {}
+    return;
+  }
+  if (data.type === "resonance_agents") {
+    // T0 nhóm chat team: trợ lý vừa được bật, tắt Cộng hưởng (tab này hay tab khác). Trang Cộng sự, bảng bên phải và trang Cài đặt tự tải lại trạng thái thật.
+    try { window.dispatchEvent(new CustomEvent("joyce:resonance-agents-changed")); } catch (e) {}
+    return;
+  }
+  if (data.type === "agent_read") {
+    // Một phiên đối tác được đọc/tắt nhanh (tab này hay tab khác): danh sách đối tác đếm lại số chưa đọc.
+    try { window.dispatchEvent(new CustomEvent("joyce:agent-read", { detail: data })); } catch (e) {}
+    return;
+  }
+  if (data.type === "brain_follow") {
+    // Lượt chạy trên brain mà hội thoại này thuộc về, không phải brain đang chọn trên màn hình. Nói ra trong chat.
+    if (isActive) veNhanBrain(data.brain_name || "", data.brain_ui || "");
+    return;
+  }
+  if (data.type === "turn_saved" || data.type === "chat_reaction") {
+    // turn_saved mang mã tin của câu trả lời vừa lưu (bong bóng vừa chốt nhận data-mid, hiện nút thả cảm xúc);
+    // chat_reaction vẽ lại reaction của tin đó ở mọi bong bóng đang mở, kể cả khi đổi ở tab khác. Không đụng lượt đang chạy
+    // (cả hai gói nằm ngoài KHUNG_LUOT nên không dựng lại turns[sid]).
+    try { if (window.JoyceChatReactions) window.JoyceChatReactions.onFrame(data, { bubble: t && t.bubble }); } catch (e) {}
+    return;
+  }
+
   if (data.type === "push") {
     // Tin do việc chạy NỀN đẩy vào (việc Kanban / loop / nhắc hẹn xong), không thuộc lượt
     // hỏi-đáp nào. KHÔNG đụng turns[sid]: lượt đang chạy (nếu có) vẫn stream bình thường,
     // tin này chỉ chèn thêm một bong bóng. Server đã lưu vào kho phiên nên F5 vẫn còn.
+    // Nhắc hẹn kiểu "gọi em" đổ chuông ở PHIÊN NÀO đang mở (incoming-call.js) - tin của nó
+    // hay rơi vào Joyce Core nên chỉ đổ chuông khi đúng phiên đó đang mở nghĩa là không đổ bao giờ.
+    const daGoi = goiDenTheoLich(data.content || "");
     if (isActive) {
       const el = appendJoyceMessage(data.content || "");
       recordTurn("joyce", data.content || "", null, null);
+      // Nhắc hẹn "gọi em" đổ chuông như cuộc gọi đến; nhắc hẹn thường có ghi âm thì phát luôn.
+      if (!daGoi) ringReminder(el, data.content || "");
+      // Dòng biên nhận ghi nhớ không phải tin: không reaction, không đọc thành tiếng.
+      if (el && el.classList.contains("msg-nho")) { scrollBottom(); notifySessions(); return; }
+      // Tin đẩy về có mã tin: gắn hàng sáu cảm xúc ngay, kể cả tin báo goal.
+      if (el && data.message_id != null && window.JoyceChatReactions && window.JoyceChatReactions.attach) {
+        window.JoyceChatReactions.attach(el, { sid: data.session_id, mid: data.message_id, sha: data.content_sha || "",
+          reaction: null, entry: null });
+      }
       scrollBottom();
       // Đọc tin nền chỉ khi người dùng KHÔNG đang nói hay đang nghe Joyce nói dở (Voice V1):
       // chen một bản tin vào giữa câu người dùng là cắt ngang họ. Hoãn tới lúc rảnh.
+      // Khối thẻ mục tiêu (chat-resonance.js) đã vẽ ở bong bóng trên: bóc khỏi bản dùng để ĐỌC.
+      if (window.JoyceResonance) data.content = window.JoyceResonance.tach(data.content || "").clean;
       if (voice.ttsEnabled) {
         // Đọc phần chữ, không đọc khối ẩn JOYCE_VIEC.
         const _doc = window.JoyceViec ? window.JoyceViec.tach(data.content || "").clean : (data.content || "");
@@ -1149,7 +1314,7 @@ function handleMessage(data) {
       t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
       if (dangTheoLoi() && data.tts !== false && !t.imLoa) batTheoLoi(t.bubble, t.text, null, false);
-      else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text); scrollBottom(); }
+      else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV); scrollBottom(); }
       // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
       // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
       // Trước đây mỗi khung stream của bộ não chính (vài từ) là một yêu cầu TTS riêng nên nghe
@@ -1192,7 +1357,7 @@ function handleMessage(data) {
       if (dangTheoLoi() && t && finalText && !t.imLoa) {
         batTheoLoi(msgEl, shownText, ask, false);        // V3: chữ theo lời tới khi đọc xong, rồi vẽ đủ + chip
       } else {
-        if (t && t.bubble) msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
+        if (t && t.bubble) msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText, undefined, msgEl.dataset.anhV);
         if (ask) window.JoyceAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
@@ -1215,6 +1380,10 @@ function handleMessage(data) {
         _ghi = finalText + "\n\n<!-- JOYCE_VIEC: " + JSON.stringify(_v) + " -->";
       }
       if (finalText.trim()) recordTurn("joyce", _ghi, null, ask, t && t.buoc);
+      // Bong bóng vừa chốt chờ gói turn_saved mang mã tin; có mã mới hiện nút thả cảm xúc.
+      try {
+        if (window.JoyceChatReactions) window.JoyceChatReactions.expect(sid, msgEl, finalText.trim() ? convo[convo.length - 1] : null);
+      } catch (e) {}
       // Có câu trả lời thật thì linh vật vui một nhịp. Đang đọc thành tiếng thì nó tự đợi đọc
       // xong mới nhảy (pet.js giữ cờ choXong), nên gọi ngay ở đây là đủ.
       if (finalText.trim()) petReact("xong");
@@ -1291,6 +1460,8 @@ function handleMessage(data) {
     // một lần ở đây vô hại với lượt thường - hideActivity() là thao tác không cộng dồn.
     if (isActive) { hideActivity(); veKhoiBuoc(t, false); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
+    // Bong bóng hay mã tin còn chờ ghép của lượt này chỉ sống thêm một quãng ngắn (xem chat-reactions.js).
+    try { if (window.JoyceChatReactions) window.JoyceChatReactions.turnDone(sid); } catch (e) {}
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     if (isActive) guiCauChoLuot();               // câu nói lúc đang trả lời (cuộc gọi): gửi nếu loa đã im
     if (sid) guiHangGo(sid);                     // tin gõ xếp hàng: mở van tin kế tiếp
@@ -1309,6 +1480,8 @@ function handleMessage(data) {
 // Lượt Enter đang ĐỢI file tải lên xong. Chỉ giữ một lượt: bấm Enter hai lần trong lúc chờ
 // không được thành hai tin.
 let _choTaiLen = null;
+// Ghim thư mục làm việc ở khung chat trống: lượt đầu tiên gửi sau khi request /pin xong.
+let _pinWait = null;
 let _sendEpoch = 0;   // callbacks queued in an old voice/chat context may not send in a new one
 
 // ---- Tin đang đợi lượt cũ dừng HẲN rồi mới gửi ----
@@ -1416,6 +1589,46 @@ function xoaHangGo(sid) {
   q.forEach(item => { if (item.el) item.el.remove(); });
   delete _hangGo[sid];
   persistSession();
+}
+// ---- Tin GÕ gửi thẳng VÀO lượt đang chạy (1.4.0, port Javis 0.206.0, server steer_inbox.py) ----
+// Khác `_hangGo` (chờ hết lượt rồi mới gửi): tin steer được server GHI NGAY vào lịch sử và
+// lượt đang chạy đọc nó ở bước kế tiếp; lượt không đọc kịp thì tự chạy thành lượt sau. Bong
+// bóng hiện ngay kèm dòng trạng thái nhỏ (đã gửi / lượt đang đọc / sẽ chạy sau / đã đọc).
+let _boSungSeq = 0;
+const _boSungEl = {};   // client_id hoặc "s<steer_id>" -> dòng trạng thái của tin đó
+function guiBoSung(msg, atts) {
+  const sid = savedSessionId;
+  const tep = (atts || []).filter(a => a.path);
+  let chu = String(msg || "");
+  if (tep.length) chu += (chu ? "\n\n" : "") + tep.map(a => "\uD83D\uDCCE " + a.path).join("\n");
+  if (!chu.trim() || !sid || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  const cid = "bs" + (++_boSungSeq) + "-" + Date.now().toString(36);
+  chatInput.value = ""; chatInput.style.height = "auto";
+  if (tep.length) clearAttachments();
+  appendUserMessage(msg, tep);
+  const _ds = chatArea.querySelectorAll(".msg-user"), div = _ds[_ds.length - 1];
+  recordTurn("user", chu, tep);
+  if (div) {
+    div.classList.add("msg-steer");
+    const note = document.createElement("div");
+    note.className = "steer-note";
+    note.textContent = window.t("app.steer_sent");
+    div.appendChild(note);
+    _boSungEl[cid] = note;
+  }
+  ws.send(JSON.stringify({ action: "steer", session_id: sid, message: chu, client_id: cid }));
+  syncActiveUI();
+  return true;
+}
+function trangThaiBoSung(data) {
+  const ghi = (el, key) => { if (el) el.textContent = window.t(key); };
+  if (data.type === "steer_ack") {
+    const el = _boSungEl[data.client_id];
+    if (el && data.steer_id) _boSungEl["s" + data.steer_id] = el;
+    ghi(el, data.mode === "live" ? "app.steer_live" : "app.steer_after");
+  } else {
+    (data.ids || []).forEach(id => ghi(_boSungEl["s" + id], data.type === "steer_read" ? "app.steer_read" : "app.steer_turn"));
+  }
 }
 // Mở van MỘT tin khi phiên đang xem hết bận. Nếu lượt khác vừa nổi lên (câu chen ngang của
 // guiTinCho, vòng /goal, tin nền...) thì đợi turn_done sau - thứ tự không loạn.
@@ -1583,6 +1796,13 @@ function sendMessage(text, opts) {
     renderChips();
     return;
   }
+  // Trích dẫn (chat-quote.js): đoạn trích đứng ở đầu tin dạng "> ...", là một phần chữ của tin. Chỉ gắn vào
+  // tin thường, không gắn vào lệnh "/" và lượt tự động, rồi xoá chip để tin sau không mang theo nữa.
+  if (_quote && window.JoyceQuote && _slash.type === "passthrough" && !(opts && opts.adaptive)) {
+    msg = window.JoyceQuote.ghep(_quote.text, msg);
+    _quote = null;
+    renderChips();
+  }
   const atts = pendingAttachments.filter(a => a.path);
   if (!msg && atts.length === 0) return;
   if (!savedSessionId) {
@@ -1592,6 +1812,8 @@ function sendMessage(text, opts) {
     try { if (window.JoyceProjects) window.JoyceProjects.claim(savedSessionId); } catch (e) {}
     // Model đã chọn khi khung chat còn trống -> ghim luôn cho phiên vừa sinh (model-picker.js).
     try { if (window.JoyceModelBar) window.JoyceModelBar.claimPending(savedSessionId); } catch (e) {}
+    // Thư mục làm việc ghim ở khung chat trống đi theo phiên vừa được sinh (composer-folder.js).
+    try { if (window.JoycePinnedFolder) _pinWait = window.JoycePinnedFolder.claimPending(savedSessionId); } catch (e) {}
   }
   const sid = savedSessionId;
   // Phiên đang trả lời thì không gửi chồng lượt. NHƯNG tin từ MIC (hay gõ trong lúc rảnh tay)
@@ -1609,9 +1831,10 @@ function sendMessage(text, opts) {
       datTinCho(msg, opts);
       return;
     }
-    // Gõ chữ lúc đang bận: xếp hàng thay vì nuốt lặng. Tin hiện thành chip "đang chờ"
-    // và tự gửi lần lượt khi lượt trước xong (guiHangGo, gọi từ turn_done).
-    if (!(_tuGiong || handsFree)) { xepTinGo(sid, msg, opts, atts); return; }
+    // 1.4.0: gõ chữ lúc đang bận -> gửi thẳng vào lượt đang chạy (guiBoSung, action "steer").
+    // Lượt đọc nó ở bước kế tiếp, hoặc nó chạy ngay sau lượt này (server steer_inbox.py).
+    // `_hangGo` vẫn giữ cho đường WS-đứt/khôi phục F5.
+    if (!(_tuGiong || handsFree)) { guiBoSung(msg, atts); return; }
     // Đang gọi (0.65.28): KHÔNG dừng lượt đang chạy. Câu mới xếp hàng, gửi khi lượt cũ xong và
     // loa đọc xong. Chủ dự án báo 02/10: nói chen một câu là "Đã dừng lượt này", mô hình bị
     // cắt liên tục nên không liền mạch; cuộc gọi chỉ được dừng khi bấm lại nút mic.
@@ -1664,7 +1887,7 @@ function sendMessage(text, opts) {
   let outMsg = _isSkill ? _slash.message : _than;
   if (atts.length) {
     const lines = atts.map(a => `- ${a.path}`).join("\n");
-    const src = atts[0].sources || "", attDir = atts[0].attachments || "";
+    const src = (atts.find(a => a.sources) || {}).sources || "", attDir = (atts.find(a => a.attachments) || {}).attachments || "";
     if (_isSkill) {
       // Với lệnh skill (vd /notes): đưa path như dữ liệu, để chính skill quyết định lưu.
       outMsg = `[File đính kèm (đường dẫn), Sources="${src}", Attachments="${attDir}":\n${lines}]\n\n${_slash.message}`;
@@ -1724,7 +1947,20 @@ function sendMessage(text, opts) {
                           voice_input: _tuGiong, voice_turn_id: String(turns[sid].id),
                           wf_run: !!(opts && opts.wfRun), ...(adaptiveMeta || {}) };
   if(adaptiveMeta) { adaptiveCurrent.set(sid,adaptiveMeta.utterance_id);adaptiveOutbox.set(adaptiveMeta.utterance_id,{payload,element:userElement,since:performance.now()}); }
-  ws.send(JSON.stringify(payload));
+  const _send = () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // Socket rớt trong lúc lượt đầu đợi ghim thư mục: chưa gửi gì nên kết thúc lượt ở đây
+      // và trả chữ về ô nhập, chứ không để nó mất trong im lặng.
+      if (turns[sid]) turns[sid].running = false;
+      setSessionRunning(sid, false); hideActivity(); syncActiveUI();
+      chatInput.value = msg;
+      ghiChuThoang(window.t("app.ws_mat_ket_noi"));
+      return;
+    }
+    try { ws.send(JSON.stringify(payload)); } catch (e) {}
+  };
+  const _w = _pinWait; _pinWait = null;
+  if (_w) _w.then(_send, _send); else _send();
   _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
@@ -1853,6 +2089,7 @@ function restoreSession() {
   // về là hoàn tất khởi động, không phải người dùng đổi brain. Nhớ brain thật của cuộc đã
   // khôi phục để handler không xoá trắng khung chat và ghi đè localStorage bằng phiên rỗng.
   if (savedSessionId && s.brain) _lastBrain = s.brain;
+  const _traLoi = [];   // các câu trả lời vừa dựng lại, để refresh() sửa reaction và gắn mã còn thiếu
   // Dựng lại bong bóng hội thoại
   convo.forEach((t, i) => {
     // t.ts vắng mặt ở tin lưu từ trước bản này -> truyền 0 để ẩn giờ thay vì hiện giờ F5.
@@ -1862,9 +2099,17 @@ function restoreSession() {
     if (t.buoc && window.JoyceSteps && window.JoyceSteps.tomTat(t.buoc).hien)
       chatAppend(window.JoyceSteps.ve(null, t.buoc, false));
     const el = appendJoyceMessage(t.text, t.ts || 0, t.brain || s.brain);
+    _traLoi.push({ el, entry: t });
+    // Tin đã có mã (lịch sử hay gói turn_saved) mang lại hàng reaction; tin lưu trước bản này không có mã thì không có nút.
+    try {
+      if (t.mid != null && window.JoyceChatReactions && !el.classList.contains("msg-nho")) window.JoyceChatReactions.attach(el, { sid: savedSessionId, mid: t.mid,
+        sha: t.sha || "", brain: t.brain || s.brain, reaction: t.reaction || null, entry: t });
+    } catch (e) {}
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JoyceAsk.render(el, t.ask, i === convo.length - 1);
   });
+  // Bản lưu cục bộ có thể giữ reaction cũ (đổi ở máy khác) hay thiếu mã tin: hỏi lại đủ số tin vừa dựng (tối đa 200).
+  try { if (window.JoyceChatReactions && savedSessionId) window.JoyceChatReactions.refresh(savedSessionId, _traLoi); } catch (e) {}
   if (convo.length) { scrollBottom(true); ghimDay(sessionOpenSeq); }
   // Tin đang xếp hàng lúc F5: dựng lại chip chờ của phiên đang xem. Lượt thật còn chạy thì
   // server báo qua "hello" (data.running) và turn_done của nó sẽ mở van; rảnh rồi thì
@@ -1899,7 +2144,7 @@ let _moiTinCu = null, _quanSatMoi = null;
 
 // Dựng lại MỘT tin đã lưu thành bong bóng, trả về mục tương ứng cho convo (null nếu bỏ qua).
 // Dùng chung cho lượt mở hội thoại và lượt chèn ngược, để hai đường không trôi lệch nhau.
-function veTinDaLuu(m, brainCua) {
+function veTinDaLuu(m, brainCua, sidCua) {
   const ts = m.ts ? Math.round(m.ts * 1000) : 0;   // server lưu epoch giây (sessions.py)
   // convo là thứ được ghi xuống localStorage rồi dựng lại ở lần F5 sau. Nhét bản CÒN khối
   // vào đây là lỗi sống dai qua mọi lần tải lại, dù bong bóng lượt này đã sạch.
@@ -1917,8 +2162,15 @@ function veTinDaLuu(m, brainCua) {
   // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
   // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
   if (m.role === "assistant") {
-    appendJoyceMessage(m.content || "", ts, brainCua);
-    return { role: "joyce", text: m.content || "", atts: [], ts, brain: brainCua };
+    const el = appendJoyceMessage(m.content || "", ts, brainCua);
+    // Mã tin, content_sha và reaction đi theo bong bóng lẫn convo, để thả cảm xúc được và F5 vẫn còn.
+    const entry = { role: "joyce", text: m.content || "", atts: [], ts, brain: brainCua,
+                    mid: m.id, sha: m.content_sha || "", reaction: m.reaction || null };
+    try {
+      if (window.JoyceChatReactions && !el.classList.contains("msg-nho")) window.JoyceChatReactions.attach(el, { sid: sidCua, mid: m.id, sha: m.content_sha || "",
+        brain: brainCua, reaction: m.reaction || null, entry });
+    } catch (e) {}
+    return entry;
   }
   return null;
 }
@@ -2001,7 +2253,7 @@ async function taiTinCu() {
     _dangChenCu = true;
     _neoChenCu = _moiTinCu ? _moiTinCu.nextSibling : dauKhungChat();
     const them = [];
-    ds.forEach(m => { const t = veTinDaLuu(m, st.brain); if (t) them.push(t); });
+    ds.forEach(m => { const t = veTinDaLuu(m, st.brain, st.sid); if (t) them.push(t); });
     _neoChenCu = null; _dangChenCu = false;
     convo = them.concat(convo);
     st.ts = ds[0].ts; st.id = ds[0].id; st.con = !!d.has_more;
@@ -2033,18 +2285,20 @@ async function openStoredSession(id, stillCurrent) {
     goMoiTinCu();
     chatArea.innerHTML = "";
     const ds = sess.messages || [];
-    ds.forEach(m => { const t = veTinDaLuu(m, sess.brain); if (t) convo.push(t); });
+    ds.forEach(m => { const t = veTinDaLuu(m, sess.brain, id); if (t) convo.push(t); });
     _tinCu = ds.length
       ? { sid: id, brain: sess.brain, ts: ds[0].ts, id: ds[0].id, con: !!sess.has_more, dangTai: false }
       : null;
     datMoiTinCu();
     savedSessionId = id;          // lượt gửi tiếp theo → server resume đúng phiên này
+    // Hội thoại của brain khác (mở từ chuông, lịch sử, link) nói rõ nó của ai.
+    if (sess.brain_ui && sess.brain_ui !== graphSource.value) veNhanBrain(sess.brain_name || "", sess.brain_ui);
     try { if (window.JoyceInbox) window.JoyceInbox.docPhien(id); } catch (e) {}
     // Phiên này đang generate NỀN → gắn bong bóng SỐNG (kèm phần đã stream) để xem tiếp trực tiếp.
     const t = turns[id];
     if (t && t.running) {
       t.bubble = createStreamingBubble();
-      if (t.text) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text);
+      if (t.text) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
       showActivity(Icons.msg("pen-line", window.t("app.act_writing")));
       runActions(turn.turnStart());
     } else {
@@ -2233,7 +2487,7 @@ function appendUserMessage(text, attachments, ts) {
   const isLong = text && (text.split("\n").length > 10 || text.length > 900);
   const _escText = escapeHtml(text);
   const textHtml = text
-    ? `<div class="utext${isLong ? " clamped" : ""}">${window.JoyceChatFile ? window.JoyceChatFile.linkifyMd(_escText) : _escText}</div>` +
+    ? `<div class="utext${isLong ? " clamped" : ""}">${(window.JoyceChatFile ? window.JoyceChatFile.linkifyMd : (x) => x)(window.JoyceQuote ? window.JoyceQuote.utextHtml(text, escapeHtml) : _escText)}</div>` +
       (isLong ? `<button class="clamp-more" type="button">${window.t("app.show_more")}</button>` : "")
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
@@ -2241,18 +2495,69 @@ function appendUserMessage(text, attachments, ts) {
   vaAnhHong(div);
   chatAppend(div); scrollBottom(true);
 }
+// 0.173.1: one automatic /goal round as a collapsible line with a Stop goal button (chat-lenh.js draws the
+// HTML). `live`: drawn while the goal runs, so the button works; restored rounds show it disabled.
+function appendGoalRound(round, live) {
+  const div = document.createElement("div");
+  div.className = "msg msg-goal-round";
+  const active = !!(live && window.JoyceLenh && window.JoyceLenh.dangCoMucTieu());
+  div.innerHTML = window.JoyceLenh.vongHtml(round, active);
+  const btn = div.querySelector(".goal-round-stop");
+  if (btn) btn.addEventListener("click", () => { if (window.JoyceLenh) window.JoyceLenh.dungMucTieu(); });
+  chatAppend(div); scrollBottom(true);
+  return div;
+}
 // brain (tuỳ chọn): brain của HỘI THOẠI chứa tin này. Bỏ trống = brain đang chọn (tin mới).
 // Truyền vào khi dựng lại tin CŨ, để ảnh trong tin phân giải theo đúng brain của nó thay vì
 // brain đang chọn - nếu không thì mở hội thoại cũ ở brain khác là ảnh 404 rồi biến thành ô xám.
+// Phát ghi âm của nhắc hẹn được đẩy vào chat đang mở. Trình duyệt chặn autoplay thì
+// để nguyên player cho người dùng bấm.
+function ringReminder(el, raw) {
+  if (!el || !/JOYCE_VIEC:[^>]*"kind":\s*"reminder"/.test(raw)) return;
+  const a = el.querySelector("audio.jv-audio");
+  if (!a) return;
+  try { const p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* autoplay blocked */ }
+}
+// incoming-call.js: "Joyce gọi em theo lịch". Nghe máy = bấm mic, câu đầu cuộc gọi hỏi Joyce
+// đọc lời nhắc đó. Đang trong cuộc gọi rồi thì không đổ chuông - tin nằm trong chat.
+let _goiDenMoDau = "";
+function layMoDauGoiDen() { const s = _goiDenMoDau; _goiDenMoDau = ""; return s; }
+function goiDenTheoLich(raw) {
+  const IC = window.JoyceIncomingCall;
+  const c = IC ? IC.parse(raw) : null;
+  if (!c || handsFree) return false;
+  IC.show({ title: c.title, t: window.t, onAnswer: () => {
+    if (handsFree) return;
+    const moDau = IC.script(c, window.t);
+    if (voiceMode === "live") { _goiDenMoDau = moDau; voiceBtn.click(); }
+    else { voiceBtn.click(); if (handsFree) sendMessage(moDau); }
+  } });
+  return true;
+}
 function appendJoyceMessage(text, ts, brain) {
   // Tin do việc nền đẩy về mang khối ẩn JOYCE_VIEC (chat-viec.js): bóc ra để vẽ thành THẺ việc
   // (icon trạng thái, tên việc, nút mở trang Việc) thay cho bong bóng chữ trơn (0.64.48).
   const tv = window.JoyceViec ? window.JoyceViec.tach(text) : { clean: text, viec: null };
+  // Thẻ mục tiêu (chat-resonance.js): bóc khối JOYCE_RESONANCE rồi vẽ thẻ sống dưới bong bóng.
+  const tr = window.JoyceResonance ? window.JoyceResonance.tach(tv.clean) : { clean: tv.clean, cards: [] };
+  tv.clean = tr.clean;
+  // Dòng "Đã nhớ · Hoàn tác" (chat-nho.js): tin đẩy có khối JOYCE_NHO vẽ thành dòng đó.
+  const tn = window.JoyceNho ? window.JoyceNho.tach(tv.clean) : { clean: tv.clean, nho: null };
+  tv.clean = tn.clean;
+  // Dòng "Đã tạo · Hoàn tác" cho nhắc hẹn, loop, cộng sự, quy trình và skill (chat-doi.js).
+  const td = window.JoyceDoi ? window.JoyceDoi.tach(tv.clean) : { clean: tv.clean, doi: null };
+  tv.clean = td.clean;
   const div = document.createElement("div");
   div.className = "msg msg-joyce";
-  div.innerHTML = `<div class="bubble">${markdownToHtml(tv.clean, brain)}</div>` +
+  // Phiên bản ẢNH của tin này (0.65.33, xem markdownToHtml): tin cũ dựng lại dùng đúng mốc giờ của
+  // nó nên tải lại trang vẫn trúng cache; tin mới mang mốc giờ mới nên ảnh vừa sửa luôn tải lại.
+  div.dataset.anhV = String(ts === undefined ? Date.now() : (ts || ""));
+  div.innerHTML = `<div class="bubble">${markdownToHtml(tv.clean, brain, div.dataset.anhV)}</div>` +
     actsHtml("joyce", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
   if (tv.viec) window.JoyceViec.ve(div, tv.viec);
+  for (const c of tr.cards) window.JoyceResonance.ve(div, c);
+  if (tn.nho) window.JoyceNho.ve(div, tn.nho);
+  if (td.doi) window.JoyceDoi.ve(div, td.doi);
   div.dataset.md = tv.clean || "";   // copy nội dung markdown, không chép marker việc nền
   chatAppend(div); scrollBottom();
   return div;
@@ -2282,14 +2587,15 @@ function appendLenhReply(md) {
 function createStreamingBubble() {
   const div = document.createElement("div");
   div.className = "msg msg-joyce";
+  div.dataset.anhV = String(Date.now());   // giữ nguyên suốt lượt stream: ảnh không nạp lại mỗi khung
   div.innerHTML = `<div class="bubble"></div>` +
     actsHtml("joyce", Date.now(), !!lastUserText().trim());
   chatAppend(div); scrollBottom();
   return div;
 }
-function markdownToHtml(text, brain) {
+function markdownToHtml(text, brain, anhV) {
   // Render đầy đủ (markdown + tô màu code + artifact) nằm ở chat-render.js.
-  if (typeof window.mdToHtml === "function") return window.mdToHtml(text, brain);
+  if (typeof window.mdToHtml === "function") return window.mdToHtml(text, brain, anhV ? { anhV: String(anhV) } : undefined);
   // Fallback nếu chat-render.js chưa nạp: bộ render gọn cũ (không có artifact).
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const safeHref = (x) => /^(https?:\/\/|mailto:|\/)/i.test((x || "").trim()) ? x : "";
@@ -2386,7 +2692,8 @@ function hideActivity() {
   if (activityEl && activityEl.parentNode) activityEl.parentNode.removeChild(activityEl);
   activityEl = null;
 }
-function setProcessing(s) { isProcessing = s; }   // nút gửi không khoá nữa - bận thì tin xếp hàng
+function setProcessing(s) { isProcessing = s; sendBtn.disabled = (s && !coTheGuiBoSung()) || sendBtn.dataset.wsLock === "1"; }   // bận+ô trống khoá; bận+có chữ vẫn gửi bổ sung
+window.JoyceSyncActiveUI = syncActiveUI;   // workspace xin đồng bộ lại nút gửi khi rời trang giữa một lượt
 
 // ============================================
 // Cuộn thông minh: chỉ tự cuộn khi user đang ở đáy; đang đọc lại phía trên thì
@@ -2434,14 +2741,39 @@ function capNhatNutXuong() {
 }
 chatArea.addEventListener("scroll", () => {
   stickBottom = ganDay();
-  // Rời đáy là hiện nút NGAY, không chờ tin mới nào cả.
+  // Rời đáy là hiện nút NGAY, không chờ tin nào cả.
   capNhatNutXuong();
 });
+// Trong lúc Joyce đang viết, chat cứ cuộn xuống đáy nên tin dưới con chuột trôi mất đúng lúc
+// định bấm Copy. Trên máy có chuột, cuộn-theo giữ lại khi chuột đang trên hàng nút/reaction
+// của một tin, hoặc đang lướt qua tin (cử động trong 1.2 s gần nhất). Chuột nằm yên trên chữ
+// không giữ. Hết giữ thì cuộn bù một lần.
+const HOLD_MOVE_MS = 1200;
+let _diChuotLuc = 0, _treoCuon = null;
+const coChuot = () => { try { return window.matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) { return false; } };
+chatArea.addEventListener("mousemove", (e) => {
+  if (e.target.closest && e.target.closest(".msg")) _diChuotLuc = Date.now();
+});
+chatArea.addEventListener("mouseleave", () => { _diChuotLuc = 0; });
+function dangGiuCuon() {
+  if (!coChuot()) return false;
+  if (chatArea.querySelector(".msg-acts:hover, .jr-chat:hover")) return true;
+  return Date.now() - _diChuotLuc < HOLD_MOVE_MS && !!chatArea.querySelector(".msg:hover");
+}
+function choCuonTiep() {
+  if (_treoCuon) return;
+  _treoCuon = setTimeout(function lai() {
+    if (dangGiuCuon()) { _treoCuon = setTimeout(lai, 250); return; }
+    _treoCuon = null;
+    scrollBottom();
+  }, 250);
+}
 function scrollBottom(force) {
   // Đang chèn ngược tin cũ: appendUserMessage/appendJoyceMessage vẫn gọi vào đây theo thói
   // quen, mà cuộn xuống đáy lúc này là quăng người đọc khỏi chỗ họ đang đứng.
   if (_dangChenCu) return;
   if (force) stickBottom = true;
+  if (stickBottom && !force && dangGiuCuon()) { choCuonTiep(); return; }
   if (stickBottom) {
     chatArea.scrollTop = chatArea.scrollHeight;
     newMsgBtn.classList.remove("show");
@@ -2493,6 +2825,28 @@ function runMsgAct(btn) {
         : (msgEl.dataset.text || b.innerText);
       copyText(value).then(() => flashCopied(btn, "⧉"));
     }
+    return;
+  }
+  if (act === "quote") {
+    // Bôi đen một đoạn TRONG tin này thì trích đúng đoạn đó; không thì trích cả tin. Tin Joyce lấy
+    // markdown gốc (dataset.md), không lấy chữ đã vẽ, để đoạn trích còn nguyên đậm, danh sách, link.
+    let chon = "";
+    try {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed && sel.rangeCount && msgEl.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        chon = String(sel.toString() || "").trim();
+      }
+    } catch (e) {}
+    const b = msgEl.querySelector(".bubble");
+    const ca = msgEl.classList.contains("msg-joyce")
+      ? window.JoyceVisibleMarkdown(msgEl.dataset.md || (b ? b.innerText : ""))
+      : (window.JoyceQuote ? window.JoyceQuote.tach(msgEl.dataset.text || (b ? b.innerText : "")).rest
+                           : (msgEl.dataset.text || ""));
+    const text = (chon || ca || "").trim();
+    if (!text) return;
+    _quote = { text };
+    renderChips();
+    try { chatInput.focus(); } catch (e) {}
     return;
   }
   if (act === "remember") {
@@ -2555,10 +2909,16 @@ chatArea.addEventListener("click", (e) => {
   try { if (!window.matchMedia("(hover: none)").matches) return; } catch (err) { return; }
   if (!e.target.closest) return;
   if (e.target.closest(".msg-acts")) return;   // bấm chính nút thì đừng đóng hàng nút
+  if (e.target.closest(".jr-chat")) return;    // hàng reaction tự lo nút của nó
   const msgEl = e.target.closest(".msg");
   chatArea.querySelectorAll(".msg.acts-on").forEach(m => { if (m !== msgEl) m.classList.remove("acts-on"); });
   if (msgEl) msgEl.classList.toggle("acts-on");
 });
+// Sáu reaction trên câu trả lời (chat-reactions.js): bấm, đổi, bỏ, nhấn giữ trên điện thoại. Đổi reaction thì
+// lưu lại convo để F5 còn đúng.
+try {
+  if (window.JoyceChatReactions) window.JoyceChatReactions.init({ root: chatArea, brain: currentBrainPath, onChange: persistSession });
+} catch (e) {}
 function compactToolLabel(toolName) {
   const raw = String(toolName || "").trim();
   let label = raw || "Tool", cat = "Tool";
@@ -3365,9 +3725,22 @@ function _pinRestore() {
 // Dòng nhắc ngay dưới các chip (vd "có file chưa tải lên được"). Tự xoá ở lần gỡ file hay
 // tải file mới kế tiếp.
 let attachNote = "";
+// Đoạn đang trích dẫn (chat-quote.js): {text}. Gửi tin kế tiếp thì nó đi kèm ở đầu tin rồi tự xoá.
+let _quote = null;
 function renderChips() {
-  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote || !!attachNote);
+  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote || !!attachNote || !!_quote);
   attachBar.innerHTML = "";
+  if (_quote && window.JoyceQuote) {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip quote-chip";
+    chip.title = _quote.text.slice(0, 600);
+    chip.innerHTML = `<div class="chip-ico">${ic("quote")}</div>`
+      + `<div class="chip-info"><span class="chip-name">${escapeHtml(window.JoyceQuote.xemTruoc(_quote.text))}</span>`
+      + `<span class="chip-meta">${escapeHtml(window.t("app.quote_meta"))}</span></div>`
+      + `<button class="chip-x" data-unquote="1" title="${escapeHtml(window.t("app.quote_remove"))}"`
+      + ` aria-label="${escapeHtml(window.t("app.quote_remove"))}">${ic("x")}</button>`;
+    attachBar.appendChild(chip);
+  }
   if (pinnedNote) {
     const chip = document.createElement("div");
     chip.className = "attach-chip pinned";
@@ -3425,7 +3798,8 @@ function renderChips() {
     b.addEventListener("click", () => taiLaiDinhKem(+b.dataset.i)));
   attachBar.querySelectorAll(".chip-x").forEach(b =>
     b.addEventListener("click", () => {
-      if (b.dataset.unpin) JoycePin.clear();
+      if (b.dataset.unquote) { _quote = null; renderChips(); }
+      else if (b.dataset.unpin) JoycePin.clear();
       else removeAttachment(+b.dataset.i);
     }));
 }
@@ -3646,15 +4020,31 @@ function taiLaiDinhKem(i) {
   uploadFile(a.file, a);
 }
 
-document.getElementById("attachBtn").addEventListener("click", () => fileInput.click());
+const attachBtn = document.getElementById("attachBtn");
+if (attachBtn) attachBtn.addEventListener("click", () => fileInput.click());
 // Nut file (icon file-text): chon file .md trong brain -> chen `path` vao o nhap de Joyce doc/tom tat/sua.
-document.getElementById("brainFileBtn").addEventListener("click", (e) => {
+// Composer "+" (composer-plus.js) có mục brain_file riêng; nút này còn trong index.html cũ.
+const brainFileBtn = document.getElementById("brainFileBtn");
+if (brainFileBtn) brainFileBtn.addEventListener("click", (e) => {
   if (window.JoyceChatFile) window.JoyceChatFile.toggle(e.currentTarget);
 });
 fileInput.addEventListener("change", () => {
   [...fileInput.files].forEach(f => uploadFile(f));
   fileInput.value = "";
 });
+
+// The composer "+" menu (composer-plus.js, port Javis 0.153.0) shares the upload path and the attachment list.
+window.JoyceAttach = {
+  pick: () => fileInput.click(),
+  upload: (f) => uploadFile(f),
+  addBrainFile: (it) => {
+    if (!it || !it.path || pendingAttachments.some(a => a.path === it.path)) return;
+    pendingAttachments.push({ name: it.name, kind: it.kind || "file", preview: null, url: it.url || null, path: it.path,
+      size: it.size || 0, sources: null, attachments: null, uploading: false, loi: false, xong: Promise.resolve() });
+    renderChips();
+  },
+  note: (s) => { attachNote = String(s || ""); renderChips(); },
+};
 
 // Dán ảnh (Ctrl+V) + dán VĂN BẢN SIÊU DÀI thành file .txt đính kèm (kiểu Claude):
 // bài dài nhồi thẳng vào ô chat vừa khó đọc vừa nặng khung hội thoại - biến thành
@@ -3728,6 +4118,7 @@ function chupFile(f) {
 // Events
 // ============================================
 chatInput.addEventListener("input", () => {
+  if (isProcessing) syncActiveUI();   // 1.4.0: có chữ là nút Gửi hiện lại cạnh nút Dừng
   chatInput.style.height = "auto";
   // Ô nhập NỞ THEO CHỮ như claude.ai (chủ yêu cầu 27/08): xuống dòng là thấy toàn bộ văn
   // bản, không phải cuộn trong một ô 3 dòng. Trần ở trang Trò chuyện là 40% màn hình
@@ -3861,7 +4252,8 @@ voiceBtn.addEventListener("click", () => {
   try { if (window.JoyceTts) window.JoyceTts.set(handsFree); } catch (e) {}
   // Voice V2 bậc Live: nút mic mở phiên nghe nói thẳng thay cho Web Speech + TTS.
   if (voiceMode === "live") {
-    if (handsFree) batLive();
+    // Cuộc gọi đến từ nhắc hẹn (incoming-call.js): câu đầu của phiên là lời nhắc đó.
+    if (handsFree) batLive(layMoDauGoiDen());
     else tatRanhTay();
     return;
   }
@@ -4305,6 +4697,18 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
     err.textContent = d.error || window.t("app.login_failed");
   } catch (e) { err.textContent = window.t("app.err_net"); }
 });
+// Eye button: lets the user check what they typed (a Hostinger customer could not tell a typo
+// from a wrong env password, 2026-10-05). Focus stays in the field so Enter still signs in.
+(() => {
+  const eye = document.getElementById("authPassEye"), inp = document.getElementById("authPass");
+  if (!eye || !inp) return;
+  eye.addEventListener("mousedown", (e) => e.preventDefault());
+  eye.addEventListener("click", () => {
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    eye.setAttribute("aria-pressed", show ? "true" : "false");
+  });
+})();
 ["authPass", "authCode"].forEach((id) => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("authSubmit").click(); });

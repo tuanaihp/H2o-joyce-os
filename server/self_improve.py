@@ -55,7 +55,6 @@ import asyncio
 import sys
 import json
 import re
-import threading
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -141,6 +140,16 @@ def _in_quiet_hours(spec: str, hour: int) -> bool:
     return (a <= hour < b) if a < b else (hour >= a or hour < b)
 
 
+def _accepts(fn, name: str) -> bool:
+    """`fn` takes keyword `name` (or **kwargs). Lets a report hook gain fields without breaking test fakes."""
+    import inspect
+    try:
+        ps = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.name == name or p.kind is p.VAR_KEYWORD for p in ps)
+
+
 @dataclass
 class LoopDeps:
     """Các helper của main.py được tiêm vào (tránh import vòng)."""
@@ -161,6 +170,8 @@ class LoopDeps:
     # Đổi engine việc nền theo model phụ người dùng chọn (Claude / Codex / API rẻ).
     # None = giữ nguyên Claude như trước (test dựng deps tối giản không cần tiêm).
     aux_swap: Optional[Callable] = None
+    # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Joyce Core (incident_desk.py).
+    incident_hook: Optional[Callable] = None
 
 
 class LoopFeature:
@@ -175,7 +186,6 @@ class LoopFeature:
             "interval_min": 60, "last_run": 0.0, "last_summary": "", "last_status": "",
         }
         self.lock = asyncio.Lock()           # THỰC THI TUẦN TỰ: 1 vòng/lúc trên toàn hệ
-        self._save_lock = threading.Lock()   # chong ghi chong loop cung slug
         self._viec_nen: set = set()   # vòng loop đang chạy nền (xem _chay_nen)
         self._running: Optional[Tuple[str, str]] = None   # (brain_root_resolved, slug) đang chạy
         self._migrated = False
@@ -320,12 +330,6 @@ class LoopFeature:
             "owner_chat": str(fm.get("owner_chat", "") or "").strip(),
             "notify": notify,
             "ambient_mcp": ambient_mcp,
-            # Model RIÊNG của loop, override "model việc nền" chung. Hai cách ghi:
-            #   model: "provider/model"      (vd ollama-local/qwen3:14b)
-            #   model: "model" + model_provider: "provider"
-            # Trống/không parse được provider → chạy model việc nền như mọi loop khác.
-            "model": str(fm.get("model", "") or "").strip(),
-            "model_provider": str(fm.get("model_provider", "") or "").strip(),
             "updated": str(fm.get("updated", "") or ""),
             "body": (body or "").strip(),
         }
@@ -362,10 +366,6 @@ class LoopFeature:
         Identity = TÊN FILE: nếu slug trỏ đúng file ĐANG CÓ (kể cả stem tiếng Việt user tự
         đặt trong Obsidian) → ghi đè CHÍNH file đó; chỉ loop MỚI mới sinh slug ascii.
         (Không thì toggle/sửa loop tên tự do sẽ fork bản sao ascii, bản gốc vẫn chạy.)"""
-        with self._save_lock:
-            return self._save_loop_inner(brain, loop)
-
-    def _save_loop_inner(self, brain: str, loop: dict) -> dict:
         raw = str(loop.get("slug") or loop.get("name") or "loop").strip()
         fp = self._loop_path(brain, raw)
         if fp is not None and fp.exists():
@@ -385,10 +385,6 @@ class LoopFeature:
         # Chỉ ghi ambient_mcp khi BẬT - giữ file loop mặc định sạch (fork không thấy cờ lạ).
         if loop.get("ambient_mcp"):
             fm["ambient_mcp"] = True
-        if loop.get("model"):
-            fm["model"] = loop["model"]
-            if loop.get("model_provider"):
-                fm["model_provider"] = loop["model_provider"]
         y = yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False, width=1000).strip()
         d = self._loops_dir(brain)
         d.mkdir(parents=True, exist_ok=True)
@@ -416,29 +412,31 @@ class LoopFeature:
         slug -> đây là va chạm thật sẽ gặp). Trả {"ok":bool, "error":str}."""
         src_fp = self._loop_path(from_brain, slug)
         if src_fp is None or not src_fp.exists():
-            return {"ok": False, "error": "không thấy việc ở brain nguồn"}
+            return {"ok": False, "error": localefmt.chu("không thấy việc ở brain nguồn", "job not found in the source brain")}
         dst_fp = self._loop_path(to_brain, slug)
         if dst_fp is None:
-            return {"ok": False, "error": "tên việc không hợp lệ"}
+            return {"ok": False, "error": localefmt.chu("tên việc không hợp lệ", "invalid job name")}
         try:
             src_root = str(Path(self.deps.brain_root(from_brain)).resolve())
             dst_root = str(Path(self.deps.brain_root(to_brain)).resolve())
         except Exception:
-            return {"ok": False, "error": "brain không hợp lệ"}
+            return {"ok": False, "error": localefmt.chu("brain không hợp lệ", "invalid brain")}
         if src_root == dst_root:
-            return {"ok": False, "error": "brain nguồn và đích trùng nhau"}
+            return {"ok": False, "error": localefmt.chu("brain nguồn và đích trùng nhau", "source and target brain are the same")}
         # Đang chạy đúng loop này -> để yên, tránh dời file dưới chân vòng đang thực thi.
         if self._running and self._running[1] == slug and self._running[0] == src_root:
-            return {"ok": False, "error": "việc đang chạy, thử lại sau"}
+            return {"ok": False, "error": localefmt.chu("việc đang chạy, thử lại sau", "job is running, try again later")}
         if dst_fp.exists():
             return {"ok": False,
-                    "error": f"brain đích đã có việc '{slug}' - đổi tên hoặc xoá bên đó trước"}
+                    "error": localefmt.chu(f"brain đích đã có việc '{slug}' - đổi tên hoặc xoá bên đó trước",
+                                           f"the target brain already has a job '{slug}' - rename or delete it there first")}
         try:
             content = src_fp.read_text(encoding="utf-8")
             dst_fp.parent.mkdir(parents=True, exist_ok=True)
             self.deps.atomic_write_text(dst_fp, content)   # ghi ĐÍCH trước (mất điện = còn nguồn)
         except Exception as e:
-            return {"ok": False, "error": f"ghi file đích lỗi: {type(e).__name__}: {e}"}
+            return {"ok": False, "error": localefmt.chu(f"ghi file đích lỗi: {type(e).__name__}: {e}",
+                                                        f"could not write the target file: {type(e).__name__}: {e}")}
         # Dời entry state runtime (last_run/runs_today/fail_streak) để đích không nổ lại ngay.
         try:
             src_state = self.read_state(from_brain)
@@ -628,10 +626,10 @@ class LoopFeature:
         """Shim run_loop_cycle của main.py: chạy loop đến hạn nhất (nếu có)."""
         self.ensure_migrated()
         if self.lock.locked():
-            return {"ok": False, "error": "Đang chạy một vòng khác"}
+            return {"ok": False, "error": localefmt.chu("Đang chạy một vòng khác", "Another cycle is running")}
         target = self._pick_due()
         if not target:
-            return {"ok": True, "summary": "Không có loop nào đến hạn."}
+            return {"ok": True, "summary": localefmt.chu("Không có loop nào đến hạn.", "No loop is due.")}
         return await self.run_cycle(target[0], target[1]["slug"], reason)
 
     # ══════════════════════ log ══════════════════════
@@ -781,12 +779,7 @@ class LoopFeature:
                 # PHẢI truyền brain để cli.joyce_vault đúng brain đang chạy - thiếu brain thì
                 # plugin (vd joyce_generate_image) không suy được vault, rơi về Brain Default.
                 try:
-                    # vault_pin: loop chạy trên brain cố định - ghim X-Joyce-Vault vào config
-                    # hub để tool file/connector khỏi rơi về "brain đang mở" trên UI.
-                    try:
-                        self.deps.apply_mcp(cli, mode="full", brain=brain, vault_pin=True)
-                    except TypeError:
-                        self.deps.apply_mcp(cli, mode="full", brain=brain)   # hub nhận mode qua header X-Joyce-Mode
+                    self.deps.apply_mcp(cli, mode="full", brain=brain, vault_pin=True)   # hub nhận mode qua header X-Joyce-Mode
                 except TypeError:
                     self.deps.apply_mcp(cli)
             # KHÔNG _isolate: full mode chủ đích mở MCP + Bash. Không có apply_mcp (test) → vẫn None allowlist.
@@ -803,10 +796,7 @@ class LoopFeature:
                 # cùng lý do (plugin in-process cần joyce_vault đúng).
                 hub_mode = "auto" if mode == "auto" else "suggest"
                 try:
-                    try:
-                        self.deps.apply_mcp(cli, mode=hub_mode, brain=brain, vault_pin=True)
-                    except TypeError:
-                        self.deps.apply_mcp(cli, mode=hub_mode, brain=brain)
+                    self.deps.apply_mcp(cli, mode=hub_mode, brain=brain, vault_pin=True)
                 except TypeError:
                     self.deps.apply_mcp(cli)
             base_deny = ["Bash", "WebFetch", "WebSearch", "Task"]
@@ -831,35 +821,13 @@ class LoopFeature:
                 # phòng trường hợp allowlist sau này mở thêm pattern plugin.
                 hub_mode = "suggest" if (for_verify or mode not in ("auto",)) else "auto"
                 try:
-                    try:
-                        self.deps.apply_mcp(cli, mode=hub_mode, brain=brain, vault_pin=True)
-                    except TypeError:
-                        self.deps.apply_mcp(cli, mode=hub_mode, brain=brain)
+                    self.deps.apply_mcp(cli, mode=hub_mode, brain=brain, vault_pin=True)
                 except TypeError:
                     self.deps.apply_mcp(cli)   # deps cũ (test) không nhận mode
             else:
                 _isolate(cli)              # không có hook (vd unit test) → giữ 0-MCP như cũ
-        cli = self._apply_loop_engine(cli, mode=("suggest" if for_verify else mode), loop=loop)
+        cli = aux_engine.apply(self.deps, cli, mode=("suggest" if for_verify else mode), tag="loop")
         return cli
-
-    def _apply_loop_engine(self, cli, mode: str, loop: dict):
-        """Engine nền cho 1 vòng loop. Frontmatter `model` của loop (dạng
-        "provider/model" hoặc `model` + `model_provider`) override model việc nền
-        chung; trống hoặc thiếu provider → đi qua router aux như cũ (kèm fallback)."""
-        raw = (loop.get("model") or "").strip()
-        prov = (loop.get("model_provider") or "").strip()
-        if raw and "/" in raw and not prov:
-            prov, raw = (p.strip() for p in raw.split("/", 1))
-        if raw and prov:
-            spec = {"provider": prov, "model": raw}
-            fn = getattr(self.deps, "aux_swap", None)
-            if fn:
-                try:
-                    return fn(cli, mode=mode, tag="loop", spec=spec)
-                except TypeError:
-                    pass    # deps cũ/test không nhận spec
-            return aux_engine.swap(cli, mode=mode, tag="loop", spec=spec)
-        return aux_engine.apply(self.deps, cli, mode=mode, tag="loop")
 
     def _chay_nen(self, brain: str, slug: str, reason: str) -> None:
         async def _run():
@@ -881,11 +849,11 @@ class LoopFeature:
         """1 vòng của 1 loop: dựng prompt theo goal → chạy CLI cô lập → (mode auto) kiểm chứng
         độc lập 'giả định SAI' → ghi log + cập nhật state. Giữ nguyên khung bản gốc."""
         if self.lock.locked():
-            return {"ok": False, "error": "Đang chạy một vòng khác"}
+            return {"ok": False, "error": localefmt.chu("Đang chạy một vòng khác", "Another cycle is running")}
         async with self.lock:
             loop = self.get_loop(brain, slug)
             if not loop:
-                return {"ok": False, "error": f"Không tìm thấy loop '{slug}'"}
+                return {"ok": False, "error": localefmt.chu(f"Không tìm thấy loop '{slug}'", f"Loop '{slug}' not found")}
             self._running = (str(Path(self.deps.brain_root(brain)).resolve()), slug)
             try:
                 return await self._run_cycle_inner(brain, slug, loop, reason)
@@ -925,22 +893,25 @@ class LoopFeature:
                 body += f"\n\n⚠ **{patch['auto_paused_reason']}** - bật lại hoặc bấm Chạy ngay để tiếp tục."
             self._log_append(brain, {"title": title, "body": body})
             # BÁO CÁO mỗi vòng cho NGƯỜI YÊU CẦU loop (mặc định của Joyce; đặt notify: false
-            # trong frontmatter để tắt loop nào quá ồn). owner_chat rỗng (loop tạo trên web) →
-            # helper report tự gửi ID Telegram đầu tiên.
+            # trong frontmatter để tắt loop nào quá ồn). owner_chat rỗng → Joyce Core của brain loop
+            # (0.186.0; trước đây là ID Telegram đầu tiên).
             report_sent = False
             # Thẻ cho khung chat web (dashboard/chat-viec.js, 0.64.49): dòng đầu thẻ đã nói
             # trạng thái và tên loop, nên bản web bỏ câu đầu có emoji.
             viec = {"kind": "loop", "id": slug, "title": str(loop.get("name") or slug)[:160],
                     "status": "blocked" if paused_now else ("failed" if failed else "done")}
+            bat_lai = localefmt.chu(" - bật lại hoặc bấm Chạy ngay để tiếp tục.",
+                                    " - turn it back on or press Run now to continue.")
             if loop.get("notify", True) and self.deps.report:
                 head = "⚠" if failed else "✅"
-                parts = [f"{head} Loop '{loop['name']}' vừa chạy ({reason})."]
+                parts = [localefmt.chu(f"{head} Loop '{loop['name']}' vừa chạy ({reason}).",
+                                      f"{head} Loop '{loop['name']}' just ran ({reason}).")]
                 if summary:
                     parts.append(summary[:1500])
                 if verify_line:
-                    parts.append("Kiểm chứng: " + verify_line)
+                    parts.append(localefmt.chu("Kiểm chứng: ", "Verification: ") + verify_line)
                 if paused_now:
-                    parts.append("⚠ " + patch["auto_paused_reason"] + " - bật lại hoặc bấm Chạy ngay để tiếp tục.")
+                    parts.append("⚠ " + patch["auto_paused_reason"] + bat_lai)
                 try:
                     # Telegram là kênh chữ thuần: lọc khối JOYCE_METRICS/JOYCE_ASK trước khi báo,
                     # kẻo lộ nguyên cụm "<!-- JOYCE_...: ... -->" (system prompt loop dùng chung
@@ -953,21 +924,35 @@ class LoopFeature:
                     # thông báo - lúc đó cái đáng báo (loop hỏng, loop tự tạm dừng) cũng mất
                     # theo. Đây đúng luật việc Kanban đã theo từ 01/09/2026: chỉ thứ CẦN
                     # người dùng ra tay mới được kêu.
+                    # 0.186.0: the loop's own brain (an empty owner_chat lands in that brain's Joyce Core) and a key
+                    # per run, so a retried report is filed once.
+                    kw = {}
+                    if _accepts(self.deps.report, "brain"):
+                        kw = {"brain": vault_root, "dedup": f"loop:{vault_root}:{slug}:{patch['last_run']}"}
                     asyncio.create_task(self.deps.report(
                         loop.get("owner_chat", ""),
                         channel_context.strip_control_blocks("\n\n".join(parts)),
                         quiet=not (failed or paused_now), viec=viec,
-                        web=channel_context.strip_control_blocks("\n\n".join(parts[1:]) or parts[0])))
+                        web=channel_context.strip_control_blocks("\n\n".join(parts[1:]) or parts[0]), **kw))
                     report_sent = True
                 except Exception:
                     pass
             # Auto-pause: broadcast tới MỌI admin (sự kiện an toàn hiếm). Bỏ nếu báo-mỗi-vòng đã
             # gửi chủ loop rồi (tránh nhắn trùng ở setup 1 người dùng).
+            if paused_now and self.deps.incident_hook:
+                try:
+                    self.deps.incident_hook("loop", f"{vault_root}::{slug}", brain=vault_root,
+                                            title=str(loop.get("name") or slug), error=summary[:1500],
+                                            request=str(loop.get("body") or "")[:1500])
+                except Exception:
+                    pass
             if paused_now and self.deps.notify and not report_sent:
                 try:
                     asyncio.create_task(self.deps.notify(
-                        f"⚠ Loop '{loop['name']}' ({slug}) đã tự tạm dừng sau 3 lần lỗi liên tiếp. "
-                        "Mở trang Việc định kỳ để xem log."))
+                        localefmt.chu(f"⚠ Loop '{loop['name']}' ({slug}) đã tự tạm dừng sau 3 lần lỗi liên tiếp. "
+                                      "Mở trang Việc định kỳ để xem log.",
+                                      f"⚠ Loop '{loop['name']}' ({slug}) paused itself after 3 failures in a row. "
+                                      "Open the Recurring work page to see the log.")))
                 except Exception:
                     pass
             return {"ok": not failed, "summary": summary, "verify": verify_line,
@@ -996,7 +981,7 @@ class LoopFeature:
         if gcli is None:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)
         if not gcli.is_available():
-            return {"ok": False, "error": "Claude CLI chưa cài"}
+            return {"ok": False, "error": localefmt.chu("Claude CLI chưa cài", "Claude CLI is not installed")}
         # Trần thời gian như mọi việc nền khác (Kanban, nhắc hẹn): không có thì một vòng treo
         # là treo tới khi tắt máy chủ.
         try:
@@ -1118,12 +1103,11 @@ class LoopFeature:
             workspace: str = Form(None), tools_profile: str = Form(None),
             quiet_hours: str = Form(None), max_runs_per_day: str = Form(None),
             owner_chat: str = Form(None), notify: str = Form(None),
-            model: str = Form(None), model_provider: str = Form(None),
             body: str = Form(""), brain: str = Form("brain"),
         ):
             self.ensure_migrated()
             if mode not in ("suggest", "auto", "full"):
-                return {"ok": False, "error": "mode phải là suggest, auto hoặc full"}
+                return {"ok": False, "error": localefmt.chu("mode phải là suggest, auto hoặc full", "mode must be suggest, auto or full")}
             # Tra loop cũ theo slug NGUYÊN VĂN trước (stem tự do, vd tiếng Việt user tự đặt),
             # rồi mới thử bản ascii - để "Sửa" ghi đè đúng file gốc thay vì fork bản sao.
             raw = (slug or name).strip()
@@ -1133,14 +1117,14 @@ class LoopFeature:
             # giữ giá trị loop cũ (sửa), hoặc mặc định an toàn (tạo mới: goal=custom = freeform).
             goal = goal or (old["goal"] if old else "custom")
             if goal not in GOALS:
-                return {"ok": False, "error": f"goal phải là 1 trong {'/'.join(GOALS)}"}
+                return {"ok": False, "error": localefmt.chu(f"goal phải là 1 trong {'/'.join(GOALS)}", f"goal must be one of {'/'.join(GOALS)}")}
             tools_profile = tools_profile or (old["tools_profile"] if old else "vault-safe")
             if tools_profile not in ("vault-safe", "code"):
-                return {"ok": False, "error": "tools_profile phải là vault-safe hoặc code"}
+                return {"ok": False, "error": localefmt.chu("tools_profile phải là vault-safe hoặc code", "tools_profile must be vault-safe or code")}
             workspace = workspace if workspace is not None else (old["workspace"] if old else "vault")
             ws = (workspace or "vault").strip() or "vault"
             if ws != "vault" and not Path(ws).is_dir():
-                return {"ok": False, "error": f"workspace '{ws}' không tồn tại"}
+                return {"ok": False, "error": localefmt.chu(f"workspace '{ws}' không tồn tại", f"workspace '{ws}' does not exist")}
             if quiet_hours is None:
                 quiet_hours = old["quiet_hours"] if old else ""
             if max_runs_per_day is None:
@@ -1159,16 +1143,11 @@ class LoopFeature:
             oc = owner_chat if owner_chat is not None else (old["owner_chat"] if old else "")
             nf = (notify in ("1", "true", "True", "on", "yes")) if notify is not None \
                 else (bool(old["notify"]) if old else True)
-            # model: form web không gửi → giữ nguyên của loop cũ (như owner_chat).
-            lm = model if model is not None else (old.get("model", "") if old else "")
-            lp_ = model_provider if model_provider is not None else (old.get("model_provider", "") if old else "")
             loop = self.save_loop(brain, {
                 "slug": s, "name": name.strip() or s, "enabled": en, "goal": goal, "mode": mode,
                 "interval_min": iv, "workspace": ws, "tools_profile": tools_profile,
                 "quiet_hours": quiet_hours.strip(), "max_runs_per_day": mr,
-                "owner_chat": (oc or "").strip(), "notify": nf,
-                "model": (lm or "").strip(), "model_provider": (lp_ or "").strip(),
-                "body": body,
+                "owner_chat": (oc or "").strip(), "notify": nf, "body": body,
             })
             self.register_brain(brain)
             return {"ok": True, "loop": self.loop_view(brain, loop)}
@@ -1197,7 +1176,7 @@ class LoopFeature:
         @router.post("/loops/run-now")
         async def loops_run_now(slug: str = Form(...), brain: str = Form("brain")):
             if self.lock.locked():
-                return {"ok": False, "error": "Đang chạy một vòng khác"}
+                return {"ok": False, "error": localefmt.chu("Đang chạy một vòng khác", "Another cycle is running")}
             if not self.get_loop(brain, slug):
                 return {"ok": False, "error": "not found"}
             self.register_brain(brain)
@@ -1252,11 +1231,11 @@ class LoopFeature:
         @router.post("/loop/run-now")
         async def loop_run_now():
             if self.lock.locked():
-                return {"ok": False, "error": "Đang chạy"}
+                return {"ok": False, "error": localefmt.chu("Đang chạy", "Already running")}
             self.ensure_migrated()
             brain = self._read_legacy_raw().get("brain") or "brain"
             if not self.get_loop(brain, LEGACY_SLUG):
-                return {"ok": False, "error": f"Chưa có loop {LEGACY_SLUG}"}
+                return {"ok": False, "error": localefmt.chu(f"Chưa có loop {LEGACY_SLUG}", f"Loop {LEGACY_SLUG} does not exist yet")}
             asyncio.create_task(self.run_cycle(brain, LEGACY_SLUG, "manual"))
             return {"ok": True, "started": True}
 

@@ -1,7 +1,9 @@
 name: Nhật ký dùng tool
+name_en: "Tool usage log"
 slug: tool-audit
 version: 1.0.0
 description: Đếm số lần MỖI tool được engine gọi (qua hook post_tool_call) và cho xem thống kê tool hay dùng. Đây là ví dụ minh hoạ cơ chế HOOK của plugin. BẬT mặc định từ 10/2026 - trang Công cụ đọc counts.json để hiện 'luồng dữ liệu đang dùng'.
+description_en: "Counts how many times EACH tool is called by an engine (through the post_tool_call hook) and shows the most used tools. It is a demo of the plugin HOOK mechanism. OFF by default: turn it on with POST /plugins/toggle (slug=tool-audit) to try it."
 author: Joyce (bundled)
 enabled: true
 min_mode: readonly

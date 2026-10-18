@@ -12,7 +12,9 @@
     // ---- 1) Header mobile: dời chip model + nút + lên header; desktop trả về chỗ cũ ----
     var mbOpen = document.getElementById("mbOpen");
     var mbPop = document.getElementById("mbPop");
-    var modelBar = document.getElementById("modelBar");
+    // Từ 0.153.0 chip model nằm trong hàng nút của composer (#cpChips); bảng chọn (#mbPop) là con của thẻ.
+    var chipHost = document.getElementById("cpChips");
+    var mbPopHome = mbPop ? mbPop.parentElement : null;
     var headerRoot = document.querySelector(".hud-top");
     var headerCenter = document.querySelector(".hud-center-title");
     var newChatBtn = document.getElementById("newChatBtn");
@@ -35,9 +37,9 @@
         }
         if (newChatBtn && newChatBtn.parentElement !== headerRoot) headerRoot.appendChild(newChatBtn);  // + về cuối header
       } else {
-        if (mbOpen && modelBar && mbOpen.parentElement !== modelBar) {
-          modelBar.insertBefore(mbOpen, modelBar.firstChild);
-          if (mbPop) modelBar.insertBefore(mbPop, mbOpen.nextSibling);
+        if (mbOpen && chipHost && mbOpen.parentElement !== chipHost) {
+          chipHost.insertBefore(mbOpen, document.getElementById("effBtn"));
+          if (mbPop && mbPopHome) mbPopHome.appendChild(mbPop);
         }
         if (newChatBtn && origNewChatParent && newChatBtn.parentElement !== origNewChatParent) origNewChatParent.appendChild(newChatBtn);
         if (notificationTrigger && origNotificationParent && notificationTrigger.parentElement !== origNotificationParent) {

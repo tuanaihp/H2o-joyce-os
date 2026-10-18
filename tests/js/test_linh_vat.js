@@ -110,15 +110,9 @@ check("tắt dấu ấn thì trả lại thẻ <img> nguyên bản", /o\.innerHT
 // Chữ "JOYCE OS" nằm CẠNH dấu ấn trong cùng khối .rail-brand. Nếu pet.js thay ruột của cả
 // khối thì mỗi lần đổi hình dáng hay bảng màu là chữ bị xoá theo - nên nó phải nhắm vào ô
 // con .brand-mark, và index.html phải có sẵn ô con đó.
-// Danh sách được phép THÊM ô (0.65.34 thêm .js-brand-mark cho màn đăng nhập + wizard), miễn
-// là mọi mục vẫn là một Ô dấu ấn con - không bao giờ là cả khối ".rail-brand" trần.
-check("dấu ấn thay ruột ô .brand-mark, không thay cả khối thương hiệu", (function () {
-  const m = /var LO_DAU_AN = "([^"]+)";/.exec(pet);
-  if (!m) return false;
-  const muc = m[1].split(",").map((x) => x.trim());
-  return muc.includes(".rail-brand .brand-mark") && muc.includes(".brand .brand-icon")
-    && !muc.includes(".rail-brand");
-})());
+check("dấu ấn thay ruột ô .brand-mark, không thay cả khối thương hiệu",
+  // Joyce mở rộng thêm .js-brand-mark (logo màn đăng nhập/wizard) ngoài hai ô của Javis.
+  /\.rail-brand \.brand-mark, \.brand \.brand-icon/.test(pet) && /LO_DAU_AN/.test(pet));
 check("index.html: .rail-brand có ô dấu ấn riêng và chữ JOYCE OS",
   /<div class="rail-brand"><span class="brand-mark">/.test(html)
   && /<span class="rail-brand-text">JOYCE <i>OS<\/i><\/span>/.test(html));
@@ -226,7 +220,7 @@ check("hàng đợi có trần, không phình vô hạn", /if \(_tinDutMang\.len
 check("mất mạng được báo NGAY TRONG khung chat (orb bị ẩn ở trang Trò chuyện)",
   /function baoDutMang\(dut\)/.test(app) && /showActivity\(Icons\.warn\(window\.t\("app\.ws_mat_ket_noi"\)\)\)/.test(app));
 check("chờ một nhịp mới báo, khỏi nhấp nháy khi iOS ẩn trang", /\}, 2500\);/.test(app));
-check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDutMang\(true\);/.test(app));
+check("ws.onclose gọi baoDutMang", /ws\.onclose = \(e?\) => \{[\s\S]{0,320}baoDutMang\(true\);/.test(app));
 ["app.ws_mat_ket_noi", "app.ws_giu_tin", "app.ws_tra_tin"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });

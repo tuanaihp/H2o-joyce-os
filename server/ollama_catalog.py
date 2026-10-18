@@ -30,6 +30,8 @@ import os
 import time
 from pathlib import Path
 
+import localefmt
+
 # name, size_gb, ho (họ model), mô tả ngắn, các nhãn năng lực
 _NEN = [
     # Qwen3 bản thường là model LAI: có thể suy nghĩ dài trước khi trả lời, và trên CPU thì
@@ -41,11 +43,7 @@ _NEN = [
     ("qwen3:8b", 5.2, "qwen", "Cân bằng giữa chất lượng và tốc độ, hợp máy 16GB RAM.", ["tools", "thinking"]),
     ("qwen3:14b", 9.3, "qwen", "Khá hơn hẳn bản 8b khi viết dài và suy luận nhiều bước.", ["tools", "thinking"]),
     ("qwen3:32b", 20.0, "qwen", "Mạnh, cần GPU khá hoặc nhiều RAM.", ["tools", "thinking"]),
-    ("qwen3-vl:8b", 6.1, "qwen", "Chuyên nhìn ảnh - đọc UI, OCR, bóc tách layout và ảnh concept.", ["vision", "tools"]),
     ("qwen3-coder:30b", 19.0, "qwen", "Chuyên viết và đọc code.", ["tools"]),
-    ("qwen2.5:3b", 1.9, "qwen", "Rất nhẹ, phản hồi nhanh - hợp hỏi đáp ngắn và chạy nền.", ["tools"]),
-    ("qwen2.5:7b", 4.7, "qwen", "Đa năng cân bằng, tiếng Việt tốt - bản vàng của Qwen 2.5.", ["tools"]),
-    ("qwen2.5-coder:7b", 4.7, "qwen", "Chuyên code mà nhẹ - viết/sửa code, đọc lỗi, giải thích hàm.", ["tools"]),
     ("llama3.1:8b", 4.9, "llama", "Bản phổ thông của Meta, tài liệu và ví dụ nhiều nhất.", ["tools"]),
     ("llama3.2:3b", 2.0, "llama", "Rất nhẹ, hợp máy yếu hoặc chạy nền.", ["tools"]),
     ("llama3.3:70b", 43.0, "llama", "Chất lượng cao nhất dòng Llama, đòi máy rất mạnh.", ["tools"]),
@@ -61,7 +59,6 @@ _NEN = [
     ("nomic-embed-text", 0.3, "nomic", "Sinh vector cho tìm kiếm ngữ nghĩa, không dùng để chat.", ["embedding"]),
     ("mxbai-embed-large", 0.7, "mxbai", "Vector chất lượng cao cho tìm kiếm.", ["embedding"]),
     ("llava:7b", 4.7, "llava", "Đọc và mô tả ảnh.", ["vision"]),
-    ("gpt-oss:20b", 13.8, "openai", "Model mở của OpenAI, MoE chỉ ~3.6B active - nhanh bất ngờ mà biết suy luận.", ["tools", "thinking"]),
 ]
 
 _TTL = 6 * 3600          # 6 tiếng: danh mục model không đổi theo giờ
@@ -176,6 +173,9 @@ def goi_y(specs: dict) -> list:
     ram = float(specs.get("ram_gb") or 0) or RAM_KHI_CHUA_BIET
     vram = float(specs.get("vram_gb") or 0)
     co_gpu = bool(specs.get("has_gpu"))
+    # Chip Apple: GPU dùng CHUNG RAM (Metal), không có VRAM rời. Trước 0.92.2 vram = 0 nên mọi model rơi vào nhánh "Chạy bằng
+    # CPU và RAM" dù Ollama chạy trọn trên GPU. Model vừa trần RAM là chạy được bằng GPU của chip.
+    apple = co_gpu and vram <= 0 and "apple" in str(specs.get("gpu_name") or "").lower()
     tran = ram * CHUA_LAI
 
     nhanh, lon = [], []
@@ -192,14 +192,25 @@ def goi_y(specs: dict) -> list:
         cham_vi_nghi = (not co_gpu) and "thinking" in (m.get("tags") or [])
         d["cham_vi_nghi"] = cham_vi_nghi
         if co_gpu and vram > 0 and cd <= vram:
-            d["note"] = "Chạy trọn trong GPU, nhanh nhất"
+            d["note"] = localefmt.chu("Chạy trọn trong GPU, nhanh nhất", "Runs fully on the GPU, fastest")
+            d["chay_gpu"] = True
+            nhanh.append(d)
+        elif apple:
+            d["note"] = localefmt.chu("Chạy bằng GPU của chip Apple, dùng chung RAM",
+                                      "Runs on the Apple chip's GPU, sharing RAM")
+            d["chay_gpu"] = True
+            d["cham_vi_nghi"] = False
             nhanh.append(d)
         else:
-            d["note"] = ("Vượt VRAM, phải bù bằng RAM nên chậm hơn" if (co_gpu and vram > 0)
-                         else "Chưa đọc được cấu hình máy - đây là mức an toàn" if not biet
-                         else "Chạy bằng CPU và RAM")
+            d["note"] = (localefmt.chu("Vượt VRAM, phải bù bằng RAM nên chậm hơn",
+                                       "Exceeds VRAM, spills into RAM so it is slower") if (co_gpu and vram > 0)
+                         else localefmt.chu("Chưa đọc được cấu hình máy - đây là mức an toàn",
+                                            "Could not read the machine specs - this is the safe size") if not biet
+                         else localefmt.chu("Chạy bằng CPU và RAM", "Runs on CPU and RAM"))
             if cham_vi_nghi:
-                d["note"] += ". Model này suy nghĩ dài trước khi trả lời, trên CPU sẽ rất chậm - nên chọn bản instruct"
+                d["note"] += localefmt.chu(
+                    ". Model này suy nghĩ dài trước khi trả lời, trên CPU sẽ rất chậm - nên chọn bản instruct",
+                    ". This model thinks at length before answering, which is very slow on CPU - pick the instruct version")
             lon.append(d)
 
     # Lớn trước trong cả hai rổ: cùng một hạng thì model to hơn gần như luôn trả lời khá hơn.
@@ -238,9 +249,11 @@ def goi_y(specs: dict) -> list:
     # Chọn xong mới sắp để HIỆN: nhóm chạy trong GPU lên trước, trong mỗi nhóm lớn trước. Việc
     # trải rộng đã xong ở trên nên sắp lại không làm mất model lớn nào, chỉ để mắt đọc xuôi -
     # không còn cảnh một model 70B nằm chen giữa mấy model chạy GPU.
-    ra.sort(key=lambda m: (0 if m.get("note", "").startswith("Chạy trọn") else 1,
+    # Xếp theo cờ chứ không theo chữ của note: note giờ theo ngôn ngữ giao diện.
+    ra.sort(key=lambda m: (0 if m.get("chay_gpu") else 1,
                            1 if m.get("cham_vi_nghi") else 0,
                            -float(m.get("size_gb") or 0)))
     for m in ra:
         m.pop("cham_vi_nghi", None)       # cờ nội bộ để xếp, không phải dữ liệu cho giao diện
+        m.pop("chay_gpu", None)
     return ra[:MAX_GOI_Y]

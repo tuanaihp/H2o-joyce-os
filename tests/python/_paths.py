@@ -35,6 +35,12 @@ try:
 except ImportError:
     pass
 
+# Chốt engine thật cho judge/review/team: test nào quên stub vẫn bị chặn trước khi spawn CLI.
+import os as _os2
+_os2.environ["JOYCE_NO_REAL_JUDGE_ENGINE"] = "1"
+_os2.environ["JOYCE_NO_REAL_REVIEW_ENGINE"] = "1"
+_os2.environ["JOYCE_NO_REAL_TEAM_ENGINE"] = "1"
+
 
 def moi_route(app):
     """Mọi route của app, ĐI ĐỆ QUY qua các router con. Trả danh sách đối tượng route.

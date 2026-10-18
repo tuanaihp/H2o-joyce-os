@@ -75,6 +75,7 @@
   // Việc chạy nền (0.64.66) không có trang nào liệt kê: thẻ không có nút mở trang.
   function trangCua(kind) {
     if (kind === "job") return "";
+    if (kind === "webhook") return "webhooks";   // 0.204.0: its own page
     return (kind === "loop" || kind === "reminder") ? "selfimprove" : "kanban";
   }
 

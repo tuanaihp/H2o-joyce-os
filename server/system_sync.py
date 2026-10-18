@@ -88,14 +88,13 @@ def _norm_text(text: str) -> str:
 
 def _split_frontmatter(text: str):
     """Trả (meta dict, body). Không có frontmatter → ({}, text)."""
-    if (text or "").startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            try:
-                meta = fastyaml.safe_load(parts[1]) or {}
-            except Exception:
-                meta = {}
-            return (meta if isinstance(meta, dict) else {}), parts[2]
+    parts = fastyaml.split_frontmatter(text)
+    if parts:
+        try:
+            meta = fastyaml.safe_load(parts[0]) or {}
+        except Exception:
+            meta = {}
+        return (meta if isinstance(meta, dict) else {}), parts[1]
     return {}, (text or "")
 
 
@@ -441,11 +440,8 @@ def mirror_skills(root) -> None:
                             and (p / "SKILL.md").is_file()):
                 try:
                     dst_dir = mirror / d.name
-                    # Bỏ .history/ (kho version của /skills save) - mirror là bản ĐANG DÙNG
-                    # cho engine native, kéo theo lịch sử chỉ phình mirror + rác chữ ký.
                     rels = sorted(p.relative_to(d).as_posix()
-                                  for p in d.rglob("*") if p.is_file()
-                                  and ".history" not in p.relative_to(d).parts)
+                                  for p in d.rglob("*") if p.is_file())
                     for rel in rels:
                         dst_f = dst_dir / rel
                         dst_f.parent.mkdir(parents=True, exist_ok=True)
@@ -554,7 +550,7 @@ def _mirror_signature(canonical: Path) -> str:
         for e in entries:
             try:
                 if e.is_dir(follow_symlinks=False):
-                    if e.name not in (".disabled", ".history"):
+                    if e.name != ".disabled":
                         stack.append(Path(e.path))
                     continue
                 st = e.stat(follow_symlinks=False)
@@ -690,6 +686,8 @@ LEGACY_HASHES.update({
         # bản v0.9.70 (trước khi vá I1 final-fix-gd2: mục Loop dạy gõ YAML tay, không gọi
         # joyce_schedule; thiếu owner_chat/goal trong template)
         "b399b173c59b4a6c61fdf294944aec06e9cd6cdcd28d02cabaf1cbb424dc844b",
+        # bản 0.96.1 (trước khi agent đổi từ `group` sang `tags` ở 0.100.0)
+        "407a1eebf9248304be7d7d9db11d627afb38ef2fdb446661f8a68df776acd8f2",
     },
     # ingest-source bản trước contextual-retrieval (v0.9.33) = 313675bc... đã có ở trên
     "skills/lint-wiki": {

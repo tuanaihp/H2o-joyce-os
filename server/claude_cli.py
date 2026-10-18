@@ -20,6 +20,7 @@ from typing import AsyncIterator, Optional
 
 # Chỉ để dùng strip_provider_markers. engine KHÔNG import ngược claude_cli nên không có vòng.
 import engine
+import localefmt
 
 
 # Registry các tiến trình Claude đang chạy - để ngắt giữa chừng.
@@ -29,12 +30,21 @@ _PROC_LOCK = threading.Lock()
 
 
 def _looks_like_codex_resume_error(message: str) -> bool:
-    """Nhận diện lỗi rollout/thread không còn để caller bootstrap từ SQLite đúng một lần."""
+    """Nhận diện lỗi rollout/thread không còn để caller bootstrap từ SQLite đúng một lần.
+
+    Codex 0.161 báo `thread/resume failed: no rollout found for thread id ... (code -32600)` khi
+    chuyển máy hay VPS mà rollout cục bộ không đi theo (issue #595). Câu đó không có "not found"
+    hay "failed to resume", nên trước 0.88.2 chat cũ cứ báo lỗi mãi thay vì dựng lại ngữ cảnh.
+    Lỗi đăng nhập, hạn mức, mạng thì KHÔNG tính, kẻo bootstrap lại một lượt chắc chắn hỏng tiếp."""
     s = (message or "").lower()
+    if any(x in s for x in ("unauthorized", "401", "403", "log in", "login", "sign in", "usage limit",
+                            "rate limit", "quota", "network", "timed out", "connection")):
+        return False
     subject = any(x in s for x in ("resume", "session", "thread", "rollout"))
     failure = any(x in s for x in (
         "not found", "does not exist", "could not find", "failed to load",
         "failed to resume", "unable to resume", "invalid session", "no session",
+        "resume failed", "no rollout", "no thread",
     ))
     return subject and failure
 
@@ -345,15 +355,22 @@ def cau_thieu_cli(ten: str, nhan: str = "") -> str:
     lenh, env = _LENH_CAI_CLI.get(ten, ("", ""))
     hien = nhan or ten
     cau = f"{hien} CLI chưa cài"
+    en = f"{hien} CLI is not installed"
     if lenh:
         cau += f". Cài: {lenh}"
+        en += ". Install: " + lenh.replace("  (Windows) hoặc ", "  (Windows) or ")
     cau += (". Cài rồi vẫn thấy dòng này thì KHỞI ĐỘNG LẠI JOYCE: tiến trình đang chạy giữ "
             "PATH của lúc nó bật nên không thấy binary vừa cài")
+    en += (". Still seeing this after installing? RESTART JOYCE: the running process keeps the "
+           "PATH from when it started, so it cannot see the newly installed binary")
     if os.name == "nt":
         cau += (". Windows: một số installer ghi PATH bằng `setx` và cắt PATH ở 1024 ký tự, "
                 "làm biến mất thư mục npm - lúc đó chỉ thẳng đường dẫn bằng biến môi trường "
                 f"{env}")
-    return cau + "."
+        en += (". Windows: some installers write PATH with `setx`, which cuts PATH at 1024 characters "
+               "and drops the npm folder - in that case point to the binary with the environment "
+               f"variable {env}")
+    return localefmt.chu(cau + ".", en + ".")
 
 
 # ---- Danh sách model của gói Claude Code, đọc từ CHÍNH BINARY `claude` ----
@@ -627,7 +644,8 @@ def auth_status(bo_qua_cache: bool = False):
             ra["stale"] = True
             return ra
         return {"connected": False, "unknown": True,
-                "error": "vừa hỏi hỏng, tạm nghỉ vài giây rồi thử lại"}
+                "error": localefmt.chu("vừa hỏi hỏng, tạm nghỉ vài giây rồi thử lại",
+                                       "the last check failed, wait a few seconds and try again")}
     try:
         # 8 giây cho đường VẼ TRANG, 25 giây cho nút "Kiểm tra lại" (bo_qua_cache=True). Người
         # bấm nút thì sẵn lòng chờ; người chỉ mở trang thì không, và họ không có cách nào biết
@@ -852,19 +870,21 @@ def auth_login_ui_start():
             break
         time.sleep(0.2)
     if not (_LOGIN["url"] or _LOGIN["done"] or _LOGIN["error"]):
-        return {"ok": False, "error": "Không lấy được link đăng nhập (claude CLI không in URL)."}
+        return {"ok": False, "error": localefmt.chu("Không lấy được link đăng nhập (claude CLI không in URL).",
+                                                    "Could not get the sign-in link (the claude CLI printed no URL).")}
     return {"ok": True, "url": _LOGIN["url"], "done": _LOGIN["done"], "error": _LOGIN["error"]}
 
 
 def auth_login_ui_code(code):
     proc = _LOGIN.get("proc")
     if not proc:
-        return {"ok": False, "error": "Chưa bắt đầu đăng nhập (bấm Đăng nhập trước)."}
+        return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập (bấm Đăng nhập trước).",
+                                                    "Sign-in has not started (click Sign in first).")}
     try:
         proc.stdin.write((code or "").strip() + "\n")
         proc.stdin.flush()
     except Exception as e:
-        return {"ok": False, "error": f"Không gửi được code: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Không gửi được code: {e}", f"Could not send the code: {e}")}
     for _ in range(120):   # ~24s
         if _LOGIN["done"]:
             auth_quen_cache()   # đăng nhập xong thẻ phải xanh NGAY, không chờ hết hạn nhớ
@@ -873,7 +893,8 @@ def auth_login_ui_code(code):
             return {"ok": False, "error": _LOGIN["error"]}
         if proc.poll() is not None:
             return {"ok": proc.returncode == 0,
-                    "error": "" if proc.returncode == 0 else "Đăng nhập thất bại - thử lại."}
+                    "error": "" if proc.returncode == 0 else localefmt.chu("Đăng nhập thất bại - thử lại.",
+                                                                           "Sign-in failed - try again.")}
         time.sleep(0.2)
     return {"ok": _LOGIN["done"], "error": _LOGIN.get("error", "")}
 
@@ -976,7 +997,7 @@ def mcp_open_auth_terminal():
                     subprocess.Popen([term, "-e", "claude"])
                     break
             else:
-                return {"ok": False, "error": "Không tìm thấy terminal"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy terminal", "No terminal found")}
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -1035,6 +1056,27 @@ def _home_dir() -> Path:
     return Path("")
 
 
+_CODEX_VERSIONS: dict = {}
+
+
+def _codex_version(path: str) -> Optional[tuple]:
+    """(major, minor, patch) của một binary Codex, nhớ theo (đường dẫn, mtime) để chỉ tốn một
+    tiến trình `--version` mỗi bản, và tự đo lại khi bản đó được cập nhật."""
+    try:
+        key = (path, os.stat(path).st_mtime)
+    except OSError:
+        return None
+    if key not in _CODEX_VERSIONS:
+        try:
+            out = subprocess.run([path, "--version"], capture_output=True, text=True,
+                                 timeout=15, creationflags=_no_window()).stdout
+            m = re.search(r"(\d+)\.(\d+)\.(\d+)", out or "")
+            _CODEX_VERSIONS[key] = tuple(int(x) for x in m.groups()) if m else None
+        except Exception:
+            _CODEX_VERSIONS[key] = None
+    return _CODEX_VERSIONS[key]
+
+
 def find_codex_cli() -> Optional[str]:
     envp = os.environ.get("JOYCE_CODEX_BIN")     # cửa thoát: chỉ thẳng chỗ cài lạ
     if envp:
@@ -1052,18 +1094,32 @@ def find_codex_cli() -> Optional[str]:
         home / ".codex" / ".sandbox-bin" / "codex",
     ]
     # Windows Store có thể đặt app-execution alias ``codex.exe`` lên PATH nhưng
-    # service/tiến trình nền không được quyền chạy alias đó (WinError 5). Bản
-    # executable Codex Desktop xuất trong ~/.codex chạy được thật, nên ưu tiên
-    # nó trên Windows. POSIX vẫn tôn trọng PATH trước như thông lệ.
+    # service/tiến trình nền không được quyền chạy alias đó (WinError 5), nên alias
+    # đó chỉ là đường lui cuối. POSIX vẫn tôn trọng PATH trước như thông lệ.
     cli = tim_binary("codex")
-    if cli and (os.name != "nt" or "windowsapps" not in cli.lower()):
+    if cli and os.name != "nt":
         return cli
+    co = []
+    if cli and "windowsapps" not in cli.lower():
+        co.append(cli)
     for p in cands:
         try:
             if p.exists():
-                return str(p)
+                co.append(str(p))
         except Exception:
             pass
+    # Một máy Windows hay có NHIỀU bản Codex cùng lúc: Codex Desktop xuất một bản vào
+    # ~/.codex/.sandbox-bin và không phải lúc nào cũng cập nhật nó, npm đặt bản khác. Trước
+    # 0.71.1 bản đứng đầu danh sách thắng, và chủ repo đo 03/10/2026: sandbox-bin kẹt ở 0.147
+    # (tháng 8) trong khi npm đã 0.160, nên `model/list` chỉ trả đời GPT-5.6 và trang Models
+    # không có GPT-6.1-Sol. Danh sách model là lời của CHÍNH binary được hỏi, nên phải hỏi bản
+    # MỚI NHẤT. Không đọc được số phiên bản thì giữ thứ tự cũ.
+    if len(co) > 1:
+        best = max(co, key=lambda p: _codex_version(p) or ())
+        if _codex_version(best):
+            return best
+    if co:
+        return co[0]
     if cli:
         return cli
     for p in ("/usr/local/bin/codex", "~/.local/bin/codex"):
@@ -1085,7 +1141,7 @@ def _codex_run(sub_args, timeout=30):
         return None
     return subprocess.run([cli] + list(sub_args), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout,
-                          creationflags=_no_window())
+                          creationflags=_no_window(), env=codex_env())
 
 
 def codex_mcp_parse_list(out):
@@ -1131,8 +1187,9 @@ def codex_mcp_parse_list(out):
         enabled = it.get("enabled")
         auth = str(it.get("auth_status") or it.get("auth") or "").lower()
         needs_login = auth in ("unauthenticated", "needs_login", "not_logged_in", "logged_out")
-        status = ("tắt" if enabled is False
-                  else "cần đăng nhập (codex mcp login)" if needs_login else "đã khai báo")
+        status = (localefmt.chu("tắt", "off") if enabled is False
+                  else localefmt.chu("cần đăng nhập (codex mcp login)", "sign-in needed (codex mcp login)")
+                  if needs_login else localefmt.chu("đã khai báo", "declared"))
         servers.append({"name": name, "url": url, "command": cmd, "transport": ttype,
                         "status": status, "connected": enabled is not False and not needs_login})
     return servers
@@ -1152,7 +1209,7 @@ def codex_mcp_parse_list_text(out):
         if first.lower() in ("name", "server"):    # dòng header bảng
             continue
         servers.append({"name": first, "url": "", "command": "", "transport": "",
-                        "status": "đã khai báo", "connected": True})
+                        "status": localefmt.chu("đã khai báo", "declared"), "connected": True})
     return servers
 
 
@@ -1198,7 +1255,7 @@ def codex_mcp_native_add(name, url=None, command=None, bearer_env=None):
     if not find_codex_cli():
         return {"ok": False, "error": cau_thieu_cli("codex", "Codex")}
     if not (url or command):
-        return {"ok": False, "error": "Thiếu url hoặc command"}
+        return {"ok": False, "error": localefmt.chu("Thiếu url hoặc command", "Missing url or command")}
     try:
         r = _codex_run(_codex_mcp_add_args(name, url, command, bearer_env), timeout=30)
         ok = r is not None and r.returncode == 0
@@ -1244,18 +1301,18 @@ def codex_mcp_open_login_terminal(name):
     # Tên đi vào chuỗi shell trên Windows → chỉ nhận chữ/số/_/- để khỏi tiêm lệnh.
     safe = "".join(ch for ch in str(name or "") if ch.isalnum() or ch in "_-")
     if not safe or safe != str(name):
-        return {"ok": False, "error": "Tên server không hợp lệ"}
+        return {"ok": False, "error": localefmt.chu("Tên server không hợp lệ", "Invalid server name")}
     try:
         if os.name == "nt":
             subprocess.Popen(f'start "Joyce - Dang nhap MCP Codex" cmd /k codex mcp login {safe}',
-                             shell=True)
+                             shell=True, env=codex_env())
         else:
             for term in ("x-terminal-emulator", "gnome-terminal", "konsole", "xterm"):
                 if shutil.which(term):
-                    subprocess.Popen([term, "-e", cli, "mcp", "login", safe])
+                    subprocess.Popen([term, "-e", cli, "mcp", "login", safe], env=codex_env())
                     break
             else:
-                return {"ok": False, "error": "Không tìm thấy terminal"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy terminal", "No terminal found")}
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -1280,6 +1337,13 @@ _NOTE_SANDBOX_HONG = (
     "container chứ không phải lỗi của lượt chạy, và thử lại bao nhiêu lần cũng vậy. Hai lối ra: "
     "đặt biến môi trường JOYCE_CODEX_SANDBOX=off để Codex chạy không có rào riêng (chính "
     "container vẫn là rào), hoặc chuyển việc nền này sang bộ não Claude."
+)
+_NOTE_SANDBOX_HONG_EN = (
+    "⚠ Joyce self-check: Codex's own sandbox (ChatGPT) CANNOT start in this "
+    "environment, so every file read/write command it runs is blocked from the start. This is a limit of "
+    "the container, not a failure of this run, and retrying will not change it. Two ways out: "
+    "set the environment variable JOYCE_CODEX_SANDBOX=off so Codex runs without its own sandbox (the "
+    "container itself is still the sandbox), or move this background work to the Claude brain."
 )
 
 
@@ -1319,6 +1383,76 @@ _RECONNECT_RE = re.compile(r"^\s*(Reconnecting\.\.\.|Falling back from WebSocket
 def _codex_home() -> Path:
     home = os.getenv("CODEX_HOME")
     return Path(home) if home else _home_dir() / ".codex"
+
+
+# Báo lỗi khách 04/10/2026 (Windows, 0.71.0): mọi lượt chat ChatGPT chết với "Codex lỗi (exit 1):
+# WARNING: proceeding, even though we could not create PATH aliases: Could not find home
+# directory". Codex tự tìm home bằng `dirs::home_dir()`: trên Windows hàm đó hỏi thẳng hồ sơ người
+# dùng của Windows (SHGetKnownFolderPath), KHÔNG đọc USERPROFILE, nên hồ sơ hỏng, hồ sơ tạm hay
+# tài khoản không có hồ sơ là Codex mù home, không thấy auth.json, trong khi Joyce (đọc
+# USERPROFILE/HOME qua `_home_dir`) vẫn thấy đăng nhập ChatGPT đầy đủ. Đặt CODEX_HOME thì Codex
+# bỏ qua hẳn bước hỏi Windows, và cả hai bên nhìn cùng một thư mục.
+def codex_env() -> dict:
+    """Biến môi trường cho MỌI tiến trình Codex mà Joyce bật."""
+    env = dict(os.environ)
+    if str(env.get("CODEX_HOME") or "").strip():
+        return env                      # người dùng tự trỏ chỗ khác: tôn trọng
+    home = _home_dir()
+    if str(home) in ("", "."):
+        return env                      # Joyce cũng không biết home: để Codex tự xoay như cũ
+    codex_home = home / ".codex"
+    try:
+        # Codex bắt CODEX_HOME phải tồn tại sẵn (nó canonicalize), máy chưa từng đăng nhập thì chưa có.
+        codex_home.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return env
+    env["CODEX_HOME"] = str(codex_home)
+    if os.name == "nt":
+        if not env.get("USERPROFILE"):
+            env["USERPROFILE"] = str(home)
+    elif not env.get("HOME"):
+        env["HOME"] = str(home)
+    return env
+
+
+# Câu Codex in khi một server MCP `required` không lên (codex-mcp/src/connection_manager/required.rs).
+# Việc nền theo lịch đặt hub là server bắt buộc (mcp_hub.CODEX_REQUIRED_KEY).
+CODEX_REQUIRED_FAIL = "required MCP servers failed to initialize"
+
+
+def codex_loi_hub_bat_buoc(text) -> bool:
+    """Lỗi engine này có phải "hub bắt buộc không lên" của Codex không."""
+    return CODEX_REQUIRED_FAIL in str(text or "")
+
+
+def codex_error_text(returncode, stderr_lines) -> str:
+    """Câu lỗi khi Codex thoát giữa chừng. Lỗi không tìm thấy home thì nói bằng lời người
+    dùng hiểu và chỉ cách xử lý, dòng gốc của Codex vẫn giữ ở dưới để chẩn đoán."""
+    raw = "\n".join(stderr_lines[-5:])
+    # Hub bắt buộc không lên: lý do đứng ĐẦU. stderr của Codex mở đầu bằng vài dòng log rmcp dài
+    # (thử với codex-cli 0.161.0), mà thẻ chat chỉ giữ 300 ký tự và reminders.json 400, nên để
+    # nguyên thì đúng dòng nói lý do bị cắt mất.
+    hub = next((str(l).strip() for l in stderr_lines if CODEX_REQUIRED_FAIL in str(l)), "")
+    if hub:
+        return localefmt.chu(
+            "Cổng công cụ của Joyce (hub) không lên kịp nên Codex không mở phiên, việc chưa chạy. "
+            "Chi tiết từ Codex (exit {code}): {ly_do}",
+            "The Joyce tool hub did not come up in time, so Codex did not open a session and the job "
+            "did not run. Details from Codex (exit {code}): {ly_do}",
+            code=returncode, ly_do=hub[hub.find(CODEX_REQUIRED_FAIL):][:240])
+    if any("could not find home directory" in str(l).lower() for l in stderr_lines):
+        return localefmt.chu(
+            "Codex không tìm thấy thư mục người dùng trên máy này nên không đọc được đăng nhập "
+            "ChatGPT. Hay gặp khi Windows đang dùng hồ sơ tạm hoặc Joyce được bật bằng một tài "
+            "khoản khác. Đăng xuất Windows rồi đăng nhập lại (hoặc khởi động lại máy), sau đó bật "
+            "lại Joyce bằng chính tài khoản đó.\n\nChi tiết từ Codex (exit "
+            + str(returncode) + "):\n" + raw,
+            "Codex could not find the user folder on this computer, so it cannot read the ChatGPT "
+            "sign-in. This usually happens when Windows is on a temporary profile or Joyce was "
+            "started under another account. Sign out of Windows and back in (or restart), then "
+            "start Joyce again from that same account.\n\nDetails from Codex (exit "
+            + str(returncode) + "):\n" + raw)
+    return "Codex lỗi (exit " + str(returncode) + "):\n" + raw
 
 
 def _codex_dung_provider_rieng() -> bool:
@@ -1378,10 +1512,25 @@ def cau_ket_noi_lai(msg: str) -> str:
     """Dòng trạng thái tiếng Việt cho một tin thử lại của Codex (hiện tạm, không thành bong bóng)."""
     s = str(msg or "")
     if s.lower().lstrip().startswith("falling back"):
-        return "Codex chuyển sang đường HTTPS để tới ChatGPT…"
+        return localefmt.chu("Codex chuyển sang đường HTTPS để tới ChatGPT…",
+                             "Codex is switching to HTTPS to reach ChatGPT…")
     m = re.search(r"(\d+)\s*/\s*(\d+)", s)
     lan = f" (lần {m.group(1)}/{m.group(2)})" if m else ""
-    return f"Kết nối tới ChatGPT bị ngắt, Codex đang tự kết nối lại{lan}…"
+    lan_en = f" (attempt {m.group(1)}/{m.group(2)})" if m else ""
+    return localefmt.chu(f"Kết nối tới ChatGPT bị ngắt, Codex đang tự kết nối lại{lan}…",
+                         f"The connection to ChatGPT dropped, Codex is reconnecting{lan_en}…")
+
+
+# Loại item của Codex là một BƯỚC LÀM VIỆC (lệnh máy, gọi tool, tìm web), hiện thành bước trong chat.
+_CODEX_TOOL_ITEMS = ("mcp_tool_call", "command_execution", "function_call",
+                     "tool_call", "local_shell_call", "web_search_call")
+
+
+def _codex_tool_name(it: dict) -> str:
+    """Tên bước: LOẠI việc, không phải nguyên câu lệnh. Trước 0.64.77 lệnh shell lấy `command` làm
+    tên, nên Telegram in nguyên `/bin/sh -lc "sed -n ..."` lên dòng vết. mcp_tool_call của Codex
+    có `server` + `tool`: tên tool mới nói việc gì."""
+    return str(it.get("tool") or it.get("name") or it.get("server") or it.get("type") or "")[:80]
 
 
 class CodexCLI:
@@ -1404,6 +1553,11 @@ class CodexCLI:
         self.vault_root = None
         # 'http' / 'ws' ép đường truyền; None = codex_transport() tự chọn mỗi lượt.
         self.transport = None
+        # True only when the profile's `joyce` entry is the hub (main._apply_codex_hub): then each
+        # query carries the current turn's key so hub hooks know who is talking (turn_context).
+        # Off otherwise, because an override under mcp_servers.joyce with no hub entry would
+        # create a broken half-entry.
+        self.hub_turn = False
 
     def is_available(self) -> bool:
         return self.cli_path is not None
@@ -1427,6 +1581,17 @@ class CodexCLI:
             args += ["-p", self.profile]
         for c in (self.extra_config or []):
             args += ["-c", c]
+        if self.hub_turn:
+            # Built per query, inside the turn: the same CodexCLI serves many turns (and several
+            # people in one group chat), so the key can never live in extra_config.
+            try:
+                import turn_context
+                luot = turn_context.codex_override()
+            except Exception as e:   # noqa: BLE001 - no key means "nobody", never a broken turn
+                print(f"[codex] khoá lượt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+                luot = None
+            if luot:
+                args += ["-c", luot]
         if (self.transport or codex_transport()) == "http":
             for c in codex_http_config():
                 args += ["-c", c]
@@ -1438,7 +1603,8 @@ class CodexCLI:
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
         if not self.cli_path:
-            yield {"type": "error", "content": "Không tìm thấy Codex CLI (cần ChatGPT login qua codex)."}
+            yield {"type": "error", "content": localefmt.chu("Không tìm thấy Codex CLI (cần ChatGPT login qua codex).",
+                                                             "Codex CLI not found (ChatGPT sign-in through codex is needed).")}
             return
         resume_requested = bool(self.session_id)
         t_bat_dau = time.time()
@@ -1473,6 +1639,7 @@ class CodexCLI:
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
                     creationflags=creationflags, start_new_session=(os.name != "nt"),
+                    env=codex_env(),
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag
@@ -1506,17 +1673,29 @@ class CodexCLI:
                             tinfo["timed_out"] = True
                             _kill_tree(p)
                             if ly_do == "tool":
-                                err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo "
-                                       f"server. (tăng JOYCE_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
-                                       f"đặt 0 để bỏ hẳn trần)")
+                                err = localefmt.chu(
+                                    f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo "
+                                    f"server. (tăng JOYCE_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
+                                    f"đặt 0 để bỏ hẳn trần)",
+                                    f"A tool ran over {int(TOOL_IDLE)}s without finishing - stopped to avoid hanging the "
+                                    f"server. (raise JOYCE_CLAUDE_TOOL_TIMEOUT if the job really takes longer, "
+                                    f"set 0 to remove the limit)")
                             elif ly_do == "dau":
-                                err = (f"Codex chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
-                                       f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn "
-                                       f"bộ ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
-                                       f"(JOYCE_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)")
+                                err = localefmt.chu(
+                                    f"Codex chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
+                                    f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn "
+                                    f"bộ ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
+                                    f"(JOYCE_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)",
+                                    f"Codex had not answered after {int(FIRST_IDLE)}s - stopped to avoid hanging the "
+                                    f"server. Common when the conversation is very long: the first turn must reload the whole "
+                                    f"context, which is slow. A new conversation usually fixes it. "
+                                    f"(JOYCE_CLAUDE_FIRST_TIMEOUT=0 removes this limit)")
                             else:
-                                err = (f"Codex đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
-                                       f"(JOYCE_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)")
+                                err = localefmt.chu(
+                                    f"Codex đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
+                                    f"(JOYCE_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)",
+                                    f"Codex went silent for {int(IDLE)}s mid-answer - stopped to avoid hanging the server. "
+                                    f"(JOYCE_CLAUDE_IDLE_TIMEOUT=0 removes this limit)")
                             asyncio.run_coroutine_threadsafe(queue.put({"__error__": err}), loop)
                             return
                         time.sleep(5)
@@ -1546,7 +1725,7 @@ class CodexCLI:
                 st.join(timeout=2)
                 if proc.returncode not in (0, None) and stderr_lines and not tinfo["timed_out"]:
                     asyncio.run_coroutine_threadsafe(
-                        queue.put({"__error__": "Codex lỗi (exit " + str(proc.returncode) + "):\n" + "\n".join(stderr_lines[-5:])}), loop)
+                        queue.put({"__error__": codex_error_text(proc.returncode, stderr_lines)}), loop)
             except Exception as e:
                 traceback.print_exc()
                 asyncio.run_coroutine_threadsafe(queue.put({"__error__": f"Codex subprocess: {type(e).__name__}: {e}"}), loop)
@@ -1568,7 +1747,10 @@ class CodexCLI:
             if item is SENTINEL:
                 break
             if isinstance(item, dict) and "__error__" in item:
-                yield {"type": "error", "content": item["__error__"]}
+                # Lỗi chỉ có trên stderr (Codex thoát trước khi phát sự kiện JSON nào) vẫn có thể là mất
+                # rollout: gắn cờ để caller dựng lại ngữ cảnh từ lịch sử, như nhánh sự kiện JSON ở dưới.
+                yield {"type": "error", "content": item["__error__"],
+                       "resume_failed": resume_requested and _looks_like_codex_resume_error(item["__error__"])}
                 continue
             # Soi trên DÒNG THÔ: output của lệnh nằm rải trong nhiều khuôn item khác nhau tuỳ
             # bản CLI, còn dấu vết của bwrap thì luôn đi qua đây nguyên văn.
@@ -1588,6 +1770,17 @@ class CodexCLI:
                     self.session_id = thread_id
                     # Phát ngay để caller lưu trước cả khi lượt bị ngắt giữa chừng.
                     yield {"type": "session", "session_id": thread_id}
+            elif t == "item.started":
+                # Codex báo lúc một bước BẮT ĐẦU (đo 08/10, Codex 0.160: lệnh `ping` 5 giây có
+                # item.started ở giây 8,8, item.completed ở giây 14). Trước 0.86.1 Joyce chỉ nghe
+                # item.completed, nên suốt lúc một lệnh dài chạy, khung chat im hẳn và người dùng
+                # tưởng treo (khách báo 08/10). Phát `progress` để trang hiện ngay bước đang chạy;
+                # nơi nào không biết loại này thì bỏ qua, `tool_call` lúc xong vẫn y như cũ.
+                it = ev.get("item") or {}
+                itype = it.get("type")
+                if itype in _CODEX_TOOL_ITEMS:
+                    yield {"type": "progress", "name": _codex_tool_name(it), "item": it,
+                           "id": str(it.get("id") or "")}
             elif t == "item.completed":
                 it = ev.get("item") or {}
                 itype = it.get("type")
@@ -1600,18 +1793,14 @@ class CodexCLI:
                     if txt.strip():
                         final_text += (("\n" if final_text else "") + txt)
                         yield {"type": "text", "content": txt}
-                elif itype in ("mcp_tool_call", "command_execution", "function_call",
-                               "tool_call", "local_shell_call", "web_search_call"):
-                    # Tên = LOẠI việc, không phải nguyên câu lệnh. Trước 0.64.77 lệnh shell lấy
-                    # `command` làm tên, nên Telegram in nguyên `/bin/sh -lc "sed -n ..."` lên dòng
-                    # vết. Câu lệnh vẫn đi kèm trong `item` để tool_label.chi_tiet rút ra khi cần.
-                    # mcp_tool_call của Codex có `server` + `tool`: tên tool mới nói việc gì.
-                    name = it.get("tool") or it.get("name") or it.get("server") or itype
+                elif itype in _CODEX_TOOL_ITEMS:
+                    # Câu lệnh đi kèm trong `item` để tool_label.chi_tiet rút ra khi cần.
+                    name = _codex_tool_name(it)
                     # Kèm `item` THÔ. Codex không có trường file_path chuẩn hoá như Claude:
                     # đường dẫn nằm rải trong changes[]/arguments/command tuỳ loại item, và
                     # khuôn còn đổi theo bản CLI. Caller tự moi (channel_context
                     # .candidate_paths_from_tool) thay vì tầng này đoán một khuôn cố định.
-                    yield {"type": "tool_call", "name": str(name)[:80], "item": it}
+                    yield {"type": "tool_call", "name": name, "item": it, "id": str(it.get("id") or "")}
                 elif itype == "error" and la_thong_bao_ket_noi_lai(it.get("message")):
                     # Cùng loại tin với nhánh `error` ở dưới, chỉ khác khuôn (bản CLI in cảnh báo
                     # dạng item). Không đẩy lên thành bước tool.
@@ -1629,7 +1818,8 @@ class CodexCLI:
                 # một bài dài model tự kể lại nỗi bối rối của nó, và không ai đọc ra được là
                 # phải đi sửa ở tầng container.
                 if sandbox_hong:
-                    final_text = (final_text + "\n\n" if final_text else "") + _NOTE_SANDBOX_HONG
+                    final_text = ((final_text + "\n\n" if final_text else "")
+                                  + localefmt.chu(_NOTE_SANDBOX_HONG, _NOTE_SANDBOX_HONG_EN))
                 # Ảnh Codex vẽ bằng skill imagegen riêng nằm ở ~/.codex/generated_images, ngoài
                 # brain: chép về attachments/ và nhúng lại để khung chat, Telegram hiện được.
                 # Làm ở đây thì mọi đường gọi Codex (chat, Telegram, workflow, việc nền) cùng có.

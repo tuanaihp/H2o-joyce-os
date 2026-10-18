@@ -55,7 +55,8 @@ check("overview.js xuất JoyceOverview với 5 trang",
 // trang) và chỉ đi tới các đường dẫn dưới đây: tải tài liệu vào sources, giao việc / gửi ý tưởng,
 // đánh dấu "đã xem" ở Tài liệu chưng cất. Thêm đường ghi mới thì phải thêm vào đây có chủ đích.
 const GHI_CHO_PHEP = ["/files/upload", "/kanban/task", "/api/joyce/v1/overview/chung-cat/xem",
-  "/api/joyce/v1/overview/chung-cat/duyet", "/api/joyce/v1/overview/chung-cat/gop-thu-muc"];
+  "/api/joyce/v1/overview/chung-cat/duyet", "/api/joyce/v1/overview/chung-cat/xoa",
+  "/api/joyce/v1/overview/chung-cat/gop-thu-muc"];
 const ghi = [...OV.matchAll(/fetch\("([^"]+)",\s*\{\s*method:\s*["']POST/g)].map((m) => m[1]);
 check("overview.js: mọi lệnh GHI nằm trong danh sách cho phép", ghi.length > 0 && ghi.every((u) => GHI_CHO_PHEP.includes(u)), ghi.join(", "));
 check("câu hỏi gửi Joyce chỉ ĐIỀN SẴN, không tự gửi", /function hoiJoyce/.test(OV) && !/chatSend|sendBtn|\.click\(\)/.test(OV.slice(OV.indexOf("function hoiJoyce"), OV.indexOf("function moBrain"))));

@@ -215,6 +215,7 @@
   // muon sua mot chu thi phai sua ngoai roi tai len lai. Trinh sua da co san ca hai nut
   // "Mo tab moi" va "Tai ve", nen mo trinh sua la duong ngan hon cho CA hai y dinh.
   var DOWNLOAD_EXT_RE = /\.(?:svg|png|jpe?g|gif|webp|bmp|ico|mp4|webm|mov|avi|mkv|m4v|mp3|wav|m4a|ogg|flac|pdf|docx?|xlsx?|pptx?|zip|rar|7z|tar|gz)$/i;
+  var AUDIO_EXT_RE = /\.(?:mp3|wav|m4a|ogg|oga|opus)$/i;
   function isDownloadFile(rawpath) {
     var clean = String(rawpath || "").split(/[?#]/)[0].replace(/\/+$/, "");
     return DOWNLOAD_EXT_RE.test(clean);
@@ -304,6 +305,7 @@
   var registry = {};   // id -> { type, lang, code }
   var _choTrinhSua = false;   // dang render cho trinh sua .md (xem mdToHtml)
   var _thuMucForRender = "";  // thu muc chua file .md dang render (xem mdToHtml / ungVienAnh)
+  var _anhVForRender = "";    // phien ban anh cua bong bong dang render (xem phienBanAnh)
   function fenceType(lang, code) {
     lang = (lang || "").trim().toLowerCase();
     var head = code.slice(0, 400).replace(/^\s+/, "").toLowerCase();
@@ -404,8 +406,15 @@
     el.replaceWith(box);
   }
   // duPhong (tuy chon): cac URL thu TIEP THEO neu URL dau tai hong. Xem ungVienAnh.
+  // Phien ban anh cua bong bong dang render (opts.anhV, 0.65.33). Gan vao duong /files/raw de AI
+  // ghi de anh cu bang anh moi cung ten thi tin moi van hien anh MOI: cung mot URL thi trinh
+  // duyet dung lai anh da nap. Trinh sua .md khong truyen anhV nen duong dan trong no y nguyen.
+  function phienBanAnh(u) {
+    return (_anhVForRender && /^\/files\/raw\?/.test(u)) ? u + "&v=" + encodeURIComponent(_anhVForRender) : u;
+  }
   function imgHtml(u, alt, rawpath, duPhong) {
-    var con = (duPhong || []).filter(function (x) { return x && x !== u; });
+    u = phienBanAnh(u);
+    var con = (duPhong || []).map(phienBanAnh).filter(function (x) { return x && x !== u; });
     var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' +
       (con.length ? ' data-jv-thu="' + esc(con.join("|")) + '"' : "") +
       ' loading="lazy" onerror="jvImgGone(this)">';
@@ -569,14 +578,15 @@
   // artifact (xem renderFence) - trong mot trinh sua thi noi dung phai NHIN THAY va sua
   // duoc, khong phai nam sau mot cai the.
   function mdToHtml(raw, brain, opts) {
-    var truoc = _brainForRender, truocTS = _choTrinhSua, truocTM = _thuMucForRender;
+    var truoc = _brainForRender, truocTS = _choTrinhSua, truocTM = _thuMucForRender, truocAV = _anhVForRender;
+    _anhVForRender = String((opts && opts.anhV) || "");
     _brainForRender = (brain == null || brain === "") ? null : String(brain);
     _choTrinhSua = !!(opts && opts.trinhSua);
     // opts.thuMuc: thu muc chua CHINH file .md nay, de duong dan tuong doi trong no phan giai
     // dung nhu Obsidian/VS Code. Bo trong = giu hanh vi cu (phan giai theo goc brain).
     _thuMucForRender = String((opts && opts.thuMuc) || "").replace(/^\.?\//, "").replace(/\/+$/, "");
     try { return _mdToHtmlThan(raw); }
-    finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; }
+    finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; _anhVForRender = truocAV; }
   }
   function visibleMarkdown(raw) {
     raw = String(raw == null ? "" : raw);
@@ -585,10 +595,11 @@
   }
 
   function _mdToHtmlThan(raw) {
-    raw = visibleMarkdown(raw);
-
     var ph = [];
     function put(html) { ph.push(html); return OPEN + (ph.length - 1) + CLOSE; }
+    // 0.201.0: JOYCE_CARD blocks (charts, number tiles, buttons) are drawn in place before hidden comments go (chat-card.js).
+    if (typeof window !== "undefined" && window.JoyceCard) raw = window.JoyceCard.replaceIn(raw, put);
+    raw = visibleMarkdown(raw);
 
     // 0) frontmatter YAML o DAU file .md -> khoi rieng, KHONG cho sua, giu nguyen van de luu lai
     //    dung tung ky tu. Xem frontmatterHtml ben duoi de biet vi sao day la mot loi mat du lieu.
@@ -657,7 +668,15 @@
       if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" title="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
       // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
       // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
-      if (isVaultRel(href)) return put('<a ' + vaultLink(decodeVaultPath(href)) + ">" + esc(t) + "</a>");
+      if (isVaultRel(href)) {
+        var vp = decodeVaultPath(href);
+        var lk = '<a ' + vaultLink(vp) + ">" + esc(t) + "</a>";
+        // 0.202.0: a voice note or any audio file in the brain gets a player next to its link (server/voice_note.py).
+        if (AUDIO_EXT_RE.test(vp.split(/[?#]/)[0])) {
+          lk = '<audio class="jv-audio" controls preload="none" src="' + esc(fileUrl(vp.replace(/^\.?\//, ""))) + '"></audio> ' + lk;
+        }
+        return put(lk);
+      }
       var resolved = resolveSrc(href);
       return put('<a href="' + esc(resolved) + '" title="' + esc(resolved) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
     });
@@ -900,7 +919,7 @@
   function wkNoAccent(s) {
     s = String(s == null ? "" : s);
     try { s = s.normalize("NFD").replace(/[̀-ͯ]/g, ""); } catch (e) {}
-    return s.replace(/[đĐ]/g, "d").toLowerCase();
+    return s.replace(/[\u0111\u0110]/g, "d").toLowerCase();
   }
   function wkGetHome(b) {
     if (wkHome && wkHome.b === b) return Promise.resolve(wkHome.v);

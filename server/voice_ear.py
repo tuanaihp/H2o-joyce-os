@@ -126,16 +126,13 @@ def vocab(cfg: dict) -> list:
     """Bộ từ mồi cho tai: tên trợ lý + từ người dùng khai (`nghe_sua.tu_vung`) + tên các kết nối
     MCP. Chỉ dùng làm MỒI cho model nghe, KHÔNG đưa vào lớp sửa mờ `nghe_sua.sua` (sửa mờ với
     nhiều tên dễ đổi nhầm một từ tiếng Việt)."""
-    # Từ người dùng khai đứng CUỐI (sát audio nhất, xem nghe_sua.goi_y_whisper): tên kết nối MCP
-    # đi TRƯỚC. Cắt độ dài thì bỏ từ ở đầu, nên giữ phần đuôi.
-    user = list(nghe_sua.tu_vung(cfg))
-    seen = {t.lower() for t in user}
-    extra = []
+    out = list(nghe_sua.tu_vung(cfg))
+    seen = {t.lower() for t in out}
     for label in _mcp_labels():
         if label.lower() not in seen:
             seen.add(label.lower())
-            extra.append(label)
-    return (extra + user)[-nghe_sua.MAX_TU_VUNG:]
+            out.append(label)
+    return out[:nghe_sua.MAX_TU_VUNG]
 
 
 def whisper_lang(lang: str):

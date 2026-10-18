@@ -114,11 +114,8 @@ finally:
 
 # ---- 5. Có tool MCP thì Ollama cũng là agent, không chỉ chat suông ----
 _src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-# Đọc tuple provider THẬT thay vì so nguyên văn một dòng code: danh sách xuống dòng hay thêm
-# provider (0.65.36 thêm "ollama-local") là test vỡ dù mọi thứ đều đúng.
-_tool_tup = __import__("re").search(r'if prov in \(([^)]*)\):\n\s+try:\n\s+if _hub_enabled\(\)', _src)
 check("ollama nằm trong danh sách provider được phát tool",
-      _tool_tup is not None and '"ollama"' in _tool_tup.group(1))
+      '"gemini", "groq", "deepseek", "ollama", "openai-compat")' in _src)
 check("có nhánh gọi vòng tool cho ollama",
       "engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)" in _src)
 check("CANARY: mã đã sạch hàm chọn địa chỉ",

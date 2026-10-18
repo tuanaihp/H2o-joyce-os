@@ -24,13 +24,17 @@ from urllib.parse import quote, unquote
 
 from fastapi.responses import JSONResponse, Response
 
+import chatbot_doc_tools
 import config
-import h2o_departments
+import doc_text
+import hub_trace
+import localefmt
 import mcp_catalog
 import mcp_client
 import mcp_store
 import skill_router
 import skill_usage
+import turn_context
 from config import STATE_DIR
 
 _TOKEN_PATH = STATE_DIR / ".hub_token"
@@ -44,6 +48,7 @@ _CACHE_TTL = 60
 _CACHE_TTL_THIEU = 10
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
 _rate = {}           # conn_id -> deque[timestamps]
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic"}
 
 
 # ============================================================
@@ -87,6 +92,15 @@ def hub_url():
 def allow_patterns():
     """Pattern cho --allowedTools của loop: mọi tool qua hub đều mang tên mcp__joyce__*."""
     return ["mcp__joyce"]
+
+
+# Tools that only the OWNER's own sessions may see (0.77.0). A dedicated bot at the "can write" / "full" level gets
+# hub tools, and there the person steering the model is a stranger. These two read every customer chat the reply
+# judge logged and retune the bot itself, so a customer must never reach them, not even through the lazy
+# `joyce_run_tool`. `discover_all(for_bot=True)` drops them before the lazy tier; bot paths pass that flag (API
+# engines directly, Claude Code through the X-Joyce-Bot header written by `claude_config_path(bot=True)`).
+# `joyce_team` (0.173.0) creates, edits and deletes team chats and writes assistant files: owner-only for the same reason.
+OWNER_ONLY_TOOLS = frozenset({"joyce_reply_policy", "joyce_reply_policy_tune", "joyce_team", "joyce_memory"})
 
 
 # ============================================================
@@ -407,18 +421,17 @@ def _vung_nhan_file():
 
 
 def _goc_doc_khoi(vault_root):
-    """Brain đang làm việc là brain CẤP KHỐI -> đường dẫn brain các PHÒNG trong khối đó.
+    """Brain đang làm việc là brain CẤP KHỐI -> đường dẫn brain các PHÒNG trong khối đó (H2O).
 
-    Vì sao cần: sáu engine API không có tool đọc file nào ngoài `joyce_read_file`, mà tool đó
-    khoá trong vault. Đứng ở brain khối hỏi "tổng doanh số cả khối Bán Hàng" thì mọi lời gọi
-    đọc sang brain phòng đều nổ "nằm ngoài vault", và nửa "đọc gộp" của brain khối chỉ chạy
-    được trên bốn engine CLI. Nới đúng các phòng CỦA KHỐI ĐÓ và CHỈ CHO ĐỌC: ghi vẫn khoá
-    trong vault, nên không có đường nào để một lượt cấp khối ghi đè dữ liệu của phòng."""
+    Sáu engine API không có tool đọc file nào ngoài `joyce_read_file`, mà tool đó khoá trong
+    vault. Đứng ở brain khối hỏi "tổng doanh số cả khối Bán Hàng" thì mọi lời gọi đọc sang
+    brain phòng đều nổ "nằm ngoài vault". Nới đúng các phòng CỦA KHỐI ĐÓ và CHỈ CHO ĐỌC."""
     try:
         root = Path(str(vault_root or "")).resolve()
     except (OSError, ValueError):
         return []
     try:
+        import h2o_departments
         kh = h2o_departments.khoi_by_brain(root.name)
         if not kh:
             return []
@@ -476,102 +489,6 @@ def _safe_read_path(vault_root, p, cho_phep_staging=False, workspace_root=None):
     if loi:
         raise loi
     return trong_vault                  # trong vault nhưng không tồn tại: để chỗ gọi báo
-
-
-def _van_ban_ooxml(p: Path):
-    """Bóc văn bản từ file Office mới (.docx/.pptx) bằng zipfile + regex, không thư viện ngoài.
-
-    Vì sao phải có: OOXML là tệp zip chứa XML, mà `joyce_read_file` đọc thẳng UTF-8 -
-    đọc một .docx ra toàn byte nén. Model nhận rác đó thì không ingest được, và thực tế
-    hay MÔ TẢ quy trình ingest thay vì làm thật (chủ báo 2026-10: nhờ ingest file quy
-    trình .docx vào brain phòng, model trả lời "đã xử lý" nhưng wiki trống trơn).
-
-    .docx: chữ trong word/document.xml (đoạn = <w:p>, chữ = <w:t>, xuống dòng = <w:br>),
-    cộng header/footer nếu có - thư viện hay giấu chữ ở đó.
-    .pptx: chữ trong ppt/slides/slideN.xml (<a:t>), ghép theo số slide.
-    .xlsx: chữ trong xl/sharedStrings.xml + ô trong xl/worksheets/sheetN.xml,
-    ghép theo hàng (ô cách tab).
-
-    Trả chuỗi text, hoặc None khi file không phải OOXML hợp lệ/hỏng. Office đời cũ
-    (.doc/.xls/.ppt nhị phân) cố tình không đụng - caller báo lỗi hướng dẫn chuyển định
-    dạng thay vì trả rác.
-    """
-    import html as _html
-    import zipfile
-    try:
-        z = zipfile.ZipFile(str(p))
-    except Exception:
-        return None
-    try:
-        suf = p.suffix.lower()
-        if suf == ".docx":
-            parts = ["word/document.xml"]
-            parts += sorted(n for n in z.namelist()
-                            if re.fullmatch(r"word/(header|footer)\d*\.xml", n))
-            gom = []
-            for n in parts:
-                if n not in z.namelist():
-                    continue
-                x = z.read(n).decode("utf-8", "replace")
-                x = re.sub(r"</w:p>", "\n", x)
-                x = re.sub(r"<w:br\b[^>]*/?>", "\n", x)
-                x = re.sub(r"<w:tab\b[^>]*/?>", "\t", x)
-                gom.append(re.sub(r"<[^>]+>", "", x))
-            return _html.unescape("\n".join(gom)).strip()
-        if suf == ".pptx":
-            slides = sorted(
-                (n for n in z.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
-                key=lambda n: int(re.search(r"(\d+)", n).group(1)))
-            gom = []
-            for i, n in enumerate(slides, 1):
-                x = z.read(n).decode("utf-8", "replace")
-                chu = re.findall(r"<a:t>(.*?)</a:t>", x, re.S)
-                gom.append(f"--- slide {i} ---\n" + "\n".join(chu))
-            return _html.unescape("\n".join(gom)).strip()
-        if suf == ".xlsx":
-            # Bảng tính: chữ nằm trong xl/sharedStrings.xml (ô t="s" chỉ giữ CHỈ SỐ),
-            # giá trị trong xl/worksheets/sheetN.xml (<c r=..><v>..). Bóc theo hàng,
-            # ô cách nhau bằng tab - đủ để model đọc giá/KPI, không cần chuẩn CSV.
-            chuoi = []
-            if "xl/sharedStrings.xml" in z.namelist():
-                x = z.read("xl/sharedStrings.xml").decode("utf-8", "replace")
-                for si in re.findall(r"<si>(.*?)</si>", x, re.S):
-                    chuoi.append(_html.unescape(
-                        "".join(re.findall(r"<t[^>]*>(.*?)</t>", si, re.S))))
-            ten_sheet = []
-            if "xl/workbook.xml" in z.namelist():
-                x = z.read("xl/workbook.xml").decode("utf-8", "replace")
-                ten_sheet = [_html.unescape(m) for m in
-                             re.findall(r'<sheet\b[^>]*name="([^"]*)"', x)]
-            sheets = sorted(
-                (n for n in z.namelist() if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n)),
-                key=lambda n: int(re.search(r"(\d+)", n).group(1)))
-            gom = []
-            for i, n in enumerate(sheets):
-                ten = ten_sheet[i] if i < len(ten_sheet) else f"sheet{i+1}"
-                x = z.read(n).decode("utf-8", "replace")
-                hang = []
-                for row in re.findall(r"<row[^>]*>(.*?)</row>", x, re.S):
-                    o = []
-                    for cm in re.finditer(r"<c\b([^>]*?)(?:/>|>(.*?)</c>)", row, re.S):
-                        attrs, inner = cm.group(1), cm.group(2) or ""
-                        if 't="s"' in attrs:
-                            vm = re.search(r"<v>(\d+)</v>", inner)
-                            o.append(chuoi[int(vm.group(1))] if vm
-                                     and int(vm.group(1)) < len(chuoi) else "")
-                        elif 't="inlineStr"' in attrs:
-                            o.append(_html.unescape("".join(
-                                re.findall(r"<t[^>]*>(.*?)</t>", inner, re.S))))
-                        else:
-                            vm = re.search(r"<v[^>]*>(.*?)</v>", inner, re.S)
-                            o.append(_html.unescape(vm.group(1).strip()) if vm else "")
-                    hang.append("\t".join(o).rstrip())
-                gom.append(f"### sheet: {ten}\n"
-                           + "\n".join(r for r in hang if r.strip()))
-            return "\n\n".join(gom).strip()
-        return None
-    finally:
-        z.close()
 
 
 def _connections_json(include_ambient=False, hidden=None, bo_qua=None):
@@ -702,28 +619,17 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                     f"dùng vừa đính kèm vào khung chat.")
         if not p.is_file():
             return f"ERROR: không có file '{rel}'"
-        suf = p.suffix.lower()
-        # File Word/PPT mới là zip nén: đọc utf-8 ra rác byte, model không làm gì được với
-        # nó - bóc XML lấy chữ thật (xem _van_ban_ooxml). Office đời cũ thì báo đường đổi
-        # định dạng thay vì trả rác cho model đoán.
-        if suf in (".docx", ".pptx", ".xlsx"):
-            van = _van_ban_ooxml(p)
-            if van is None:
-                return (f"ERROR: '{rel}' không mở được như file {suf} - file hỏng hoặc "
-                        f"không đúng định dạng Office.")
-            if not van:
-                return f"(file {suf} không có chữ nào đọc được - có thể toàn ảnh)"
-            return van[:100_000] + (f"\n… [cắt, nội dung dài {len(van):,} ký tự]" if len(van) > 100_000 else "")
-        if suf in (".doc", ".ppt", ".xls", ".xlsb"):
-            return (f"ERROR: '{rel}' là định dạng Office CŨ ({suf}, nhị phân) - không đọc ra "
-                    f"chữ được. Mở file rồi 'Lưu thành' định dạng mới ({suf}x) hoặc PDF/TXT "
-                    f"rồi tải lại.")
-        if suf in (".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp",
-                   ".mp4", ".mov", ".mp3", ".wav", ".zip"):
-            return (f"ERROR: '{rel}' là file nhị phân ({suf}) - tool này chỉ trích chữ. "
-                    f"Ảnh thì xem bằng mắt model (đính kèm vào chat); PDF chuyển sang "
-                    f".docx/.txt rồi đọc lại. Giữ file trong sources/ làm tư liệu gốc vẫn đúng.")
-        text = p.read_text(encoding="utf-8", errors="replace")
+        if p.suffix.lower() in _IMAGE_SUFFIXES:
+            # Reading a photo as text hands the model a page of mojibake it then "describes" with confidence. Say what the
+            # file is and how to actually see it (0.73.0).
+            return (f"'{rel}' là file ẢNH ({p.stat().st_size // 1024} KB), tool này chỉ đọc chữ nên không cho bạn thấy ảnh. "
+                    f"Muốn biết trong ảnh có gì, gọi tool joyce_describe_image với images=['{rel}'] (ChatGPT nhìn ảnh thật "
+                    f"rồi tả lại). Muốn người dùng xem ảnh thì nhúng ![]({rel}) vào câu trả lời.")
+        if p.suffix.lower() in doc_text.SUFFIXES:
+            # PDF/Word đọc thô ra toàn mã nhị phân: bóc chữ trước để engine API và Ollama máy nhà đọc được file đính kèm (0.92.2).
+            text = await asyncio.to_thread(doc_text.extract, p)
+        else:
+            text = p.read_text(encoding="utf-8", errors="replace")
         return text[:100_000] + (f"\n… [cắt, file dài {len(text):,} ký tự]" if len(text) > 100_000 else "")
 
     async def _ls(args):
@@ -763,6 +669,19 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                         f"trong số đó.")
             return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài bộ não đang làm việc nên "
                     f"tool này không ghi được. Dùng đường dẫn tương đối trong brain.")
+        # 0.188.0 (Joyce Core spec 13, 14): the learning switch and the forgotten list are the person's, never the
+        # model's; and with learning off nothing new is written under memory/.
+        try:
+            import memory_control
+            mem = (Path(vault_root) / "memory").resolve()
+            rp = p.resolve()
+            if rp.parent == mem and rp.name in (memory_control.LEARNING, memory_control.FORGOTTEN):
+                return "ERROR: công tắc ghi nhớ và danh sách đã quên do người dùng quản lý, tool không ghi được."
+            if (rp == mem or mem in rp.parents) and not memory_control.learning_enabled(mem):
+                return ("ERROR: người dùng đã TẮT việc lưu ghi nhớ mới cho brain này nên không ghi vào memory/. "
+                        "Nói với người dùng rằng ghi nhớ đang tắt (bật lại ở Joyce Core > Trí nhớ).")
+        except Exception:
+            pass
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(str((args or {}).get("content") or ""), encoding="utf-8")
         return f"Đã ghi {p.name} ({len(str((args or {}).get('content') or ''))} ký tự)"
@@ -1165,7 +1084,7 @@ def _store_mtime():
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
                        force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
-                       coding_ctx_cua_phien=None):
+                       coding_ctx_cua_phien=None, for_bot=False):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Joyce-No-Plugins) để model không thấy tool trùng chức năng.
@@ -1179,6 +1098,11 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         Nhận cả DANH SÁCH: một phiên gắn được nhiều thư mục từ 0.63.9.
     Nằm TRONG khoá cache vì hai phiên coding khác repo phải thấy hai danh sách route khác nhau."""
     mode = (mode or "full").strip().lower()
+    # A bot at the "read_docs" level (0.80.0) gets its three document tools and NOTHING else: no
+    # connection, no builtin, no plugin, no lazy tier. Returned before any of those are discovered so
+    # a later change to them cannot leak into this level. See chatbot_doc_tools.
+    if mode == chatbot_doc_tools.MODE:
+        return chatbot_doc_tools.build(vault_root)
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
     # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
     # phải nằm TRONG khoá cache - thiếu nó thì đổi ngôn ngữ ở trang Cài đặt xong vẫn nhận danh
@@ -1193,7 +1117,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # `suggest` chạy được lệnh bằng quyền của phiên `full`.
     _quyen_ctx = getattr(coding_ctx_cua_phien, "permission_mode", "") or ""
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
-           bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx)
+           bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot))
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
@@ -1220,11 +1144,14 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         # Tool ĐA HÀNH ĐỘNG (schema có tham số arg_rules.param, vd action của Pancake) → coi là
         # "read" lúc LIST để còn liệt kê được; chặn thật lúc call (đã có args). Tool thường →
         # phân loại tĩnh theo tool_meta/heuristic.
+        # Tool có `call_rules` → classify(args=None) trả mức NHẸ NHẤT luật cho ra (call_rule_floor):
+        # tool gộp chỉ toàn lệnh ghi như GitHub `label_write` thì không hiện ở mức Chỉ đọc.
         rules = (connector or {}).get("arg_rules") or {}
         props = ((t.get("schema") or {}).get("properties") or {})
-        multiplexed = (bool(rules.get("param") and rules["param"] in props)
-                       or mcp_catalog.call_rule(connector, raw["tool"]) is not None)
-        cls = "read" if multiplexed else mcp_catalog.classify(connector, raw["tool"], None)
+        theo_lenh = mcp_catalog.call_rule(connector, raw["tool"]) is not None
+        multiplexed = bool(rules.get("param") and rules["param"] in props) or theo_lenh
+        cls = ("read" if multiplexed and not theo_lenh
+               else mcp_catalog.classify(connector, raw["tool"], None))
         # Lọc lúc LIST: readonly ẩn tool ghi/nguy hiểm tĩnh; safe ẩn tool nguy hiểm tĩnh.
         if (eff == "readonly" and cls in ("write", "danger")) or (eff == "safe" and cls == "danger"):
             h = hidden.setdefault(conn["id"], {"perm": eff, "ns": conn.get("namespace"), "tools": []})
@@ -1268,6 +1195,12 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
                     route[fn]["call"] = plugins_host.wrap_with_hooks(fn, base, mode, vault_root)
     except Exception as e:
         print(f"[hub] plugin host lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    # Owner-only tools leave a bot's list BEFORE the lazy tier, or `joyce_run_tool` would still dispatch them.
+    if for_bot:
+        tools_spec = [t for t in tools_spec if t.get("fn") not in OWNER_ONLY_TOOLS]
+        for fn in OWNER_ONLY_TOOLS:
+            route.pop(fn, None)
 
     # Snapshot ĐẦY ĐỦ trước lazy cho Capability Registry Phase 2. Registry chỉ dùng metadata;
     # model vẫn nhận đúng danh sách sau lazy như trước.
@@ -1360,6 +1293,32 @@ def _brain_duy_nhat() -> str:
         return str(ds[0])
 
 
+def _brain_tu_phien(ung) -> str:
+    """Đường dẫn tuyệt đối của brain ghi trong cột `sessions.brain`, hoặc "" nếu không dám tin.
+
+    Cột đó KHÔNG luôn là đường dẫn: phiên tạo trước 0.43.1, hay phiên mà dashboard tạo sớm qua
+    /sessions/{id}/model|project, giữ nguyên tên gọi tắt "brain" của brain mặc định (app.js::
+    currentBrainPath). Kiểm nó như đường dẫn thô thì "brain" không resolve được (#610), còn một
+    giá trị TƯƠNG ĐỐI như "." resolve theo cwd của tiến trình thành /app hay gốc repo - một thư
+    mục có thật nhưng không phải brain nào cả, tức đúng kiểu chạy nhầm brain mà luật fail-closed
+    sinh ra để chặn. Nên: "brain" -> Brain Default (cùng quy ước `main._brain_root`), đường dẫn
+    TUYỆT ĐỐI có thật -> chính nó, mọi thứ khác -> "" để rơi về các nấc suy luận sau.
+    """
+    raw = str(ung or "").strip()
+    if not raw:
+        return ""
+    if raw == "brain":
+        p = _brains_dir() / "Brain Default"
+    else:
+        p = Path(raw).expanduser()
+        if not p.is_absolute():
+            return ""
+    try:
+        return str(p.resolve()) if p.is_dir() else ""
+    except OSError:
+        return ""
+
+
 def quen_brain_dang_mo() -> None:
     """Xoá cache brain đang mở. Gọi sau khi đổi brain nếu cần hiệu lực ngay (test dùng)."""
     _BRAIN_CACHE.update({"ts": 0.0, "root": "", "nguon": ""})
@@ -1373,11 +1332,9 @@ def _brain_dang_mo() -> tuple:
     root, nguon = "", ""
     try:
         import sessions
-        ung = sessions.get_store().brain_gan_nhat()
+        ung = _brain_tu_phien(sessions.get_store().brain_gan_nhat())
         if ung:
-            p = Path(ung).expanduser()
-            if p.is_dir():
-                root, nguon = str(p.resolve()), "phien"
+            root, nguon = ung, "phien"
     except Exception as e:
         print(f"[hub brain] {type(e).__name__}: {e}", file=sys.stderr)
     if not root:
@@ -1455,7 +1412,7 @@ def _chan_doan_thieu_brain(header_hong):
 
 
 async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
-                      vault_nguon="", vault_header_hong=""):
+                      vault_nguon="", vault_header_hong="", for_bot=False):
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
@@ -1480,14 +1437,15 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
         return {"jsonrpc": "2.0", "id": mid, "result": {khoa: []}}
     if method == "tools/list":
         tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient)   # Claude/Codex có tool file native → không builtin file
+                                      include_ambient=include_ambient,
+                                      for_bot=for_bot)   # Claude/Codex có tool file native → không builtin file
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
             {"name": t["fn"], "description": (t.get("description") or t["fn"]),
              "inputSchema": t.get("schema") or {"type": "object", "properties": {}}}
             for t in tools]}}
     if method == "tools/call":
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient)
+                                      include_ambient=include_ambient, for_bot=for_bot)
         name = params.get("name") or ""
         result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
@@ -1522,13 +1480,36 @@ async def handle_http(request):
     # Header chỉ nhận đường dẫn thư mục có thật; thiếu header thì `resolve_vault` suy ra brain
     # đang mở rồi NÓI RA ở kết quả tool (xem khối chú thích ở `_brain_dang_mo`). Bearer
     # hub_token vẫn là lớp auth bắt buộc phía trên.
-    return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
-                                 include_ambient=include_ambient,
-                                 raw_vault=request.headers.get("x-joyce-vault"))
+    # A dedicated bot's Claude Code config carries X-Joyce-Bot: 1 (see `claude_config_path(bot=True)`), so the hub
+    # hides OWNER_ONLY_TOOLS from it. The header can only take tools AWAY; leaving it out grants nothing new.
+    for_bot = (request.headers.get("x-joyce-bot") or "").strip() == "1"
+    # Who is talking (`turn` for tool hooks). The CLI engine of a chat turn sends the opaque key
+    # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
+    # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
+    # the server happens to run it in.
+    tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    try:
+        return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
+                                     include_ambient=include_ambient,
+                                     raw_vault=request.headers.get("x-joyce-vault"), for_bot=for_bot)
+    finally:
+        turn_context.reset(tok)
+
+
+async def _handle_one_traced(msg, *args, **kwargs):
+    """`_handle_one` plus a trace of the startup requests (initialize, tools/list).
+
+    A Claude Code startup timeout reads this trace to tell "Claude never reached the hub" from
+    "the hub answered late". See hub_trace."""
+    ev = hub_trace.begin(msg.get("method") if isinstance(msg, dict) else None)
+    try:
+        return await _handle_one(msg, *args, **kwargs)
+    finally:
+        hub_trace.end(ev)
 
 
 async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
-                          raw_vault=None):
+                          raw_vault=None, for_bot=False):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
 
     Tách khỏi `handle_http` để một cửa khác (ví dụ plugin tự lo OAuth qua `register_http`) đi
@@ -1537,20 +1518,26 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
     lệch nhau.
     """
     vault_root, vault_nguon, vault_header_hong = resolve_vault(raw_vault)
+    # "read_docs" opens documents of ONE brain, the bot's, named by the X-Joyce-Vault header Joyce
+    # writes into the bot's config. Without a valid header `resolve_vault` would fall back to the
+    # brain the owner has open, i.e. hand a stranger the owner's documents. No header, no tools.
+    if (mode or "").strip().lower() == chatbot_doc_tools.MODE and vault_nguon != "header":
+        vault_root = None
     try:
         body = await request.json()
     except Exception:
         return JSONResponse(_rpc_error(None, -32700, "parse error"), status_code=400)
     try:
         if isinstance(body, list):
-            out = [r for r in [await _handle_one(m, mode, include_plugins, include_ambient,
-                                                 vault_root, vault_nguon, vault_header_hong)
+            out = [r for r in [await _handle_one_traced(m, mode, include_plugins, include_ambient,
+                                                        vault_root, vault_nguon, vault_header_hong,
+                                                        for_bot=for_bot)
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
-        res = await _handle_one(body, mode, include_plugins, include_ambient, vault_root,
-                                vault_nguon, vault_header_hong)
+        res = await _handle_one_traced(body, mode, include_plugins, include_ambient, vault_root,
+                                       vault_nguon, vault_header_hong, for_bot=for_bot)
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)
@@ -1570,7 +1557,7 @@ def _has_connections():
         return False
 
 
-def claude_config_path(mode="full", vault_root=None):
+def claude_config_path(mode="full", vault_root=None, bot=False):
     """Ghi file --mcp-config 1 entry 'joyce'. 0 connection bật → None (giữ hành vi cũ:
     không config → Claude dùng MCP sẵn của máy).
 
@@ -1583,11 +1570,15 @@ def claude_config_path(mode="full", vault_root=None):
     quyền. Bot không được chạm Read/Write của Claude Code (nó nhận đường dẫn tuyệt đối, trèo
     ra khỏi brain được), nên tool file phải đi qua hub để `_safe_path` chặn.
 
+    `bot=True` (0.77.0) adds X-Joyce-Bot: 1 so the hub hides OWNER_ONLY_TOOLS, and writes a separate file (suffix
+    `_bot`) so the owner's own config for the same brain never carries the header.
+
     File tách riêng theo brain (hậu tố băm) vì đây là file DÙNG CHUNG cho mọi phiên: hai bot
     hai brain chạy cùng lúc mà ghi chung một file là brain nọ đọc header của brain kia.
     """
     mode = (mode or "full").strip().lower()
-    if not _has_connections():
+    # The "read_docs" bot level needs no connection at all: its tools come from the bot's own brain.
+    if not _has_connections() and mode != chatbot_doc_tools.MODE:
         return None
     headers = {"Authorization": f"Bearer {hub_token()}", "X-Joyce-Mode": mode,
                "X-Joyce-Engine": "claude"}
@@ -1599,6 +1590,9 @@ def claude_config_path(mode="full", vault_root=None):
             vault = str(vault_root)
         headers["X-Joyce-Vault"] = vault
         hau_to = "_" + hashlib.sha1(vault.encode("utf-8")).hexdigest()[:10]
+    if bot:
+        headers["X-Joyce-Bot"] = "1"
+        hau_to += "_bot"
     p = STATE_DIR / f".mcp_hub_{mode}{hau_to}.json"
     # X-Joyce-Engine=claude: báo hub đây là engine Claude (có tool native mcp__* của connector
     # tài khoản Claude) → joyce_connections/lazy search kèm gợi ý ambient. Codex/engine API không gắn.
@@ -1727,6 +1721,25 @@ def codex_vault_override(vault_root):
     return f"{CODEX_VAULT_KEY}={_toml_str(ma_hoa_vault(vault))}"
 
 
+CODEX_MODE_KEY = "mcp_servers.joyce.http_headers.X-Joyce-Mode"
+_CODEX_MODES = ("suggest", "auto", "full")
+
+
+def dat_codex_mode(extra_config, mode):
+    """Pin the hub permission level of ONE Codex process with a `-c` override, replacing any earlier one.
+
+    The shared Codex profile is written with `X-Joyce-Mode: full` (the chat path). Before 0.117.0 a
+    background job at suggest or auto (reminder, loop, Kanban) reached hub tools at FULL through that
+    profile, while Grok and Antigravity already got the job's own level. An unknown level falls back to
+    the strictest one, as every other mode mapping here does."""
+    m = str(mode or "full").strip().lower()
+    if m not in _CODEX_MODES:
+        m = "suggest"
+    extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_MODE_KEY + "=")]
+    extra_config.append(f"{CODEX_MODE_KEY}={_toml_str(m)}")
+    return extra_config
+
+
 def dat_codex_vault(extra_config, vault_root):
     """Gắn override brain vào danh sách `-c` của MỘT CodexCLI, THAY override brain cũ nếu có.
 
@@ -1738,6 +1751,39 @@ def dat_codex_vault(extra_config, vault_root):
     override = codex_vault_override(vault_root)
     if override:
         extra_config.append(override)
+    return extra_config
+
+
+# Việc nền theo lịch chạy trên Codex: hub là server BẮT BUỘC.
+#
+# Codex 0.161.0 chụp danh sách tool của lượt và chỉ chờ một server MCP không `required` tới
+# `mcp_optional_startup_grace_ms`, mặc định 1 giây; quá hạn là cả server bị bỏ khỏi lượt đó
+# (codex-mcp/src/connection_manager/tool_catalog.rs). Hub trả `tools/list` qua `discover_all`,
+# cache 60 giây hết hạn là dò lại mọi connector, mất khoảng 2 giây. Hai con số đua nhau nên việc
+# nền lúc có tool hub lúc không (canary 08-09/10/2026: 4 trên 12 lượt nhắc hẹn không thấy
+# `mcp__joyce__*`), model đi vòng qua app ChatGPT hoặc báo không làm được mà nhắc hẹn vẫn ghi xong.
+# `required = true` bắt Codex chờ hub tới `startup_timeout_sec` của profile; hub không lên thì
+# phiên không mở và `codex exec` thoát lỗi TRƯỚC khi gọi model (core/src/session/session.rs); câu
+# lỗi đó do claude_cli.codex_error_text đọc. Chỉ gắn khi profile hub có mặt: override vào
+# `mcp_servers.joyce` mà thiếu entry đó thì Codex từ chối khởi động ("invalid transport").
+CODEX_REQUIRED_KEY = "mcp_servers.joyce.required"
+# `features.apps = false` gỡ hẳn server `codex_apps` (app ChatGPT gắn với tài khoản,
+# codex-mcp/src/mcp/mod.rs). Tool của nó không đi qua hub nên không chịu mức quyền của việc, và
+# là đường vòng model từng chọn cả khi hub có mặt (canary 08/10/2026).
+CODEX_APPS_KEY = "features.apps"
+
+
+def dat_codex_hub_bat_buoc(extra_config):
+    """Gắn `required = true` cho entry hub vào `-c` của MỘT CodexCLI, THAY bản cũ nếu có."""
+    extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_REQUIRED_KEY + "=")]
+    extra_config.append(f"{CODEX_REQUIRED_KEY}=true")
+    return extra_config
+
+
+def dat_codex_tat_app(extra_config):
+    """Tắt app ChatGPT (`codex_apps`) cho MỘT CodexCLI, THAY bản cũ nếu có."""
+    extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_APPS_KEY + "=")]
+    extra_config.append(f"{CODEX_APPS_KEY}=false")
     return extra_config
 
 
@@ -1863,7 +1909,9 @@ def chan_doan_loi(err, conn_id=""):
 def _friendly_tool_error(err, conn_id=""):
     """Bản cho nút Test: nhận ra thì nói đúng bệnh, không nhận ra thì giữ nguyên câu cũ kèm
     nguyên văn lỗi (hành vi lịch sử, có canary trong test canh)."""
-    return chan_doan_loi(err, conn_id) or ("Key chưa đúng hoặc chưa đủ quyền: " + (err or "").strip()[:200])
+    return chan_doan_loi(err, conn_id) or (
+        localefmt.chu("Key chưa đúng hoặc chưa đủ quyền: ", "The key is wrong or lacks permission: ")
+        + (err or "").strip()[:200])
 
 
 async def validate_connection(conn_id):
@@ -1871,7 +1919,8 @@ async def validate_connection(conn_id):
     Trả {ok, label, tools, error}."""
     conn = next((c for c in mcp_store.resolved(enabled_only=False) if c["id"] == conn_id), None)
     if not conn:
-        return {"ok": False, "label": "", "tools": 0, "error": "Không tìm thấy kết nối"}
+        return {"ok": False, "label": "", "tools": 0,
+                "error": localefmt.chu("Không tìm thấy kết nối", "Connection not found")}
     # Connector ẢO (không URL, không command, không phải internal): tool do PLUGIN phục vụ (vd
     # Meta/Facebook gọi Graph API/cookie), không có MCP server để dial. Coi là hợp lệ; đếm tool
     # theo tool_meta để hiển thị.
@@ -1892,9 +1941,17 @@ async def validate_connection(conn_id):
             rep = oauth_mcp.scope_report(conn_id)
             if rep.get("missing"):
                 return {"ok": False, "label": "", "tools": 0,
-                        "error": "Đăng nhập rồi nhưng token thiếu quyền: "
-                                 + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
-                                 + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền." + REVOKE_HINT}
+                        "error": localefmt.chu(
+                            "Đăng nhập rồi nhưng token thiếu quyền: "
+                            + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
+                            + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền." + REVOKE_HINT,
+                            "Signed in, but the token is missing permissions: "
+                            + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
+                            + ". Press Sign in again and tick every permission box."
+                            " If Google shows no permission boxes when you sign in again, that is"
+                            " normal: permissions already granted are passed straight through. To"
+                            " tick them again from scratch, remove Joyce at"
+                            " https://myaccount.google.com/permissions and then Connect again.")}
         except Exception as e:
             print(f"[hub scope] {e}", file=sys.stderr)
     spec = mcp_client._conn_spec(conn)
@@ -1918,11 +1975,15 @@ async def validate_connection(conn_id):
         # có hệ thống (họ sẽ tạo lại key/service account mãi mà không bao giờ ra).
         la_loi_goi = any(k in chi_tiet for k in (
             "ModuleNotFoundError", "ImportError", "Traceback", "No module named"))
-        goi_y = ("Gói MCP này hỏng phụ thuộc - lỗi nằm ở gói, KHÔNG phải key của bạn. "
-                 "Cần ghim phiên bản thư viện trong lệnh chạy (vd uvx --with 'mcp<2' ...)."
-                 if la_loi_goi else "Kiểm tra lại key/URL hoặc thử lại.")
+        goi_y = (localefmt.chu(
+                    "Gói MCP này hỏng phụ thuộc - lỗi nằm ở gói, KHÔNG phải key của bạn. "
+                    "Cần ghim phiên bản thư viện trong lệnh chạy (vd uvx --with 'mcp<2' ...).",
+                    "This MCP package has a broken dependency - the fault is in the package, NOT your key. "
+                    "Pin the library version in the run command (e.g. uvx --with 'mcp<2' ...).")
+                 if la_loi_goi else localefmt.chu("Kiểm tra lại key/URL hoặc thử lại.",
+                                                  "Check the key/URL again or try again."))
         return {"ok": False, "label": "", "tools": 0,
-                "error": "Không kết nối được (" + type(e).__name__
+                "error": localefmt.chu("Không kết nối được (", "Could not connect (") + type(e).__name__
                          + (": " + chi_tiet if chi_tiet else "")
                          + "). " + goi_y}
     label = ""

@@ -114,7 +114,7 @@ check("có CSS cho mồi tải tin cũ", CSS.indexOf(".older-seed") !== -1 && CS
 check("console.js xuất pager ra cho module khác", /window\.JoycePager = pager;/.test(CONSOLE));
 check("pager nhận được cả Node lẫn chuỗi HTML", /if \(ruot && ruot\.nodeType\)/.test(CONSOLE));
 check("trang Kỹ năng gọi pager dùng chung, không tự viết bản thứ hai",
-  /window\.JoycePager\(box, list, SK_MOI_TRANG, veTrang\)/.test(STUDIO));
+  /window\.JoycePager\(box, list, SK_MOI_TRANG, veTrang[,)]/.test(STUDIO));
 check("có hằng số số skill mỗi trang", /const SK_MOI_TRANG = \d+;/.test(STUDIO));
 check("thẻ skill tách thành hàm riêng để mỗi trang dựng lại được",
   /function theSkill\(s\) \{/.test(STUDIO) && /phan\.forEach\(s => fr\.appendChild\(theSkill\(s\)\)\)/.test(STUDIO));

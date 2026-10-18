@@ -42,7 +42,7 @@ CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
 GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
-API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api", "ollama",
+API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "deepseek", "anthropic-api", "ollama",
                  "ollama-local", "openai-compat")
 
 # provider -> tên trường chứa API key trong settings["model"]
@@ -51,6 +51,7 @@ _KEY_FIELD = {
     "openai": "openai_api_key",
     "gemini": "gemini_api_key",
     "groq": "groq_api_key",
+    "deepseek": "deepseek_api_key",
     "anthropic-api": "anthropic_api_key",
     "ollama": "ollama_key",
     # Bản chạy MÁY NHÀ. Trường này thường RỖNG - Ollama trần không có xác thực - và điều đó
@@ -341,7 +342,9 @@ class _ApiAuxEngine:
 
         key = api_key_for(self.provider)
         if not key:
-            yield {"type": "error", "content": f"Chưa có API key cho {self.provider}."}
+            import localefmt
+            yield {"type": "error", "content": localefmt.chu(f"Chưa có API key cho {self.provider}.",
+                                                             f"No API key for {self.provider}.")}
             return
 
         # OpenRouter model trống = "tự chọn free mạnh nhất". User ghi đè bằng
@@ -358,15 +361,19 @@ class _ApiAuxEngine:
             except Exception as e:
                 print(f"[aux router] chọn model free lỗi: {e}", file=sys.stderr)
             if not self.model:
-                yield {"type": "error", "content": "Không chọn được model free OpenRouter."}
+                import localefmt
+                yield {"type": "error", "content": localefmt.chu("Không chọn được model free OpenRouter.",
+                                                                 "Could not pick a free OpenRouter model.")}
                 return
 
         tools, route = [], {}
-        try:
-            tools, route = await mcp_hub.discover_all(self.joyce_mode or "full",
-                                                      vault_root=self.vault_root)
-        except Exception as e:
-            print(f"[aux discover] {e}", file=sys.stderr)
+        # `no_tools` (strip_tools): text-only turn on untrusted input, so the hub is never asked for anything.
+        if not getattr(self, "no_tools", False):
+            try:
+                tools, route = await mcp_hub.discover_all(self.joyce_mode or "full",
+                                                          vault_root=self.vault_root)
+            except Exception as e:
+                print(f"[aux discover] {e}", file=sys.stderr)
 
         messages = []
         sysprompt = self.system_prompt or ""
@@ -394,6 +401,7 @@ class _ApiAuxEngine:
             fn = {"openrouter": eng.openrouter_chat_with_mcp,
                   "openai": eng.openai_chat_with_mcp,
                   "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
+                  "deepseek": eng.deepseek_chat_with_mcp,
                   "anthropic-api": eng.anthropic_chat_with_mcp,
                   "ollama": eng.ollama_chat_with_mcp,
                   "ollama-local": eng.ollama_local_chat_with_mcp,
@@ -402,6 +410,7 @@ class _ApiAuxEngine:
         else:
             fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
                   "gemini": eng.gemini_stream, "groq": eng.groq_stream,
+                  "deepseek": eng.deepseek_stream,
                   "anthropic-api": eng.anthropic_stream,
                   "ollama": eng.ollama_stream,
                   "ollama-local": eng.ollama_local_stream,
@@ -501,6 +510,17 @@ class _FallbackChain:
                     t = (ev or {}).get("type")
                     if t == "error":
                         got_error = ev.get("content") or f"{self._name(e)} trả error"
+                        # Hub bắt buộc không lên: mọi mắt sau lấy tool qua đúng hub đó, chạy tiếp
+                        # là chạy mù rồi báo xong giả. Dừng cả chuỗi, trả nguyên lỗi
+                        # (claude_cli.codex_error_text đã đặt lý do lên đầu).
+                        if _hub_bat_buoc_hong(got_error):
+                            print(f"[aux router] {self._name(e)}: hub bắt buộc không lên - dừng chuỗi, "
+                                  "không thử mắt kế tiếp.", file=sys.stderr)
+                            # Giữ cả lỗi của mắt TRƯỚC (vd Claude hết lượt gói): tasks._het_luot
+                            # đọc nó để hoãn tới giờ gói mở lại. Lý do hub đứng đầu vì ô lỗi bị cắt.
+                            yield {"type": "error",
+                                   "content": got_error + (f" | {dau}" if dau else "")}
+                            return
                         break
                     # Engine CLI chưa đăng nhập trả một FINAL ngắn kiểu "Not logged in ·
                     # Please run /login" chứ không phải error - nuốt nó lại và coi là mắt
@@ -565,9 +585,47 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
     try:
         import mcp_hub
         mcp_hub.dat_codex_vault(cc.extra_config, getattr(claude_cli_obj, "joyce_vault", None))
+        # The job's own level, not the profile's `full` (see mcp_hub.dat_codex_mode).
+        mcp_hub.dat_codex_mode(cc.extra_config,
+                               mode or getattr(claude_cli_obj, "joyce_mode", None) or "full")
     except Exception as e:
         print(f"[aux codex vault] {e}", file=sys.stderr)
+    # Việc nền theo lịch: hub bắt buộc, không app ChatGPT - xem mcp_hub.CODEX_REQUIRED_KEY. Chat
+    # không đi qua hàm này, còn workflow Codex dựng engine riêng (main._workflow_agent_helpers),
+    # nên chỉ các làn trong la_viec_nen_theo_lich đổi hành vi.
+    try:
+        if (cc.profile and la_viec_nen_theo_lich(cc.tag)
+                and bool(cfgmod.read_settings().get("mcp", {}).get("hub", True))):
+            import mcp_hub
+            mcp_hub.dat_codex_hub_bat_buoc(cc.extra_config)
+            mcp_hub.dat_codex_tat_app(cc.extra_config)
+    except Exception as e:
+        print(f"[aux codex hub] {e}", file=sys.stderr)
+    # Fast mode (0.164.0): background runs never get the bolt. Force the normal tier, or a
+    # config.toml with service_tier = "priority" would make every scheduled run fast.
+    cc.extra_config[:] = [x for x in cc.extra_config if not str(x).startswith("service_tier=")]
+    cc.extra_config.append('service_tier="default"')
     return cc
+
+
+# Nhãn lượt của việc nền THEO LỊCH: nhắc hẹn, loop, Kanban ("dispatch:<id>:<hậu tố>"). Mắt dự
+# phòng dựng từ bộ não chính mang thêm hậu tố "-main" (_main_fallback_engine).
+_TAG_VIEC_NEN_THEO_LICH = ("reminder", "loop")
+
+
+def la_viec_nen_theo_lich(tag) -> bool:
+    t = str(tag or "").strip()
+    if t.endswith("-main"):
+        t = t[:-len("-main")]
+    return t in _TAG_VIEC_NEN_THEO_LICH or t.startswith("dispatch:")
+
+
+def _hub_bat_buoc_hong(text) -> bool:
+    try:
+        from claude_cli import codex_loi_hub_bat_buoc
+        return codex_loi_hub_bat_buoc(text)
+    except Exception:
+        return False
 
 
 def _build_grok(spec, claude_cli_obj, mode, tag):
@@ -700,6 +758,58 @@ def _openrouter_free_engine(cli, mode, tag, settings):
         mode=mode or getattr(cli, "joyce_mode", None) or "full",
         tag=(tag or getattr(cli, "tag", "aux")) + "-orfree",
     )
+
+
+def strip_tools(engine, base):
+    """Make a swapped engine (or fallback chain) TEXT-ONLY: no hub, no MCP of any kind (0.77.0).
+
+    For turns whose prompt carries untrusted text (the group reply judge, its self-review): a stranger can write
+    instructions into a group message, and the prompt fences them as data, but the only real wall is that the
+    model has nothing to call. `base` is the sandboxed Claude engine the caller built before `swap` (allowed_tools
+    set, empty MCP file, empty cwd), so it is safe as is. Every other link is stripped or DROPPED:
+
+    - API engines: `no_tools` skips `discover_all`.
+    - Codex: no `-p` profile (that is where the hub entry lives) and `mcp_servers={}` wipes any MCP the user's
+      own config.toml declares.
+    - Grok: its MCP file lives in the working directory (the empty sandbox folder), so the hub entry is removed.
+    - Antigravity (`agy`) and anything unknown: dropped. `agy` reads MCP servers from the shared HOME file, which
+      also serves the owner's own chats, so there is no way to take the hub away for one turn.
+
+    Nothing left: fall back to `base` (a dead Claude login then fails the turn, which the judge treats as silence).
+    """
+    try:
+        links = list(engine._all()) if isinstance(engine, _FallbackChain) else [engine]
+    except Exception:       # noqa: BLE001
+        return base
+    keep = []
+    for e in links:
+        if e is base:
+            keep.append(e)
+            continue
+        try:
+            if isinstance(e, _ApiAuxEngine):
+                e.no_tools = True
+                keep.append(e)
+                continue
+            from claude_cli import CodexCLI
+            if isinstance(e, CodexCLI):
+                e.profile = None
+                e.extra_config = [c for c in (e.extra_config or []) if not str(c).startswith("mcp_servers")]
+                e.extra_config.append("mcp_servers={}")
+                keep.append(e)
+                continue
+            import grok_cli
+            if isinstance(e, grok_cli.GrokCLI):
+                grok_cli.ghi_mcp_settings(e.cwd, None)
+                keep.append(e)
+                continue
+        except Exception as ex:      # noqa: BLE001 - cannot prove it is tool-free: drop it
+            print(f"[aux strip_tools] bỏ {type(e).__name__}: {type(ex).__name__}: {ex}", file=sys.stderr)
+            continue
+        print(f"[aux strip_tools] bỏ {type(e).__name__}: không tắt được công cụ cho riêng lượt này", file=sys.stderr)
+    if not keep:
+        return base
+    return keep[0] if len(keep) == 1 else _FallbackChain(keep)
 
 
 def swap(cli, mode: str = None, tag: str = None, spec: dict = None,

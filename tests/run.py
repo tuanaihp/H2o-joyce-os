@@ -39,7 +39,9 @@ def main() -> int:
 
     py = trinh_thong_dich()
     node = shutil.which("node")
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    env = dict(os.environ, PYTHONIOENCODING="utf-8",
+               JOYCE_NO_REAL_JUDGE_ENGINE="1", JOYCE_NO_REAL_REVIEW_ENGINE="1",
+               JOYCE_NO_REAL_TEAM_ENGINE="1")
 
     viec = []
     if not chi_js:

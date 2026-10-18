@@ -215,9 +215,7 @@ def _o_vi_tri_goi_ten(toks, i, n, s) -> bool:
         if bo_dau(truoc.group(0)) in {bo_dau(x) for x in _MO_DAU}:
             return True
     if sau is None:
-        # Cuối câu nói: giọng nói thường KHÔNG có dấu câu sau tên ("... đúng không David"), nên
-        # tên đứng cuối chính là vị trí gọi. Các chặn ở trên (sau "cho", "với"...) vẫn chạy trước.
-        return True
+        return bool(_RANH_CAU.search(s[toks[i + n - 1].end():]))
     khoang_sau = s[toks[i + n - 1].end():sau.start()]
     if _RANH_CAU.search(khoang_sau):
         return True

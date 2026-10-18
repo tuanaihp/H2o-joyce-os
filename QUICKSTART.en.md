@@ -1,6 +1,6 @@
 # Joyce OS - Quick start
 
-*[Tiếng Việt](QUICKSTART.md) · **English***
+***English** · [Tiếng Việt](QUICKSTART.md) · [简体中文](docs/i18n/zh/QUICKSTART.md) · [Español](docs/i18n/es/QUICKSTART.md) · [日本語](docs/i18n/ja/QUICKSTART.md) · [हिन्दी](docs/i18n/hi/QUICKSTART.md) · [Português](docs/i18n/pt-BR/QUICKSTART.md) · [한국어](docs/i18n/ko/QUICKSTART.md) · [Русский](docs/i18n/ru/QUICKSTART.md) · [Deutsch](docs/i18n/de/QUICKSTART.md) · [Français](docs/i18n/fr/QUICKSTART.md) · [Bahasa Indonesia](docs/i18n/id/QUICKSTART.md)*
 
 Get Joyce OS running in a few minutes. Full guides: [docs/](docs/README.md).
 

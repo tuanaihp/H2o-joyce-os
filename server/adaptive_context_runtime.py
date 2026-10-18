@@ -14,6 +14,7 @@ from pathlib import Path
 import context_compiler
 import context_runtime
 import limit_learner
+import localefmt
 import model_limits
 from context_compiler import ContextItem, HeuristicTokenizer
 from conversation_state import ConversationStateStore
@@ -254,6 +255,7 @@ class AdaptiveContextCanary:
         out = []
         for field_name, name in (("openrouter_key", "openrouter"), ("openai_api_key", "openai"),
                                  ("gemini_api_key", "gemini"), ("groq_api_key", "groq"),
+                                 ("deepseek_api_key", "deepseek"),
                                  ("anthropic_api_key", "anthropic")):
             if str(model_cfg.get(field_name) or "").strip():
                 out.append(name)
@@ -473,7 +475,8 @@ class AdaptiveContextCanary:
                 return AdaptiveContextPlan(
                     "reject", quota_reason, feature_status=status, compiler_report=report,
                     rejection_message=(
-                        "Joyce chưa gửi request vì biết trước là sẽ vượt hạn mức. "
+                        localefmt.chu("Joyce chưa gửi request vì biết trước là sẽ vượt hạn mức. ",
+                                      "Joyce did not send the request because it would exceed the limit. ")
                         + model_limits.blocked_hint(provider, model, needed,
                                                     self._configured_providers())
                     ),

@@ -14,9 +14,9 @@
   "use strict";
 
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin joyce-ui.
-  var PAGES = ["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace",
-               "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects", "selfimprove",
-               "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
+  var PAGES = ["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
+               "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects",
+               "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
                "staff", "usage", "pet", "share"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
   // trong plugin joyce-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
@@ -28,37 +28,49 @@
   // trình duyệt mới biết đang có trang nội dung nào mở và nó có cuộn được không.
   var SCROLLS = ["top", "bottom", "page_top", "page_bottom", "chat_top", "chat_bottom"];
 
+  // Hàm rào dịch. validate() chạy cả dưới node (test_ui_actions.js require thẳng file này), nơi
+  // `window` CHƯA KHAI BÁO: đọc thẳng là ReferenceError, nên phải hỏi bằng typeof. Ngoài trình
+  // duyệt thì tra vi.json để câu báo lỗi vẫn là chữ đọc được chứ không phải mã khoá.
+  // `detail`/`error` ở đây quay về model qua tool joyce_ui, theo cùng ngôn ngữ giao diện như
+  // mấy câu ui.scroll_* bên dưới.
+  function tw(k, v) {
+    if (typeof window !== "undefined" && window.t) return window.t(k, v);
+    var s = k;
+    try { s = require("./i18n/vi.json")[k] || k; } catch (e) { /* không có require */ }
+    return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+      return (v && v[ten] != null) ? String(v[ten]) : m;
+    });
+  }
+
   function validate(frame) {
     frame = frame || {};
     var action = String(frame.action || "");
     var target = String(frame.target || "").trim();
-    if (ACTIONS.indexOf(action) < 0) return { ok: false, error: "action không hỗ trợ: " + action };
+    if (ACTIONS.indexOf(action) < 0) return { ok: false, error: tw("ui.err_action", { action: action }) };
     if (action === "open_page") {
-      if (PAGES.indexOf(target) < 0) return { ok: false, error: "trang không tồn tại: " + target };
+      if (PAGES.indexOf(target) < 0) return { ok: false, error: tw("ui.err_page", { page: target }) };
     } else if (action === "open_file") {
       var p = target.replace(/\\/g, "/");
-      if (!p) return { ok: false, error: "thiếu đường dẫn file" };
+      if (!p) return { ok: false, error: tw("ui.err_no_path") };
       if (p.charAt(0) === "/" || p.charAt(0) === "~" || /^[a-zA-Z]:/.test(p) || /^[a-z]+:\/\//i.test(p)
           || p.split("/").indexOf("..") >= 0) {
-        return { ok: false, error: "đường dẫn phải tương đối trong brain" };
+        return { ok: false, error: tw("ui.err_path_relative") };
       }
       target = p.replace(/^\.\//, "");
     } else if (action === "open_task") {
-      if (!target || !/^[\w.\-:]+$/.test(target)) return { ok: false, error: "mã việc không hợp lệ" };
+      if (!target || !/^[\w.\-:]+$/.test(target)) return { ok: false, error: tw("ui.err_task_id") };
     } else if (action === "scroll") {
-      if (SCROLLS.indexOf(target) < 0) return { ok: false, error: "scroll chỉ nhận: " + SCROLLS.join(", ") };
+      if (SCROLLS.indexOf(target) < 0) return { ok: false, error: tw("ui.err_scroll", { list: SCROLLS.join(", ") }) };
     } else if (action === "open_group") {
-      if (GROUPS.indexOf(target) < 0) return { ok: false, error: "không có nhóm: " + target };
+      if (GROUPS.indexOf(target) < 0) return { ok: false, error: tw("ui.err_group", { group: target }) };
     } else if (action === "sidebar") {
-      if (target !== "open" && target !== "close") return { ok: false, error: "sidebar chỉ nhận open/close" };
+      if (target !== "open" && target !== "close") return { ok: false, error: tw("ui.err_sidebar") };
     }
     return { ok: true, action: action, target: target };
   }
 
   if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES, GROUPS: GROUPS, SCROLLS: SCROLLS };
   if (typeof document === "undefined") return;   // node: chỉ lấy hàm thuần
-
-  function tw(k, v) { try { return window.t ? window.t(k, v) : k; } catch (e) { return k; } }
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -93,12 +105,12 @@
   async function execute(v) {
     if (v.action === "open_page") {
       if (window.JoyceNav && typeof window.JoyceNav.go === "function") { window.JoyceNav.go(v.target); return { ok: true, detail: "" }; }
-      return { ok: false, detail: "bộ điều hướng chưa sẵn sàng" };
+      return { ok: false, detail: tw("ui.err_nav_not_ready") };
     }
     if (v.action === "open_file") {
       if (typeof window.JoyceOpenVaultPath === "function") { window.JoyceOpenVaultPath(v.target); return { ok: true, detail: "" }; }
       if (typeof window.JoyceEditFile === "function") { window.JoyceEditFile(v.target); return { ok: true, detail: "" }; }
-      return { ok: false, detail: "trình mở file chưa sẵn sàng" };
+      return { ok: false, detail: tw("ui.err_opener_not_ready") };
     }
     if (v.action === "open_task") {
       if (window.JoyceNav && typeof window.JoyceNav.go === "function") window.JoyceNav.go("kanban");
@@ -110,21 +122,21 @@
         }
         await sleep(100);
       }
-      return { ok: false, detail: "trang Việc không mở kịp" };
+      return { ok: false, detail: tw("ui.err_kanban_slow") };
     }
     if (v.action === "open_group") {
       if (window.JoyceNav && typeof window.JoyceNav.openGroup === "function") {
         return window.JoyceNav.openGroup(v.target)
-          ? { ok: true, detail: "" } : { ok: false, detail: "không có nhóm đó trên thanh bên" };
+          ? { ok: true, detail: "" } : { ok: false, detail: tw("ui.err_group_missing") };
       }
-      return { ok: false, detail: "bộ điều hướng chưa sẵn sàng" };
+      return { ok: false, detail: tw("ui.err_nav_not_ready") };
     }
     if (v.action === "sidebar") {
       if (window.JoyceNav && typeof window.JoyceNav.setCollapsed === "function") {
         window.JoyceNav.setCollapsed(v.target === "close");
         return { ok: true, detail: "" };
       }
-      return { ok: false, detail: "bộ điều hướng chưa sẵn sàng" };
+      return { ok: false, detail: tw("ui.err_nav_not_ready") };
     }
     if (v.action === "scroll") {
       var len = v.target.indexOf("top") >= 0;
@@ -152,7 +164,7 @@
       catch (e) { el.scrollTop = len ? 0 : el.scrollHeight; }
       return { ok: true, detail: ten };
     }
-    return { ok: false, detail: "không hỗ trợ" };
+    return { ok: false, detail: tw("ui.err_unsupported") };
   }
 
   function send(obj) {

@@ -140,9 +140,14 @@ for lop, ten in _BA_HAM:
 #    chi phí nạp edge_tts 944ms + aiohttp 212ms trên nền hiện tại), và nó đúng ở cả hai môi
 #    trường nên không có chuyện xanh ở CI mà đỏ ở máy người phát triển.
 #
+#    Cập nhật sau đợt port Javis (0.9.250+): main.py lớn thêm ~30 module nghiệp vụ, đo thật
+#    trên máy dev Windows thì main ~1150ms / fastapi ~250ms = ~4.6 (bản Javis gốc trên cùng
+#    máy cũng đo ~4.5, tức ngưỡng 4.0 chuẩn theo máy nhanh hơn). Nâng lên 5.0 vẫn còn tách
+#    sạch ca edge_tts (~5.9) mà phép đo này được dựng lên để bắt.
+#
 # Vẫn giữ phép đo này dù nó thô: nó là thứ duy nhất bắt được "main phình lên" khi thư viện
 # nặng mới CHƯA kịp có tên trong NANG_PHAI_LUOI. Hàng rào chính xác là danh sách đó.
-TRAN_TI_LE = 4.0
+TRAN_TI_LE = 5.0
 
 
 def do_nap_xen_ke(codes, n=5):

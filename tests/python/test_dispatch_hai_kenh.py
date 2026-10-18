@@ -124,6 +124,10 @@ def lap_gia(prov, kind, key, model, *, that_collect=False):
     async def _enqueue(brain, conv_sid, user, assistant):
         return None
     main.learn_feature.enqueue = _enqueue
+    # Test đo hành vi lõi (lỗi phải lan về user), không đo tính năng tự đổi não của Joyce -
+    # nếu không stub thì chuỗi dự phòng có thể "trả lời được" trong môi trường giả và kết
+    # quả đo không còn là chuỗi lỗi nữa.
+    main._fallback_chain = lambda mcfg, prov, model: []
     return kho, usage
 
 

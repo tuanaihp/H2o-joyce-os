@@ -2,7 +2,7 @@
 
     python tests/python/test_chung_cat_duyet.py
 
-Kiểm đầy đủ 3 nhóm và 3 endpoint:
+Kiểm đầy đủ 3 nhóm và 4 endpoint:
   - GET chung-cat/duyet: draft trong `wiki/_cho-duyet` (và biến thể `_cho_duyet`) + draft
     theo frontmatter chia đúng nhóm "mới hôm nay" / "hàng chờ"; wiki active mới sửa xếp
     nhóm "đã chưng cất"; thư mục lệch tên được báo trong `lech_thu_muc`.
@@ -10,6 +10,8 @@ Kiểm đầy đủ 3 nhóm và 3 endpoint:
     ra wiki chính thức, cập nhật wiki/index.md + wiki/log.md, trả rel mới. Trùng tên thì
     né (giữ nhóm staging rồi mới đuôi -2). Duyệt lại / file active / path ngoài staging /
     brain ngoài danh sách / `..` đều bị chặn. Nhân viên thường 403.
+  - POST chung-cat/xoa ('Không duyệt'): xoá file vĩnh viễn - không copy, không lên wiki,
+    index.md/log.md nguyên vẹn; cùng rào bảo vệ với duyệt (staging/draft, phạm vi, `..`).
   - POST chung-cat/gop-thu-muc: gộp `_cho_duyet` -> `_cho-duyet`, giữ cây con, trùng tên
     đuôi -2, xoá thư mục rỗng.
 
@@ -82,6 +84,28 @@ _viet(os.path.join(B_MAIN, "wiki", "Trang Chinh Thuc.md"),
       "---\ntype: wiki\nstatus: active\ncreated: 2020-01-01\n---\n\n# Chính thức\n")
 _viet(os.path.join(B_MAIN, "wiki", "index.md"), "# Wiki Index\n")
 _viet(os.path.join(B_MAIN, "wiki", "log.md"), "# Wiki Log\n")
+
+DRAFT_SRC = """---
+type: wiki
+status: draft
+tags: [wiki, cho-duyet]
+created: {created}
+source: "[[sources/{src}]]"
+---
+
+# {ten}
+
+Mo ta ngan cho {ten}.
+"""
+NGUON = """---
+type: source
+source_kind: own-note
+status: unprocessed
+created: 2020-01-01
+---
+
+# Nguồn {src}
+"""
 
 # Brain Sale: draft trùng tên trang wiki đã có -> kiểm né trùng.
 _viet(os.path.join(B_SALE, "wiki", "Bai Viet.md"), "---\ntype: wiki\nstatus: active\n---\n\n# Cũ\n")
@@ -205,6 +229,23 @@ check("trùng tên: né vào wiki/Nhom/Bai Viet.md",
 check("trùng tên: trang wiki cũ không bị ghi đè",
       "# Cũ" in _doc(os.path.join(B_SALE, "wiki", "Bai Viet.md")))
 
+# Duyệt = chốt INGEST thật: nguồn trong sources/ chuyển processed + wiki_links.
+_viet(os.path.join(B_MAIN, "sources", "D-nguon-thu.md"), NGUON.format(src="D-nguon-thu"))
+_viet(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Draft Co Nguon.md"),
+      DRAFT_SRC.format(src="D-nguon-thu", created=HOM_NAY, ten="Draft Co Nguon"))
+r = admin.post("/api/joyce/v1/overview/chung-cat/duyet",
+               json={"brain_path": B_MAIN, "rel": "wiki/_cho-duyet/Draft Co Nguon.md"})
+j = r.json()
+check("duyệt draft có nguồn: trả nguồn đã xử lý",
+      r.status_code == 200 and j.get("nguon") == "sources/D-nguon-thu.md", j)
+nguon = _doc(os.path.join(B_MAIN, "sources", "D-nguon-thu.md"))
+check("nguồn sau duyệt: status processed + processed_at hôm nay",
+      "status: processed" in nguon and HOM_NAY in nguon, nguon[:200])
+check("nguồn sau duyệt: wiki_links trỏ trang vừa lên",
+      "[[Draft Co Nguon]]" in nguon)
+check("trang vừa duyệt giữ lại source trong frontmatter",
+      "source:" in _doc(os.path.join(B_MAIN, "wiki", "Draft Co Nguon.md")))
+
 # ---- 3. Chặn các trường hợp không hợp lệ ----
 check("duyệt lại file đã đi -> 400",
       admin.post("/api/joyce/v1/overview/chung-cat/duyet",
@@ -258,7 +299,75 @@ check("gộp brain ngoài danh sách -> 400",
 check("nhân viên thường bị 403 gộp",
       nv.post("/api/joyce/v1/overview/chung-cat/gop-thu-muc", json={}).status_code == 403)
 
-# ---- 5. Sau thao tác, hàng chờ phản ánh đúng ----
+# ---- 5. POST xoá ('Không duyệt'): xoá vĩnh viễn, không copy/log ----
+# Trước khi xoá: chụp index.md + log.md của B_MAIN để chắc không bị đụng thêm.
+idx_truoc = _doc(os.path.join(B_MAIN, "wiki", "index.md"))
+log_truoc = _doc(os.path.join(B_MAIN, "wiki", "log.md"))
+_viet(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Xoa Nhe", "Draft Khong Lien Quan.md"),
+      DRAFT.format(tag="xoa", created=HOM_NAY, ten="Draft Khong Lien Quan"))
+r = admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+               json={"brain_path": B_MAIN, "rel": "wiki/_cho-duyet/Xoa Nhe/Draft Khong Lien Quan.md"})
+j = r.json()
+check("xoá draft: 200 ok", r.status_code == 200 and j.get("ok") is True, j)
+check("xoá draft: file biến mất hẳn",
+      not os.path.exists(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Xoa Nhe", "Draft Khong Lien Quan.md")))
+check("xoá draft: thư mục con rỗng trong staging cũng được dọn",
+      not os.path.exists(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Xoa Nhe")))
+check("xoá draft: index.md và log.md không đổi (không giữ nội dung)",
+      _doc(os.path.join(B_MAIN, "wiki", "index.md")) == idx_truoc and
+      _doc(os.path.join(B_MAIN, "wiki", "log.md")) == log_truoc)
+check("xoá trang active -> 400",
+      admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+                 json={"brain_path": B_MAIN, "rel": "wiki/Trang Chinh Thuc.md"}).status_code == 400)
+check("xoá path .. -> 400",
+      admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+                 json={"brain_path": B_MAIN, "rel": "wiki/../CLAUDE.md"}).status_code == 400)
+check("xoá file ngoài wiki -> 400",
+      admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+                 json={"brain_path": B_MAIN, "rel": "sources/x.md"}).status_code == 400)
+check("xoá brain ngoài danh sách -> 400",
+      admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+                 json={"brain_path": B_NGOAI, "rel": "wiki/_cho-duyet/Nhap Ngoai.md"}).status_code == 400)
+check("nhân viên thường bị 403 xoá",
+      nv.post("/api/joyce/v1/overview/chung-cat/xoa",
+              json={"brain_path": B_MAIN, "rel": "wiki/_cho-duyet/x.md"}).status_code == 403)
+check("trưởng phòng xoá ngoài phạm vi -> 400",
+      mg.post("/api/joyce/v1/overview/chung-cat/xoa",
+              json={"brain_path": B_MAIN, "rel": "wiki/_cho-duyet/x.md"}).status_code == 400)
+# Trưởng phòng xoá được draft trong phạm vi của mình.
+_viet(os.path.join(B_SALE, "wiki", "_cho-duyet", "Draft Sale Xoa.md"),
+      DRAFT.format(tag="sale", created=HOM_NAY, ten="Draft Sale Xoa"))
+r = mg.post("/api/joyce/v1/overview/chung-cat/xoa",
+            json={"brain_path": B_SALE, "rel": "wiki/_cho-duyet/Draft Sale Xoa.md"})
+check("trưởng phòng xoá được draft trong phạm vi", r.status_code == 200 and r.json().get("ok") is True)
+check("draft Sale đã xoá thật",
+      not os.path.exists(os.path.join(B_SALE, "wiki", "_cho-duyet", "Draft Sale Xoa.md")))
+
+# Xoá draft có nguồn: mất CẢ HAI (nháp + file sources/), báo rõ đường nguồn đã xoá.
+_viet(os.path.join(B_MAIN, "sources", "D-nguon-xoa.md"), NGUON.format(src="D-nguon-xoa"))
+_viet(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Draft Xoa Co Nguon.md"),
+      DRAFT_SRC.format(src="D-nguon-xoa", created=HOM_NAY, ten="Draft Xoa Co Nguon"))
+r = admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+               json={"brain_path": B_MAIN, "rel": "wiki/_cho-duyet/Draft Xoa Co Nguon.md"})
+j = r.json()
+check("xoá draft có nguồn: 200 + báo nguồn_xoa",
+      r.status_code == 200 and j.get("nguon_xoa") == "sources/D-nguon-xoa.md", j)
+check("xoá draft có nguồn: nháp lẫn file nguồn đều biến mất",
+      not os.path.exists(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Draft Xoa Co Nguon.md")) and
+      not os.path.exists(os.path.join(B_MAIN, "sources", "D-nguon-xoa.md")))
+
+# Nguồn trỏ ra ngoài vault (../ hoặc đường tuyệt đối) KHÔNG bị đụng.
+_viet(os.path.join(B_MAIN, "wiki", "index-keo.md"), "# Không phải nguồn\n")
+_viet(os.path.join(B_MAIN, "wiki", "_cho-duyet", "Draft Nguon Xau.md"),
+      DRAFT_SRC.format(src="../wiki/index-keo", created=HOM_NAY, ten="Draft Nguon Xau"))
+r = admin.post("/api/joyce/v1/overview/chung-cat/xoa",
+               json={"brain_path": B_MAIN, "rel": "wiki/_cho-duyet/Draft Nguon Xau.md"})
+j = r.json()
+check("source trỏ '..' ra ngoài sources/: vẫn xoá nháp nhưng KHÔNG đụng file ngoài",
+      r.status_code == 200 and j.get("nguon_xoa") == "" and
+      os.path.isfile(os.path.join(B_MAIN, "wiki", "index-keo.md")), j)
+
+# ---- 6. Sau thao tác, hàng chờ phản ánh đúng ----
 d2 = admin.get("/api/joyce/v1/overview/chung-cat/duyet").json()
 rels = {x["rel"] for x in d2.get("moi", []) + d2.get("cho", [])}
 check("sau duyệt + gộp: staging sạch lệch tên, draft đã duyệt biến mất",

@@ -19,6 +19,8 @@ quyền enforce PER-CALL bằng callback can_use_tool - tool ngoài whitelist b�
 từng lần gọi (kể cả Bash/Write builtin) + ghi audit, thay vì chỉ dựa --allowedTools tĩnh.
 """
 import asyncio
+import re
+import collections
 import fnmatch
 import json
 import os
@@ -37,6 +39,8 @@ except Exception:
     _SDK_OK = False
 
 from config import STATE_DIR
+import hub_trace
+import localefmt
 
 _AUDIT_PATH = STATE_DIR / "logs" / "sdk_tool_audit.jsonl"
 
@@ -128,22 +132,127 @@ def ap_tran_khoi_dong():
     return giay
 
 
-def loi_de_hieu(e, tran_init=None):
+_HUB_SLOW_S = 30.0   # giây - cổng công cụ của Joyce trả lời lâu hơn mức này thì coi là chậm
+
+
+def _init_limit_label(tran_init):
+    """Số giây của trần khởi động để in ra câu lỗi.
+
+    `tran_init` là None từ lượt thứ hai: `ap_tran_khoi_dong` đã tự ghi biến của SDK ở lượt đầu,
+    nên lượt sau thấy biến đó và coi như người dùng tự đặt. Câu lỗi vì thế in chung chung
+    "trần cho phép" (khách báo 2026-10-04), dù trần thật vẫn nằm đó. Số thật nằm trong chính
+    biến này (mili giây) nên đọc ngược từ đây."""
+    if tran_init:
+        return f"{int(tran_init)}s"
+    try:
+        giay = float(os.getenv("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT", "")) / 1000.0
+        if giay > 0:
+            return f"{int(giay)}s"
+    except (TypeError, ValueError):
+        pass
+    return localefmt.chu("trần cho phép", "the allowed limit")
+
+
+def _giay(x):
+    return "<1s" if x < 1 else f"{x:.0f}s"
+
+
+def _init_timeout_text(n, cd):
+    """Câu báo lỗi hết giờ khởi động DỰA TRÊN BẰNG CHỨNG. Trả None khi không có bằng chứng.
+
+    `cd` = {"hub_attached", "hub": hub_trace.since(...), "stderr": [dòng cuối của claude]}.
+    Ba hướng khác nhau hẳn, và bản cũ gộp hết thành "chắc do nguồn MCP":
+      - claude chưa hề gọi hub: nó kẹt TRƯỚC đó (đăng nhập, mạng, tự cập nhật), tắt nguồn MCP
+        chẳng giúp gì;
+      - hub trả chậm hoặc chưa trả: bước dò nguồn MCP là nghi can thật;
+      - hub trả nhanh mà vẫn hết giờ: hub vô can.
+    Kết luận đặt ĐẦU câu vì ô "Lượt gần nhất LỖI" của bot chỉ hiện 160 ký tự đầu."""
+    if not cd:
+        return None
+    hub = cd.get("hub") or {}
+    login_vi = "Kiểm tra đăng nhập Claude ở trang Models rồi gửi lại tin nhắn."
+    login_en = "Check the Claude sign-in on the Models page, then send the message again."
+    mcp_vi = ("Nghi nhất là một NGUỒN DỮ LIỆU (MCP) chết hoặc chậm: mở trang Kết nối, bấm Kiểm tra, "
+              "tắt nguồn đang đỏ rồi gửi lại tin nhắn. (JOYCE_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)")
+    mcp_en = ("A dead or slow DATA SOURCE (MCP) is the prime suspect: open the Connections page, click "
+              "Check, turn off the red source and send the message again. "
+              "(JOYCE_CLAUDE_INIT_TIMEOUT=<seconds> raises this limit)")
+    cham = max([x for x in (hub.get("init_s"), hub.get("list_s")) if x is not None] or [0.0])
+    list_s = hub.get("list_s")
+    if not cd.get("hub_attached", True):
+        vi = ("lượt này không đấu cổng công cụ của Joyce nên hub không phải thủ phạm. Nếu máy có đấu "
+              "connector của chính Claude Code (claude.ai, cài đặt người dùng) thì kiểm tra chúng; "
+              "không thì " + login_vi[0].lower() + login_vi[1:])
+        en = ("this run did not attach the Joyce tool hub, so the hub is not the culprit. If the machine "
+              "attaches Claude Code's own connectors (claude.ai, user settings) check those; otherwise "
+              + login_en[0].lower() + login_en[1:])
+    elif not hub.get("called"):
+        vi = ("nó chưa hề gọi tới cổng công cụ của Joyce, nên KHÔNG phải do nguồn MCP. Nó kẹt từ trước "
+              "đó, thường vì đăng nhập Claude hết hạn, máy không ra được mạng hoặc đang tự cập nhật. "
+              + login_vi)
+        en = ("it never reached the Joyce tool hub, so it is NOT a data source (MCP). It got stuck "
+              "before that, usually an expired Claude sign-in, no network or a self-update. " + login_en)
+    elif hub.get("pending") and hub.get("pending_s", 0.0) >= _HUB_SLOW_S:
+        vi = (f"cổng công cụ của Joyce nhận yêu cầu {_giay(hub['pending_s'])} trước mà chưa trả lời. "
+              + mcp_vi)
+        en = (f"the Joyce tool hub got a request {_giay(hub['pending_s'])} ago and has not answered. "
+              + mcp_en)
+    elif cham >= _HUB_SLOW_S:
+        vi = f"cổng công cụ của Joyce trả quá chậm (mất {_giay(cham)} mới trả lời). " + mcp_vi
+        en = f"the Joyce tool hub answered far too slowly ({_giay(cham)} to reply). " + mcp_en
+    elif list_s is not None:
+        vi = (f"cổng công cụ của Joyce trả lời bình thường (liệt kê công cụ mất {_giay(list_s)}), nên "
+              "không phải do nguồn MCP. Claude Code kẹt ở bước khác, thường là đăng nhập hết hạn hoặc "
+              "mạng. " + login_vi)
+        en = (f"the Joyce tool hub answered normally (listing tools took {_giay(list_s)}), so it is not "
+              "a data source (MCP). Claude Code is stuck on something else, usually an expired sign-in "
+              "or the network. " + login_en)
+    else:
+        vi = ("cổng công cụ của Joyce đã nhận kết nối nhưng Claude Code chưa hỏi tới danh sách công cụ, "
+              "nên chưa tới bước dò nguồn MCP. Nó kẹt ở bước khác, thường là đăng nhập hết hạn hoặc "
+              "mạng. " + login_vi)
+        en = ("the Joyce tool hub accepted the connection but Claude Code never asked for the tool "
+              "list, so the data sources (MCP) were not even reached. It is stuck on something else, "
+              "usually an expired sign-in or the network. " + login_en)
+    tail = [str(x).strip()[:120] for x in (cd.get("stderr") or []) if str(x).strip()][-2:]
+    if tail:
+        vi += ' Claude Code in ra: "' + " | ".join(tail) + '"'
+        en += ' Claude Code printed: "' + " | ".join(tail) + '"'
+    return localefmt.chu(
+        "Claude Code không khởi động xong trong " + n + ": " + vi,
+        "Claude Code did not finish starting within " + n + ": " + en)
+
+
+def loi_de_hieu(e, tran_init=None, chan_doan=None):
     """Đổi exception của SDK thành câu người dùng ĐỌC RA ĐƯỢC VIỆC PHẢI LÀM.
 
     Mẫu nào không khớp thì giữ nguyên chuỗi gốc: đoán bừa nguyên nhân còn tệ hơn tiếng Anh trần.
+    `chan_doan` (xem `_init_timeout_text`) có thì câu hết giờ khởi động nêu thủ phạm theo bằng
+    chứng; không có thì quay về gợi ý chung.
     """
     raw = str(e)
     if "Control request timeout: initialize" in raw:
-        n = f"{int(tran_init)}s" if tran_init else "trần cho phép"
-        return ("Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
-                "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
-                "nguồn rồi mới nhận việc, nên một nguồn chết hoặc chậm là kéo cả lượt chờ theo "
-                "rồi hết giờ. Mở trang Kết nối, bấm Kiểm tra để tìm nguồn đang đỏ rồi tắt nó đi "
-                "và gửi lại tin nhắn. (JOYCE_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)")
+        n = _init_limit_label(tran_init)
+        theo_bang_chung = _init_timeout_text(n, chan_doan)
+        if theo_bang_chung:
+            return theo_bang_chung
+        return localefmt.chu(
+            "Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
+            "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
+            "nguồn rồi mới nhận việc, nên một nguồn chết hoặc chậm là kéo cả lượt chờ theo "
+            "rồi hết giờ. Mở trang Kết nối, bấm Kiểm tra để tìm nguồn đang đỏ rồi tắt nó đi "
+            "và gửi lại tin nhắn. (JOYCE_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)",
+            "Claude Code did not finish starting within " + n + ", so this turn was cancelled. It is "
+            "almost always a DATA SOURCE (MCP): at startup Claude must connect every source "
+            "before taking work, so one dead or slow source makes the whole turn wait "
+            "until it times out. Open the Connections page, click Check to find the red source, turn it off "
+            "and send the message again. (JOYCE_CLAUDE_INIT_TIMEOUT=<seconds> raises this limit)")
     if "Control request timeout:" in raw:
-        return (f"Claude Code không phản hồi lệnh điều khiển ({raw}). Gửi lại tin nhắn; còn lặp "
-                "lại thì mở hội thoại mới.")
+        return localefmt.chu(
+            f"Claude Code không phản hồi lệnh điều khiển ({raw}). Gửi lại tin nhắn; còn lặp "
+            "lại thì mở hội thoại mới.",
+            f"Claude Code did not answer a control request ({raw}). Send the message again; if it keeps "
+            "happening, start a new conversation.")
     return f"SDK engine: {type(e).__name__}: {e}"
 
 
@@ -170,6 +279,18 @@ def la_loi_mat_mach(msg) -> bool:
         return False
 
 
+def _la_dua_token(text: str, is_error: bool) -> bool:
+    """Lượt kết thúc vì cuộc đua làm mới token (review sửa pilot 4, P2-1). Tín hiệu chính là is_error có cấu trúc của
+    CLI kèm câu lỗi đua token; khi CLI không cắm is_error thì CHỈ nhận khi toàn bộ kết quả là thông báo lỗi thô (neo ở
+    đầu). Câu trả lời thành công có chữ "already used", hay câu đang giải thích/trích lỗi OAuth, không bị nhận."""
+    try:
+        import claude_token_gate
+        return bool((is_error and claude_token_gate.la_loi_tranh_lam_moi(text))
+                    or claude_token_gate.la_loi_tho_tranh_lam_moi(text))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def map_message(msg):
     """Map 1 message SDK → (list event dict 'hợp đồng ClaudeCLI', session_id|None).
     PURE - test offline được, không cần CLI/auth."""
@@ -177,14 +298,24 @@ def map_message(msg):
                                   TextBlock, ToolUseBlock, ToolResultBlock)
     events = []
     if isinstance(msg, SystemMessage):
-        return events, (msg.data or {}).get("session_id")
+        data = msg.data or {}
+        # Claude Code reports the real Fast mode state (off, cooldown, on): keep it for the bolt tooltip.
+        if data.get("fast_mode_state"):
+            try:
+                import fast_mode
+                fast_mode.remember("anthropic-cli", str(data.get("fast_mode_state")),
+                                   str(data.get("fast_mode_disabled_reason") or ""))
+            except Exception:  # noqa: BLE001
+                pass
+        return events, data.get("session_id")
     if isinstance(msg, AssistantMessage):
         for b in msg.content:
             if isinstance(b, TextBlock):
                 if (b.text or "").strip():
                     events.append({"type": "text", "content": b.text})
             elif isinstance(b, ToolUseBlock):
-                events.append({"type": "tool_call", "name": b.name or "", "input": b.input or {}})
+                events.append({"type": "tool_call", "name": b.name or "", "input": b.input or {},
+                               "id": getattr(b, "id", "") or ""})
         return events, None
     if isinstance(msg, UserMessage):
         content = msg.content
@@ -194,7 +325,9 @@ def map_message(msg):
                     c = b.content
                     if isinstance(c, list):
                         c = " ".join(x.get("text", "") for x in c if isinstance(x, dict))
-                    events.append({"type": "tool_result", "content": str(c or "")[:500]})
+                    events.append({"type": "tool_result", "content": str(c or "")[:500],
+                                   "tool_use_id": getattr(b, "tool_use_id", "") or "",
+                                   "is_error": bool(getattr(b, "is_error", False))})
         return events, None
     if isinstance(msg, ResultMessage):
         u = msg.usage or {}
@@ -206,10 +339,12 @@ def map_message(msg):
         # chỉ sai đường - mà bấm Ngắt còn xoá luôn bản sao lưu của vệ sĩ credentials, tức
         # đẩy người ta từ một lượt hỏng sang mất đăng nhập thật.
         dua_token = False
+        # Cùng nhận dạng hẹp với cờ auth_refresh_race (review sửa pilot 4, P2-1): trước đây mọi kết quả có chữ
+        # "already used" đều bị coi là cuộc đua và câu trả lời thành công bị thay bằng câu báo lỗi.
+        auth_race = _la_dua_token(msg.result or "", bool(msg.is_error))
         try:
             import claude_token_gate
-            dua_token = (claude_token_gate.la_loi_tranh_lam_moi(msg.result or "")
-                         and claude_token_gate.con_dang_nhap())
+            dua_token = auth_race and claude_token_gate.con_dang_nhap()
         except Exception:
             dua_token = False
         try:
@@ -230,19 +365,31 @@ def map_message(msg):
         resume_failed = la_loi_mat_mach(msg)
         if resume_failed:
             events.append({"type": "error", "resume_failed": True,
-                           "content": "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
-                                      "Claude Code đã mất). Joyce mở mạch mới và mồi lại từ "
-                                      "lịch sử đã lưu."})
+                           "content": localefmt.chu(
+                               "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
+                               "Claude Code đã mất). Joyce mở mạch mới và mồi lại từ "
+                               "lịch sử đã lưu.",
+                               "The old Claude session is no longer on this machine (Claude Code lost "
+                               "the conversation thread). Joyce opens a new thread and primes it from "
+                               "the saved history.")})
         elif msg.is_error and not (msg.result or "").strip():
             events.append({"type": "error",
-                           "content": f"Claude kết thúc lỗi ({msg.subtype}) - không có nội dung trả về. "
-                                      "Gửi lại tin nhắn; nếu vẫn lặp lại, mở hội thoại mới "
-                                      "(phiên cũ có thể đã hỏng sau khi bị ngắt giữa chừng)."})
+                           "content": localefmt.chu(
+                               f"Claude kết thúc lỗi ({msg.subtype}) - không có nội dung trả về. "
+                               "Gửi lại tin nhắn; nếu vẫn lặp lại, mở hội thoại mới "
+                               "(phiên cũ có thể đã hỏng sau khi bị ngắt giữa chừng).",
+                               f"Claude ended with an error ({msg.subtype}) - nothing was returned. "
+                               "Send the message again; if it keeps happening, start a new conversation "
+                               "(the old session may have broken after being interrupted).")})
         ket = msg.result or ""
         if dua_token:
-            ket = ("Lượt này rơi đúng lúc phiên đăng nhập Claude đang được làm mới nên bị chặn "
-                   "giữa chừng. Phiên KHÔNG mất - gửi lại tin nhắn là chạy tiếp bình thường. "
-                   "Hay gặp khi hai người cùng chat trên một tài khoản Claude.")
+            ket = localefmt.chu(
+                "Lượt này rơi đúng lúc phiên đăng nhập Claude đang được làm mới nên bị chặn "
+                "giữa chừng. Phiên KHÔNG mất - gửi lại tin nhắn là chạy tiếp bình thường. "
+                "Hay gặp khi hai người cùng chat trên một tài khoản Claude.",
+                "This turn hit the moment the Claude sign-in was being refreshed, so it was cut off "
+                "midway. The session is NOT lost - send the message again and it continues normally. "
+                "This often happens when two people chat on one Claude account.")
         events.append({
             "type": "final",
             "content": ket,
@@ -251,6 +398,14 @@ def map_message(msg):
             # lại được - nó phải biết mà nhảy sang bộ não kế tiếp.
             "dua_token": dua_token,
             "resume_failed": resume_failed,
+            # Claude kết thúc LỖI nhưng vẫn có chữ (hết lượt, lỗi giữa chừng) vẫn ra `final`, nên phải mang cờ theo:
+            # nơi nào cần biết lượt có thành công thật không (receipt của Resonance) đọc cờ này, không đoán qua chữ.
+            # Thêm khoá, không đổi hành vi của nơi gọi cũ.
+            "is_error": bool(msg.is_error),
+            "subtype": msg.subtype,
+            # Lượt kết thúc vì cuộc đua làm mới token (nhận dạng hẹp, xem claude_token_gate.la_loi_tranh_lam_moi):
+            # không phải câu trả lời của model, kể cả khi CLI không cắm is_error (pilot Resonance lần 4).
+            "auth_refresh_race": auth_race,
             "session_id": None if resume_failed else msg.session_id,
             "cost_usd": msg.total_cost_usd,
             "duration_ms": msg.duration_ms,
@@ -377,6 +532,33 @@ class ClaudeSDK:
         # claude_code thì tự nhét lại prompt đầy đủ của Claude Code và ăn sạch phần tiết kiệm.
         self.system_prompt_raw = False
         self._tmp_files = []      # file tạm (system prompt) dọn sau mỗi query
+        # Vài chục dòng cuối `claude` in ra stderr, để câu báo lỗi hết giờ khởi động trích được
+        # lý do nó kẹt. Xoá ở đầu mỗi query.
+        self._stderr_tail = collections.deque(maxlen=40)
+        # `_options` đặt: lượt này có đấu cổng công cụ của Joyce không (None = chưa biết).
+        self._hub_attached = None
+
+    def _on_stderr(self, line):
+        """Nhận từng dòng stderr của tiến trình `claude`.
+
+        Không đặt callback thì SDK để `claude` thừa hưởng stderr của server, tức mọi dòng nó in
+        rơi thẳng vào log. Đặt callback thì SDK gom stderr vào ống, nên PHẢI in lại ở đây kẻo mất
+        dấu vết vốn có."""
+        text = (line or "").rstrip("\r\n")
+        if not text.strip():
+            return
+        self._stderr_tail.append(text[:300])
+        print(f"[claude stderr] {text}", file=sys.stderr)
+
+    def _startup_diagnosis(self, t_start):
+        """Bằng chứng cho lỗi hết giờ khởi động: `claude` có chạm tới hub không, và nó đã in gì.
+        Lỗi lấy bằng chứng không được che mất lỗi gốc nên trả None."""
+        try:
+            return {"hub_attached": self._hub_attached is not False,
+                    "hub": hub_trace.since(t_start),
+                    "stderr": list(self._stderr_tail)}
+        except Exception:
+            return None
 
     def is_available(self) -> bool:
         if not _SDK_OK:
@@ -412,10 +594,12 @@ class ClaudeSDK:
             message=f"Tool '{tool_name}' bị chặn bởi rào quyền phiên nền an toàn: phiên này chỉ "
                     f"được dùng {', '.join(allowed)}.{extra}")
 
-    def _plugins_server(self):
+    def _plugins_server(self, only=None):
         """Phase 3: dựng MCP server IN-PROCESS từ tool plugin (plugins_host) - engine SDK gọi
         thẳng handler Python, không qua hub HTTP. Trả McpSdkServerConfig hoặc None (không plugin).
-        min_mode enforce sẵn trong route của plugin_tools(mode); hook pre/post bọc như hub."""
+        min_mode enforce sẵn trong route của plugin_tools(mode); hook pre/post bọc như hub.
+        `only`: set of tool names a gated session was granted (plugins_host.grant_patterns);
+        every other plugin tool stays out of the server."""
         import plugins_host
         from claude_agent_sdk import tool as sdk_tool, create_sdk_mcp_server
         mode = (self.joyce_mode or "full").strip().lower()
@@ -426,6 +610,8 @@ class ClaudeSDK:
         # đúng ở MỌI chỗ dựng engine, không phụ thuộc ai nhớ đặt cwd.
         # Vẫn KHÔNG nạp plugin riêng-của-vault (giữ nguyên hành vi cũ): scope_vault=False.
         p_tools, p_route = plugins_host.plugin_tools(mode, self.joyce_vault, scope_vault=False)
+        if only is not None:
+            p_tools = [t for t in p_tools if t["fn"] in only]
         if not p_tools:
             return None
         # has_tool_hooks/wrap_with_hooks chưa biết scope_vault (ngoài phạm vi task này) - giữ
@@ -447,6 +633,27 @@ class ClaudeSDK:
                                       t.get("schema") or {"type": "object", "properties": {}})(_handler))
         return create_sdk_mcp_server("joyce-plugins", tools=sdk_tools)
 
+    @staticmethod
+    def _gan_khoa_luot(servers):
+        """Add the current turn's key (X-Joyce-Turn) to the hub entry, so pre/post_tool_call hooks
+        on the hub know who is talking (see turn_context). Done here, per query, because this
+        runs inside the turn and every query builds a NEW client: the config file itself is
+        shared by all turns of the same brain and must never carry a turn."""
+        hub = servers.get("joyce")
+        if not isinstance(hub, dict) or not isinstance(hub.get("headers"), dict):
+            return servers
+        try:
+            import turn_context
+            key = turn_context.issue_key()
+        except Exception as e:   # noqa: BLE001 - no key means "nobody", never a broken turn
+            print(f"[sdk engine] khoá lượt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            key = None
+        if not key:
+            return servers
+        hub = dict(hub)
+        hub["headers"] = {**hub["headers"], turn_context.HEADER: key}
+        return {**servers, "joyce": hub}
+
     def _mcp_servers(self):
         """(mcp_servers cho options, strict) - đọc file config (đường _apply_mcp) thành dict,
         đấu thêm plugin in-process khi KHÔNG gated. Gated fork (allowed_tools) giữ nguyên
@@ -459,10 +666,18 @@ class ClaudeSDK:
             except Exception as e:
                 print(f"[sdk engine] đọc mcp_config lỗi ({e}) - truyền path thô", file=sys.stderr)
                 return str(self.mcp_config), self.mcp_strict
+            servers = self._gan_khoa_luot(servers)
+        only = None
         if self.allowed_tools:
-            return servers, self.mcp_strict
+            # Gated fork: no plugin server, EXCEPT the tools the allowlist names one by one
+            # (a Kanban "image" job, a workflow step with `tools:`). The allowlist and the
+            # permission gate still stop everything else.
+            import plugins_host
+            only = plugins_host.granted_plugin_tools(self.allowed_tools)
+            if not only:
+                return servers, self.mcp_strict
         try:
-            plug = self._plugins_server()
+            plug = self._plugins_server(only)
         except Exception as e:
             print(f"[sdk engine] plugin in-process lỗi: {type(e).__name__}: {e}", file=sys.stderr)
             plug = None
@@ -582,6 +797,9 @@ class ClaudeSDK:
         # ảnh chụp màn hình) vượt ngưỡng này là vỡ buffer -> SDKJSONDecodeError.
         if "max_buffer_size" in getattr(ClaudeAgentOptions, "__dataclass_fields__", {}):
             kw["max_buffer_size"] = 32 * 1024 * 1024
+        # Thu stderr của `claude` để lỗi hết giờ khởi động nêu được lý do (xem `_on_stderr`).
+        if "stderr" in fields:
+            kw["stderr"] = self._on_stderr
         # Chế độ API key: đưa ANTHROPIC_API_KEY xuống tiến trình `claude`. Phải MERGE với
         # os.environ chứ không thay thế - SDK truyền thẳng dict này cho tiến trình con, và một
         # env chỉ có mỗi API key là mất PATH, mất HOME, tiến trình chết trước khi kịp chào.
@@ -606,15 +824,39 @@ class ClaudeSDK:
         # là nó thoát ngay với "unknown option", tức hỏng trọn lượt chat.
         if self.effort and "effort" in fields:
             kw["effort"] = self.effort
+        # Fast mode (0.164.0): main._cli_fast sets this for a chat turn. Every other run (loops,
+        # reminders, bots) says fastMode false explicitly, so a /fast persisted in the user's
+        # ~/.claude/settings.json cannot make background work run (and bill) fast.
+        if "settings" in fields:
+            kw["settings"] = getattr(self, "fast_settings", None) or '{"fastMode": false}'
         if self.session_id:
             kw["resume"] = self.session_id
         servers, strict = self._mcp_servers()
+        # Nhớ lượt này có đấu hub Joyce không: lỗi hết giờ khởi động cần biết để khỏi đổ cho hub
+        # khi hub vốn không được đấu. Chuỗi (đường dẫn thô) coi như có đấu vì không đọc được.
+        self._hub_attached = True if isinstance(servers, str) else bool(servers) and "joyce" in servers
         if servers is not None:
             kw["mcp_servers"] = servers
             if strict:
                 kw["strict_mcp_config"] = True
-        if self.disallowed_tools:
-            kw["disallowed_tools"] = list(self.disallowed_tools)
+        _deny = list(self.disallowed_tools or [])
+        # 0.188.0 (Joyce Core spec 13, 14): the learning switch is a hard rule for Claude Code too. It writes files
+        # natively (not through the hub), so the memory guard goes in as deny rules on its own tools.
+        try:
+            import memory_control
+            _deny += [r for r in memory_control.claude_deny_rules(self.joyce_vault) if r not in _deny]
+        except Exception:
+            pass
+        if _deny:
+            kw["disallowed_tools"] = _deny
+        # 0.206.0: a chat turn reads what the owner sends while it runs, after each tool call (steer_inbox.py).
+        if "hooks" in fields and str(self.tag or "").startswith("chat:"):
+            try:
+                from claude_agent_sdk import HookMatcher
+                kw["hooks"] = {"PostToolUse": [HookMatcher(matcher=None, hooks=[self._steer_hook])],
+                               "PostToolUseFailure": [HookMatcher(matcher=None, hooks=[self._steer_hook])]}
+            except Exception:
+                pass
         if self.allowed_tools:
             # Chế độ nền an toàn: whitelist auto-allow, MỌI tool khác rơi vào _permission_gate → DENY.
             # KHÔNG nạp settings filesystem: allow-rule trong settings user có thể che gate.
@@ -627,10 +869,90 @@ class ClaudeSDK:
             kw["setting_sources"] = ["user", "project", "local"]
         return ClaudeAgentOptions(**kw)
 
-    async def query(self, prompt: str):
+    async def _steer_hook(self, input_data, tool_use_id, context):
+        """PostToolUse: hand the turn what the owner sent meanwhile, as extra context the model reads before its next
+        step (0.206.0). Only on the main thread: a tool call inside a sub-agent carries agent_id and is left alone."""
+        try:
+            if (input_data or {}).get("agent_id"):
+                return {}
+            import steer_inbox
+            note = steer_inbox.INBOX.take_note_for_tag(self.tag)
+        except Exception:
+            return {}
+        if not note:
+            return {}
+        return {"hookSpecificOutput": {"hookEventName": (input_data or {}).get("hook_event_name") or "PostToolUse",
+                                       "additionalContext": note}}
+
+    async def warm_ping(self, timeout_s: float = 120.0) -> dict:
+        """One tool-less request forked from this chat's Claude session, so the provider re-reads the cached prefix and
+        keeps it alive (0.202.0, cache_keepwarm.py; design from Cache Tax via OpenMausBot). Same options as the chat
+        turn, so the prefix is byte-identical; `fork_session` plus `--no-session-persistence` keep the conversation
+        untouched; every tool call is denied and one turn is allowed. Never raises.
+        Returns {ok, cache_read, cache_write, output} or {ok: False, reason, limit?}."""
+        if not self.session_id:
+            return {"ok": False, "reason": "no Claude session yet"}
         if not self.is_available():
-            yield {"type": "error", "content": "claude-agent-sdk chưa sẵn sàng (pip install claude-agent-sdk "
-                                               "+ cài/đăng nhập Claude Code CLI)."}
+            return {"ok": False, "reason": "claude-agent-sdk not ready"}
+        try:
+            from claude_cli import co_co
+            if not co_co("--no-session-persistence") or not co_co("--fork-session"):
+                return {"ok": False, "reason": "this claude version cannot fork a session without saving it"}
+            from claude_agent_sdk import ClaudeSDKClient, ResultMessage, PermissionResultDeny
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "reason": f"{type(e).__name__}: {e}"}
+
+        async def _deny(tool_name, input_data, context):
+            return PermissionResultDeny(message="Joyce keep-warm ping: no tools")
+
+        client = None
+        try:
+            opts = await asyncio.to_thread(self._options)
+            opts.resume = self.session_id
+            opts.fork_session = True
+            extra = dict(getattr(opts, "extra_args", None) or {})
+            extra["no-session-persistence"] = None
+            opts.extra_args = extra
+            opts.can_use_tool = _deny
+            opts.max_turns = 1
+            client = ClaudeSDKClient(options=opts)
+
+            async def _run():
+                await client.connect()
+                await client.query("Reply with the single word: warm")
+                async for msg in client.receive_response():
+                    if isinstance(msg, ResultMessage):
+                        return msg
+                return None
+
+            msg = await asyncio.wait_for(_run(), timeout=timeout_s)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "reason": f"{type(e).__name__}: {str(e)[:200]}"}
+        finally:
+            if client is not None:
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+            self._cleanup_tmp()
+        if msg is None:
+            return {"ok": False, "reason": "no result"}
+        text = str(getattr(msg, "result", "") or "")
+        if getattr(msg, "is_error", False):
+            limited = bool(re.search(r"usage limit|limit reached|hết lượt|rate limit", text, re.I))
+            return {"ok": False, "reason": text[:200] or "API error", "limit": limited}
+        u = getattr(msg, "usage", None) or {}
+        return {"ok": True, "cache_read": int(u.get("cache_read_input_tokens") or 0),
+                "cache_write": int(u.get("cache_creation_input_tokens") or 0),
+                "output": int(u.get("output_tokens") or 0)}
+
+    async def query(self, prompt):
+        if not self.is_available():
+            yield {"type": "error", "content": localefmt.chu(
+                "claude-agent-sdk chưa sẵn sàng (pip install claude-agent-sdk "
+                "+ cài/đăng nhập Claude Code CLI).",
+                "claude-agent-sdk is not ready (pip install claude-agent-sdk "
+                "+ install/sign in to the Claude Code CLI).")}
             return
         from claude_agent_sdk import ClaudeSDKClient, ResultMessage
         # Ba trần watchdog, None = không giới hạn. Xem `tran_watchdog` để biết vì sao hai trần
@@ -652,8 +974,12 @@ class ClaudeSDK:
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
         # Nới trần `initialize` TRƯỚC khi dựng client: SDK đọc env ngay trong connect().
         tran_init = ap_tran_khoi_dong()
+        self._stderr_tail.clear()   # chỉ giữ dòng của lượt này
         loop = asyncio.get_running_loop()
-        options = self._options()
+        # Off the event loop (0.194.0): building options reads the MCP config, loads every plugin (imports their code
+        # the first time) and writes the prompt file. On the loop that froze every open page for as long as it took
+        # (loop_watch caught it). `to_thread` copies the turn's context variables, so the per-turn hub key still lands.
+        options = await asyncio.to_thread(self._options)
         completion = _CompletionWatch(RESULT_IDLE if getattr(options, "include_hook_events", False) else None)
         client = ClaudeSDKClient(options=options)
         started = time.time()
@@ -673,7 +999,17 @@ class ClaudeSDK:
             await client.connect()
             with _LOCK:
                 _ACTIVE[client] = (self.tag, loop)
-            await client.query(prompt)
+            if isinstance(prompt, list):
+                # Lượt có ẢNH (0.81.0): `prompt` là danh sách khối nội dung Anthropic (ảnh + chữ). SDK nhận một luồng
+                # tin nhắn thay cho chuỗi; gửi đúng MỘT tin user mang các khối đó.
+                blocks = prompt
+
+                async def _one_message():
+                    yield {"type": "user", "message": {"role": "user", "content": blocks},
+                           "parent_tool_use_id": None}
+                await client.query(_one_message())
+            else:
+                await client.query(prompt)
             agen = client.receive_response().__aiter__()
             while True:
                 # Watchdog parity với CLI: idle-timeout + trần wall-clock cho fork nền.
@@ -709,19 +1045,32 @@ class ClaudeSDK:
                                "session_id": self.session_id, "completion_recovered": True}
                         break
                     if ly_do == "wall":
-                        err = f"Fork vượt trần {int(self.max_wall_s)}s - đã dừng (cap wall-clock nền)."
+                        err = localefmt.chu(f"Fork vượt trần {int(self.max_wall_s)}s - đã dừng (cap wall-clock nền).",
+                                            f"Fork went over the {int(self.max_wall_s)}s limit - stopped (background wall-clock cap).")
                     elif ly_do == "tool":
-                        err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo server. "
-                               f"(tăng JOYCE_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
-                               f"đặt 0 để bỏ hẳn trần)")
+                        err = localefmt.chu(
+                            f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo server. "
+                            f"(tăng JOYCE_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
+                            f"đặt 0 để bỏ hẳn trần)",
+                            f"A tool ran over {int(TOOL_IDLE)}s without finishing - stopped to avoid hanging the server. "
+                            f"(raise JOYCE_CLAUDE_TOOL_TIMEOUT if the job really takes longer, "
+                            f"set 0 to remove the limit)")
                     elif ly_do == "dau":
-                        err = (f"Claude chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
-                               f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn bộ "
-                               f"ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
-                               f"(JOYCE_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)")
+                        err = localefmt.chu(
+                            f"Claude chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
+                            f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn bộ "
+                            f"ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
+                            f"(JOYCE_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)",
+                            f"Claude had not answered after {int(FIRST_IDLE)}s - stopped to avoid hanging the "
+                            f"server. Common when the conversation is very long: the first turn must reload the whole "
+                            f"context, which is slow. A new conversation usually fixes it. "
+                            f"(JOYCE_CLAUDE_FIRST_TIMEOUT=0 removes this limit)")
                     else:
-                        err = (f"Claude đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
-                               f"(JOYCE_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)")
+                        err = localefmt.chu(
+                            f"Claude đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
+                            f"(JOYCE_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)",
+                            f"Claude went silent for {int(IDLE)}s mid-answer - stopped to avoid hanging the server. "
+                            f"(JOYCE_CLAUDE_IDLE_TIMEOUT=0 removes this limit)")
                     try:
                         await client.interrupt()
                     except Exception:
@@ -752,7 +1101,14 @@ class ClaudeSDK:
                 if isinstance(msg, ResultMessage):
                     break
         except Exception as e:
-            yield {"type": "error", "content": loi_de_hieu(e, tran_init)}
+            chan_doan = None
+            if "Control request timeout: initialize" in str(e):
+                # Hết giờ khởi động: lấy bằng chứng (claude có gọi tới hub không, nó in gì) để câu
+                # báo lỗi nêu đúng thủ phạm, và ghi đủ chi tiết vào log cho chủ soi lại sau.
+                chan_doan = self._startup_diagnosis(started)
+                print(f"[claude init timeout] tag={self.tag} sau={time.time() - started:.0f}s "
+                      f"chan_doan={chan_doan}", file=sys.stderr)
+            yield {"type": "error", "content": loi_de_hieu(e, tran_init, chan_doan)}
         finally:
             with _LOCK:
                 _ACTIVE.pop(client, None)

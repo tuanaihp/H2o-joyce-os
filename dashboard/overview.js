@@ -1037,6 +1037,7 @@
         <div class="ov-cc-right">
           <span class="ov-cc-age">${esc(choBaoLau(x))}</span>
           ${pill("wait", t("ov.cc_state_draft"))}
+          <button type="button" class="ov-cc-no" title="${esc(t("ov.cc_reject_tip"))}">${ic("trash-2")} ${esc(t("ov.cc_reject"))}</button>
           <button type="button" class="ov-cc-ok">${ic("check")} ${esc(t("ov.cc_approve"))}</button>
         </div>
       </div>`;
@@ -1127,7 +1128,34 @@
           });
           const dj = await res.json().catch(() => ({}));
           _ccMsg = res.ok && dj.ok !== false
-            ? { ok: true, text: t("ov.cc_done", { ten: dj.ten || rel, path: dj.rel_moi || "" }) }
+            ? { ok: true, text: t("ov.cc_done", { ten: dj.ten || rel, path: dj.rel_moi || "" }) +
+                (dj.nguon ? " " + t("ov.cc_done_src", { nguon: dj.nguon }) : "") }
+            : { ok: false, text: t("ov.cc_fail", { loi: ": " + ((dj && dj.error) || res.status) }) };
+        } catch (e) { _ccMsg = { ok: false, text: t("ov.cc_fail", { loi: "" }) }; }
+        if (el.isConnected) renderChungCat(el);
+      };
+      const nutXoa = row.querySelector(".ov-cc-no");
+      if (nutXoa) nutXoa.onclick = async () => {
+        const ten = row.querySelector(".ov-cc-name span").textContent;
+        // Luôn hỏi trước khi xoá - thiếu JoyceDialog thì rơi về confirm() của trình duyệt.
+        const hoi = window.JoyceDialog
+          ? await JoyceDialog.confirm(t("ov.cc_reject_q", { ten }),
+                                      { kind: "err", okText: t("ov.cc_reject") })
+          : window.confirm(t("ov.cc_reject_q", { ten }));
+        if (!hoi) return;
+        nutXoa.disabled = true;
+        nutXoa.innerHTML = esc(t("ov.cc_rejecting"));
+        try {
+          const res = await fetch("/api/joyce/v1/overview/chung-cat/xoa", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brain_path: brain, rel }),
+          });
+          const dj = await res.json().catch(() => ({}));
+          _ccMsg = res.ok && dj.ok !== false
+            ? { ok: true, text: dj.nguon_xoa
+                  ? t("ov.cc_reject_done2", { ten: dj.ten || rel, nguon: dj.nguon_xoa })
+                  : t("ov.cc_reject_done", { ten: dj.ten || rel }) }
             : { ok: false, text: t("ov.cc_fail", { loi: ": " + ((dj && dj.error) || res.status) }) };
         } catch (e) { _ccMsg = { ok: false, text: t("ov.cc_fail", { loi: "" }) }; }
         if (el.isConnected) renderChungCat(el);

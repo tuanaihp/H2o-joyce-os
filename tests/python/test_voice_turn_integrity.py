@@ -10,6 +10,7 @@ from pathlib import Path
 import voice_brain
 import nghe_sua
 import sessions
+import localefmt  # main.py dịch dòng trạng thái của handler bằng localefmt.chu (0.67.0)
 
 
 class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
@@ -32,7 +33,8 @@ class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
             async def send(frame):
                 frames.append(frame)
 
-            async def fallback(sid, message, *args):
+            async def fallback(sid, message, *args, **kwargs):
+                # kwargs: user_mid/user_text (Resonance M2) mang id tin gốc sang bộ não chính.
                 # 0.64.72: lượt quay về câu gốc gửi bộ não chính CÂU GỐC + đúng một lời dặn cố
                 # định (voice_brain.GHI_CHU_CAU_NGHE). Bóc lời dặn ra để mọi phép so bên dưới
                 # vẫn canh câu gốc còn nguyên từng chữ; self.ghi_chu đếm số lần có lời dặn.
@@ -51,7 +53,7 @@ class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
 
             proxy = types.SimpleNamespace(**vars(voice_brain))
             proxy.get_brain = get_brain
-            namespace = dict(voice_brain=proxy, nghe_sua=nghe_sua, asyncio=asyncio, sys=sys,
+            namespace = dict(voice_brain=proxy, nghe_sua=nghe_sua, asyncio=asyncio, sys=sys, localefmt=localefmt,
                              store=store, send_raw=send, run_turn=fallback, _persist_turn=persist,
                              _CHAT_RUNTIME=types.SimpleNamespace(finish_job=lambda *a: None),
                              ui_targets=types.SimpleNamespace(normalize_target=lambda a, t: t),

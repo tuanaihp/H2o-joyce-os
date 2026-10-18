@@ -87,7 +87,7 @@ check("CANARY: thả Space KHÔNG tắt loa", !/JoyceTts/.test(keyup));
 // 6 từ 0.57.17: chỗ thứ 6 cũng là HOÃN - câu nói chen ngang gửi lại sau khi lượt cũ dừng hẳn.
 // 7 từ 0.58.2: chỗ thứ 7 cũng HOÃN - câu gửi lúc mất WebSocket, gửi lại khi nối lại được.
 // 10 từ 0.65.28: chỗ thứ 10 cũng HOÃN - câu nói lúc Joyce đang trả lời trong cuộc gọi, gửi khi lượt xong.
-check("có 11 chỗ (thêm câu chờ lượt trong cuộc gọi, và tin đã xếp hàng guiHangGo) gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 11,
+check("có 12 chỗ (thêm câu chờ lượt trong cuộc gọi, cú bấm Nghe cuộc gọi hẹn giờ, và tin đã xếp hàng guiHangGo) gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 12,
   (app.match(/(?<!function )\bsendMessage\(/g) || []).length);
 
 // ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----

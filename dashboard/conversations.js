@@ -411,8 +411,13 @@
             '<small class="ht-item-time">' + esc(gio(c.last_message_at)) + '</small></span>' +
           (tags.length ? '<span class="ht-item-tags">' + tags.join("") + '</span>' : "") +
           '<span class="ht-item-sub">' + logoKenh(c.channel) +
-            '<small>' + esc(ai + (c.last_message || "")) + '</small>' +
-            (c.unread_count ? '<span class="ht-badge">' + c.unread_count + '</span>' : "") +
+            '<small>' + esc(ai + (window.JoyceHtMedia ? window.JoyceHtMedia.tomTat(c.last_message || "", window.t)
+                                                     : (c.last_message || ""))) + '</small>' +
+            // Tổng số tin của cuộc (0.148.0, như cột Lịch sử của Trò chuyện), khác số đỏ là số tin CHƯA ĐỌC.
+            (c.message_count ? '<span class="ht-count" title="' + esc(window.t("ht.so_tin_title", { count: c.message_count })) + '">' +
+              esc(window.t("sess.msgs", { count: c.message_count })) + '</span>' : "") +
+            (c.unread_count ? '<span class="ht-badge" title="' + esc(window.t("ht.chua_doc_title", { count: c.unread_count })) + '">' +
+              c.unread_count + '</span>' : "") +
           '</span>' +
         '</span></button>';
     }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
@@ -750,12 +755,18 @@
            : t.sender_type === "ai" ? (t.sender_name || window.t("ht.bot"))
            : t.sender_type === "human" ? window.t("ht.ban") : "";
     var than;
+    // Ảnh và file khách gửi (0.171.0, ht-media.js): ảnh hiện thẳng trong bong bóng, file thành thẻ bấm tải về. Chỉ còn chú
+    // thích thật của khách đi kèm; dòng "đã tải về: <đường dẫn máy chủ>" và link ảnh trần không hiện ra nữa.
+    var media = (t.sender_type === "customer" && window.JoyceHtMedia) ? window.JoyceHtMedia.phanTich(t, t.conversation_id) : null;
+    var coMedia = !!(media && (media.anh || media.file));
     if (t.sender_type === "ai" && window.mdToHtml) {
       try { than = window.mdToHtml(t.text || "", ""); } catch (e) { than = esc(t.text || ""); }
+    } else if (coMedia) {
+      than = window.JoyceHtMedia.html(media, esc, ic, window.t) + (media.chu ? '<div class="ht-chu-thich">' + esc(media.chu) + '</div>' : "");
     } else {
       than = esc(t.text || "");
     }
-    var loai = t.message_type && t.message_type !== "text"
+    var loai = (t.message_type && t.message_type !== "text" && !coMedia)
       ? '<span class="ht-loai">' + ic(t.message_type === "image" ? "image" : t.message_type === "audio" ? "mic" : "paperclip") +
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi
@@ -921,6 +932,9 @@
         loi +
         '<div class="ht-acc-acts">' +
           congTac +
+          // 0.174.0: nhập tin cũ (Zalo cá nhân giữ khoảng 2 tuần). Chủ bấm mới chạy; tin cũ không vào bot, không tính chưa đọc.
+          (nl.nhap_lich_su && a.kind === "account"
+            ? '<button type="button" class="s-btn-ghost ht-acc-nhap-cu">' + ic("history") + ' ' + esc(window.t("ht.nhap_cu")) + '</button>' : "") +
           '<button type="button" class="s-btn-ghost ht-acc-inbox">' + ic("messages-square") + ' ' + esc(window.t("ht.tab_inbox")) + '</button>' +
           (!a.bot_id
             ? '<button type="button" class="s-btn-ghost ht-acc-tao-bot">' + ic("headset") + ' ' + esc(window.t("ht.tk_tao_bot")) + '</button>' : "") +
@@ -951,6 +965,8 @@
       _dauVetTK = "";
       taiTK(true);
     };
+    var nhapCu = c.querySelector(".ht-acc-nhap-cu");
+    if (nhapCu) nhapCu.onclick = function () { nhapTinCu(a, nhapCu); };
     var sua = c.querySelector(".ht-acc-sua");
     if (sua) sua.onclick = function () { moSuaTK(a); };
     var kn = c.querySelector(".ht-acc-ket-noi");
@@ -973,7 +989,7 @@
       ? window.t(a.bot_mot_tk ? "ht.xoa_go_bot_cuoi" : "ht.xoa_go_bot",
                  { ten: a.label, bot: a.bot_name, brain: a.bot_brain || "?" })
       : window.t("ht.xn_xoa_tk", { ten: a.label });
-    if (!await JoyceDialog.confirm(hoi)) return;
+    if (!confirm(hoi)) return;
     try {
       var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/delete",
                         { method: "POST", body: fd({ go_khoi_bot: a.bot_id ? "1" : "" }) });
@@ -1024,6 +1040,7 @@
       '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
       '<div class="cb-hint" id="htTokenNote"></div>' +
+      '<div class="cb-hint ht-webhook" id="htWebhook" hidden></div>' +
       '<label>' + esc(window.t("ht.lb_nhan_tk")) + '</label>' +
       '<input id="htLabel" placeholder="' + esc(window.t("ht.ph_nhan_tk")) + '">' +
       '<div class="ht-form-acts">' +
@@ -1043,6 +1060,27 @@
       box.querySelector("#htTokenLabel").textContent = "Token " + k.nhan;
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + " " + window.t("cb.token_rieng");
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.classList.toggle("on", n.dataset.k === id); });
+      hienWebhook(k);
+    }
+    // Kênh nhận tin qua webhook (Messenger, 0.134.0): hiện địa chỉ và mã xác minh để dán sang Meta.
+    // Hỏi server chứ không tự ghép từ location: sau proxy, chỉ server biết địa chỉ ngoài thật.
+    async function hienWebhook(k) {
+      var o = box.querySelector("#htWebhook");
+      if (!o) return;
+      o.hidden = true;
+      o.innerHTML = "";
+      if (!k.webhook) return;
+      try {
+        var r = await api("/channels/webhook-info?channel=" + encodeURIComponent(k.id));
+        if (chon !== k.id) return;
+        o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code><br>' +
+          '<b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token || "") + '</code>' +
+          (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t("ht.wh_can_https")) + '</span>');
+        o.hidden = false;
+      } catch (e) {
+        o.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>';
+        o.hidden = false;
+      }
     }
     box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.onclick = function () { apKenh(n.dataset.k); }; });
     if (chon) apKenh(chon);
@@ -1146,6 +1184,27 @@
     };
   }
 
+  // Nhập tin cũ của một tài khoản (0.174.0). Dùng chung cho nút trên thẻ kênh và chip Zalo trên thẻ bot (chatbots.js): kênh đã có bot
+  // không hiện thẻ ở mục "Kênh chưa có bot", nên chip là đường duy nhất tới nút này.
+  async function nhapTinCu(a, nut) {
+    if (!confirm(window.t("ht.xn_nhap_cu", { ten: a.label || a.external_id || a.id }))) return;
+    var goc = nut ? nut.innerHTML : "";
+    if (nut) { nut.disabled = true; nut.textContent = window.t("ht.dang_nhap_cu"); }
+    try {
+      var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/import-history",
+                        { method: "POST", body: fd({ channel: a.channel }) });
+      var bao = r.so_tin
+        ? window.t("ht.da_nhap_cu", { tin: r.so_tin, chat: r.so_cuoc_chat })
+        : window.t("ht.khong_co_tin_cu");
+      if (r.bo_qua) bao += "\n" + window.t("ht.nhap_cu_bo_qua", { count: r.bo_qua });
+      if (r.het_tran) bao += "\n" + window.t("ht.nhap_cu_het_tran");
+      alert(bao);
+    } catch (e) { alert(window.t("ht.loi_nhap_cu") + " " + e.message); }
+    if (nut) { nut.disabled = false; nut.innerHTML = goc; }
+    _dauVetTK = "";
+    taiTK(true);
+  }
+
   // Sửa một kênh theo id: chip kênh trên thẻ bot (chatbots.js) gọi vào đây. Chưa nạp danh sách kênh thì nạp rồi mới mở.
   async function suaKenh(id) {
     var tim = function () { return _tk.filter(function (x) { return x.id === id; })[0]; };
@@ -1164,5 +1223,5 @@
   }
 
   window.JoyceConversations = { render: render, mo: moTu, chonTab: chonTab,
-                               themTaiKhoan: moThemTK, suaKenh: suaKenh, tenBrain: tenBrain };
+                               themTaiKhoan: moThemTK, suaKenh: suaKenh, tenBrain: tenBrain, nhapTinCu: nhapTinCu };
 })();

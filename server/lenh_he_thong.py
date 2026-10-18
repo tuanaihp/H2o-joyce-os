@@ -20,11 +20,16 @@ import re
 import sys
 
 import compaction
+import localefmt
 
 # Dấu hiệu nhận diện. PHẢI khớp từng chữ với dashboard/chat-lenh.js (có test khoá hai bên).
 PLAN_MARK = "[CHẾ ĐỘ KẾ HOẠCH:"
 GOAL_MARK = "[MỤC TIÊU:"
 GOAL_TAG = "JOYCE_GOAL"
+# 0.173.1: hidden line inside the /goal block of an automatic round (v >= 2), so the dashboard can draw that
+# round as a collapsible "nudged to continue" line with a Stop goal button, also after a reload.
+GOAL_ROUND_TAG = "JOYCE_GOAL_ROUND"
+GOAL_MAX_ROUNDS = 5
 
 # Neo đầu DÒNG chứ không phải đầu tin: trước khối này dashboard còn chèn khối "file đang ghim" và
 # "ngữ cảnh giao diện", nên nó hiếm khi đứng ở byte 0. Neo đầu dòng để một đoạn văn dán vào
@@ -38,7 +43,7 @@ GIU_NGUYEN = 4
 # Nhà API mà bộ nén nền của Joyce đã chạy được (cùng danh sách với móc nén nền sau mỗi lượt
 # trong main.py). Nhà khác (Ollama, OpenAI-compat) chưa được kiểm chứng đường tóm tắt nên
 # không đoán mò: báo thẳng là chưa hỗ trợ thay vì nén hỏng.
-NHA_API_NEN_DUOC = ("openrouter", "openai", "anthropic-api", "gemini", "groq")
+NHA_API_NEN_DUOC = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek")
 
 
 def khoi_ke_hoach() -> str:
@@ -75,23 +80,34 @@ def _don_dieu_kien(dieu_kien: str, toi_da: int = 400) -> str:
     return s[:toi_da]
 
 
-def khoi_muc_tieu(dieu_kien: str, vong: int = 1, toi_da: int = 8) -> str:
+def khoi_muc_tieu(dieu_kien: str, vong: int = 1, toi_da: int = GOAL_MAX_ROUNDS, left: str = "") -> str:
     """Khối chỉ dẫn `/goal`: làm tiếp cho tới khi điều kiện đúng, tự báo trạng thái ở cuối.
 
     Trình duyệt đọc dòng ẩn `<!-- JOYCE_GOAL: {...} -->` để quyết định có tự gửi vòng tiếp
     không. Cách này giống JOYCE_ASK/JOYCE_LESSON: MODEL đề xuất, CODE quyết định (trần vòng,
     dừng khi không tiến triển, dừng khi người dùng chen vào).
     """
+    import json
     dk = _don_dieu_kien(dieu_kien)
+    left = _don_dieu_kien(left, 300).replace("-->", "- ->")
+    # Rounds 2+ carry the previous status twice: in words for the model, and as a hidden JSON line for the
+    # dashboard. "-->" is stripped so the status cannot close the HTML comment early.
+    round_line = ""
+    if int(vong) >= 2:
+        info = json.dumps({"v": int(vong), "n": int(toi_da), "left": left}, ensure_ascii=False)
+        round_line = ((f"Vòng trước còn: {left}\n" if left else "") + f"<!-- {GOAL_ROUND_TAG}: {info} -->\n")
     return (
         f"{GOAL_MARK} {dk}\n"
         f"Chế độ làm tới khi đạt, vòng {int(vong)}/{int(toi_da)}. Làm tiếp phần còn thiếu bằng "
         "công cụ sẵn có, rồi tự kiểm tra bằng dữ liệu thật xem điều kiện trên đã đúng chưa.\n"
+        + round_line +
         "Cuối câu trả lời LUÔN thêm đúng MỘT dòng ẩn: "
         f'<!-- {GOAL_TAG}: {{"done":true}} --> nếu điều kiện đã đúng và đã kiểm chứng, hoặc '
-        f'<!-- {GOAL_TAG}: {{"done":false,"left":"tình trạng và phần còn lại, một câu ngắn"}} --> nếu chưa. '
-        "Không báo đã đạt khi chưa kiểm chứng. Cần người dùng quyết định điều gì thì hỏi rõ rồi "
-        "dừng.]\n\n"
+        f'<!-- {GOAL_TAG}: {{"done":false,"left":"tình trạng và phần còn lại, một câu ngắn"}} --> nếu chưa, hoặc '
+        f'<!-- {GOAL_TAG}: {{"done":false,"blocked":"lý do, một câu ngắn"}} --> nếu KHÔNG THỂ làm tiếp vì '
+        "thiếu quyền, thiếu công cụ, thiếu kết nối hay thiếu dữ liệu mà chỉ người dùng gỡ được (khi đó đừng "
+        "thử lại vô ích). Không báo đã đạt khi chưa kiểm chứng. Cần người dùng quyết định điều gì thì hỏi rõ "
+        "rồi dừng.]\n\n"
     )
 
 
@@ -116,7 +132,11 @@ def doc_muc_tieu(text: str):
         return None
     if not isinstance(d, dict) or not isinstance(d.get("done"), bool):
         return None
-    return {"done": d["done"], "left": str(d.get("left") or "").strip()[:300]}
+    out = {"done": d["done"], "left": str(d.get("left") or "").strip()[:300]}
+    blocked = str(d.get("blocked") or "").strip()[:300]
+    if blocked and not d["done"]:
+        out["blocked"] = blocked
+    return out
 
 
 async def nen_phien(store, sid, *, kind, prov, api_key, model, api_stream, giu=GIU_NGUYEN):
@@ -194,9 +214,11 @@ def gon_so(n) -> str:
 def _dong_muc_dung(nhan: str, tot: dict) -> str:
     luot = int((tot or {}).get("turns") or 0)
     if not luot:
-        return f"{nhan}: chưa có lượt nào."
-    s = (f"{nhan}: {luot} lượt, {gon_so(tot.get('in'))} token vào, "
-         f"{gon_so(tot.get('out'))} token ra")
+        return localefmt.chu(f"{nhan}: chưa có lượt nào.", f"{nhan}: no turns yet.")
+    s = localefmt.chu(f"{nhan}: {luot} lượt, {gon_so(tot.get('in'))} token vào, "
+                      f"{gon_so(tot.get('out'))} token ra",
+                      f"{nhan}: {luot} turns, {gon_so(tot.get('in'))} tokens in, "
+                      f"{gon_so(tot.get('out'))} tokens out")
     chi = float((tot or {}).get("cost") or 0)
     if chi > 0:
         s += f", ~${chi:.2f}"
@@ -208,20 +230,24 @@ def dinh_dang_muc_dung(summary: dict, openrouter=None) -> str:
     summary = summary or {}
     hom_nay = summary.get("today") or {}
     tat_ca = summary.get("all_time") or {}
-    dong = ["📈 Mức dùng Joyce (số Joyce tự đo)",
-            _dong_muc_dung("Hôm nay", hom_nay.get("total") or {})]
+    dong = [localefmt.chu("📈 Mức dùng Joyce (số Joyce tự đo)", "📈 Joyce usage (as measured by Joyce)"),
+            _dong_muc_dung(localefmt.chu("Hôm nay", "Today"), hom_nay.get("total") or {})]
     for it in (hom_nay.get("items") or [])[:5]:
         dong.append(f"  - {it.get('provider', '?')} {it.get('model', '')}: "
-                    f"{int(it.get('turns') or 0)} lượt, "
-                    f"{gon_so((it.get('in') or 0) + (it.get('out') or 0))} token")
-    dong.append(_dong_muc_dung("Từ trước tới nay", tat_ca.get("total") or {}))
+                    + localefmt.chu(f"{int(it.get('turns') or 0)} lượt, ",
+                                    f"{int(it.get('turns') or 0)} turns, ")
+                    + f"{gon_so((it.get('in') or 0) + (it.get('out') or 0))} token")
+    dong.append(_dong_muc_dung(localefmt.chu("Từ trước tới nay", "All time"), tat_ca.get("total") or {}))
     if openrouter and openrouter.get("remaining") is not None:
-        dong.append(f"Số dư OpenRouter: ${float(openrouter['remaining']):.2f}")
+        dong.append(localefmt.chu(f"Số dư OpenRouter: ${float(openrouter['remaining']):.2f}",
+                                  f"OpenRouter balance: ${float(openrouter['remaining']):.2f}"))
     return "\n".join(dong)
 
 
 _NHAN_COT = (("running", "Đang chạy"), ("review", "Chờ duyệt"), ("blocked", "Bị kẹt"),
              ("ready", "Sẵn sàng"), ("todo", "Chờ làm"), ("triage", "Mới nhận"))
+_NHAN_COT_EN = {"running": "Running", "review": "Awaiting review", "blocked": "Blocked",
+                "ready": "Ready", "todo": "To do", "triage": "New"}
 
 
 def dinh_dang_viec(view: dict, moi_cot: int = 5) -> str:
@@ -230,28 +256,32 @@ def dinh_dang_viec(view: dict, moi_cot: int = 5) -> str:
     cot = view.get("columns") or {}
     dem = view.get("counts") or {}
     che_do = str(view.get("orchestration") or "")
-    dong = ["📋 Việc nền của Joyce"]
+    dong = [localefmt.chu("📋 Việc nền của Joyce", "📋 Joyce background work")]
     if che_do.lower() == "off":
-        dong.append("⚠ Tự vận hành đang TẮT: việc chỉ nằm trong hàng đợi, chưa chạy. "
-                    "Bật ở trang Việc trên dashboard.")
+        dong.append(localefmt.chu("⚠ Tự vận hành đang TẮT: việc chỉ nằm trong hàng đợi, chưa chạy. "
+                                  "Bật ở trang Việc trên dashboard.",
+                                  "⚠ AI self-driving is OFF: work only sits in the queue and does not run. "
+                                  "Turn it on from the Tasks page on the dashboard."))
     elif che_do.lower() == "manual":
-        dong.append("Tự vận hành ở chế độ thủ công: việc chỉ chạy khi bấm Chạy ở trang Việc.")
+        dong.append(localefmt.chu("Tự vận hành ở chế độ thủ công: việc chỉ chạy khi bấm Chạy ở trang Việc.",
+                                  "AI self-driving is manual: work only runs when you click Run on the Tasks page."))
     co_gi = False
     for khoa, nhan in _NHAN_COT:
         ds = cot.get(khoa) or []
         if not ds:
             continue
         co_gi = True
-        dong.append(f"{nhan} ({len(ds)}):")
+        dong.append(f"{localefmt.chu(nhan, _NHAN_COT_EN.get(khoa, nhan))} ({len(ds)}):")
         for t in ds[:moi_cot]:
             dong.append(f"  - {str(t.get('title') or t.get('id') or '?')[:70]}")
         if len(ds) > moi_cot:
-            dong.append(f"  ... và {len(ds) - moi_cot} việc nữa")
+            dong.append(localefmt.chu(f"  ... và {len(ds) - moi_cot} việc nữa",
+                                      f"  ... and {len(ds) - moi_cot} more"))
     if not co_gi:
-        dong.append("Không có việc nào đang chạy hay chờ.")
+        dong.append(localefmt.chu("Không có việc nào đang chạy hay chờ.", "Nothing is running or waiting."))
     xong = int(view.get("completed_24h") or 0)
     if xong or dem.get("done"):
-        dong.append(f"Xong trong 24 giờ qua: {xong}.")
+        dong.append(localefmt.chu(f"Xong trong 24 giờ qua: {xong}.", f"Done in the last 24 hours: {xong}."))
     return "\n".join(dong)
 
 
@@ -259,8 +289,11 @@ def dinh_dang_bo_nho(noi_dung: str, toi_da: int = 3000) -> str:
     """Mục lục bộ nhớ (memory/MEMORY.md) -> chữ cho Telegram, cắt cho vừa một tin nhắn."""
     s = str(noi_dung or "").strip()
     if not s:
-        return ("Brain này chưa có bộ nhớ dài hạn nào (memory/MEMORY.md trống). "
-                "Nói \"nhớ giúp ... \" là Joyce tự ghi.")
+        return localefmt.chu("Brain này chưa có bộ nhớ dài hạn nào (memory/MEMORY.md trống). "
+                             "Nói \"nhớ giúp ... \" là Joyce tự ghi.",
+                             "This brain has no long-term memory yet (memory/MEMORY.md is empty). "
+                             "Say \"remember ...\" and Joyce writes it down.")
     if len(s) > toi_da:
-        s = s[:toi_da].rstrip() + "\n... (còn nữa, mở memory/MEMORY.md để xem đủ)"
-    return "🧠 Bộ nhớ dài hạn của brain này\n\n" + s
+        s = s[:toi_da].rstrip() + localefmt.chu("\n... (còn nữa, mở memory/MEMORY.md để xem đủ)",
+                                                "\n... (more, open memory/MEMORY.md for the rest)")
+    return localefmt.chu("🧠 Bộ nhớ dài hạn của brain này\n\n", "🧠 Long-term memory of this brain\n\n") + s

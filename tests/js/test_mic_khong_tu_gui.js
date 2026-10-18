@@ -77,8 +77,8 @@ check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
 // Chỗ thứ 10 (0.65.28) VẪN là hoãn: trong cuộc gọi, câu nói lúc Joyce đang trả lời không dừng
 // lượt cũ nữa mà xếp hàng, gửi khi lượt xong và loa đọc xong (guiCauChoLuot).
 const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
-check("có 11 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow, adaptive commit, câu chờ lượt trong cuộc gọi, tin đã xếp hàng guiHangGo)",
-  goiGui === 11, goiGui);
+check("có 12 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow, adaptive commit, câu chờ lượt trong cuộc gọi, bấm Nghe cuộc gọi hẹn giờ, tin đã xếp hàng guiHangGo)",
+  goiGui === 12, goiGui);
 // Reconnect sends and cancellation across chats execute in test_voice_app_session.js.
 check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
   /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text, opts\);/.test(app));
@@ -88,7 +88,7 @@ check("chỗ thứ 6 là tin hoãn, chỉ gửi sau khi lượt cũ đã dừng"
 
 // ---- 4. Server không tự nhập liệu: việc nền luôn là tin của Joyce ----
 check("push_to_chat ghi vai assistant, không bao giờ là user",
-  /def push_to_chat[\s\S]{0,1400}append_message\(sid, "assistant", clean\)/.test(server));
+  /def push_to_chat[\s\S]{0,1900}append_message\(sid, "assistant", clean\)/.test(server));
 // Năm chỗ ghi vai "user": bốn đường nhập liệu và một thao tác duyệt quy trình.
 // Bốn đường nhập liệu là: WebSocket của dashboard,
 // tin nhắn đến từ Telegram/Zalo (phiên riêng theo chat_id), và HAI chỗ trong phiên nghe nói
@@ -100,7 +100,7 @@ const ghiUser = (server.match(/append_message\([^)]*"user"/g) || []).length;
 // 0.64.66 thêm chỗ thứ sáu: lượt nối tiếp sau khi việc chạy nền xong (_start_followup_turn)
 // ghi tin mở lượt, có đánh dấu "[Việc chạy nền đã xong]", để mở lại hội thoại vẫn hiểu vì sao
 // Joyce tự nói tiếp. Không phải chữ của mic nên không đụng luật "mic không tự gửi".
-check("chỉ 6 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền)", ghiUser === 6, ghiUser);
+check("chỉ 7 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền + gửi thêm lúc đang chạy)", ghiUser === 7, ghiUser);
 check("chỗ thứ sáu nằm TRONG _start_followup_turn",
   /async def _start_followup_turn[\s\S]{0,1600}store\.append_message\(conv_sid, "user", text\)/.test(server));
 const approvalBody = server.slice(server.indexOf('if action == "wf_resume":'), server.indexOf('if action == "resume_now":'));

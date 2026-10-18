@@ -5,6 +5,8 @@ Auth CHỈ bật khi đã đặt mật khẩu → bản local chưa đặt vẫn
 """
 import json
 import os
+import threading
+import time
 import hashlib
 import secrets
 from pathlib import Path
@@ -37,13 +39,14 @@ _DEFAULT = {
     # Tên miền riêng cho HTTPS tự động (Caddy On-Demand TLS hỏi /tls-check trước khi xin cert).
     "domain": {"custom": ""},
     # Ngôn ngữ và locale. TÁCH BA BIẾN có chủ ý (spec đa ngôn ngữ mục 4.1):
-    #   ui_lang     chữ trên màn hình      - chưa dùng tới, dành cho lượt i18n giao diện
+    #   ui_lang     chữ trên màn hình      - "" = chưa ai chọn: dashboard đoán theo trình duyệt
+    #               rồi ghi lại đây (0.66.0). Bản cài cũ đã lưu "vi" nên không bị đổi.
     #   reply_lang  Joyce trả lời          - "auto" = bám theo ngôn ngữ người dùng đang viết
     #   tz/currency locale, KHÁC ngôn ngữ  - người dùng tiếng Anh ở VN vẫn xài UTC+7 và VND
     # Gộp ba cái làm một là chặn đứng ca dùng đáng tiền nhất: chủ Việt, giao diện Việt, brain
     # Việt, nhưng chatbot đối ngoại trả lời tiếng Nhật.
     "locale": {
-        "ui_lang": "vi",
+        "ui_lang": "",
         "reply_lang": "auto",              # auto | vi | en
         "tz": "Asia/Ho_Chi_Minh",
         "currency": "VND",
@@ -107,6 +110,7 @@ _DEFAULT = {
         # Anthropic API/OpenRouter → adaptive thinking + effort; OpenAI → reasoning_effort (chỉ o-series);
         # Claude Code CLI → chèn từ khoá think/ultrathink vào prompt. off = trả lời nhanh như cũ.
         "reasoning": "off",
+        "fast": False,   # Fast mode (composer bolt, 0.153.0): faster, costs more
         # --- Credentials theo provider ---
         # Gói Claude Code (provider 'anthropic-cli') xác thực bằng CÁI GÌ:
         #   "subscription" (mặc định) - phiên đăng nhập của chính Claude Code, tức gói Pro/Max
@@ -122,6 +126,7 @@ _DEFAULT = {
         "openai_api_key": "",                  # provider OpenAI (ChatGPT API)
         "gemini_api_key": "",                  # provider Google Gemini (endpoint OpenAI-compat)
         "groq_api_key": "",                    # provider Groq (endpoint OpenAI-compat, suy luận rất nhanh)
+        "deepseek_api_key": "",                # provider DeepSeek (endpoint OpenAI-compat)
         # Provider 'ollama' = Ollama Cloud (ollama.com). Bản chạy trên máy nhà KHÔNG được đấu,
         # cố ý: nó đòi thêm một ô địa chỉ - ca đặc biệt duy nhất của cả lớp nhà cung cấp -
         # trong khi phần đông người dùng Joyce chạy nó trên VPS, nơi "localhost" là chính cái
@@ -169,6 +174,7 @@ _DEFAULT = {
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)
             "groq": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"],  # Groq (picker load động)
+            "deepseek": ["deepseek-flash", "deepseek-v4-pro"],                     # DeepSeek (picker load động)
             # Không ghim model Codex: /provider/models lấy catalog LIVE bằng
             # codex app-server model/list và nhớ lại lần thành công gần nhất.
             "openai-oauth": [],
@@ -204,6 +210,21 @@ _DEFAULT = {
     # cho bot thì Joyce đưa họ vào hàng chờ kèm mã ghép nối, chủ bấm một nút là xong.
     # Xem `_ZALO_CHO` trong main.py.
     "zalo_bot": {"enabled": False, "token": "", "chat_id": ""},
+    # Owner's control channels on Slack (Socket Mode) and WhatsApp (Cloud API), 0.71.0. `allow`
+    # is the allow-list: Slack user ids (U...) / phone numbers. Empty = nobody (fail-closed,
+    # strangers get a pairing code, see server/owner_channels.py). `verify_token` is the
+    # handshake string Meta sends when the webhook is set up; it is generated, not secret.
+    "slack": {"enabled": False, "bot_token": "", "app_token": "", "allow": ""},
+    "whatsapp": {"enabled": False, "phone_number_id": "", "access_token": "", "app_secret": "",
+                 "allow": "", "verify_token": ""},
+    # Discord (Gateway, bot token) and Lark/Feishu (long connection, app id + secret), 0.85.0.
+    # Same rules as Slack: `allow` holds people (Discord user ids / Lark open_ids), empty = nobody.
+    # `domain` picks the Lark cloud: "lark" (open.larksuite.com) or "feishu" (open.feishu.cn).
+    # Messenger (0.134.0): customer bots only, credentials live in the channel-account store.
+    # This holds just the handshake string Meta echoes when the webhook is set up (generated).
+    "messenger": {"verify_token": ""},
+    "discord": {"enabled": False, "bot_token": "", "allow": ""},
+    "lark": {"enabled": False, "app_id": "", "app_secret": "", "domain": "lark", "allow": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
     # Lưu trong settings.json (đã gitignored) - KHÔNG bao giờ đẩy lên brain repo.
     # sync_images: đồng bộ CẢ ẢNH (jpg/png/gif/webp, mỗi ảnh <= trần ~10MB) lên repo backup.
@@ -495,11 +516,13 @@ _SECRET_PATHS = (
     # được. Xem `_secret_keys`.
     "packs.tokens.*",
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
-    "model.groq_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
+    "model.groq_api_key", "model.deepseek_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
     # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
+    "slack.bot_token", "slack.app_token", "whatsapp.access_token", "whatsapp.app_secret",
+    "discord.bot_token", "lark.app_secret",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",
@@ -538,6 +561,142 @@ def _transform_secret_fields(cfg, fn):
 # (x2 middleware = 10-16ms/request chỉ để check đăng nhập). File đổi (kể cả write_settings
 # ghi đè) thì mtime/size đổi -> tự đọc lại. Trả deep copy để caller sửa thoải mái không bẩn cache.
 _SETTINGS_CACHE = {"sig": None, "cfg": None}
+
+# Một khoá cho mọi lần đọc-sửa-ghi settings.json (update_settings, write_settings). RLock vì
+# update_settings gọi write_settings bên trong. Chặn hai luồng (endpoint chạy trong threadpool,
+# asyncio.to_thread) cùng đọc bản cũ rồi ghi đè lên thay đổi của nhau.
+_SETTINGS_LOCK = threading.RLock()
+
+
+def _bak_path() -> Path:
+    """Bản tốt gần nhất trước lần ghi cuối. Tính lại mỗi lần gọi vì test đổi SETTINGS_PATH."""
+    return SETTINGS_PATH.with_name(SETTINGS_PATH.name + ".bak")
+
+
+class SettingsUnreadable(RuntimeError):
+    """settings.json có trên đĩa mà không đọc được (cả bản dự phòng `.bak`). Ném ra thay vì trả cấu
+    hình mặc định: mặc định là "máy mới cài", và lần ghi kế tiếp sẽ lấy nó đè lên file thật."""
+
+
+# Đọc lại mấy lần trước khi coi file là hỏng. Lỗi đọc THOÁNG QUA là chuyện thường trên Windows: phần
+# mềm diệt virus hay trình đồng bộ khoá file vừa được ghi trong vài chục mili giây, và
+# `os.replace` của chính Joyce cũng khoá đích trong tích tắc. Đọc đúng lúc đó là PermissionError.
+_READ_TRIES = 6
+
+
+def _doc_file_settings() -> dict:
+    """Nội dung settings.json trên đĩa (CHƯA trộn mặc định, chưa giải mã). {} khi chưa có file.
+
+    File có mà đọc hỏng (JSON cụt, byte rác) thì KHÔNG coi như rỗng. Trước 0.86.2 nhánh này nuốt
+    lỗi rồi trả mặc định, và lần ghi kế tiếp lấy chính bản mặc định đó đè lên file: mất sạch tên
+    miền, mật khẩu, khoá API (báo lỗi của khách 08/10). Giờ: giữ lại bản hỏng để cứu tay, đọc bản
+    dự phòng `.bak` (bản tốt trước lần ghi cuối), và báo to trong log.
+
+    0.166.4: đọc lại vài lần trước khi kết luận hỏng, và file CÓ mà cả nó lẫn `.bak` đều không đọc
+    được thì ném `SettingsUnreadable` thay vì trả {}. Trả {} ở đây chính là trả "máy mới cài": giao
+    diện hiện lại trình cài đặt và lần lưu kế tiếp (chủ repo 15/10/2026: lưu kênh Lark) ghi cấu hình
+    trống đè lên tài khoản, model và kênh admin thật."""
+    if not SETTINGS_PATH.exists():
+        return {}
+    e = None
+    for lan in range(_READ_TRIES):
+        try:
+            data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+            raise ValueError(f"settings.json không phải object JSON ({type(data).__name__})")
+        except FileNotFoundError:
+            return {}
+        except Exception as loi:      # noqa: BLE001 - phân loại ngay dưới
+            e = loi
+            time.sleep(0.03 * (lan + 1))
+    if e is not None:
+        hong = SETTINGS_PATH.with_name(SETTINGS_PATH.name + ".bad")
+        try:
+            if isinstance(e, OSError):
+                raise e      # file bị khoá chứ nội dung không hỏng: không có bản hỏng nào để giữ
+            raw = SETTINGS_PATH.read_bytes()
+            hong = SETTINGS_PATH.with_name(f"{SETTINGS_PATH.name}.bad-{hashlib.sha1(raw).hexdigest()[:8]}")
+            if not hong.exists():   # cùng một bản hỏng thì chỉ giữ một lần
+                hong.write_bytes(raw)
+        except Exception:
+            pass
+        print(f"[config] settings.json ĐỌC HỎNG ({type(e).__name__}: {e}). Đã giữ bản hỏng ở {hong.name}; "
+              f"đang dùng bản dự phòng {_bak_path().name} nếu có.", file=__import__("sys").stderr)
+        for lan in range(_READ_TRIES):
+            try:
+                data = json.loads(_bak_path().read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    _DOC_TU_BAK[0] = True
+                    return data
+                break
+            except FileNotFoundError:
+                break
+            except Exception:      # noqa: BLE001
+                time.sleep(0.03 * (lan + 1))
+        if isinstance(e, OSError):
+            # Không mở được file (khoá, quyền), chứ không phải nội dung hỏng: file thật vẫn còn nguyên
+            # đó. Coi là máy mới thì lần ghi kế tiếp xoá nó.
+            raise SettingsUnreadable(f"settings.json không đọc được ({type(e).__name__}: {e}) và không có bản "
+                                     f"dự phòng dùng được. Joyce KHÔNG coi đây là máy mới để khỏi ghi đè cấu hình thật.")
+        # Nội dung hỏng THẬT (JSON vỡ qua mọi lần đọc lại) và không có .bak: bản hỏng đã được giữ ở
+        # `.bad-*` bên trên, nên vẫn như trước: chạy bằng mặc định để chủ cài lại được.
+    return {}
+
+
+# Lần đọc gần nhất phải dùng `.bak`: read_settings không lưu kết quả đó vào bộ nhớ đệm, để lần đọc sau
+# thử lại file thật thay vì giữ bản cũ mãi.
+_DOC_TU_BAK = [False]
+
+
+def _ghi_nguyen_tu(text: str) -> None:
+    """Ghi settings.json NGUYÊN TỬ: ghi file tạm cạnh nó, fsync, rồi os.replace.
+
+    Ghi thẳng (write_text) mà tiến trình chết giữa chừng (container bị dừng lúc cập nhật, máy mất
+    điện) là để lại file JSON cụt, và đọc cụt thì trước đây ra cấu hình mặc định. Trước khi thay,
+    chép bản đang tốt sang `.bak` để còn đường lùi nếu bản mới có vấn đề."""
+    tmp = SETTINGS_PATH.with_name(f".{SETTINGS_PATH.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        if SETTINGS_PATH.exists():
+            try:
+                cu = SETTINGS_PATH.read_bytes()
+                if isinstance(json.loads(cu.decode("utf-8")), dict):   # chỉ lưu bản TỐT làm dự phòng
+                    # Ghi .bak cũng NGUYÊN TỬ: nó là đường lùi khi settings.json đọc hỏng, mà ghi thẳng
+                    # thì người đọc đúng lúc này thấy một .bak cụt, đúng lúc nó cần .bak nhất.
+                    bak_tmp = _bak_path().with_name(f".{_bak_path().name}.{os.getpid()}.{threading.get_ident()}.tmp")
+                    bak_tmp.write_bytes(cu)
+                    try:
+                        os.replace(bak_tmp, _bak_path())
+                    except OSError:
+                        try:
+                            bak_tmp.unlink()
+                        except OSError:
+                            pass
+                os.chmod(tmp, SETTINGS_PATH.stat().st_mode & 0o777)
+            except Exception:
+                pass
+        # Windows: file đang bị một tiến trình khác mở đọc thì replace có thể bị từ chối thoáng qua.
+        for lan in range(5):
+            try:
+                os.replace(tmp, SETTINGS_PATH)
+                break
+            except PermissionError:
+                if lan == 4:
+                    raise
+                time.sleep(0.05 * (lan + 1))
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
 
 
 def _deep_merge(base: dict, patch: dict) -> dict:
@@ -753,6 +912,18 @@ def _no_rong_pham_vi_bo_nao(cfg: dict) -> bool:
     return doi
 
 
+def _ui_lang_ban_cu(cfg: dict, data: dict) -> None:
+    """Máy đã có settings.json mà file chưa từng ghi `locale.ui_lang` thì coi là "vi".
+
+    Từ 0.66.0 mặc định `ui_lang` là "" (chưa chọn: dashboard đoán theo trình duyệt). Máy cài
+    trước khi có khối locale thì file của nó không có khoá này, và đọc ra "" sẽ làm người dùng
+    Việt có trình duyệt để tiếng Anh bị đổi giao diện trong im lặng. Hồi đó Joyce chỉ có tiếng
+    Việt, nên "vi" là đúng sự thật chứ không phải đoán. Chỉ chạm vào bộ nhớ, không ghi file.
+    """
+    if data and "ui_lang" not in (data.get("locale") or {}):
+        cfg.setdefault("locale", {})["ui_lang"] = "vi"
+
+
 def read_settings():
     try:
         st = SETTINGS_PATH.stat()
@@ -762,12 +933,11 @@ def read_settings():
     if sig is not None and sig == _SETTINGS_CACHE["sig"] and _SETTINGS_CACHE["cfg"] is not None:
         return json.loads(_SETTINGS_CACHE["cfg"])
     cfg = json.loads(json.dumps(_DEFAULT))   # deep copy
-    try:
-        if SETTINGS_PATH.exists():
-            data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-            _deep_merge(cfg, data or {})
-    except Exception:
-        pass
+    _DOC_TU_BAK[0] = False
+    data = _doc_file_settings()
+    tu_bak = _DOC_TU_BAK[0]
+    _deep_merge(cfg, data)
+    _ui_lang_ban_cu(cfg, data)
     _nan_provider_da_go(cfg)
     _no_rong_pham_vi_bo_nao(cfg)
     _ap_muc_mac_dinh(cfg)
@@ -776,13 +946,92 @@ def read_settings():
         _transform_secret_fields(cfg, secrets_store.decrypt)
     except Exception as e:
         print(f"[config] giải mã secret lỗi: {e}", file=__import__('sys').stderr)
-    if sig is not None:
+    if sig is not None and not tu_bak:
         _SETTINGS_CACHE["sig"] = sig
         _SETTINGS_CACHE["cfg"] = json.dumps(cfg, ensure_ascii=False)
     return cfg
 
 
+def update_settings(patch: dict) -> dict:
+    """Cập nhật TỪNG PHẦN: gộp `patch` (đệ quy) lên cấu hình hiện tại rồi ghi, trong một khoá.
+
+    Dùng cho mọi chỗ chỉ muốn đổi vài trường (`{"whatsapp": {"verify_token": ...}}`). Đừng đưa
+    mảnh như thế vào `write_settings`: hàm đó THAY TOÀN BỘ file bằng thứ được đưa vào. Trả về cấu
+    hình đầy đủ sau khi ghi."""
+    with _SETTINGS_LOCK:
+        cfg = read_settings()
+        _deep_merge(cfg, json.loads(json.dumps(patch)))
+        write_settings(cfg)
+        return cfg
+
+
 def write_settings(cfg):
+    """THAY TOÀN BỘ settings.json bằng `cfg` - một cấu hình ĐẦY ĐỦ lấy từ read_settings() rồi sửa.
+
+    Lưới an toàn (0.86.2): `cfg` thiếu khoá gốc mà mọi cấu hình đầy đủ đều có (read_settings luôn
+    trộn đủ mặc định) thì chắc chắn là một MẢNH truyền nhầm. Ba chỗ từng làm vậy từ 0.71.0
+    (`{"whatsapp": {"verify_token": ...}}` ngay trong GET /whatsapp/status, cho phép chat Zalo,
+    cho phép người dùng Slack/WhatsApp) và mỗi lần chạy là xoá sạch tên miền, mật khẩu, khoá API
+    (khách báo 08/10). Mảnh như thế giờ được gộp như update_settings, kèm một dòng log chỉ chỗ gọi."""
+    if not isinstance(cfg, dict):
+        raise TypeError("write_settings cần một dict cấu hình đầy đủ")
+    with _SETTINGS_LOCK:
+        # MẢNH = thiếu quá nửa khoá gốc. Mảnh thật chỉ có một, hai khoá; còn cấu hình đầy đủ mà bỏ
+        # hẳn một mục có chủ đích (đặt lại tài khoản: `pop("auth")` rồi ghi) vẫn phải xoá được.
+        thieu = [k for k in _DEFAULT if k not in cfg]
+        if len(thieu) * 2 > len(_DEFAULT):
+            import traceback
+            noi = "".join(traceback.format_stack(limit=3)[:-1]).strip().replace("\n", " | ")
+            print(f"[config] write_settings nhận một MẢNH (thiếu {', '.join(thieu[:4])}...) - gộp thay vì "
+                  f"ghi đè cả file. Hãy dùng update_settings. Gọi từ: {noi[-300:]}",
+                  file=__import__("sys").stderr)
+            day_du = read_settings()
+            _deep_merge(day_du, json.loads(json.dumps(cfg)))
+            cfg = day_du
+        _chan_ghi_trang(cfg)
+        _write_settings_full(cfg)
+
+
+def _da_cai_dat(d) -> bool:
+    """Cấu hình này là của một máy ĐÃ cài đặt: qua trình cài đặt, hoặc đã có mật khẩu admin."""
+    d = d if isinstance(d, dict) else {}
+    return bool(d.get("setup_done")) or bool(str(((d.get("auth") or {}).get("password_hash")) or ""))
+
+
+def _chan_ghi_trang(cfg) -> None:
+    """Lưới cuối (0.166.4): không ghi một cấu hình TRỐNG đè lên máy đã cài đặt.
+
+    Cấu hình trống = mất tài khoản (không mật khẩu, setup_done False) VÀ đưa những mục khác mà file trên
+    đĩa đã tuỳ chỉnh (model, kênh, tên workspace...) về đúng giá trị mặc định. Đó là dấu vân tay của một
+    lần đọc hỏng trả về mặc định: ghi nó xuống là xoá tài khoản, model, khoá API và mọi kênh (chủ repo
+    15/10/2026, lúc lưu kênh Lark). Chặn và báo to thay vì ghi.
+
+    Đặt lại tài khoản có chủ đích (lấy cấu hình đầy đủ, `pop("auth")` rồi ghi) vẫn đi qua: các mục khác
+    vẫn giữ giá trị trên đĩa, không mục nào bị kéo về mặc định."""
+    if _da_cai_dat(cfg) or not SETTINGS_PATH.exists():
+        return
+    try:
+        tren_dia = _doc_file_settings()
+    except SettingsUnreadable:
+        tren_dia = None                     # không đọc được bản thật thì càng không được đè lên nó
+    if tren_dia is not None:
+        if not _da_cai_dat(tren_dia):
+            return
+        mat = [k for k, v in tren_dia.items()
+               if k not in ("auth", "setup_done") and k in _DEFAULT
+               and v != _DEFAULT[k] and cfg.get(k) == _DEFAULT[k]]
+        if not mat:
+            return
+    else:
+        mat = ["(không đọc được file trên đĩa)"]
+    import traceback
+    noi = "".join(traceback.format_stack(limit=4)[:-1]).strip().replace("\n", " | ")
+    print(f"[config] CHẶN ghi settings.json: cấu hình mới mất tài khoản và đưa {', '.join(mat[:5])} về mặc "
+          f"định trong khi file trên đĩa đã cài đặt. Gọi từ: {noi[-400:]}", file=__import__("sys").stderr)
+    raise SettingsUnreadable("Từ chối ghi một cấu hình trống đè lên máy đã cài đặt")
+
+
+def _write_settings_full(cfg):
     # Deep-copy rồi mã hoá BẢN SAO: caller vẫn giữ cfg plaintext để dùng tiếp (không bị hỏng).
     out = json.loads(json.dumps(cfg))
     try:
@@ -798,42 +1047,50 @@ def write_settings(cfg):
     try:
         t = (out.get("auth") or {}).get("totp")
         if isinstance(t, dict) and t.get("enabled") and not str(t.get("secret") or ""):
-            raw_cu = json.loads(SETTINGS_PATH.read_text(encoding="utf-8")) if SETTINGS_PATH.exists() else {}
+            raw_cu = _doc_file_settings()
             cu = str((((raw_cu.get("auth") or {}).get("totp") or {}).get("secret")) or "")
             if cu:
                 t["secret"] = cu
     except Exception:
         pass
-    # Cùng luật đó cho MỌI secret (token Telegram, Zalo, API key...): khoá đang lỗi thì
-    # read_settings giải mã ra "", và lần ghi kế tiếp xoá trắng token thật. Chủ studio mất
-    # token bot Telegram đúng kiểu này (15/10). Giữ blob cũ khi giá trị mới RỖNG và blob cũ
-    # KHÔNG giải mã được lúc này. Khoá còn tốt mà người dùng chủ động xoá thì blob cũ giải mã
-    # được, nên vẫn xoá như thường.
     try:
-        _giu_secret_khi_khoa_hong(out)
-    except Exception as e:
-        print(f"[config] giữ secret khi khoá hỏng: {e}", file=__import__('sys').stderr)
-    SETTINGS_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+        _giu_secret_khong_giai_duoc(out)
+    except Exception as e:      # noqa: BLE001 - tấm che hỏng thì vẫn ghi như cũ, không chặn việc lưu
+        print(f"[config] giữ secret khi khoá lệch lỗi: {e}", file=__import__('sys').stderr)
+    _ghi_nguyen_tu(json.dumps(out, ensure_ascii=False, indent=2))
 
 
-def _giu_secret_khi_khoa_hong(out: dict) -> None:
+def _giu_secret_khong_giai_duoc(out):
+    """KHÔNG ghi rỗng đè lên một secret mà máy này không giải mã được (0.81.1).
+
+    Khoá `.secret_key` lệch (volume dựng lại, file khoá mất hay chép từ máy khác) thì read_settings giải mã mọi secret ra
+    "". Ghi lại dict đó là ghi "" đè lên bản mã hoá, và trả đúng khoá về cũng không cứu được nữa: mọi kết nối phải nhập
+    lại. Trước 0.77.1 lúc khởi động không ai ghi settings nên trả khoá là đủ; từ 0.77.1 việc áp mật khẩu admin từ env ghi
+    lại settings một lần lúc boot trên hầu hết máy Hostinger, biến một lỗi tạm thành mất vĩnh viễn.
+
+    Luật: bản CŨ trong file là "enc:..." mà máy này KHÔNG giải được, và bản MỚI rỗng hoặc thiếu -> giữ bản cũ. Khoá đúng
+    thì không đụng gì: chủ xoá key là xoá được. Giá trị mới chủ vừa gõ (khác rỗng) luôn thắng."""
     if not SETTINGS_PATH.exists():
         return
     import secrets_store
-    raw_cu = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    raw_cu = _doc_file_settings()
     for path in _SECRET_PATHS:
-        # 2FA có luật riêng ngay trên (giữ khi enabled, cho xoá khi totp_tat tắt hẳn).
-        if path.endswith(".*") or path == "auth.totp.secret":
+        if path == "auth.totp.secret":
+            # 2FA có tấm che RIÊNG ngay trên (giữ khi còn bật): tắt 2FA lúc khoá lệch (đăng nhập bằng mã khôi phục rồi
+            # tắt) phải xoá được secret, không được hồi sinh nó ở đây.
             continue
-        moi = _secret_keys(out, path)
-        cu = _secret_keys(raw_cu, path)
-        if not moi or not cu:
-            continue
-        (parent_moi, key), (parent_cu, key_cu) = moi[0], cu[0]
-        gia_tri_cu = parent_cu.get(key_cu)
-        if (not str(parent_moi.get(key) or "") and isinstance(gia_tri_cu, str)
-                and gia_tri_cu.startswith("enc:") and not secrets_store.decrypt(gia_tri_cu)):
-            parent_moi[key] = gia_tri_cu
+        parts = path.split(".")
+        for cha_cu, key in _secret_keys(raw_cu, path):
+            cu = cha_cu.get(key)
+            if not (isinstance(cu, str) and cu.startswith("enc:")) or secrets_store.decrypt(cu):
+                continue
+            cha_moi = out
+            for p in parts[:-1]:
+                if not isinstance(cha_moi.get(p), dict):
+                    cha_moi[p] = {}
+                cha_moi = cha_moi[p]
+            if not cha_moi.get(key):
+                cha_moi[key] = cu
 
 
 _TOOL_ENV_OWNED = False   # ELEVENLABS_API_KEY trong env hiện do apply_tool_env đặt → được phép gỡ khi user xoá key
@@ -900,13 +1157,38 @@ def gate_active():
     return auth_enabled() or require_login()
 
 
+def clean_password(password) -> str:
+    """The password as it should be STORED: without surrounding whitespace.
+
+    Phone keyboards add a trailing space after an autocompleted word, and a value pasted into
+    the Hostinger Environment box can carry one too. The owner never sees that space, so it
+    must not decide whether they can sign in (customer report 2026-10-11). Every place that
+    stores a password goes through here; `verify_password` accepts both forms when reading.
+    """
+    return str(password or "").strip()
+
+
 def verify_password(password, cfg=None):
+    """Exact match first (an older hash may have been stored WITH a space), then the cleaned
+    form, so a space the keyboard slipped in never locks the owner out. A password that is
+    only whitespace never matches."""
     cfg = cfg or read_settings()
     a = cfg.get("auth", {})
-    if not a.get("password_hash"):
+    if not a.get("password_hash") or not clean_password(password):
         return False
-    h, _ = hash_password(password, a.get("salt"))
-    return secrets.compare_digest(h, a["password_hash"])
+    for cand in dict.fromkeys((str(password), clean_password(password))):
+        h, _ = hash_password(cand, a.get("salt"))
+        if secrets.compare_digest(h, a["password_hash"]):
+            return True
+    return False
+
+
+def username_matches(typed, cfg=None) -> bool:
+    """Usernames are not secrets: ignore case and surrounding spaces. A phone capitalises the
+    first letter on its own, and "Phong" vs "phong" must not read as "wrong password"."""
+    cfg = cfg or read_settings()
+    want = str((cfg.get("auth", {}) or {}).get("username") or "").strip().casefold()
+    return bool(want) and str(typed or "").strip().casefold() == want
 
 
 # ---- Xác thực 2 lớp (TOTP). Toán nằm ở totp.py, đây chỉ là chỗ CẤT ----
@@ -1072,6 +1354,11 @@ SESSIONS = _load_sessions()
 def _save_sessions():
     try:
         _SESS_PATH.write_text(json.dumps(SESSIONS), encoding="utf-8")
+    except Exception:
+        return
+    try:
+        # Raw login session tokens: owner-only, like .secret_key and .hub_token (no-op on Windows).
+        os.chmod(_SESS_PATH, 0o600)
     except Exception:
         pass
 
@@ -1254,16 +1541,71 @@ def clear_setup_token():
 
 
 def provision_admin_from_env():
-    """Có JOYCE_ADMIN_PASSWORD (+ tùy chọn JOYCE_ADMIN_USER) và CHƯA có admin → tạo admin lúc boot
-    → đóng /auth/setup cho mọi người (cách an toàn nhất cho deploy public). Trả True nếu vừa tạo."""
-    if auth_enabled():
-        return False
-    pw = os.getenv("JOYCE_ADMIN_PASSWORD", "")
+    """Apply JOYCE_ADMIN_PASSWORD (+ optional JOYCE_ADMIN_USER) at boot.
+
+    - No admin yet: create it, which also closes /auth/setup (safest for a public deploy).
+    - Admin exists and the env value CHANGED since it was last applied: reset to it, keep 2FA,
+      drop other sessions. Before 0.77.1 this case was silently ignored, so a customer who
+      changed the password on Hostinger and redeployed got "Wrong username or password"
+      forever, and a VPS owner had no reset path short of editing settings.json over SSH.
+    - Env unchanged: do nothing, so a password changed later in the dashboard survives reboots.
+
+    `auth.env_applied` keeps only a salted hash of the last applied env value, never the value.
+    Returns "created", "reset" or "" (nothing done).
+
+    The marker is compared with the env value as typed AND as cleaned (0.96.1). From 0.92.1 the
+    value is cleaned of surrounding whitespace before use, but a marker written by an older
+    version holds the hash of the value WITH its whitespace. Comparing only the cleaned value
+    read that as "the env changed" and reset the account on the first boot after the update:
+    an owner who had set their own password in the dashboard was locked out with "Wrong username
+    or password" and their username turned into "admin" (many reports 2026-10-11).
+    """
+    raw = os.getenv("JOYCE_ADMIN_PASSWORD", "")
+    pw = clean_password(raw)
     if not pw:
-        return False
+        return ""
     user = (os.getenv("JOYCE_ADMIN_USER", "admin").strip() or "admin")
-    h, salt = hash_password(pw)
     cfg = read_settings()
-    cfg["auth"] = {"username": user, "password_hash": h, "salt": salt}
+    a = dict(cfg.get("auth") or {})
+    m_salt = secrets.token_hex(16)
+    marker = {"username": user, "hash": hash_password(pw, m_salt)[0], "salt": m_salt}
+    if not a.get("password_hash"):
+        h, salt = hash_password(pw)
+        cfg["auth"] = {"username": user, "password_hash": h, "salt": salt, "env_applied": marker}
+        write_settings(cfg)
+        return "created"
+    applied = a.get("env_applied") if isinstance(a.get("env_applied"), dict) else {}
+    if applied.get("hash"):
+        def _applied(value):
+            return secrets.compare_digest(hash_password(value, str(applied.get("salt") or ""))[0],
+                                          str(applied["hash"]))
+        if applied.get("username") == user and _applied(pw):
+            return ""
+        if applied.get("username") == user and raw != pw and _applied(raw):
+            # Same env value, applied with its whitespace by a version before 0.92.1: NOT a change
+            # by the owner, so never a reset. If the account still has exactly that password, store
+            # it clean so the owner can sign in without the invisible space (the typed form keeps
+            # working through `verify_password`). A password set in the dashboard since is kept.
+            # Username, 2FA and sessions are untouched either way.
+            if secrets.compare_digest(hash_password(raw, str(a.get("salt") or ""))[0],
+                                      str(a.get("password_hash") or "")):
+                a["password_hash"], a["salt"] = hash_password(pw)
+            a["env_applied"] = marker
+            cfg["auth"] = a
+            write_settings(cfg)
+            return ""
+    elif a.get("username") == user and verify_password(pw, cfg):
+        # Upgrade from a version without the marker, and the env already matches the account:
+        # just remember it, so a later dashboard change is not reverted on the next boot.
+        a["env_applied"] = marker
+        cfg["auth"] = a
+        write_settings(cfg)
+        return ""
+    # Overwrite key by key: `auth` also holds the 2FA config, replacing it whole would turn 2FA off.
+    a["username"] = user
+    a["password_hash"], a["salt"] = hash_password(pw)
+    a["env_applied"] = marker
+    cfg["auth"] = a
     write_settings(cfg)
-    return True
+    clear_sessions()
+    return "reset"

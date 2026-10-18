@@ -29,6 +29,13 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+
+def _chu(vi: str, en: str) -> str:
+    """Chữ lỗi hiện trên màn hình theo ngôn ngữ giao diện (xem `localefmt.chu`)."""
+    import localefmt
+    return localefmt.chu(vi, en)
+
+
 REALTIME_FLAG = ["-c", "features.realtime_conversation=true"]
 INIT_TIMEOUT = 20.0
 
@@ -43,6 +50,15 @@ def _no_window() -> int:
         return codex_models._no_window()
     except Exception:
         return 0
+
+
+def _codex_env() -> Optional[dict]:
+    """CODEX_HOME do Joyce dò ra (claude_cli.codex_env). None = kế thừa môi trường như cũ."""
+    try:
+        import claude_cli
+        return claude_cli.codex_env()
+    except Exception:
+        return None
 
 
 class AppServer:
@@ -88,7 +104,7 @@ class AppServer:
             [self.cli, *REALTIME_FLAG, "app-server"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
-            creationflags=_no_window(),
+            creationflags=_no_window(), env=_codex_env(),
         )
         threading.Thread(target=self._reader, name="joyce-codex-realtime", daemon=True).start()
 
@@ -106,13 +122,14 @@ class AppServer:
         line = json.dumps(msg, ensure_ascii=False) + "\n"
         with self._lock:
             if self.proc is None or self._dead:
-                raise AppServerError("Codex app-server không chạy.")
+                raise AppServerError(_chu("Codex app-server không chạy.", "The Codex app-server is not running."))
             try:
                 self.proc.stdin.write(line)
                 self.proc.stdin.flush()
             except Exception as e:
                 self._dead = True
-                raise AppServerError(f"Không gửi được cho Codex app-server: {e}")
+                raise AppServerError(_chu(f"Không gửi được cho Codex app-server: {e}",
+                                          f"Could not send to the Codex app-server: {e}"))
 
     async def request(self, method: str, params: Optional[dict] = None, timeout: float = 30.0) -> dict:
         loop = asyncio.get_running_loop()
@@ -125,7 +142,8 @@ class AppServer:
             self._write({"method": method, "id": rid, "params": params or {}})
             msg = await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError:
-            raise AppServerError(f"Codex app-server không trả lời {method} sau {int(timeout)} giây.")
+            raise AppServerError(_chu(f"Codex app-server không trả lời {method} sau {int(timeout)} giây.",
+                                      f"The Codex app-server did not answer {method} within {int(timeout)} seconds."))
         finally:
             with self._lock:
                 self._pending.pop(rid, None)
@@ -193,7 +211,7 @@ class AppServer:
                 subs = list(self._subs.values())
             for loop, fut in pending:
                 self._deliver(loop, lambda f=fut: f.done() or f.set_exception(
-                    AppServerError("Codex app-server đã thoát.")))
+                    AppServerError(_chu("Codex app-server đã thoát.", "The Codex app-server exited."))))
             for loop, q in subs:
                 self._deliver(loop, q.put_nowait, {"method": "_exit", "params": {}})
 
@@ -282,8 +300,12 @@ async def get_app_server() -> AppServer:
     cli = _find_cli()
     if not cli:
         if _LAST_CLI_REASON == "old_cli":
-            raise AppServerError("Codex CLI trên máy đã cũ (cần bản 0.153 trở lên) nên chưa dùng được ChatGPT Live. Cập nhật Codex rồi thử lại.")
-        raise AppServerError("Chưa cài Codex CLI nên chưa dùng được ChatGPT Live. Cài Codex rồi nối ChatGPT ở trang Models.")
+            raise AppServerError(_chu(
+                "Codex CLI trên máy đã cũ (cần bản 0.153 trở lên) nên chưa dùng được ChatGPT Live. Cập nhật Codex rồi thử lại.",
+                "The Codex CLI on this machine is too old (0.153 or newer is needed) for ChatGPT Live. Update Codex and try again."))
+        raise AppServerError(_chu(
+            "Chưa cài Codex CLI nên chưa dùng được ChatGPT Live. Cài Codex rồi nối ChatGPT ở trang Models.",
+            "Codex CLI is not installed, so ChatGPT Live is unavailable. Install Codex, then connect ChatGPT on the Models page."))
     if _SERVER is not None:
         _SERVER.close()
     srv = AppServer(cli, popen_factory=_popen_factory)

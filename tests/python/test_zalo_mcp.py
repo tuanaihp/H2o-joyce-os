@@ -1,8 +1,15 @@
 """Hợp đồng tích hợp Zalo Agent MCP tối giản."""
+import io
 import json
+import os
+import tempfile
+
+os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="joyce-zalo-mcp-"))
 
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import mcp_catalog  # noqa: E402
+import zalo_cli  # noqa: E402
+import zalo_login  # noqa: E402
 
 
 fails = []
@@ -23,15 +30,19 @@ console_src = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 doc = (ROOT / "docs" / "12-zalo.md").read_text(encoding="utf-8")
 prompt = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 
-check("catalog chỉ chạy MCP upstream đã ghim phiên bản",
+check("catalog chạy bản CLI riêng joyce-zalo ghim theo tag phát hành, dùng cache trước",
       zalo["command"] == "npx"
-      and zalo["args"] == ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"])
+      and zalo["args"] == ["-y", "--prefer-offline", zalo_cli.CLI_PACKAGE, "mcp", "start"]
+      and zalo_cli.CLI_PACKAGE.startswith("https://codeload.github.com/blogminhquy/joyce-zalo/tar.gz/refs/tags/v"))
+check("kết nối Zalo đã đăng nhập bằng bản 1.6.2 tự sang bản mới (lenh_cu)",
+      {"command": "npx", "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"]} in zalo["lenh_cu"])
 
 expected_read = {
     "zalo_get_messages", "zalo_get_history", "zalo_list_threads",
-    "zalo_search_threads", "zalo_view_media",
+    "zalo_search_threads", "zalo_view_media", "zalo_search_history", "zalo_get_group_joins",
+    "zalo_list_join_requests",
 }
-check("catalog khai đủ năm tool đọc", set(zalo["tool_meta"]["read"]) == expected_read)
+check("catalog khai đủ tám tool đọc", set(zalo["tool_meta"]["read"]) == expected_read)
 check("mark-read là ghi và send-message là nguy hiểm",
       mcp_catalog.classify(zalo, "zalo_mark_read") == "write"
       and mcp_catalog.classify(zalo, "zalo_send_message") == "danger")
@@ -55,15 +66,43 @@ check("hai plugin Zalo cũ đã được gỡ",
       and not (ROOT / "system/plugins/zalo-send/plugin.py").exists()
       and not (ROOT / "system/plugins/zalo-send/plugin.yaml").exists())
 
-guide_url = "/static/docs/view.html?f=12-zalo.md"
-check("catalog trỏ nút hướng dẫn đến tài liệu nội bộ", zalo["auth"]["guide_url"] == guide_url)
-check("doc nêu đủ bảy tool và link upstream",
-      all(name in doc for name in expected_read | {"zalo_mark_read", "zalo_send_message"})
-      and "https://github.com/PhucMPham/zalo-agent-cli" in doc)
+guide_url = "https://github.com/tuanaihp/H2o-joyce-os/blob/main/docs/12-zalo.md"
+check("catalog trỏ nút hướng dẫn đến doc GitHub", zalo["auth"]["guide_url"] == guide_url)
+check("doc nêu đủ mười một tool và link repo joyce-zalo",
+      all(name in doc for name in expected_read | {"zalo_mark_read", "zalo_send_message", "zalo_review_join_requests"})
+      and "https://github.com/blogminhquy/joyce-zalo" in doc)
 check("prompt cho gửi trực tiếp, không phụ thuộc listener/tool cũ",
       "do NOT demand a listener be" in prompt
       and 'do NOT check any "currently listening"' in prompt
       and "do NOT use the old `joyce_zalo_send` tool" in prompt)
+
+
+# Đăng nhập QR: CLI báo hỏng bằng {"event": "login_error", "message": ...} (src/commands/login.js). Trước 0.83.0 Joyce
+# chỉ nhận "error"/"failed", nên QR hết hạn hay bị Zalo từ chối thì modal không nói lý do thật.
+class _FakeProc:
+    def __init__(self, lines):
+        self.stdout = io.StringIO("".join(x + "\n" for x in lines))
+        self.stderr = io.StringIO("")
+
+    def wait(self, timeout=None):
+        return 0
+
+
+def _login_session(lines):
+    sid = "test-" + str(len(zalo_login._sessions))
+    zalo_login._sessions[sid] = {"state": "starting", "qr": "", "label": "t", "conn_id": "", "error": "",
+                                 "proc": _FakeProc(lines), "home": tempfile.mkdtemp(), "ts": 0}
+    zalo_login._reader(sid)
+    return zalo_login._sessions.pop(sid)
+
+
+s = _login_session([
+    '{"event":"qr_server","port":18927,"publicUrl":null}',
+    '{"event":"qr","dataUrl":"data:image/png;base64,AAAA"}',
+    '{"event":"login_error","message":"QR code expired"}',
+])
+check("đăng nhập QR: sự kiện login_error báo đúng câu lỗi của CLI",
+      s["state"] == "error" and s["error"] == "QR code expired")
 
 if fails:
     raise SystemExit(f"{len(fails)} kiểm tra lỗi: {', '.join(fails)}")

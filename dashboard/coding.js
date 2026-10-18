@@ -232,6 +232,7 @@
   }
 
   function roi() {
+    W.removeEventListener("joyce:pinned-folder-changed", onPinned);
     active = false;
     dongMenu(); goChip(); traMoPhien(); traKhungChat();
     // Gỡ hẳn: rời trang rồi mà còn nghe thì mỗi lần xoay máy lại gọi veChip() cho một trang

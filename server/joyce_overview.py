@@ -405,6 +405,7 @@ def _cc_cap_nhat_fm(text: str, hom_nay: str) -> str:
         body = text[m.end():]
     else:
         meta, body = {}, text
+    meta["type"] = "wiki"                 # trang wiki chuẩn sau khi chưng cất xong
     meta["status"] = "active"
     meta.pop("staging", None)
     tags = [x for x in _cc_tags(meta) if x.lower().replace("_", "-") != "cho-duyet"]
@@ -413,6 +414,65 @@ def _cc_cap_nhat_fm(text: str, hom_nay: str) -> str:
     meta["updated"] = hom_nay
     meta["approved"] = hom_nay
     return "---\n" + _cc_dump_fm(meta) + "\n---" + (body if body.startswith("\n") else "\n" + body)
+
+
+def _cc_nguon_cua(meta: dict) -> str:
+    """Frontmatter `source:` của bản nháp -> đường rel 'sources/<slug>.md' trong vault,
+    hoặc "" khi không có/không hợp lệ. Chấp nhận wikilink [[sources/x]] (có hoặc không
+    ngoặc kép) lẫn path trần. Chỉ công nhận đường nằm TRONG thư mục sources của brain -
+    bản nháp viết 'source: D:/file.xlsx' hay '[[../x]]' thì coi như không có nguồn,
+    tuyệt đối không trỏ ra ngoài vault."""
+    s = (meta or {}).get("source")
+    if isinstance(s, list):
+        s = s[0] if s else ""
+    s = str(s or "").strip().strip("\"'")
+    m = re.match(r"^\[\[(.+?)\]\]$", s)
+    if m:
+        s = m.group(1).strip()
+    s = s.replace("\\", "/").strip("/")
+    if s.lower().endswith(".md"):
+        s = s[:-3]
+    phan = s.split("/")
+    if len(phan) < 2 or phan[0].lower() not in ("sources", "01 - sources") or ".." in phan:
+        return ""
+    return s + ".md"
+
+
+def _cc_danh_dau_nguon(root: str, nguon_rel: str, link: str, hom_nay: str) -> bool:
+    """Chốt INGEST ở lúc duyệt: file nguồn trong sources/ chuyển `status: processed`,
+    ghi `processed_at`, nối `wiki_links` tới trang wiki vừa lên. Trả False khi không có
+    file hoặc không ghi được - lỗi nguồn không làm hỏng thao tác duyệt chính."""
+    try:
+        full = os.path.join(root, *nguon_rel.split("/"))
+        if not os.path.isfile(full):
+            return False
+        text = open(full, encoding="utf-8", errors="replace").read()
+        m = _CC_FM_RE.match(text)
+        if m:
+            try:
+                import fastyaml
+                meta = fastyaml.safe_load(m.group(1)) or {}
+            except Exception:
+                meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
+            body = text[m.end():]
+        else:
+            meta, body = {}, text
+        meta["status"] = "processed"
+        meta["processed_at"] = hom_nay
+        wl = meta.get("wiki_links")
+        wl = [x for x in wl] if isinstance(wl, list) else ([wl] if wl else [])
+        moi = f"[[{link}]]"
+        if moi not in [str(x) for x in wl]:
+            wl.append(moi)
+        meta["wiki_links"] = wl
+        _atomic_ghi(full, "---\n" + _cc_dump_fm(meta) + "\n---" +
+                    (body if body.startswith("\n") else "\n" + body))
+        return True
+    except Exception as e:  # noqa: BLE001
+        _log("duyet/nguon", e)
+        return False
 
 
 def _cc_dich_duyet(root: str, wiki_dir: str, rel: str) -> str:
@@ -558,7 +618,51 @@ def _duyet_mot_file(root: str, rel: str) -> dict:
         _cc_ghi_log(root, wiki_dir, os.path.basename(rel_moi)[:-3], link, rel, hom_nay)
     except Exception as e:
         _log("duyet/log", e)
-    return {"ok": True, "rel_moi": rel_moi, "ten": os.path.basename(rel_moi)[:-3]}
+    # Chốt đầu kia của INGEST: nguồn trong sources/ (nếu bản nháp có `source:`) chuyển
+    # sang processed + nối wiki_links tới trang vừa lên.
+    nguon = _cc_nguon_cua(meta)
+    nguon_xong = bool(nguon) and _cc_danh_dau_nguon(root, nguon, link, hom_nay)
+    return {"ok": True, "rel_moi": rel_moi, "ten": os.path.basename(rel_moi)[:-3],
+            "nguon": nguon if nguon_xong else ""}
+
+
+def _xoa_nhap(root: str, rel: str) -> dict:
+    """'Không duyệt' = loại bỏ hẳn tài liệu: xoá file nháp VÀ file nguồn của nó trong
+    sources/ (khi frontmatter `source:` trỏ tới một file thật trong vault). Không copy,
+    không lên wiki, không ghi lại nội dung. Chỉ được xoá file trong thư mục staging hoặc
+    file draft ngoài staging - cùng ngưỡng với _duyet_mot_file để không đụng nhầm trang
+    wiki đang active. File nguồn NGOÀI vault (đường D:/..., link wiki khác) không đụng."""
+    rel = str(rel or "").replace("\\", "/").strip("/")
+    phan = rel.split("/")
+    if len(phan) < 2 or ".." in phan or not rel.lower().endswith(".md"):
+        return {"ok": False, "error": "đường dẫn không hợp lệ"}
+    if phan[0].lower() not in ("wiki", "07 - wiki"):
+        return {"ok": False, "error": "không nằm trong wiki"}
+    full = os.path.join(root, *phan)
+    if not os.path.isfile(full):
+        return {"ok": False, "error": "không thấy tài liệu"}
+    meta = _cc_fm(_cc_head(full))
+    trong_staging = len(phan) >= 3 and _CC_STAGING_RE.match(phan[1]) is not None
+    if not trong_staging:
+        if str(meta.get("status") or "").strip().lower() != "draft":
+            return {"ok": False, "error": "tài liệu này không ở trạng thái chờ duyệt"}
+    nguon = _cc_nguon_cua(meta)
+    try:
+        os.remove(full)
+        if trong_staging:
+            _don_rong_staging(root, phan[0], phan[1])
+    except Exception as e:
+        return {"ok": False, "error": f"không xoá được: {e}"}
+    nguon_xoa = ""
+    if nguon:
+        fng = os.path.join(root, *nguon.split("/"))
+        try:
+            if os.path.isfile(fng):
+                os.remove(fng)
+                nguon_xoa = nguon
+        except Exception as e:  # noqa: BLE001 - nháp đã xoá, chỉ báo thêm nguồn sót
+            _log("xoa/nguon", e)
+    return {"ok": True, "ten": phan[-1][:-3], "nguon_xoa": nguon_xoa}
 
 
 def _gop_cho_duyet(root: str) -> dict:
@@ -1256,6 +1360,35 @@ def register(app, deps: OverviewDeps):
         except Exception as e:  # noqa: BLE001
             _log("chung-cat/duyet POST", e)
             return JSONResponse({"ok": False, "error": "không duyệt được tài liệu"}, status_code=500)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        return r
+
+    @router.post("/api/joyce/v1/overview/chung-cat/xoa")
+    async def api_chung_cat_xoa(request: Request):
+        """'Không duyệt' một bản nháp: xoá file VĨNH VIỄN khỏi vault - không copy, không
+        lên wiki, không ghi log nội dung. Rào y hệt duyệt: brain trong danh sách + phạm
+        vi, rel nằm trong wiki, chỉ file staging/draft mới được xoá."""
+        duoc, scope = _cc_quyen(request, deps)
+        if not duoc:
+            return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "thiếu dữ liệu"}, status_code=400)
+        bp = str(body.get("brain_path") or "")
+        rel = str(body.get("rel") or "").replace("\\", "/")
+        brains = {os.path.normcase(str(x)): str(x) for x in (deps.brain_paths() or [])}
+        goc = brains.get(os.path.normcase(bp))
+        if goc and not _cc_trong_pham_vi(goc, scope):
+            goc = None
+        if not goc:
+            return JSONResponse({"ok": False, "error": "tài liệu không hợp lệ"}, status_code=400)
+        try:
+            r = _xoa_nhap(goc, rel)
+        except Exception as e:  # noqa: BLE001
+            _log("chung-cat/xoa", e)
+            return JSONResponse({"ok": False, "error": "không xoá được tài liệu"}, status_code=500)
         if not r.get("ok"):
             return JSONResponse(r, status_code=400)
         return r

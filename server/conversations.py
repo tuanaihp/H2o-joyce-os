@@ -280,12 +280,15 @@ def _tai_khoan_id(kenh: str, account_id: str) -> str:
     return f"{kenh}:{account_id}"
 
 
-def ghi_su_kien(ev: dict) -> dict:
+def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
     """Đổ MỘT sự kiện chuẩn vào kho: tìm/tạo tài khoản kênh, khách, hội thoại rồi thêm tin.
 
     Trả về {"ok": True, "conversation_id", "message_id", "customer_id", "trung": bool}.
     Tin trùng `external_message_id` trong cùng hội thoại thì `trung=True` và không ghi gì.
     Lỗi trả {"ok": False, "loi": ...} và KHÔNG ném: người gọi là lượt trả lời khách.
+
+    `dem_chua_doc=False` (0.174.0): tin NHẬP LẠI từ lịch sử (Zalo cá nhân, `nhap_lich_su`) không cộng vào số chưa đọc. Đó là tin
+    cũ đã đọc trên điện thoại; đếm vào là hàng trăm cuộc chat đỏ chót ngay sau một lần bấm.
     """
     e = chuan_hoa(ev)
     if e.get("loi"):
@@ -365,7 +368,7 @@ def ghi_su_kien(ev: dict) -> dict:
 
                 # 5. Cập nhật hội thoại: tin cuối, số tin, chưa đọc (chỉ đếm tin KHÁCH)
                 tom = e["text"].strip().replace("\n", " ")[:200] or f"[{e['message_type']}]"
-                them_chua_doc = 1 if e["sender_type"] == "customer" else 0
+                them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
                 db.execute(
                     "UPDATE conversations SET last_message=?, last_message_at=?, last_sender_type=?,"
                     " unread_count=unread_count+?, message_count=message_count+1, updated_at=?"
@@ -384,6 +387,16 @@ def ghi_su_kien(ev: dict) -> dict:
     except Exception as ex:
         print(f"[conversations] ghi lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
         return {"ok": False, "loi": f"{type(ex).__name__}: {ex}"}
+
+
+def co_tin(kenh: str, account_id: str, external_chat_id: str) -> bool:
+    """Cuộc chat này đã có ít nhất một tin trong kho chưa (0.174.0, cho `zalo_personal_channel.nhap_lich_su`)."""
+    with _lock:
+        r = _conn().execute(
+            "SELECT 1 FROM messages m JOIN conversations c ON c.id = m.conversation_id"
+            " WHERE c.channel_account_id=? AND c.external_chat_id=? LIMIT 1",
+            (_tai_khoan_id(kenh, account_id), str(external_chat_id))).fetchone()
+    return bool(r)
 
 
 def _cat_nhom_mot_cuoc(db, conv_id: int, giu: int = GIU_TIN_NHOM) -> int:
@@ -490,20 +503,47 @@ def tin_gan_day(channel: str, account_id: str, external_chat_id: str, limit: int
         return []
 
 
+def tin_theo_id(channel: str, account_id: str, external_chat_id: str, external_message_id: str) -> dict:
+    """ONE stored message of a chat by the channel's own message id, `metadata` already parsed; {} if absent.
+
+    Used to find the message a reply quotes (0.141.0, Zalo `replyTo.msgId`). Scoped to the same chat on purpose: a
+    quote never points across chats, and an id from another chat must not leak that chat's content. Never raises."""
+    mid = str(external_message_id or "").strip()
+    if not mid:
+        return {}
+    try:
+        with _lock:
+            r = _conn().execute(
+                "SELECT m.* FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.external_message_id=? LIMIT 1",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id), mid)).fetchone()
+        if r is None:
+            return {}
+        d = dict(r)
+        d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+        return d
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] đọc tin theo id lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return {}
+
+
 # ============================================================
 # Đọc
 # ============================================================
 def _conv_public(r: dict) -> dict:
     d = dict(r)
     d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
-    d["channel_label"] = KENH_NHAN.get(d.get("channel") or "", d.get("channel") or "")
+    d["channel_label"] = (_channels.nhan_giao_dien(d.get("channel") or "")
+                          if _channels.spec(d.get("channel") or "") else (d.get("channel") or ""))
     if not d.get("title"):
         if d.get("chat_type") == "group":
             # KHÔNG mượn tên khách: khách gắn với cuộc chat là NGƯỜI NHẮN ĐẦU TIÊN, nên nhóm
             # chưa biết tên hiện thành tên một người trong nhóm (chủ thấy nhóm "Test Bot Zalo"
             # hiện là "Minh Quý"). Đuôi id đủ để phân biệt các nhóm chưa rõ tên với nhau.
             cid = str(d.get("external_chat_id") or "")
-            d["title"] = f"Nhóm …{cid[-6:]}" if cid else "Nhóm chưa rõ tên"
+            import localefmt
+            d["title"] = (localefmt.chu(f"Nhóm …{cid[-6:]}", f"Group …{cid[-6:]}") if cid
+                          else localefmt.chu("Nhóm chưa rõ tên", "Unnamed group"))
         else:
             d["title"] = d.get("customer_name") or d.get("external_chat_id") or ""
     return d
@@ -631,7 +671,7 @@ def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: i
 def group_speakers(account_key: str, chat_id: str, limit: int = 300) -> List[dict]:
     """Người ĐÃ NHẮN trong một cuộc chat: `[{uid, name, ts}]`, mới nhất trước, tên là tên ở tin gần nhất của người đó.
 
-    Dùng để đổi "@ten-nguoi" thành ID Zalo thật khi tag người trong nhóm (plugin `zalo-group`): kho này có sẵn, tức thì, không
+    Dùng để đổi "@minhquy" thành ID Zalo thật khi tag người trong nhóm (plugin `zalo-group`): kho này có sẵn, tức thì, không
     tốn một lượt gọi mạng. `account_key` là khoá tài khoản kho dùng (`"<kênh>:<id>"`, ví dụ `zalo_personal:zalo-1`). Người
     chưa từng nhắn thì không có ở đây (đã có danh sách thành viên từ Zalo lo phần đó); tin của CHÍNH chủ không mang id nên
     cũng không có."""
@@ -712,7 +752,9 @@ def dat_che_do(conversation_id: int, mode: str) -> tuple[bool, str]:
     """ai | human | waiting | closed. Chuẩn bị cho bước tiếp quản (V1.1); V1 chỉ đọc."""
     m = str(mode or "").strip().lower()
     if m not in CHE_DO:
-        return False, f"chế độ '{m}' không hợp lệ (một trong {', '.join(CHE_DO)})"
+        import localefmt
+        return False, localefmt.chu(f"chế độ '{m}' không hợp lệ (một trong {', '.join(CHE_DO)})",
+                                    f"invalid mode '{m}' (one of {', '.join(CHE_DO)})")
     with _lock:
         db = _conn()
         cur = db.execute("UPDATE conversations SET mode=?, updated_at=? WHERE id=?",
@@ -720,7 +762,10 @@ def dat_che_do(conversation_id: int, mode: str) -> tuple[bool, str]:
         db.commit()
     if cur.rowcount > 0 and m == "human":
         _bao_tiep_quan(conversation_id)
-    return (cur.rowcount > 0), ("" if cur.rowcount > 0 else "không có hội thoại nào id đó")
+    if cur.rowcount > 0:
+        return True, ""
+    import localefmt
+    return False, localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")
 
 
 def _bao_tiep_quan(conversation_id: int) -> None:
@@ -879,8 +924,9 @@ _NEN_ANH = re.compile(r"^(?:https?://\S+|\[(?:chat\.)?(?:photo|image)[^\]]*\]|\[
 def chu_thich_anh(text: str) -> str:
     """Chú thích thật của một tin ảnh, hoặc "" nếu tin ảnh trơn.
 
-    MCP của zalo-agent-cli chuẩn hoá tin không phải chữ thành `text = content.title || content.href || "[<msgType>]"` (xem `normalizeMessage` ở
-    `src/commands/mcp.js`, bản 1.6.2): ảnh CÓ chú thích thì `text` là chú thích; ảnh trơn thì `text` là đường dẫn ảnh, hoặc "[chat.photo]". Joyce
+    MCP của joyce-zalo chuẩn hoá tin không phải chữ bằng `extractMessageText` (src/utils/extract-message-text.js; bản 1.6.2 cũ là
+    `content.title || content.href || "[<msgType>]"`). Với ảnh hai bản ra cùng kết quả vì ảnh có `description` rỗng: ảnh CÓ chú thích
+    thì `text` là chú thích; ảnh trơn thì `text` là đường dẫn ảnh, hoặc "[chat.photo]". Joyce
     cũng tự thay chữ trống bằng "[Zalo cá nhân: khách gửi image]". Cả ba loại "nền" đó không phải lời của người gửi nên trả rỗng."""
     t = " ".join(str(text or "").split())
     return "" if (not t or _NEN_ANH.match(t)) else t

@@ -30,7 +30,9 @@ Ba LOẠI kênh (`kind`), khác nhau ở cách có tài khoản chứ không ở
                `channel_accounts`, long-poll bằng `Transport`.
     account  - tài khoản là một PHIÊN đăng nhập sẵn có ở nơi khác (Zalo cá nhân qua MCP). Module
                tự liệt kê qua `tai_khoan()`, có công tắc ghi.
-    webhook  - nền tảng GỌI NGƯỢC vào Joyce (Zalo OA, Facebook Messenger: chưa có, chừa chỗ).
+    webhook  - nền tảng GỌI NGƯỢC vào Joyce (Zalo OA: chưa có, chừa chỗ). WhatsApp và Messenger cũng
+               nhận tin qua webhook nhưng khai kind "bot": tài khoản vẫn là token lưu ở kho tài khoản,
+               module khai thêm `WEBHOOK_PATH` để form thêm tài khoản hiện địa chỉ cần dán sang Meta.
 
 Thêm một kênh = thêm một file ở đây + một dòng trong `_MODULES` + một logo trong icons.js.
 Không sửa gì khác.
@@ -52,6 +54,7 @@ NANG_LUC_MAC_DINH = {
     "tra_loi_tu_joyce": False,   # chủ trả lời khách ngay từ Hộp thư (cần hàm `gui`)
     "bot": False,             # gắn được một Bot chuyên trách (kind == "bot")
     "ghi_theo_cong_tac": False,  # ghi vào hộp thư khi chủ BẬT (kind == "account")
+    "nhap_lich_su": False,    # nhập lại tin cũ vào hộp thư khi chủ bấm (0.174.0, cần hàm `nhap_lich_su`)
 }
 
 
@@ -68,6 +71,9 @@ class KenhSpec:
     tom_tat: str = ""
     # Tên tài khoản phía nền tảng có tiền tố "@" không (Telegram có, Zalo không).
     tien_to_ten: str = ""
+    # Bản tiếng Anh của chữ hiện ra (`nhan`, `lay_token`, `tom_tat`). Thiếu thì lấy ở
+    # `_EN_MAC_DINH` theo id, rồi mới tới bản tiếng Việt.
+    en: Dict[str, str] = field(default_factory=dict)
 
     def nl(self, khoa: str) -> bool:
         return bool(self.nang_luc.get(khoa, NANG_LUC_MAC_DINH.get(khoa, False)))
@@ -75,7 +81,26 @@ class KenhSpec:
 
 # Thứ tự ở đây là thứ tự hiện trên giao diện. KHÔNG có kênh nào "chính": Zalo đứng đầu vì
 # khách Việt Nam dùng nhiều nhất, không phải vì nó được ưu ái trong mã.
-_MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.telegram")
+_MODULES = ("channels.zalo_bot", "channels.zalo_personal", "channels.messenger", "channels.telegram",
+            "channels.slack", "channels.whatsapp", "channels.lark")
+
+# Chữ tiếng Anh cho các kênh có sẵn. Để ở đây (chứ không trong từng module kênh) cho một chỗ
+# duy nhất phải sửa khi đổi chữ hiển thị; kênh mới có thể tự khai `en=` trong SPEC.
+_EN_MAC_DINH: Dict[str, Dict[str, str]] = {
+    "telegram": {
+        "lay_token": "Message @BotFather on Telegram, type /newbot and follow the steps.",
+        "tom_tat": "Can join groups and send images and documents. Less common in Vietnam.",
+    },
+    "zalo": {
+        "lay_token": "Open the Zalo app, find the Official Account \"Zalo Bot Manager\" and choose Create bot. "
+                     "The bot name must start with \"Bot\". The token is sent to you as a Zalo message.",
+        "tom_tat": "Vietnamese customers already have it on their phones. Private chats only, cannot send documents yet.",
+    },
+    "zalo_personal": {
+        "nhan": "Personal Zalo",
+        "tom_tat": "Your own Zalo account. When a bot is on duty it replies in private chats and allowed groups, under your name.",
+    },
+}
 
 _DS: Optional[Dict[str, KenhSpec]] = None
 _MOD: Dict[str, object] = {}
@@ -106,6 +131,7 @@ def _nap() -> Dict[str, KenhSpec]:
         # kết nối ở trang Kết nối), xem `bot_token_ids`.
         nl["bot"] = spec.kind in ("bot", "account") and getattr(m, "Transport", None) is not None
         nl["ghi_theo_cong_tac"] = spec.kind == "account" and callable(getattr(m, "bat", None))
+        nl["nhap_lich_su"] = callable(getattr(m, "nhap_lich_su", None))
         spec.nang_luc = nl
         if not spec.logo:
             spec.logo = spec.id
@@ -160,18 +186,36 @@ def nhan_theo_id() -> Dict[str, str]:
     return {k: s.nhan for k, s in _nap().items()}
 
 
+def _chu_spec(s: KenhSpec, khoa: str) -> str:
+    """Chữ hiện ra của spec theo ngôn ngữ giao diện. Chỉ cho màn hình, không cho prompt."""
+    import localefmt   # lười: sổ kênh được nạp sớm, không kéo cấu hình lúc import
+    vi = str(getattr(s, khoa, "") or "")
+    en = (s.en or {}).get(khoa) or (_EN_MAC_DINH.get(s.id) or {}).get(khoa) or vi
+    return localefmt.chu(vi, en) if vi else ""
+
+
+def nhan_giao_dien(kenh: str) -> str:
+    """Tên kênh để HIỆN TRÊN MÀN HÌNH (theo ngôn ngữ giao diện). Prompt vẫn dùng `nhan`."""
+    s = spec(kenh)
+    return _chu_spec(s, "nhan") if s else str(kenh or "")
+
+
 def cho_giao_dien() -> List[dict]:
     """Bản cho giao diện: đủ để vẽ ô chọn kênh, chip, form thêm tài khoản, KHÔNG đoán gì thêm."""
     out = []
     for s in danh_sach():
         out.append({
-            "id": s.id, "nhan": s.nhan, "kind": s.kind, "logo": s.logo, "mau": s.mau,
-            "lay_token": s.lay_token, "tom_tat": s.tom_tat, "tien_to_ten": s.tien_to_ten,
+            "id": s.id, "nhan": _chu_spec(s, "nhan"), "kind": s.kind, "logo": s.logo, "mau": s.mau,
+            "lay_token": _chu_spec(s, "lay_token"), "tom_tat": _chu_spec(s, "tom_tat"),
+            "tien_to_ten": s.tien_to_ten,
             "nang_luc": dict(s.nang_luc),
             # Hai cờ cũ giao diện Chatbot đang đọc; giữ để không đổi hai chỗ cùng lúc.
             # `co_nhom` là câu hỏi của form BOT: bot có đứng được trong nhóm không. Từ 0.64.82 gồm
             # cả Zalo cá nhân (bot trả lời trong nhóm đã cho phép); Zalo Bot thì không có `nhom`.
             "co_nhom": s.nl("nhom") and s.nl("bot"), "gui_tai_lieu": s.nl("gui_file"),
+            # Kênh nhận tin qua webhook (Messenger, 0.134.0): form thêm tài khoản hỏi
+            # GET /channels/webhook-info để hiện địa chỉ và mã xác minh cần dán sang nền tảng.
+            "webhook": str(getattr(_MOD.get(s.id), "WEBHOOK_PATH", "") or ""),
         })
     return out
 

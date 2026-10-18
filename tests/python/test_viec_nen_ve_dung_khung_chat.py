@@ -83,7 +83,7 @@ class _Store:
 class _F:
     store = _Store()
 
-    def enqueue(self, *a, **kw):   # nhận đủ tham số như tasks.enqueue (kể cả source_brain)
+    def enqueue(self, *a):
         nhan.append(a)
         return "t1"
 
@@ -126,8 +126,8 @@ check("nhắc hẹn: thẻ kind=reminder, lỗi thì failed",
 check("nhắc hẹn: bản web của nhắc thường là đúng lời nhắc, không kèm 'Nhắc bạn:'",
       'if mode == "notify":\n                web = text' in REM)
 check("main: _bao_nhac_hen chuyển thẻ sang _notify_owner",
-      "async def _bao_nhac_hen(chat_id, text, viec=None, web=\"\")" in MAIN
-      and "viec=viec, web=web)" in MAIN)
+      "async def _bao_nhac_hen(chat_id, text, viec=None, web=\"\", brain=\"\", dedup=\"\")" in MAIN
+      and "viec=viec, web=web, brain=brain, dedup=dedup)" in MAIN)
 
 # Chạy thật một nhắc hẹn thường qua hàm gửi CÓ nhận thẻ.
 gui = []

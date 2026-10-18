@@ -17,23 +17,24 @@
 >
 > Dùng cả ba cùng lúc cũng được, chúng không đụng nhau.
 
-Joyce kết nối Zalo cá nhân bằng MCP chuẩn của dự án
-[`zalo-agent-cli`](https://github.com/PhucMPham/zalo-agent-cli). Luồng mới chỉ có một
-tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và gửi tin qua các tool do dự án
-gốc cung cấp.
+Joyce kết nối Zalo cá nhân bằng MCP của
+[`joyce-zalo`](https://github.com/blogminhquy/joyce-zalo), bản CLI Zalo riêng của Joyce. Chỉ có
+một tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và gửi tin qua các tool của nó.
 
-> `zalo-agent-cli` dùng API Zalo không chính thức qua `zca-js`. Zalo không hỗ trợ cách
+> `joyce-zalo` dùng API Zalo không chính thức qua `zca-js`. Zalo không hỗ trợ cách
 > kết nối này và tài khoản có thể bị hạn chế hoặc khoá. Nên dùng tài khoản phụ, tránh
 > gửi tự động hàng loạt và tự chịu trách nhiệm khi sử dụng.
 
 ## Cần chuẩn bị
 
-- Node.js 20 trở lên trên máy hoặc VPS chạy Joyce.
+- Node.js 20 trở lên trên máy hoặc VPS chạy Joyce, và máy tải được từ GitHub (lần đầu).
 - Điện thoại đã đăng nhập tài khoản Zalo cần kết nối.
 - Joyce đã được khởi động và bạn đăng nhập được dashboard.
 
-Joyce đang ghim `zalo-agent-cli` ở phiên bản `1.6.2`, là phiên bản đã được kiểm tra với
-bảy tool MCP bên dưới.
+Joyce ghim `joyce-zalo` theo tag phát hành (hiện là `v1.2.0`) và cài thẳng từ tarball của tag
+đó trên GitHub, không cần tài khoản npm hay Git. Chỉ thư viện `zca-js` bên dưới đi theo bản chính
+thức trên npm. Từ 0.83.0 Joyce thay `zalo-agent-cli` 1.6.2 của tác giả ngoài bằng bản riêng này;
+kết nối đã đăng nhập từ trước tự chuyển sang mà không phải quét QR lại.
 
 ## Kết nối bằng QR
 
@@ -46,31 +47,126 @@ bảy tool MCP bên dưới.
 
 Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài liệu này:
 
-<docs/12-zalo.md>
+<https://github.com/blogminhquy/h2o-joyce-os/blob/main/docs/12-zalo.md>
+
+## Nhập tin cũ vào Hộp thư (từ 0.174.0)
+
+Mới đăng nhập Zalo vào Joyce thì Hộp thư chỉ có tin từ lúc bật **Ghi hội thoại** trở đi. Muốn có cả tin cũ, bấm **Nhập tin cũ** trên thẻ tài khoản Zalo ở trang Chatbot, thẻ Bot, mục Kênh chưa có bot. Zalo đã gắn bot thì bấm vào ô Zalo trên thẻ bot đó.
+
+- Joyce lấy các tin joyce-zalo tự kéo về mỗi lần kết nối: khoảng **2 tuần** gần nhất, vì Zalo không cho lấy xa hơn. Tối đa 5.000 tin mỗi lần.
+- Chỉ nhập vào cuộc chat **chưa có tin nào** trong Hộp thư. Cuộc chat đã có tin thì bỏ qua, vì tin cũ chen vào sau sẽ hiện sai thứ tự.
+- Bot **không trả lời** các tin này, chúng **không tính là chưa đọc**, và nhóm vẫn chỉ giữ 100 tin gần nhất như thường lệ.
+- Vừa quét QR xong thì đợi vài phút cho Zalo tải xong tin cũ rồi hãy bấm. Bấm lại nhiều lần không bị nhân đôi.
 
 ## Các tool MCP
 
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
 | `zalo_get_messages` | Đọc tin mới trong bộ đệm, đọc tiếp bằng `since` (số thứ tự) | Đọc |
-| `zalo_get_history` | Lấy lịch sử một cuộc chat, có phân trang | Đọc |
+| `zalo_get_history` | Lấy lịch sử một cuộc chat (kể cả nhóm), có phân trang, kèm `replyTo` và `mentions` | Đọc |
+| `zalo_search_history` | Tìm trong lịch sử mọi cuộc chat theo người gửi hoặc khoảng ngày | Đọc |
+| `zalo_get_group_joins` | Ai đã vào nhóm và vào lúc nào, lọc theo nhóm, người hoặc khoảng ngày | Đọc |
+| `zalo_list_join_requests` | Ai đang xin vào một nhóm phải duyệt | Đọc |
+| `zalo_review_join_requests` | Duyệt hoặc từ chối người xin vào nhóm | Nguy hiểm |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
-| `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video của tin nhắn | Đọc |
+| `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
+| `zalo_send_file` | Gửi file (Excel, PDF, Word...) kèm lời nhắn, chỉ file nằm trong hộp gửi của phiên (xem "Gửi ảnh và file") | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `zalo-agent-cli` 1.6.2. Tên tham số lấy từ mã nguồn chứ không từ
-tài liệu MCP, vì hai bên từng lệch nhau: kiểu cuộc chat của `zalo_send_message` là `threadType`
-(0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng `since` chứ không có `cursor`. Tài liệu MCP của dự án gốc:
+Danh sách trên theo mã nguồn `joyce-zalo` 1.5.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
+`zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
+`since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
+nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
 
-<https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
+### Khi nào có thể thiếu tin (từ 0.183.0, joyce-zalo 1.5.0)
+
+Ba tool đọc tin chỉ đọc kho do chính joyce-zalo gom: tin tới lúc đang kết nối, cộng phần Zalo gửi
+lại mỗi lần vừa kết nối. Không có cách hỏi lại Zalo lịch sử chat riêng sau đó. Nên tin tới đúng lúc
+mất kết nối (Joyce khởi động lại hay cập nhật, mạng rớt, một phiên Zalo Web khác đang giữ kết nối)
+chỉ thấy được nếu phần gửi lại mang nó về.
+
+- Kho lịch sử giờ **lưu ra đĩa** (30 ngày) trong thư mục phiên của tài khoản, nên khởi động lại
+  không còn xoá sạch.
+- Mỗi kết quả đọc có thêm `sync`. `sync.complete: false` nghĩa là trong khoảng đó có lúc mất kết
+  nối mà phần gửi lại chưa phủ hết (`sync.gaps` ghi từ lúc nào đến lúc nào): có thể đang thiếu tin,
+  **không phải** là khách chưa trả lời. Joyce khi đó giữ bước đang chờ (duyệt, phát hành) và báo chủ.
+- Tin tới lúc mất kết nối mà phần gửi lại mang về được đưa vào luồng tin mới, đánh dấu
+  `recovered: true`, nên Hộp thư cũng có.
+
+## Duyệt người xin vào nhóm
+
+Từ Joyce 0.84.7 (joyce-zalo 1.2.0), với nhóm bật "duyệt thành viên":
+
+- **Joyce báo bạn khi có người xin vào**, qua chuông hòm thư và Telegram của bạn: một tin cho mỗi nhóm, có tên người
+  xin và tên nhóm.
+- **Bạn ra lệnh, Joyce làm.** Hỏi "ai đang xin vào nhóm Zoom | Joyce OS?" thì Joyce liệt kê; bảo "duyệt hết" hay
+  "duyệt Lan, từ chối Minh" thì Joyce làm và nói lại kết quả từng người.
+- **Bot chuyên trách không bao giờ tự duyệt.** Sự kiện xin vào nhóm không tới bot.
+- Tài khoản Zalo đã quét QR phải là **trưởng hoặc phó nhóm**, không thì Zalo từ chối. Duyệt là thao tác nguy hiểm
+  (đổi thành viên nhóm), nên kết nối Zalo phải ở mức Toàn quyền.
+
+## Người mới vào nhóm
+
+Từ Joyce 0.84.2 (joyce-zalo 1.1.0), Joyce biết ai vừa vào nhóm và vào **lúc nào**, kể cả người
+được thêm vào bởi chính tài khoản của bạn:
+
+- **Hỏi lại được.** "Tuần này ai mới vào nhóm Zoom | Joyce OS?" thì bộ não gọi
+  `zalo_get_group_joins` và trả tên kèm giờ vào. Nhật ký nằm ở
+  `~/.zalo-agent-cli/group-joins.jsonl` trong thư mục phiên của kết nối, giữ 5000 lượt gần nhất,
+  còn nguyên sau khi khởi động lại.
+- **Bot chuyên trách nhận được sự kiện.** Ở nhóm đã cho phép bot, mỗi người mới vào là một sự
+  kiện gửi tới Agent của bot, bất kể chế độ "trả lời khi nào". Agent làm theo chỉ dẫn của nó (ví dụ
+  chào và hỏi thăm), và câu nó gửi tự tag đúng người mới. Joyce **không có lời chào mặc định**:
+  chỉ dẫn của Agent không nói gì về người mới thì bot im. Nhiều người vào cùng lúc mà bot đã hết
+  hạn mức thì bot cũng im chứ không nói "nhắn hơi nhanh".
+- **Giới hạn.** Zalo chỉ báo sự kiện này lúc đang kết nối, và danh sách thành viên không có ngày
+  vào nhóm. Người vào trước khi có tính năng này, hoặc trong lúc máy chạy Joyce tắt, thì không có
+  trong nhật ký.
+
+## Gói Zalo mở rộng (Joyce Store)
+
+Ba nhóm tool dưới đây (đọc ảnh, gửi ảnh và file, tag người cùng ghi chú, nhắc hẹn, poll) bù đúng
+chỗ MCP chuẩn còn thiếu. Từ 0.73.0 chúng nằm trong gói **`joyce.zalo`** trên Joyce Store thay vì
+đi sẵn trong app, để ai không dùng Zalo thì không phải mang theo:
+
+- **Quét QR Zalo xong là Joyce mời cài gói**, qua đúng màn hình đồng ý của kho: liệt kê từng tệp
+  mã, công tắc "chạy ngay" bật sẵn vì bạn vừa tự đấu Zalo. Bấm Cài là có đủ tool.
+- **Máy đã đấu Zalo từ trước** thì trang Kết nối hiện dải nhắc kèm nút **Cài gói đi kèm**.
+  Joyce không bao giờ tự cài gói có mã mà không hỏi.
+- Kết nối Zalo, Hộp thư và chatbot Zalo vẫn ở trong app, chạy bình thường dù chưa cài gói. Thiếu
+  gói thì chỉ thiếu các tool mở rộng.
+
+## Đọc ảnh trong nhóm
+
+MCP của Zalo chỉ trả **đường link** của ảnh, giữ tin trong 2 giờ, và `zalo_view_media` mở ảnh
+bằng trình xem ảnh của máy chủ chứ không đưa cho bộ não. Nên gói `joyce.zalo` có tool
+`zalo_read_images`:
+
+| Tool | Công dụng | Mức thao tác |
+|---|---|---|
+| `zalo_read_images` | Lấy ảnh người ta gửi trong nhóm về brain và cho bộ não biết trong ảnh có gì | Ghi (lưu ảnh vào brain) |
+
+Nói trong chat như bình thường, ví dụ “xem ảnh hoá đơn chị Lan vừa gửi trong nhóm Kinh doanh”.
+
+- **Ảnh lấy thẳng từ Zalo**, không phụ thuộc bộ đệm 2 giờ của MCP: Joyce hỏi Zalo các tin gần
+  nhất của nhóm (mặc định 30, tối đa 100) và lấy tối đa 8 ảnh mới nhất. Chat riêng thì chỉ lấy
+  được ảnh còn trong bộ đệm MCP.
+- **Ảnh lưu vào `attachments/zalo/<id nhóm>/`** của brain, nên hiện được ngay trong khung chat.
+- **Mọi bộ não đều "thấy" ảnh.** Claude Code và Codex tự mở file ảnh. Các engine API (OpenRouter,
+  Gemini...) không tự xem ảnh được, nên ChatGPT trên gói bạn đang đăng nhập nhìn ảnh rồi tả lại,
+  chép nguyên văn chữ và số trong ảnh. Chưa đăng nhập ChatGPT ở trang Model thì vẫn tải được ảnh,
+  chỉ thiếu phần tả.
+
+Phần ChatGPT xem ảnh nằm trong app (plugin có sẵn `image-chatgpt`, tool `joyce_describe_image`),
+nên xem được cả mọi ảnh khác trong brain, có cài gói Zalo hay không.
 
 ## Gửi ảnh và file
 
 `zalo_send_message` ở trên **chỉ gửi được chữ**. Muốn gửi ảnh (ví dụ ảnh Joyce vừa tạo) hay
-file (báo cáo PDF, bảng tính) thì dùng tool `zalo_send_image` do plugin bundled `zalo-image`
-cung cấp. Plugin bật sẵn, không cần cài gì thêm, và dùng đúng tài khoản Zalo bạn đã quét QR.
+file (báo cáo PDF, bảng tính) thì dùng tool `zalo_send_image` trong gói `joyce.zalo`. Nó dùng
+đúng tài khoản Zalo bạn đã quét QR.
 
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
@@ -91,10 +187,34 @@ Ba điều nên biết:
 
 Cần Node.js 20+ trên máy chạy Joyce, giống như phần kết nối Zalo.
 
+### Vì sao file đi đường khác ảnh (từ 0.139.0)
+
+Ảnh tải lên Zalo là có link ngay. File (Excel, PDF, Word, zip, video, cả ảnh `.bmp`) thì khác:
+Zalo nhận xong mới báo "đã tải lên" qua **kết nối thời gian thực** của tài khoản. Trước 0.139.0
+Joyce gửi file bằng một lệnh chạy một lần, không mở kết nối đó, nên lệnh chờ mãi rồi bị cắt ở
+120 giây, file không tới (14/10/2026 gửi bảng Excel 11 KB cho nhân sự treo hai lần, phải đổi
+sang ảnh). Mở thêm kết nối riêng cũng không được: Zalo chỉ giữ một kết nối Web mỗi tài khoản và
+sẽ đá kết nối đang trực Hộp thư.
+
+Từ 0.139.0 file đi qua tool `zalo_send_file` của chính tiến trình MCP đang giữ kết nối:
+
+- Joyce chép file vào hộp gửi của phiên Zalo (`.zalo-agent-cli/outbox/` trong thư mục phiên), gọi
+  tool, xong thì xoá bản chép. Tool chỉ nhận file trong hộp gửi đó, nên model gọi thẳng tool cũng
+  không gửi được file nào khác trên máy chủ.
+- **Zalo không xác nhận trong 60 giây thì báo lỗi rõ và KHÔNG gửi gì**, kể cả khi xác nhận tới
+  muộn sau đó. Gửi lại là an toàn. Kết nối thời gian thực đang rớt thì báo ngay, không chờ.
+- Ảnh (jpg, png, webp, gif) vẫn đi đường cũ.
+- Kết nối Zalo còn chạy bản `joyce-zalo` cũ (chưa có tool này) thì Joyce báo cập nhật Joyce rồi
+  tắt-bật lại kết nối Zalo, không phải quét QR lại.
+
+Lệnh dòng lệnh `joyce-zalo msg send-file` gửi file khi không có kết nối thời gian thực thì báo lỗi
+ngay. Thêm `--listen` để nó tự mở kết nối cho lượt gửi đó, nhưng chỉ dùng trên máy KHÔNG chạy MCP
+Zalo, vì kết nối mới sẽ đá MCP ra.
+
 ## Tag người, ghi chú, nhắc hẹn và poll
 
-`zalo_send_message` chỉ gửi chữ nên không tag được ai, và MCP của Zalo cũng không có ghi chú, nhắc hẹn hay poll. Plugin bundled
-`zalo-group` (bật sẵn, làm giống `zalo-image`) bù đúng các chỗ đó bằng năm tool, mọi bộ não đều gọi được:
+`zalo_send_message` chỉ gửi chữ nên không tag được ai, và MCP của Zalo cũng không có ghi chú, nhắc hẹn hay poll. Gói
+`joyce.zalo` bù đúng các chỗ đó bằng năm tool, mọi bộ não đều gọi được:
 
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
@@ -104,11 +224,11 @@ Cần Node.js 20+ trên máy chạy Joyce, giống như phần kết nối Zalo.
 | `zalo_create_reminder` | Nhắc hẹn hiện trong Zalo, chọn giờ và lặp (hằng ngày, tuần, tháng) | Nguy hiểm (mức Toàn quyền) |
 | `zalo_create_poll` | Poll cho nhóm: chọn nhiều đáp án, ẩn danh, hạn đóng | Nguy hiểm (mức Toàn quyền) |
 
-Nói trong chat như bình thường, ví dụ “nhắn nhóm Kinh doanh tag @ten-ban họp lúc 9h nhé” hoặc “tạo poll trưa nay ăn gì trong nhóm Lớp Joyce”.
+Nói trong chat như bình thường, ví dụ “nhắn nhóm Kinh doanh tag @minhquy họp lúc 9h nhé” hoặc “tạo poll trưa nay ăn gì trong nhóm Lớp Joyce”.
 
 Bốn điều nên biết:
 
-- **Tag chỉ cần nói tên.** “@ten-ban” hay “Tên Bạn” đều được, không phân biệt hoa thường hay dấu. Joyce tìm ID Zalo thật trong
+- **Tag chỉ cần nói tên.** “@minhquy” hay “Minh Quý” đều được, không phân biệt hoa thường hay dấu. Joyce tìm ID Zalo thật trong
   những người đã nhắn ở nhóm đó trước, rồi tới danh sách thành viên của Zalo. **Trùng tên hoặc không thấy thì Joyce hỏi lại kèm
   danh sách ứng viên**, không đoán, vì tag nhầm người thì không rút lại được. Tag cả nhóm (`@All`) chỉ khi bạn yêu cầu rõ.
 - **Nhắc hẹn này khác nhắc hẹn riêng của Joyce** (`joyce_schedule`): nó hiện trong Zalo nên cả nhóm cùng thấy. Giờ tính theo múi giờ của Joyce.
@@ -155,18 +275,24 @@ hỏi Joyce; MCP có thể dùng `zalo_get_messages` cho tin đang đệm hoặc
 
 ## Xử lý lỗi
 
-- **Không hiện QR**: kiểm tra `node --version` phải từ 20 trở lên và máy truy cập được npm.
+- **Không hiện QR**: kiểm tra `node --version` phải từ 20 trở lên và máy truy cập được npm và
+  GitHub (`codeload.github.com`).
 - **QR hết hạn**: đóng cửa sổ kết nối rồi bấm **Kết nối** để tạo mã mới.
 - **Không thấy cuộc chat**: thử `zalo_search_threads`; nếu cần tin cũ, dùng
   `zalo_get_history` thay vì chỉ dùng `zalo_get_messages`.
 - **Tool gửi bị chặn**: mở menu chip tài khoản và chuyển quyền sang **Toàn quyền**.
 - **Báo phiên đang được dùng nơi khác**: đóng Zalo Web hoặc tiến trình
-  `zalo-agent-cli` khác đang dùng cùng tài khoản, rồi thử lại.
+  `joyce-zalo` (hay `zalo-agent-cli` cũ) khác đang dùng cùng tài khoản, rồi thử lại.
+- **Bot im sau khi Joyce khởi động lại**: trước 0.114.0, nếu Joyce tắt không êm (crash, bị
+  dừng cứng khi cập nhật) thì tiến trình `joyce-zalo` cũ còn sống. Server mới mở thêm một phiên,
+  và cùng một tài khoản có hai phiên nghe. Zalo chỉ đẩy tin về một phiên nên bot đọc phiên kia
+  và không thấy gì. Từ 0.114.0 Joyce ghi lại mọi tiến trình MCP nó mở và tự dọn tiến trình sót
+  của lần chạy trước. Bản cũ hơn thì khởi động lại cả máy chủ (hoặc container) là sạch.
 - **Muốn đăng nhập lại từ đầu**: xoá connection trên dashboard, sau đó kết nối và quét QR
   lại. Thư mục phiên của connection khác không bị ảnh hưởng.
 
 ## Tham khảo
 
-- [Repository `zalo-agent-cli`](https://github.com/PhucMPham/zalo-agent-cli)
-- [Hướng dẫn MCP upstream](https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md)
+- [Repository `joyce-zalo`](https://github.com/blogminhquy/joyce-zalo)
+- [zca-js](https://github.com/RFS-ADRENO/zca-js), thư viện nói chuyện với Zalo bên dưới
 - [Kết nối và phân quyền MCP trong Joyce](09-mcp-va-so-lieu.md)

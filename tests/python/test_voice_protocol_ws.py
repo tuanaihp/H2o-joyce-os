@@ -37,12 +37,13 @@ class VoiceProtocolWS(unittest.IsolatedAsyncioTestCase):
             runtime=types.SimpleNamespace(get_job=lambda sid:jobs.get(sid),register_job=lambda sid,task,*a,**k:jobs.update({sid:task}))
             cfg=types.SimpleNamespace(read_settings=lambda:{'model':{}})
             reg=types.SimpleNamespace(cancel=lambda sid:False)
-            import contextvars
-            # Vòng nhận đã có khoá phạm vi nhân viên (_STAFF_SCOPE): phải có tên này trong không gian chạy.
             namespace=dict(_real_ws=Socket(),json=json,store=store,voice_turn_protocol=vp,
-                _STAFF_SCOPE=contextvars.ContextVar('staff_scope',default=None),_ws_staff=None,
+                _STAFF_SCOPE=__import__('contextvars').ContextVar('staff_scope', default=None),
+                _ws_staff=None,
+                h2o_staff_mod=types.SimpleNamespace(channel_of=lambda s: "staff:test"),
                 _CHAT_RUNTIME=runtime,cfgmod=cfg,_chat_provider_for_session=lambda *a:('test','api','key','test'),
-                _brain_key=lambda x:x,send_raw=send,send_client=send,sys=__import__('sys'),uuid=uuid,
+                _brain_key=lambda x:x,_cung_brain=lambda a,b:a==b,_brain_ui_value=lambda x:x,
+                _brain_root=lambda x:x,Path=Path,send_raw=send,send_client=send,sys=__import__('sys'),uuid=uuid,
                 limit_resume=types.SimpleNamespace(REGISTRY=reg),
                 _CONTEXT_RUNTIME=types.SimpleNamespace(start_turn=lambda *a:None),
                 workflow_chat=types.SimpleNamespace(persona_cua_phien=lambda r:None),

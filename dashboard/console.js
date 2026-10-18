@@ -45,6 +45,7 @@
     skills: "puzzle",
     files: "folder-tree",
     selfimprove: "repeat",
+    webhooks: "webhook",
     learn: "brain",
     kanban: "square-kanban",
     terminal: "terminal",
@@ -62,7 +63,11 @@
     packs: "package",
     logs: "scroll-text",
     account: "circle-user",
-    staff: "users",
+    // Trang Nhân viên là thẻ của MỘT người nên dùng user-round; "users" (nhiều người) nhường
+    // cho trang Nhóm (teams) - tránh hai trang trùng icon.
+    staff: "user-round",
+    // Nhóm chat nhiều cộng sự (teams.js, port từ Javis).
+    teams: "users",
     usage: "chart-column",
     // Không phải "smile" của Lucide: trang Linh vật mang chính khuôn mặt linh vật (vành cam,
     // mắt liếc), xem RIENG trong dashboard/icons.js. Cái tab dẫn tới con pet mà không giống
@@ -103,6 +108,11 @@
   // hoặc Icons.ok(text) để chữ được escape. Ghép tay chỉ dành cho chữ tĩnh
   // hoặc chữ đã qua esc() rồi.
   const WARN_ICON = ic("triangle-alert", { cls: "ic-warn" });
+  // Nút Cập nhật ngay CHỜ đến khi bản mới lên rồi tự tải lại. Bản git qua updater ghi trạng
+  // thái vào /update/status nên lỗi thật dừng ngay theo đó; chỉ hết 10 phút mà vẫn im mới
+  // coi là kẹt. Quá 45 giây thì nói rõ "vẫn đang kéo" thay vì để spinner im lặng.
+  const UPD_WAIT_MS = 10 * 60 * 1000;
+  const UPD_LONG_MS = 45 * 1000;
   const OK_ICON = ic("circle-check", { cls: "ic-ok" });
   const CHECK_ICON = ic("check", { cls: "ic-ok" });
   const SAVE_ICON = ic("save");
@@ -112,8 +122,8 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
-    "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "projects", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files",
+    "terminal", "coding", "projects", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
@@ -161,8 +171,8 @@
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal", "coding", "projects"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "conversations", "skills", "plugins"] },
-    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "conversations", "skills", "plugins"] },
+    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
   ];
@@ -188,7 +198,7 @@
   // Kỹ năng, Việc, và trang Nhân viên (thẻ của chính họ).
   // Tổng quan (trừ Hôm nay) là mặt quản trị toàn hệ thống: server trả 403 cho nhân viên.
   const RAIL_AN_NHAN_VIEN = new Set(["command", "calendar", "reports",
-    "terminal", "coding", "projects", "plugins", "selfimprove",
+    "terminal", "coding", "projects", "plugins", "selfimprove", "webhooks",
     "mcp", "packs", "channels", "models", "tools", "settings", "share", "account", "nghiencuu"]);
   // Phòng ban và Tài liệu chưng cất: trưởng phòng (quan_ly) thấy đúng phòng/brain của mình (server
   // lọc theo phạm vi); nhân viên thường và học việc không thấy (server trả 403 cho họ).
@@ -242,7 +252,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -694,7 +704,25 @@
     if (id === "projects") return renderProjects(el);
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
+    if (id === "webhooks") return renderWebhooks(el);
     if (id === "chatbots") return renderChatbots(el);
+    if (id === "teams") {
+      // Trang Nhóm do teams.js dựng, uỷ quyền như trang Gói. Trang chat chiếm trọn khung và tự cuộn bên trong (khung soạn
+      // luôn ở đáy) nên dùng .cview-flush như trang Code; body.on-teams để CSS bỏ đầu trang và linh vật trên điện thoại.
+      // _pageLeave gỡ cả hai (renderPage clone cviewBody GIỮ class) và báo teams.js dọn.
+      if (!window.JoyceTeams) {
+        el.innerHTML = placeholder("teams", window.t("cs.mod_not_ready", { ten: "teams.js" }));
+        return;
+      }
+      el.classList.add("cview-flush");
+      document.body.classList.add("on-teams");
+      _pageLeave = () => {
+        el.classList.remove("cview-flush");
+        document.body.classList.remove("on-teams");
+        try { if (window.JoyceTeams.leave) window.JoyceTeams.leave(); } catch (e) {}
+      };
+      return window.JoyceTeams.render(el);
+    }
     if (id === "conversations") return renderConversations(el);
     if (id === "learn")    return renderLearn(el);
     // Nhóm Tổng quan: bốn trang con do overview.js vẽ (cùng kiểu uỷ quyền như camnang.js).
@@ -1993,18 +2021,24 @@
         return;
       }
       status.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + window.t("cs.upd_running_now");
-      let tries = 0;
+      window.__joyceUpdating = true;
+      const t0 = Date.now();
+      let longNote = false;
       const poll = setInterval(async () => {
-        tries++;
+        const waited = Date.now() - t0;
+        if (waited >= UPD_LONG_MS && !longNote) {
+          longNote = true;
+          status.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + window.t("cs.upd_pulling_long");
+        }
         let state = null; try { state = await (await fetch("/update/status", { cache: "no-store" })).json(); } catch (e) {}
         if (state && state.state && state.state.phase) {
           const phase = state.state.phase, result = state.state.result;
           const stash = state.state.stashed ? ic("package") + " " + window.t("cs.upd_stashed") : "";
           progress(phase, stash);
           if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return; }
-          if (result === "rolled_back") { clearInterval(poll); status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
+          if (result === "rolled_back") { clearInterval(poll); window.__joyceUpdating = false; status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
           if (["pull_failed", "rollback_failed", "error"].includes(result)) {
-            clearInterval(poll); q("updVerProgress").style.display = "none";
+            clearInterval(poll); window.__joyceUpdating = false; q("updVerProgress").style.display = "none";
             status.innerHTML = WARN_ICON + " " + esc(state.state.error || window.t("cs.upd_err")) + " " + window.t("cs.upd_see") + " <code>update.log</code>."; update.disabled = false; return;
           }
         }
@@ -2014,17 +2048,17 @@
           if ((docker || !(state && state.state && state.state.phase)) && v.update_available === false && v.current && v.current !== oldCur) {
             clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return;
           }
-          if (docker && tries >= 12 && v.current === oldCur) {
-            clearInterval(poll); status.innerHTML = WARN_ICON + " " + window.t("cs.upd_slow");
-            if (rollback) {
-              const prev = root.dataset.previousVersion || v.previous_version || "";
-              rollback.style.display = "";
-              rollback.innerHTML = "<b>" + window.t("cs.upd_rb_docker") + "</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>${window.t("cs.upd_pin_a")} <code>h2o-joyce-os:${esc(prev)}</code> ${window.t("cs.upd_pin_b")}` : "");
-            }
-            update.disabled = false; return;
-          }
         } catch (e) {}
-        if (tries > 60) { clearInterval(poll); status.textContent = window.t("cs.upd_timeout"); update.disabled = false; }
+        if (waited >= UPD_WAIT_MS) {
+          clearInterval(poll); window.__joyceUpdating = false;
+          status.innerHTML = WARN_ICON + " " + window.t("cs.upd_timeout");
+          if (rollback && root.dataset.updateMode === "docker") {
+            const prev = root.dataset.previousVersion || "";
+            rollback.style.display = "";
+            rollback.innerHTML = "<b>" + window.t("cs.upd_rb_docker") + "</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>${window.t("cs.upd_pin_a")} <code>h2o-joyce-os:${esc(prev)}</code> ${window.t("cs.upd_pin_b")}` : "");
+          }
+          update.disabled = false;
+        }
       }, 3000);
     };
     loadVersion();
@@ -2158,8 +2192,8 @@
     .si-field select,.si-field input,.si-field textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--hairline);background:var(--field-bg);color:var(--text);font-size:15px;outline:none}
     .si-field textarea{min-height:80px;resize:vertical;font-family:inherit}
     .si-row{display:flex;gap:10px;flex-wrap:wrap}
-    .si-chip{padding:7px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.14);background:rgba(15,22,40,.6);color:var(--text);cursor:pointer;font-size:14px}
-    .si-chip.sel{border-color:var(--accent);background:rgba(34,211,238,.15);color:var(--accent-ink)}
+    .si-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:14px}
+    .si-chip.sel{border-color:var(--accent);background:rgba(255,138,60,.15);color:var(--accent-ink)}
     .si-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
     .si-status{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--surface-1);border:1px solid rgba(255,255,255,.07);font-size:15px;color:var(--text)}
     .si-log{margin-top:16px} .si-log .le{padding:10px 12px;border-left:2px solid rgba(120,180,255,.4);background:rgba(255,255,255,.02);margin-bottom:8px;border-radius:0 8px 8px 0;font-size:14px;white-space:pre-wrap;color:var(--text2)}
@@ -3462,6 +3496,9 @@
                 <button class="si-chip" data-mq="suggest">${esc(window.t("cs.si_mq_read"))}</button>
                 <button class="si-chip" data-mq="auto">${esc(window.t("cs.si_mq_write"))}</button>
                 <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
+              <label id="lpRemLastWrap" style="display:none;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemLast"> ${esc(window.t("cs.si_rem_last"))}</label>
+              <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemSpeak"> ${esc(window.t("cs.si_rem_speak"))}</label>
+              <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center" title="${esc(window.t("cs.si_rem_call_hint"))}"><input type="checkbox" id="lpRemCall"> ${esc(window.t("cs.si_rem_call"))}</label>
             </div>
             <div class="dim" style="font-size:12px;color:var(--text3);margin-top:4px">${esc(window.t("cs.si_rem_hint"))}</div>
           </div>
@@ -3470,13 +3507,30 @@
           <div class="si-actions"><button class="s-btn" id="lpSave">${SAVE_ICON} ${esc(window.t("common.save"))}</button><button class="s-btn-ghost" id="lpCancel">${esc(window.t("common.cancel"))}</button><span class="dim" id="lpFormMsg" style="font-size:13px;color:var(--warn-ink)"></span></div>
         </div>
       </div>
-      <div class="lp-search-row" style="margin:6px 0 10px">
-        <input id="lpSearch" type="search" autocomplete="off" placeholder="${esc(window.t("cs.si_search_ph"))}"
-          style="width:100%;max-width:340px;padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-size:14px;outline:none">
-        <span class="dim" id="lpSearchNote" style="display:none;font-size:12px;color:var(--text3);margin-left:8px"></span>
+      <!-- 0.204.0: three tabs instead of one long page (jobs, then incidents, then the log, all stacked), and the jobs
+           tab shows ONE brain at a time from a dropdown, with a kind filter and paging. Webhooks have their own page. -->
+      <div class="ach-tabs si-tabs" role="tablist" aria-label="${esc(t("page.selfimprove.label"))}">
+        <button type="button" role="tab" data-si-tab="jobs" aria-selected="true">${ic("repeat")}<span>${esc(window.t("cs.si_tab_jobs"))}</span><span class="si-tab-n" id="siNJobs"></span></button>
+        <button type="button" role="tab" data-si-tab="health" aria-selected="false">${ic("shield")}<span>${esc(window.t("cs.si_tab_health"))}</span><span class="si-tab-n warn" id="siNHealth" hidden></span></button>
+        <button type="button" role="tab" data-si-tab="log" aria-selected="false">${ic("scroll-text")}<span>${esc(window.t("cs.si_tab_log"))}</span></button>
       </div>
-      <div id="lpGroups">${esc(window.t("common.loading"))}</div>
-      <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:13px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
+      <section data-si-pane="jobs" role="tabpanel">
+        <div class="si-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px">
+          <select id="lpBrainFilter" class="loop-sel" aria-label="${esc(window.t("cs.si_brain"))}" style="font-size:15px;min-width:180px;max-width:100%"></select>
+          <div class="si-row" id="lpKindFilter" role="group">
+            <button class="si-chip sel" data-k="all">${esc(window.t("cs.si_kind_all"))}</button>
+            <button class="si-chip" data-k="loop">${ic("repeat")} ${esc(window.t("cs.si_kind_loop"))}</button>
+            <button class="si-chip" data-k="rem">${ic("alarm-clock")} ${esc(window.t("cs.si_kind_rem"))}</button>
+          </div>
+          <input id="lpSearch" type="search" autocomplete="off" placeholder="${esc(window.t("cs.si_search_ph"))}"
+            style="flex:1 1 200px;max-width:340px;padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-size:15px;outline:none">
+        </div>
+        <div id="lpGroups">${esc(window.t("common.loading"))}</div>
+      </section>
+      <section data-si-pane="health" role="tabpanel" hidden><div id="hpSection"></div></section>
+      <section data-si-pane="log" role="tabpanel" hidden>
+        <div class="si-log" style="margin-top:0"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:14px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
+      </section>
     </div>`;
 
     let fcur = { mode: "full" };   // mặc định toàn quyền (chủ repo bỏ luật an toàn cũ 2026-09-10)
@@ -3511,6 +3565,8 @@
     function syncRemMq() {
       const wrap = el.querySelector("#lpRemMqWrap");
       if (wrap) wrap.style.display = frmode === "task" ? "" : "none";
+      const lastWrap = el.querySelector("#lpRemLastWrap");
+      if (lastWrap) lastWrap.style.display = frmode === "task" ? "flex" : "none";
       el.querySelectorAll("#lpRemMq .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mq === frmq));
     }
     el.querySelectorAll("#lpRemModes .si-chip").forEach(c => c.onclick = () => {
@@ -3596,6 +3652,9 @@
       // Mở form một nhắc hẹn cũ thì hiện ĐÚNG mức nó đang chạy (bản ghi cũ chưa có trường này
       // thì server đã quy về mặc định trong _view, nên chỗ này không phải đoán lại).
       frmq = (rem && rem.muc_quyen) || "full";
+      el.querySelector("#lpRemLast").checked = !!(rem && rem.remember_last);
+      el.querySelector("#lpRemSpeak").checked = !!(rem && rem.speak);
+      el.querySelector("#lpRemCall").checked = !!(rem && rem.call);
       const locked = !!(lp || rem);   // đang SỬA (loop hay nhắc) → khoá loại việc + brain
       el.querySelector("#lpSlug").value = lp ? lp.slug : "";
       el.querySelector("#lpRemId").value = rem ? rem.id : "";
@@ -3652,6 +3711,9 @@
         const remId = el.querySelector("#lpRemId").value;
         const whenRaw = el.querySelector("#lpRemWhen").value.trim();
         const timePayload = whenRaw ? parseReminderWhen(whenRaw) : null;
+        const rememberLast = frmode === "task" && el.querySelector("#lpRemLast").checked;
+        const speak = el.querySelector("#lpRemSpeak").checked;
+        const call = el.querySelector("#lpRemCall").checked;
         if (!remId && !timePayload) { msg.textContent = window.t("cs.si_need_when"); return; }
         b.textContent = window.t("settings.saving");
         let r = {};
@@ -3660,13 +3722,16 @@
           f.append("id", remId); f.append("brain", brainVal);
           f.append("label", name); f.append("text", body); f.append("mode", frmode);
           f.append("muc_quyen", frmq);
+          f.append("remember_last", rememberLast ? "true" : "false");
+          f.append("speak", speak ? "true" : "false");
+          f.append("call", call ? "true" : "false");
           if (timePayload) Object.keys(timePayload).forEach(k => f.append(k, timePayload[k]));
           try { r = await (await fetch("/reminders/update", { method: "POST", body: f })).json(); }
           catch (e) { r = { error: e.message }; }
         } else {
           r = await createReminder(Object.assign(
             { text: body, label: name, mode: frmode, muc_quyen: frmq, brain: brainVal,
-              created_by: "dashboard" }, timePayload));
+              remember_last: rememberLast, speak: speak, call: call, created_by: "dashboard" }, timePayload));
         }
         b.innerHTML = SAVE_ICON + " " + window.t("common.save");
         if (!r.ok) {
@@ -3679,7 +3744,7 @@
             if (fb) fb.onclick = async () => {
               const r2 = await createReminder(Object.assign(
                 { text: body, label: name, mode: frmode, muc_quyen: frmq, brain: brainVal,
-                  created_by: "dashboard", allow_no_channel: true }, timePayload));
+                  remember_last: rememberLast, speak: speak, call: call, created_by: "dashboard", allow_no_channel: true }, timePayload));
               if (!r2.ok) { msg.innerHTML = Icons.warn(r2.error || window.t("cs.si_save_err")); return; }
               el.querySelector("#lpForm").style.display = "none";
               loadAll();
@@ -3718,31 +3783,67 @@
       return String(s == null ? "" : s).toLowerCase()
         .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
     }
-    // Lọc các thẻ việc trong #lpGroups theo ô tìm kiếm. Ẩn thẻ không khớp; ẩn luôn tiêu đề brain /
-    // "Nhắc hẹn đang chờ" khi cả nhóm/mục không còn thẻ nào hiện. Gọi lại sau mỗi lần render danh sách.
-    function applyLpSearch() {
-      const input = el.querySelector("#lpSearch");
-      const note = el.querySelector("#lpSearchNote");
-      const q = _lpNorm(input ? input.value.trim() : "");
-      let shown = 0, totalCards = 0;
-      el.querySelectorAll("#lpGroups .lp-group").forEach(group => {
-        let groupShown = 0, remShown = 0;
-        group.querySelectorAll(".wf-card").forEach(card => {
-          totalCards++;
-          const hit = !q || (card.dataset.search || "").indexOf(q) !== -1;
-          card.style.display = hit ? "" : "none";
-          if (hit) { groupShown++; shown++; if (card.dataset.kind === "rem") remShown++; }
-        });
-        const remHead = group.querySelector('[data-lp="remhead"]');
-        if (remHead) remHead.style.display = (q && !remShown) ? "none" : "";
-        const emptyRow = group.querySelector('[data-lp="empty"]');
-        if (emptyRow) emptyRow.style.display = q ? "none" : "";
-        group.style.display = (q && !groupShown) ? "none" : "";
-      });
-      if (note) {
-        if (q && !shown && totalCards) { note.style.display = ""; note.textContent = window.t("cs.si_none_match"); }
-        else note.style.display = "none";
+    // 0.204.0: the jobs tab shows one brain (or all, each card tagged with its brain), filtered by kind and the search
+    // box, 10 cards a page. Choices are remembered per browser (try/catch: storage can be blocked).
+    const LP_PER_PAGE = 10;
+    const LS_BRAIN = "joyce.si.brain", LS_KIND = "joyce.si.kind", LS_TAB = "joyce.si.tab";
+    const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+    let lpData = [];                                       // brains from /viec/all, current brain first
+    let lpBrain = lsGet(LS_BRAIN) || "";                   // brain path, "*" = every brain, "" = the sidebar's brain
+    let lpKind = ["all", "loop", "rem"].includes(lsGet(LS_KIND)) ? lsGet(LS_KIND) : "all";
+    let lpPage = 0;
+    function syncBrainFilter() {
+      const sel = el.querySelector("#lpBrainFilter");
+      if (!sel) return;
+      if (lpBrain !== "*" && !lpData.some(g => g.path === lpBrain)) {
+        const cur = lpData.find(isCurrentBrain) || lpData[0];
+        lpBrain = cur ? cur.path : "*";
       }
+      const n = g => (g.loops || []).length + (g.reminders || []).length;
+      const total = lpData.reduce((a, g) => a + n(g), 0);
+      sel.innerHTML = `<option value="*">${esc(window.t("cs.si_all_brains", { so: total }))}</option>`
+        + lpData.map(g => `<option value="${esc(g.path)}">${esc(g.name)} (${n(g)})${isCurrentBrain(g) ? " · " + esc(window.t("cs.si_viewing")) : ""}</option>`).join("");
+      sel.value = lpBrain;
+      const nj = el.querySelector("#siNJobs");
+      if (nj) nj.textContent = total ? String(total) : "";
+    }
+    function renderList() {
+      const box = el.querySelector("#lpGroups");
+      if (!box) return;
+      el.querySelectorAll("#lpKindFilter .si-chip").forEach(c => c.classList.toggle("sel", c.dataset.k === lpKind));
+      const q = _lpNorm((el.querySelector("#lpSearch") || {}).value || "").trim();
+      const many = lpBrain === "*";
+      const cards = [];
+      let inScope = 0, inBrain = 0;
+      lpData.forEach(g => {
+        if (!many && g.path !== lpBrain) return;
+        inBrain += (g.loops || []).length + (g.reminders || []).length;
+        const items = [];
+        if (lpKind !== "rem") (g.loops || []).forEach(lp => items.push(loopCard(lp)));
+        if (lpKind !== "loop") (g.reminders || []).forEach(r => items.push(reminderCard(r)));
+        inScope += items.length;
+        items.forEach(card => {
+          if (q && (card.dataset.search || "").indexOf(q) === -1) return;
+          if (many) {
+            const tag = document.createElement("div");
+            tag.className = "dim";
+            tag.style.cssText = "font-size:12px;color:var(--text3);margin-bottom:4px";
+            tag.innerHTML = `${ic("brain")} ${esc(g.name)}`;
+            card.insertBefore(tag, card.firstChild);
+          }
+          cards.push(card);
+        });
+      });
+      const empty = inScope
+        ? `<div class="empty">${esc(window.t("cs.si_none_match"))}</div>`
+        : inBrain ? `<div class="empty">${esc(window.t("cs.si_none_kind"))}</div>`
+        : `<div class="empty">${esc(window.t("cs.si_empty_brain_a"))} <b>+ ${esc(window.t("cs.si_add"))}</b>${esc(window.t("cs.si_empty_brain_b"))}</div>`;
+      pager(box, cards, LP_PER_PAGE, rows => {
+        const f = document.createDocumentFragment();
+        rows.forEach(c => f.appendChild(c));
+        return f;
+      }, empty, { page: lpPage, onPage: p => { lpPage = p; } });
     }
 
     function loopCard(lp) {
@@ -3760,7 +3861,6 @@
         : lp.mode === "auto" ? window.t("cs.si_mode_auto_low") : window.t("cs.si_mode_suggest_low");
       const extra = [
         `${modeLbl} · ${window.t("cs.si_every", { so: lp.interval_min })}`,
-        lp.model ? `${ic("cpu")} ${esc(lp.model)}` : "",
         (lp.goal && lp.goal !== "custom") ? (GNAME[lp.goal] || lp.goal) : "",
         lp.quiet_hours ? window.t("cs.si_quiet", { gio: lp.quiet_hours }) : "",
         lp.max_runs_per_day ? window.t("cs.si_maxruns", { so: lp.max_runs_per_day, da: lp.runs_today }) : "",
@@ -3794,14 +3894,14 @@
       };
       div.querySelector(".edit").onclick = () => openForm(lp);
       div.querySelector(".del").onclick = async () => {
-        if (!await JoyceDialog.confirm(window.t("cs.si_del_confirm", { ten: lp.name, slug: lp.slug }))) return;
+        if (!confirm(window.t("cs.si_del_confirm", { ten: lp.name, slug: lp.slug }))) return;
         await fetch("/loops/delete", { method: "POST", body: (() => { const f = new FormData(); f.append("slug", lp.slug); f.append("brain", lp.brain_path); return f; })() });
         loadAll(); loadLog();
       };
       div.querySelector(".mv").onchange = async (e) => {
         const to = e.target.value; if (!to) return;
         const toName = (allBrains.find(b => b.path === to) || {}).name || to;
-        if (!await JoyceDialog.confirm(window.t("cs.si_move_confirm", { ten: lp.name, brain: toName }))) { e.target.value = ""; return; }
+        if (!confirm(window.t("cs.si_move_confirm", { ten: lp.name, brain: toName }))) { e.target.value = ""; return; }
         const f = new FormData();
         f.append("slug", lp.slug); f.append("from_brain", lp.brain_path); f.append("to_brain", to);
         let r = {}; try { r = await (await fetch("/loops/move", { method: "POST", body: f })).json(); } catch (er) { r = { error: er.message }; }
@@ -3840,6 +3940,10 @@
       div.dataset.search = _lpNorm(`${title} ${when} ${r.cron || ""} ${kind} ${mq}`);
       div.innerHTML = `<b>${ic("alarm-clock")} ${esc(title)}</b>
         <div class="dim" style="font-size:12px;color:var(--text3)">${esc(when)} · ${esc(kind)}${mq ? ` · <span class="rm-mq${r.muc_quyen === "full" ? " on" : ""}">${esc(mq)}</span>` : ""}${r.cron ? ` · <code>${esc(r.cron)}</code>` : ""}</div>
+        ${(r.next_runs || []).length > 1 ? `<div class="dim" style="font-size:12px;color:var(--text3)">${esc(window.t("cs.si_rem_next3", { ds: r.next_runs.map(x => fmtWhen(x.at)).join(" · ") }))}</div>` : ""}
+        ${r.remember_last ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("history")} ${esc(window.t("cs.si_rem_last_tag"))}</div>` : ""}
+        ${r.speak ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("volume-2")} ${esc(window.t("cs.si_rem_speak_tag"))}</div>` : ""}
+        ${r.call ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("mic")} ${esc(window.t("cs.si_rem_call_tag"))}</div>` : ""}
         ${r.error ? `<div style="font-size:12px;color:var(--warn-ink);margin-top:4px">${WARN_ICON} ${esc(window.t("cs.si_prev_err"))} ${esc(r.error.slice(0, 160))}</div>` : ""}
         <div class="wf-actions" style="margin-top:8px">
           <button class="s-btn-ghost rmEdit">${esc(window.t("common.edit"))}</button>
@@ -3849,7 +3953,7 @@
         </div>`;
       div.querySelector(".rmEdit").onclick = () => openForm(null, r);
       div.querySelector(".rmCancel").onclick = async () => {
-        if (!await JoyceDialog.confirm(window.t("cs.si_rem_cancel_confirm", { ten: title }))) return;
+        if (!confirm(window.t("cs.si_rem_cancel_confirm", { ten: title }))) return;
         const f = new FormData();
         f.append("id", r.id);        // id THÔ, /reminders/cancel nhận đúng dạng này
         f.append("brain", r.brain_path);
@@ -3857,7 +3961,7 @@
         loadAll();
       };
       div.querySelector(".rmDel").onclick = async () => {
-        if (!await JoyceDialog.confirm(window.t("cs.si_rem_del_confirm", { ten: title }))) return;
+        if (!confirm(window.t("cs.si_rem_del_confirm", { ten: title }))) return;
         const f = new FormData();
         f.append("id", r.id); f.append("brain", r.brain_path);
         let rr = {}; try { rr = await (await fetch("/reminders/delete", { method: "POST", body: f })).json(); } catch (er) { rr = { error: er.message }; }
@@ -3867,7 +3971,7 @@
       div.querySelector(".mv").onchange = async (e) => {
         const to = e.target.value; if (!to) return;
         const toName = (allBrains.find(b => b.path === to) || {}).name || to;
-        if (!await JoyceDialog.confirm(window.t("cs.si_rem_move_confirm", { ten: title, brain: toName }))) { e.target.value = ""; return; }
+        if (!confirm(window.t("cs.si_rem_move_confirm", { ten: title, brain: toName }))) { e.target.value = ""; return; }
         const f = new FormData();
         f.append("id", r.id); f.append("from_brain", r.brain_path); f.append("to_brain", to);
         let rr = {}; try { rr = await (await fetch("/reminders/move", { method: "POST", body: f })).json(); } catch (er) { rr = { error: er.message }; }
@@ -3922,49 +4026,14 @@
           if (go) go.onclick = (ev) => { ev.preventDefault(); navigateTo("channels"); };
         }
       }
-      allLoops = [];
-      const groups = (d.brains || []).slice().sort((a, b) => {
+      lpData = (d.brains || []).slice().sort((a, b) => {
         const ac = isCurrentBrain(a) ? 0 : 1, bc = isCurrentBrain(b) ? 0 : 1;
         return ac - bc || String(a.name).localeCompare(String(b.name));
       });
-      box.innerHTML = "";
-      let anyItem = false;
-      groups.forEach(g => {
-        const loops = g.loops || [], rems = g.reminders || [];
-        const cur = isCurrentBrain(g);
-        if (!loops.length && !rems.length && !cur) return;   // brain rỗng không phải brain đang xem → ẩn
-        if (loops.length || rems.length) anyItem = true;
-        // Mỗi brain gói vào 1 wrapper .lp-group để ô tìm kiếm ẩn/hiện cả nhóm gọn gàng.
-        const group = document.createElement("div");
-        group.className = "lp-group";
-        const head = document.createElement("div");
-        head.style.cssText = "display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-size:15px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px";
-        head.innerHTML = `<span>${ic("brain")} ${esc(g.name)}</span>`
-          + (cur ? `<span style="font-size:11px;color:var(--green);font-weight:500">${esc(window.t("cs.si_viewing"))}</span>` : "")
-          + (g.is_default ? `<span style="font-size:11px;color:var(--text3);font-weight:400">${esc(window.t("cs.si_is_default"))}</span>` : "");
-        group.appendChild(head);
-        if (!loops.length && !rems.length) {
-          const e2 = document.createElement("div");
-          e2.className = "empty"; e2.style.margin = "0 0 10px";
-          e2.dataset.lp = "empty";
-          e2.innerHTML = `${esc(window.t("cs.si_empty_brain_a"))} <b>+ ${esc(window.t("cs.si_add"))}</b>${esc(window.t("cs.si_empty_brain_b"))}`;
-          group.appendChild(e2);
-        }
-        loops.forEach(lp => { allLoops.push(lp); group.appendChild(loopCard(lp)); });
-        if (rems.length) {
-          const rh = document.createElement("div");
-          rh.style.cssText = "font-size:13px;color:var(--text3);margin:10px 0 6px";
-          rh.dataset.lp = "remhead";
-          rh.textContent = window.t("cs.si_rem_pending");
-          group.appendChild(rh);
-          rems.forEach(r => group.appendChild(reminderCard(r)));
-        }
-        box.appendChild(group);
-      });
-      if (!anyItem) {
-        box.innerHTML = `<div class="empty">${esc(window.t("cs.si_empty_all_a"))} <b>+ ${esc(window.t("cs.si_add"))}</b>${esc(window.t("cs.si_empty_all_b"))}</div>`;
-      }
-      applyLpSearch();   // giữ nguyên bộ lọc tìm kiếm sau mỗi lần render lại danh sách
+      allLoops = [];
+      lpData.forEach(g => (g.loops || []).forEach(lp => allLoops.push(lp)));
+      syncBrainFilter();
+      renderList();
       // Bộ lọc nhật ký: mọi loop mọi brain (value = index vào allLoops → biết cả brain lẫn slug).
       const sel = el.querySelector("#lpLogFilter");
       const cur = sel.value;
@@ -3994,14 +4063,63 @@
             `<div class="dim" style="color:var(--text3)">${esc(window.t("cs.si_no_log"))}</div>`);
     }
     el.querySelector("#lpLogFilter").onchange = loadLog;
-    { const s = el.querySelector("#lpSearch"); if (s) s.oninput = applyLpSearch; }
+    { const s = el.querySelector("#lpSearch"); if (s) s.oninput = () => { lpPage = 0; renderList(); }; }
+    el.querySelector("#lpBrainFilter").onchange = (e) => { lpBrain = e.target.value; lsSet(LS_BRAIN, lpBrain); lpPage = 0; renderList(); };
+    el.querySelectorAll("#lpKindFilter .si-chip").forEach(c => c.onclick = () => {
+      lpKind = c.dataset.k; lsSet(LS_KIND, lpKind); lpPage = 0; renderList();
+    });
+    // Tabs (0.204.0). The health scan and the log load on first open, not on every visit to the jobs.
+    // Health (0.199.0): incidents Joyce Core is handling and the read-only scan, see dashboard/health-panel.js.
+    const opened = {};
+    function openTab(name) {
+      if (!["jobs", "health", "log"].includes(name)) name = "jobs";
+      lsSet(LS_TAB, name);
+      el.querySelectorAll("[data-si-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.siTab === name)));
+      el.querySelectorAll("[data-si-pane]").forEach(p => { p.hidden = p.dataset.siPane !== name; });
+      if (opened[name]) return;
+      opened[name] = true;
+      if (name === "health" && window.JoyceHealthPanel) window.JoyceHealthPanel.mount(el.querySelector("#hpSection"));
+      if (name === "log") loadLog();
+    }
+    el.querySelectorAll("[data-si-tab]").forEach(b => b.onclick = () => openTab(b.dataset.siTab));
+    // Open incidents show as a count on the tab, so a problem is visible without opening it.
+    fetch("/incidents").then(r => r.json()).then(d => {
+      if (myGen !== _renderGen) return;
+      const n = (d.incidents || []).filter(i => i.status !== "resolved").length;
+      const b = el.querySelector("#siNHealth");
+      if (b) { b.hidden = !n; b.textContent = String(n); }
+    }).catch(() => {});
     ensureBrains();   // nạp sẵn danh sách brain cho ô chọn (không chờ /viec/all vốn nặng)
-    loadAll(); loadLog();
+    loadAll();
+    openTab(lsGet(LS_TAB) || "jobs");
+  }
+
+  // ============================================
+  // Trang Webhook (0.204.0): tách khỏi trang Việc định kỳ. Webhook là cửa vào cho sự kiện từ bên ngoài
+  // (form, thanh toán), không phải việc chạy theo giờ, nên đứng thành một mục riêng trong nhóm Việc.
+  // Phần ruột vẫn là dashboard/webhooks.js (0.198.0).
+  // ============================================
+  async function renderWebhooks(el) {
+    _injectExtraCss();
+    const myGen = _renderGen;
+    if (!window.JoyceWebhooks) {
+      el.innerHTML = placeholder("webhooks", window.t("cs.mod_not_ready", { ten: "webhooks.js" }));
+      return;
+    }
+    el.innerHTML = `<div class="cview-section"><div id="whSection"></div></div>`;
+    let brains = [];
+    try {
+      const d = await (await fetch("/brains")).json();
+      brains = (d.brains || []).map(b => ({ name: b.name, path: b.path, is_default: b.is_default }));
+    } catch (e) {}
+    if (myGen !== _renderGen) return;
+    window.JoyceWebhooks.mount(el.querySelector("#whSection"), { brains: () => brains, current: () => fbrain() });
   }
 
   // ============================================
   // Trang Tự học (rewire Memory/Wiki/Skill - an toàn, undo được)
   // ============================================
+
   async function renderLearn(el) {
     _injectExtraCss();
     el.innerHTML = `<div class="cview-section"><div class="empty">${esc(t("common.loading"))}</div></div>`;
@@ -4402,10 +4520,10 @@
       const tid = n.dataset.tid;
       go("kanban");
       if (!tid) return;
-      let tries = 0;
+      let lan = 0;
       const t0 = setInterval(() => {
         if (typeof window.JoyceKanbanShow === "function") { window.JoyceKanbanShow(tid); clearInterval(t0); }
-        else if (++tries > 40) clearInterval(t0);
+        else if (++lan > 40) clearInterval(t0);
       }, 120);
     });
     // Nhắc hẹn sống ở trang Việc định kỳ (selfimprove) - bấm lịch nhảy sang đó quản lý.
@@ -4417,10 +4535,10 @@
       if (!h) return;
       go(h);
       if (!tid) return;
-      let tries = 0;
+      let lan = 0;
       const t0 = setInterval(() => {
         if (typeof window.JoyceKanbanShow === "function") { window.JoyceKanbanShow(tid); clearInterval(t0); }
-        else if (++tries > 40) clearInterval(t0);
+        else if (++lan > 40) clearInterval(t0);
       }, 120);
     });
     el.querySelectorAll(".td-app").forEach(n => n.onclick = () => { const u = n.dataset.url; if (u) window.open(safeHref(u), "_blank"); });
@@ -4914,9 +5032,15 @@
         return;
       }
       st.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.upd_running_now"));
-      let tries = 0;
+      window.__joyceUpdating = true;
+      const t0 = Date.now();
+      let longNote = false;
       const poll = setInterval(async () => {
-        tries++;
+        const waited = Date.now() - t0;
+        if (waited >= UPD_LONG_MS && !longNote) {
+          longNote = true;
+          st.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.upd_pulling_long"));
+        }
         // 1) ưu tiên trạng thái chi tiết từ updater (bản git)
         let s = null;
         try { s = await (await fetch("/update/status", { cache: "no-store" })).json(); } catch (e) { s = null; }
@@ -4925,9 +5049,9 @@
           const stashNote = s.state.stashed ? ic("package") + " " + window.t("cs.ov_stashed") : "";
           renderProgress(ph, stashNote);
           if (res === "success") { clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(() => location.reload(), 1500); return; }
-          if (res === "rolled_back") { clearInterval(poll); renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>. " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
+          if (res === "rolled_back") { clearInterval(poll); window.__joyceUpdating = false; renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>. " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
           if (res === "pull_failed" || res === "rollback_failed" || res === "error") {
-            clearInterval(poll);
+            clearInterval(poll); window.__joyceUpdating = false;
             const pb = document.getElementById("ovVerProgress"); if (pb) pb.style.display = "none";
             st.innerHTML = WARN_ICON + " " + esc(s.state.error || window.t("cs.upd_err")) + " " + esc(window.t("cs.upd_see")) + " <code>update.log</code>.";
             verUpd.disabled = false; return;
@@ -4940,21 +5064,19 @@
           if (flipOk && v && v.update_available === false && v.current && v.current !== oldCur) {
             clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(() => location.reload(), 1500); return;
           }
-          // docker bản mới có thể lỗi: server vẫn còn bản cũ sau khá lâu → hiện cách lùi
-          if ((window._ovVerMode === "docker") && tries >= 12 && v && v.current === oldCur) {
-            clearInterval(poll);
-            const prev = window._ovVerPrev || (v.previous_version || "");
-            st.innerHTML = WARN_ICON + " " + esc(window.t("cs.upd_slow"));
-            if (rb) {
-              rb.style.display = "";
-              rb.innerHTML = "<b>" + esc(window.t("cs.ov_rb_head")) + "</b><br>" + esc(window.t("cs.ov_rb_pin"))
-                + "<br><code>docker compose pull && docker compose up -d</code>"
-                + (prev ? "<br>" + esc(window.t("cs.ov_rb_img")) + " <code>h2o-joyce-os:" + esc(prev) + "</code> " + esc(window.t("cs.upd_pin_b")) : "");
-            }
-            verUpd.disabled = false; return;
-          }
         } catch (e) { /* server đang restart - chờ tiếp */ }
-        if (tries > 60) { clearInterval(poll); st.innerHTML = esc(window.t("cs.upd_timeout")); verUpd.disabled = false; }
+        if (waited >= UPD_WAIT_MS) {
+          clearInterval(poll); window.__joyceUpdating = false;
+          st.innerHTML = WARN_ICON + " " + esc(window.t("cs.upd_timeout"));
+          if (rb && window._ovVerMode === "docker") {
+            const prev = window._ovVerPrev || "";
+            rb.style.display = "";
+            rb.innerHTML = "<b>" + esc(window.t("cs.ov_rb_head")) + "</b><br>" + esc(window.t("cs.ov_rb_pin"))
+              + "<br><code>docker compose pull && docker compose up -d</code>"
+              + (prev ? "<br>" + esc(window.t("cs.ov_rb_img")) + " <code>h2o-joyce-os:" + esc(prev) + "</code> " + esc(window.t("cs.upd_pin_b")) : "");
+          }
+          verUpd.disabled = false;
+        }
       }, 3000);
     };
     ovLoadVersion();
@@ -5495,7 +5617,7 @@
       `<button class="seg-btn ${reasoning === v ? "sel" : ""}" data-reason="${v}" title="${esc(d)}">` +
       `<span class="seg-lb">${esc(l)}</span><span class="seg-d">${esc(d)}</span></button>`).join("");
 
-    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
+    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
     const provHead = (p, on, kindLabel, statusText) => `
         <div class="prov-head">
           <span class="prov-shield ${on ? "on" : ""}">${_shield(on)}</span>
@@ -7116,7 +7238,7 @@
     // native, bốn provider API đi qua vòng gọi tool + hub trong _api_stream_mcp. Gemini từng
     // thiếu trong danh sách này nên khách chạy Gemini bị banner vàng "chưa hỗ trợ gọi công cụ"
     // dù bên dưới đã chạy MCP ngon - nhánh vàng giờ chỉ còn để chặn provider lạ.
-    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama", "ollama-local", "openai-compat"];
+    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat"];
     const mainLabel = (provs.find(p => p.id === main.provider) || {}).label || main.provider || "-";
     let warn = "";
     if (main.provider === "openai-oauth") {
@@ -7608,6 +7730,7 @@
     const s = await freshSettings();
     const tg = s.telegram || {};
     const zl = s.zalo_bot || {};
+    const id = (f) => `tg_${f}`;
     el.innerHTML = `
       <div class="cview-section">
         <h3>Telegram</h3>
@@ -7618,6 +7741,10 @@
           <input class="js-input" id="tgToken" type="password" placeholder="${esc(window.t(tg.token_set ? "cs.ch_token_keep" : "cs.ch_tg_token_ph"))}">
           <label class="js-lbl">${esc(window.t("cs.ch_allowed_ids"))} <span class="dim">${esc(window.t("cs.ch_tg_ids_hint"))}</span></label>
           <input class="js-input" id="tgChat" value="${esc(tg.chat_id || "")}" placeholder="${esc(window.t("cs.ch_tg_ids_ph"))}">
+          <label class="js-lbl" for="${id("owner")}">${esc(window.t("ach.telegram_owner"))}</label>
+          <select class="js-input" id="${id("owner")}">${[""].concat(String(tg.chat_id || "").split(/[\s,]+/).filter(Boolean)).map(v =>
+            `<option value="${esc(v)}" ${v === (tg.owner_chat_id || "") ? "selected" : ""}>${esc(v || window.t("ach.telegram_owner_auto"))}</option>`).join("")}</select>
+          <p class="gcard-meta">${esc(window.t("ach.telegram_owner_hint"))}</p>
           <div class="js-actions"><button class="gcard-btn" id="tgSave">${esc(window.t("cs.ch_save_enable"))}</button><button class="gcard-btn ghost" id="tgTest">${esc(window.t("cs.ch_send_test"))}</button></div>
           <div class="gcard-meta" id="tgStatus"></div>
         </div>
@@ -7705,7 +7832,8 @@
       setTimeout(refreshTgStatus, 1800);
     };
     document.getElementById("tgSave").onclick = async () => {
-      const data = { enabled: document.getElementById("tgEnabled").checked, chat_id: document.getElementById("tgChat").value.trim() };
+      const data = { enabled: document.getElementById("tgEnabled").checked, chat_id: document.getElementById("tgChat").value.trim(),
+                     owner_chat_id: document.getElementById(id("owner")).value.trim() };
       const tok = document.getElementById("tgToken").value.trim();
       if (tok) data.token = tok;
       st.textContent = window.t("settings.saving");
@@ -8937,6 +9065,67 @@
     dongBo();
   }
 
+
+  // TÔNG MÀU (port Javis 0.74.0): Tối / Sáng / Tự động theo giờ. Mọi thứ nằm ở theme.js và
+  // localStorage của MÁY NÀY, không gọi server. Thẻ tự vẽ lại khi tông đổi từ chỗ khác.
+  function themeNowText(T) {
+    const at = T.nextChange();
+    if (!at) return t("settings.theme.now_flat");
+    const light = T.isLight();
+    return t("settings.theme.now_auto", {
+      cur: t(light ? "settings.theme.cur_light" : "settings.theme.cur_dark"),
+      next: t(light ? "settings.theme.cur_dark" : "settings.theme.cur_light"),
+      at,
+    });
+  }
+  function renderThemeBox(box) {
+    const T = window.joyceTheme;
+    if (!box || !T || !T.mode) return;
+    const mode = T.mode();
+    const sch = T.schedule();
+    const segBtn = (v, lb, d) => `<button type="button" class="seg-btn ${mode === v ? "sel" : ""}" data-theme-mode="${v}"
+      aria-pressed="${mode === v}"><span class="seg-lb">${esc(lb)}</span>
+      <span class="seg-d">${esc(d)}</span></button>`;
+    const now = mode === "auto" ? themeNowText(T) : "";
+    // Hai ô giờ chỉ VẼ khi đang tự động, không dùng thuộc tính hidden: .qs-field là flex và
+    // display của nó đè hidden (đã cắn một lần ở thẻ giọng nói).
+    box.innerHTML = `
+      <div class="popover-label">${esc(t("settings.theme.title"))}</div>
+      <div class="seg" role="group" aria-label="${esc(t("settings.theme.title"))}">
+        ${segBtn("dark", t("settings.theme.dark"), t("settings.theme.dark_d"))}
+        ${segBtn("light", t("settings.theme.light"), t("settings.theme.light_d"))}
+        ${segBtn("auto", t("settings.theme.auto"), t("settings.theme.auto_d"))}
+      </div>
+      ${mode === "auto" ? `
+      <div class="qs-field">
+        <label class="qs-lbl" for="vpThemeLight">${esc(t("settings.theme.light_from"))}</label>
+        <input type="time" class="js-input" id="vpThemeLight" value="${esc(sch.light)}">
+      </div>
+      <div class="qs-field">
+        <label class="qs-lbl" for="vpThemeDark">${esc(t("settings.theme.dark_from"))}</label>
+        <input type="time" class="js-input" id="vpThemeDark" value="${esc(sch.dark)}">
+      </div>
+      <div class="qs-hint" role="status">${esc(now)}</div>` : ""}
+      <div class="qs-hint">${esc(t("settings.theme.hint"))}</div>`;
+    box.querySelectorAll("[data-theme-mode]").forEach(b => {
+      b.onclick = () => T.setMode(b.dataset.themeMode);
+    });
+    const inL = box.querySelector("#vpThemeLight");
+    const inD = box.querySelector("#vpThemeDark");
+    const saveSch = () => {
+      if (!T.setSchedule(inL.value, inD.value)) { toast(t("settings.theme.bad_time"), true); return; }
+      const st = box.querySelector("[role=status]");
+      if (st) st.textContent = themeNowText(T);
+    };
+    if (inL) inL.onchange = saveSch;
+    if (inD) inD.onchange = saveSch;
+  }
+  window.addEventListener("joyce-theme-change", () => {
+    const box = document.getElementById("vpThemeBox");
+    if (!box || box.contains(document.activeElement) && document.activeElement.type === "time") return;
+    renderThemeBox(box);
+  });
+
   async function renderSettingsPage(el) {
     // Nhân viên H2O: trang Cài đặt là mặt quản trị (mọi ghi đều 403 phía server),
     // vẽ tab cho họ là mời bấm vào một dãy ô chết. Thay bằng thẻ thông tin gọn.
@@ -8987,6 +9176,21 @@
     }
   }
 
+  // Ngôn ngữ giao diện cho hai ô chọn (Cài đặt và rail): các ngôn ngữ server nói được cộng
+  // từ điển chỉ-có-ở-dashboard (cộng đồng đóng góp `dashboard/i18n/xx.json`, tiếng Đức 0.99.0).
+  function uiLangChoices(s) {
+    return (s && (s.ui_lang_list || s.lang_list)) || [];
+  }
+
+  // Thứ SERVER lưu cho một ngôn ngữ giao diện. Server chỉ biết sổ đăng ký của nó (vi, en) và
+  // mã lạ ở đó nắn thành tiếng Việt, nên một từ điển chỉ-có-ở-dashboard được lưu thành tiếng
+  // Anh - đúng nấc suy biến dashboard dùng cho key từ điển đó chưa dịch.
+  function uiLangForServer(ma, s) {
+    const full = (s && s.lang_list) || [];
+    if (full.some(l => l.ma === ma)) return ma;
+    return full.some(l => l.ma === "en") ? "en" : ma;
+  }
+
   async function renderSettings(el, tab = "general") {
     const gen = _renderGen;               // chốt token: nếu user đổi trang trong lúc await → bỏ render này
     parkQuickSet();                       // giữ #quickSet an toàn TRƯỚC khi ghi đè cviewBody
@@ -9011,6 +9215,7 @@
     const langs = (s.lang_list || []);
     const replyLang = lc.reply_lang || "auto";
     const uiLang = (window.JoyceI18n && JoyceI18n.lang()) || "vi";
+    const langsUi = uiLangChoices(s);
     // MỘT thẻ cho cả hai ô ngôn ngữ (0.58.8). Trước là hai thẻ riêng nằm cạnh nhau trong lưới,
     // mỗi thẻ đúng một ô chọn - hai cái khung cho hai dòng chữ.
     const langHtml = `
@@ -9019,7 +9224,7 @@
         <div class="qs-field">
           <label class="qs-lbl" for="vpUiLang">${esc(t("settings.ui_lang.title"))}</label>
           <select class="js-input" id="vpUiLang">
-            ${langs.map(l => opt(l.ma, l.ten, uiLang)).join("")}
+            ${langsUi.map(l => opt(l.ma, l.ten, uiLang)).join("")}
           </select>
         </div>
         <div class="qs-hint">${esc(t("settings.ui_lang.hint"))}
@@ -9119,7 +9324,8 @@
     }
     const langHost = document.getElementById("replyLangHost");
     if (langHost) {
-      langHost.innerHTML = langHtml;
+      langHost.innerHTML = `<div class="qs-block" id="vpThemeBox"></div>` + langHtml;
+      renderThemeBox(document.getElementById("vpThemeBox"));
       const sel = document.getElementById("vpReplyLang");
       if (sel) sel.onchange = async () => {
         const r = await saveSetting("locale", { reply_lang: sel.value });
@@ -9131,7 +9337,7 @@
         // THEO THIẾT BỊ (người dùng mở Joyce từ nhiều máy), nên trải nghiệm phải tức thì và
         // không được phụ thuộc vào việc gọi mạng có thành công hay không.
         try { await JoyceI18n.setLang(selUi.value); } catch (e) { /* noop */ }
-        await saveSetting("locale", { ui_lang: selUi.value });
+        await saveSetting("locale", { ui_lang: uiLangForServer(selUi.value, s) });
         // Vẽ lại trang Cài đặt bằng từ điển mới - không thì phần khung (tiêu đề nhóm, thẻ,
         // nút) vẫn tiếng cũ tới lần mở sau, nhìn như đổi ngôn ngữ "không ăn".
         refreshSettings();
@@ -9228,7 +9434,7 @@
   // (giữ nguyên mọi handler + WebSocket + streaming đã gắn trong app.js) rồi TRẢ về HUD khi
   // rời trang. Cùng một cuộc trò chuyện hiển thị ở cả màn Joyce lẫn tab này.
   // ============================================
-  const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "attachBar", "modelBar", "hudVoice"];
+  const CHAT_NODE_IDS = ["callBar", "chatArea", "bgStrip", "modelBar", "hudVoice"];
   let _chatSlots = [];        // vị trí gốc từng node để trả về đúng chỗ trong HUD
 
   function _injectChatCss() {
@@ -9241,7 +9447,7 @@
        .hud-top (thanh trên toàn cục) hiển thị. Rời tab (bỏ .on-chat) HUD tự hiện lại + graph thức. */
     body.on-chat .hud-body{ visibility:hidden; }
     .chatpage{ display:flex; height:100%; min-height:0; position:relative; }
-    .chatpage-side{ width:280px; flex:none; display:flex; flex-direction:column; gap:10px;
+    .chatpage-side{ width:var(--cp-side-w, 280px); flex:none; display:flex; flex-direction:column; gap:10px;
       min-height:0; padding:14px 12px; border-right:1px solid var(--glass-brd); background:var(--surface-1); }
     .chatpage-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 20px 16px; }
     .chatpage-bar{ display:flex; align-items:center; gap:10px; padding:0 4px 10px; flex:none; }
@@ -9338,7 +9544,7 @@
     .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; background:transparent; }
     /* Khung nhập giữ NGUYÊN bộ mặt của thanh nhập ở màn Joyce (--bg2 + bo 18px). Trước đây
        gõ cứng rgba(24,24,34,.6) nên tông sáng lòi ra một dải xám đen giữa nền giấy. */
-    .chatpage-slot .hud-voice{ background:var(--bg2); border:1px solid var(--border); border-radius:18px; }
+    .chatpage-slot .hud-voice{ background:var(--bg2); border:1px solid var(--border); border-radius:24px; }
     .chatpage-slot .attach-bar{ flex:none; }
     /* Màn hẹp: cả hàng tiêu đề phải nằm gọn MỘT dòng. Trước đây tiêu đề "Trò chuyện với Joyce"
        xuống bốn dòng và chữ "Thu nhỏ" xuống hai dòng, đẩy khung chat tụt hẳn xuống - chủ repo
@@ -9664,6 +9870,15 @@
       if (isNar()) { page.classList.toggle("side-open"); return; }
       datSideThu(!page.classList.contains("side-thu"));
     };
+    // Cột Hội thoại/Thư mục kéo được ở đường biên phải (col-resize.js); màn hẹp là ngăn kéo, CSS ẩn tay kéo.
+    if (sideEl && window.JoyceColResize) {
+      // Kéo hẹp quá điểm gập thì cột gập hẳn, y như nút gập.
+      const oSide = { host: page, varName: "--cp-side-w", key: "joyce_cp_side_w", min: 220, max: 560, edge: "right",
+        label: "common.resize_chatside", keep: 420, total: () => page.clientWidth,
+        collapse: { below: window.JoyceColResize.FOLD_AT(220), run: () => datSideThu(true) } };
+      window.JoyceColResize.apply(oSide);
+      window.JoyceColResize.attach(sideEl, oSide);
+    }
     _neoCotTrai(page, el.querySelector("#chatPageSide"), slot);
     // Khung chat PHẢI khi đang sửa file (.edit-on): nút thu co vào bên phải + nhớ trạng
     // thái. Nút gắn vào slot SAU khi mượn node chat nên không bị _borrowChatNodes chen chỗ.
@@ -10334,8 +10549,13 @@
     const chat = document.getElementById("chatPage");
     const files = document.getElementById("fmEdit");
     if (workspace) {
-      workspace.querySelector('[data-rtab="files"]')?.click();
-      workspace.classList.toggle("right-open", window.matchMedia("(max-width: 1060px)").matches);
+      // Từ 0.142.0 trang Cộng sự không còn tab Thư mục (thay bằng Công việc): "Vị trí file" mở trang Tệp tin, nơi có
+      // cây thư mục thật, rồi soi file trong cây đó.
+      if (window.JoyceNav && window.JoyceNav.go) {
+        window.JoyceNav.go("files");
+        await new Promise((r) => setTimeout(r, 350));
+      }
+      document.body.classList.remove("vault-thu");
     } else if (chat) {
       window.JoyceChatSide?.tab("files");
       chat.classList.remove("side-thu");
@@ -10525,9 +10745,35 @@
       b.innerHTML = EC.btnHtml(c);
       if (c.btn.style) b.style.cssText += c.btn.style;
       b.onmousedown = (e) => e.preventDefault();
-      b.onclick = () => EC.run(c.id, ctx);
+      // Lệnh định dạng chèn chữ thẳng vào ô soạn mà không bắn sự kiện input, nên báo bộ đếm từ.
+      b.onclick = () => { EC.run(c.id, ctx); if (ctx.onChange) ctx.onChange(); };
       host.appendChild(b);
     });
+  }
+
+  // Bộ đếm "N từ · M ký tự" trên thanh công cụ của trình sửa (word-count.js).
+  // `doc()` trả {text, md}: md=true thì bỏ cú pháp markdown trước khi đếm.
+  // Đếm lại sau mỗi lần gõ, gom 250 ms để file dài không giật. Trả hàm "đếm lại" cho chỗ gọi.
+  function _neGanDemTu(host, doc, nguon) {
+    if (!host || !window.JoyceWordCount) return () => {};
+    const el = document.createElement("span");
+    el.className = "ne-count";
+    let lg = "vi";
+    try { lg = window.JoyceI18n.lang(); } catch (e) {}
+    const loc = lg === "en" ? "en-US" : "vi-VN";
+    const so = (n) => Number(n || 0).toLocaleString(loc);
+    const ve = () => {
+      let r;
+      try { const d = doc(); r = window.JoyceWordCount.dem(d.text, { md: d.md }); } catch (e) { return; }
+      el.textContent = window.t("cs.ne_count", { words: so(r.words), chars: so(r.chars) });
+      el.title = window.t("cs.ne_count_title", { nospace: so(r.charsNoSpace) });
+    };
+    let timer = null;
+    const hen = () => { clearTimeout(timer); timer = setTimeout(ve, 250); };
+    (nguon || []).forEach((n) => { if (n) n.addEventListener("input", hen); });
+    host.appendChild(el);
+    ve();
+    return hen;
   }
 
   // Cho khung sua file trong chat (file-editor.js) dung LAI dung bo may WYSIWYG cua editor cay:
@@ -10537,6 +10783,7 @@
       ensureTurndown: _ensureTurndown,
       mdFromHtml: _mdFromHtml,
       buildToolbar: _neBuildToolbar,
+      ganDemTu: _neGanDemTu,   // bộ đếm từ + ký tự, khung sửa trong chat dùng chung
     };
   }
 
@@ -10692,7 +10939,12 @@
         wys.addEventListener("jv-task-toggle", () => { if (_neSaveFn) _neSaveFn(); });
         const wysToSrc = () => { const md = _mdFromHtml(wys.innerHTML); if (md != null) ta.value = md; };
         const srcToWys = () => { wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true, thuMuc: neThuMuc }) : esc(ta.value); };
-        _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys });   // thanh công cụ chạy cả 2 chế độ
+        let demLai = null;
+        _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys,
+          onChange: () => { if (demLai) demLai(); } });   // thanh công cụ chạy cả 2 chế độ
+        // Đếm chữ HIỆN RA: chế độ Sửa lấy chữ của bản render, chế độ Mã nguồn bỏ cú pháp markdown.
+        demLai = _neGanDemTu(body.querySelector(".ne-fmt"),
+          () => (curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true }), [ta, wys]);
         mdGetter = () => (curMode === "wys" ? (_mdFromHtml(wys.innerHTML) != null ? _mdFromHtml(wys.innerHTML) : ta.value) : ta.value);
         const seg = document.createElement("span"); seg.className = "ne-seg";
         [[window.t("common.edit"), "mode-wys"], [window.t("cs.ne_source"), "mode-source"]].forEach(([lbl, cls]) => {
@@ -10703,6 +10955,7 @@
             else if (!toSrc && curMode === "source") srcToWys();
             curMode = toSrc ? "source" : "wys";
             body.className = "ne-body ne-md " + cls;
+            if (demLai) demLai();
             seg.querySelectorAll("button").forEach(x => x.classList.remove("active")); b.classList.add("active");
           };
           seg.appendChild(b);
@@ -10716,6 +10969,8 @@
           const hlLang = window.JoyceCodeHL ? window.JoyceCodeHL.langFromPath(rel) : "";
           if (hlLang) window.JoyceCodeHL.attach(ta, hlLang);
         } catch (e) {}
+        // File chữ khác không có thanh định dạng: bộ đếm đứng đầu thanh nút phía trên, đếm nguyên văn.
+        _neGanDemTu(actions, () => ({ text: ta.value, md: false }), [ta]);
       }
       const saveBtn = document.createElement("button"); saveBtn.innerHTML = SAVE_ICON + " " + esc(window.t("common.save")); saveBtn.title = window.t("cs.ne_save_title");
       // Mốc so sánh "đã sửa gì chưa": lấy SAU khi dựng xong khung soạn, tức là bản đã vòng
@@ -11027,14 +11282,38 @@
     // Khôi phục ngay, trước các lời gọi mạng ở freshSettings, để tránh nháy màn Joyce.
     khoiPhucTrang();
 
-    freshSettings().then(s => {
+    freshSettings().then(async s => {
+      // Máy này CHƯA chọn ngôn ngữ (i18n đang đoán theo trình duyệt): ngôn ngữ đã lưu trên
+      // server thắng phần đoán. Không có bước này thì người dùng Việt cũ có trình duyệt để
+      // tiếng Anh sẽ bị đổi sang tiếng Anh trong im lặng. Server chưa lưu gì (bản cài mới,
+      // `ui_lang` rỗng) thì ngược lại: ghi ngôn ngữ vừa đoán lên, để Telegram và việc nền
+      // cũng biết chủ máy đọc tiếng gì.
+      try {
+        const I = window.JoyceI18n;
+        const langs0 = s.lang_list || [];
+        const srv = String((s.locale && s.locale.ui_lang) || "");
+        // Giá trị do dashboard TỰ GHI theo trình duyệt (ui_lang_nguon = "tu_dong") không được áp
+        // lên thiết bị khác: nó chỉ nói thiết bị ghé đầu tiên đọc tiếng gì, không phải chủ máy
+        // đã chọn. Giá trị không có nguồn là của bản cài cũ, coi như đã chọn.
+        const srvChon = srv && (s.locale && s.locale.ui_lang_nguon) !== "tu_dong";
+        if (I && !I.daChon()) {
+          if (srvChon && langs0.some(l => l.ma === srv)) {
+            if (srv !== I.lang()) await I.setLang(srv);
+          } else if (!srv && uiLangChoices(s).some(l => l.ma === I.lang())) {
+            // Ngôn ngữ chỉ-có-ở-dashboard được lưu lên server thành tiếng Anh, xem
+            // uiLangForServer. Để trống thì `ui_lang` rỗng, Telegram/việc nền/giọng nói và
+            // brain mặc định rơi về tiếng Việt cho người đọc tiếng đó.
+            saveSetting("locale", { ui_lang: uiLangForServer(I.lang(), s), tu_dong: true });
+          }
+        }
+      } catch (e) { /* lỗi thì giữ ngôn ngữ đang hiện, không chặn phần còn lại */ }
       // Ô đổi ngôn ngữ giao diện dưới đáy rail. Danh sách từ sổ đăng ký phía server
       // (s.lang_list) - cùng nguồn với trang Cài đặt, không khai lại ở client. Chỉ hiện khi
       // có từ 2 ngôn ngữ: một ngôn ngữ thì ô chọn là đồ trang trí.
       try {
         const wrap = document.getElementById("railLangWrap");
         const sel = document.getElementById("railLang");
-        const langs = s.lang_list || [];
+        const langs = uiLangChoices(s);
         if (wrap && sel && langs.length > 1) {
           const cur = (window.JoyceI18n && JoyceI18n.lang()) || "vi";
           sel.innerHTML = langs.map(l =>
@@ -11043,7 +11322,7 @@
             // Đổi NGAY trên máy này trước rồi mới lưu lên server - ngôn ngữ giao diện là lựa
             // chọn theo thiết bị, trải nghiệm không được chờ mạng (giống ô ở trang Cài đặt).
             try { await JoyceI18n.setLang(sel.value); } catch (e) { /* noop */ }
-            saveSetting("locale", { ui_lang: sel.value });
+            saveSetting("locale", { ui_lang: uiLangForServer(sel.value, s) });
           };
           wrap.hidden = false;
         }

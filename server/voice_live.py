@@ -46,7 +46,10 @@ import shutil
 import sys
 import tempfile
 import time
+import unicodedata
 from typing import Any, AsyncIterator, Dict, List, Optional
+
+import localefmt
 
 _OPENAI_VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"]
 # Giọng của realtime v3 trên gói ChatGPT (Codex app-server). marin/alloy... của API bị v3 từ chối.
@@ -195,6 +198,15 @@ class LiveProvider:
 
     def supports_async_tools(self) -> bool:
         """Model có tiếp tục nói trong lúc chờ kết quả tool không."""
+        return False
+
+    async def say_status(self, text: str) -> bool:
+        """Cho model đọc to một câu tiến độ (việc đang chạy tới đâu), không phải câu trả lời của việc nào.
+        Trả False khi nhà cung cấp không có kênh đó: bên gọi tự tìm đường khác hoặc im."""
+        return False
+
+    def is_quiet(self) -> bool:
+        """Không ai đang nói (người dùng lẫn model) nên chen một câu tiến độ vào được không."""
         return False
 
     def translate(self, msg: dict) -> List[dict]:  # pragma: no cover
@@ -716,7 +728,8 @@ class GPTLive(LiveProvider):
                 self._asst_open = False
                 out.append({"type": "turn_done"})
             if reason and reason != "close_requested":
-                out.append({"type": "error", "message": f"Phiên GPT-Live kết thúc: {reason}"})
+                out.append({"type": "error", "message": localefmt.chu(f"Phiên GPT-Live kết thúc: {reason}",
+                                                                       f"GPT-Live session ended: {reason}")})
             return out
         if t == "error":
             e = msg.get("error") or {}
@@ -732,7 +745,8 @@ CHATGPT_LIVE_PROMPT = (
     "xưng với bạn (phần bộ nhớ bên dưới cho biết nếu có), không tự đổi. Chuyện trò, hỏi thăm, giải "
     "thích kiến thức chung thì trả lời thẳng. Mọi câu cần dữ liệu thật hay hành động (doanh thu, đơn "
     "hàng, lịch, email, file, ghi chú, ký ức, mở trang trên màn hình, gửi tin, nhắc hẹn, tạo việc) thì "
-    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống. Trong lúc "
+    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống, viết yêu cầu "
+    "giao việc bằng đúng thứ tiếng người dùng đang nói. Trong lúc "
     "đang chờ kết quả mà người dùng chỉ nói kiểu 'ok', 'xong thì báo anh nhé', 'cảm ơn' thì KHÔNG giao "
     "việc lần nữa, chỉ đáp một câu ngắn là đang làm. Khi hệ thống trả kết quả, đọc lại tự nhiên, ngắn "
     "gọn, không thêm số liệu (bản đầy đủ đã hiện trên màn hình). Bị chen ngang thì dừng ngay và nghe."
@@ -746,10 +760,16 @@ MEMORY_CHARS = 4000
 
 # Lời nói thêm trong lúc bộ não chính còn đang làm (0.65.21, lỗi chủ dự án báo 01/10): model nói
 # chuyện hay giao việc LẦN NỮA với câu kiểu "Ok, xem xong kiểm tra xong thì báo anh nhé" (Codex coi
-# handoff tới giữa chừng là lời chỉnh hướng việc đang chạy). Route /ws/voice-live xếp hàng các lần giao
-# việc: câu chỉ gồm từ xác nhận thì bỏ, câu có yêu cầu thật chạy SAU việc đang chạy kèm ngữ cảnh, và bộ
-# não được phép trả FOLLOWUP_NOOP khi chẳng có gì mới.
+# handoff tới giữa chừng là lời chỉnh hướng việc đang chạy). Route /ws/voice-live lọc các lần giao
+# việc: câu chỉ gồm từ xác nhận thì bỏ, câu hỏi tiến độ thì trả lời ngay từ trạng thái thật, câu có yêu
+# cầu thật chạy SONG SONG với việc đang chạy kèm ngữ cảnh, và bộ não được phép trả FOLLOWUP_NOOP khi
+# chẳng có gì mới. Từ 0.71.2 không còn xếp hàng: trước đó mọi câu nói thêm chờ cả việc dài xong, nên
+# hỏi "xong chưa" giữa chừng im re mấy phút rồi các câu trả lời cũ bị đọc dồn một lượt.
 FOLLOWUP_NOOP = "JOYCE_NOOP"
+# Việc chạy lâu thì Joyce tự lên tiếng cho người dùng (đang không nhìn màn hình) biết còn sống.
+STATUS_FIRST_S = 60.0    # việc chạy quá chừng này thì bắt đầu nói
+STATUS_EVERY_S = 90.0    # rồi cách chừng này mới nói lại
+STATUS_TICK_S = 5.0      # nhịp kiểm tra của vòng nền
 FOLLOWUP_ACK = "Đã ghi nhận. Việc đang làm sẽ báo kết quả ngay khi xong, không có việc mới."
 _ACK_WORDS = frozenset("""
 ok oke okie okay ừ ừm ờ ừa vâng dạ được rồi nhé nha nhá nhỉ nghen thế vậy thì là xong xem kiểm tra
@@ -778,6 +798,20 @@ def is_same_request(previous: str, followup: str) -> bool:
     return bool(new) and bool(old) and f" {new} " in f" {old} "
 
 
+def parallel_request(running: List[str], followup: str) -> str:
+    """Yêu cầu gửi bộ não chính cho câu nói thêm, chạy SONG SONG với các việc đang chạy.
+
+    Báo rõ các việc kia CHƯA xong: bộ não không được coi kết quả của chúng là đã có, cũng không được
+    ghi đè thứ chúng đang làm dở (tệp, tin đang soạn) trừ khi người dùng bảo rõ."""
+    work = "; ".join('"' + str(r).strip()[:200] + '"' for r in running)
+    return (f"Em đang làm các việc sau cho người dùng và chúng CHƯA xong: {work}. Trong lúc đó người dùng "
+            f"nói thêm qua cuộc gọi: \"{str(followup).strip()}\". Việc này chạy SONG SONG với các việc trên, "
+            f"không chờ chúng và kết quả của chúng chưa có. Nếu câu nói thêm chỉ là đồng ý, nhắc báo kết quả "
+            f"hay bảo chờ thì trả lời đúng một dòng {FOLLOWUP_NOOP} và không làm gì thêm. Nếu có yêu cầu "
+            f"mới thì làm phần đó rồi trả lời như thường; đừng sửa hay ghi đè thứ mà các việc đang chạy "
+            f"đang làm dở (tệp, tin nhắn đang soạn), trừ khi người dùng bảo rõ.")
+
+
 def followup_request(previous: str, followup: str) -> str:
     """Yêu cầu gửi bộ não chính cho câu nói thêm, chạy SAU khi việc trước đã xong và đã báo kết quả."""
     return (f"Trong lúc em đang làm yêu cầu trước của người dùng (\"{str(previous).strip()}\"), người dùng "
@@ -790,6 +824,80 @@ def followup_request(previous: str, followup: str) -> str:
 def is_noop_result(text: str) -> bool:
     t = str(text or "").strip()
     return FOLLOWUP_NOOP in t and len(t) <= 80
+
+
+# Câu HỎI TIẾN ĐỘ trong lúc một việc đang chạy ("xong chưa", "đang làm gì", "có nghe thấy không").
+# Model nói chuyện giao từng câu đó cho bộ não như một việc mới, mà bộ não chỉ biết trả lời sau khi việc
+# dài xong. Nhận ra câu này để trả lời ngay từ trạng thái thật. Cố ý HẸP: nhận hụt thì câu đó vẫn chạy
+# song song và được trả lời (chậm hơn một chút), còn nhận nhầm thì nuốt mất một yêu cầu thật.
+_PROGRESS_MAX_WORDS = 12
+_PROGRESS_RE = re.compile("|".join((
+    r"\bxong\b.{0,20}\bchưa\b",                      # "xong chưa", "em xong chỗ đấy chưa"
+    r"^(?:vẫn |còn )?chưa xong\b",                   # "vẫn chưa xong à" (câu đầu: "anh chưa xong" là lời của người dùng)
+    r"\bxong rồi (?:hả|à|chưa|sao)\b",
+    r"\btiến độ\b",
+    r"\b(?:đến|tới) đâu rồi\b",
+    r"\b(?:bao lâu|bao nhiêu lâu|bao nhiêu phút|mấy phút)\b.{0,20}\b(?:xong|hoàn thiện|hoàn thành|có kết quả|nữa)\b",
+    r"\bcòn bao lâu\b",
+    r"\bkhi nào (?:thì )?(?:xong|có kết quả|hoàn thiện)\b",
+    r"\b(?:đang|vẫn đang|còn đang) làm (?:gì|việc gì|cái gì|nhiệm vụ nào|đến đâu|tới đâu)\b",
+    r"\bmình đang làm (?:nhiệm vụ|việc|gì)\b",
+    r"^(?:vẫn|còn) (?:đang )?(?:làm|chạy)\b.{0,25}\b(?:đúng không|không|hả|à)\b",
+    r"\b(?:em|bạn|joyce) (?:vẫn |còn )?(?:đang )?(?:làm|chạy)\b.{0,12}\b(?:đúng không|không|chưa|hả)\b",
+    r"\bcó nghe (?:thấy|rõ|được)\b.{0,30}\bkhông\b",
+    r"\bnghe (?:thấy|rõ) (?:không|chứ)\b",
+    r"^(?:alo|a lô)\b",
+    r"\b(?:are you|is it) (?:done|finished)\b", r"\bdone yet\b", r"\bhow(?:'s| is) it going\b",
+    r"\bany (?:progress|update)\b", r"\bwhat are you (?:doing|working on)\b",
+    r"\bhow long (?:until|till|will|is)\b", r"\bcan you hear me\b", r"\bare you (?:still )?(?:there|working)\b",
+)))
+
+
+def is_progress_question(text: str) -> bool:
+    # NFC trước: chữ có dấu tách rời (NFD) làm `\b` của Python đứt giữa từ.
+    s = unicodedata.normalize("NFC", str(text or "")).lower()
+    s = " ".join(re.findall(r"[\w']+", s))
+    words = s.split()
+    return 0 < len(words) <= _PROGRESS_MAX_WORDS and bool(_PROGRESS_RE.search(s))
+
+
+def _spoken_elapsed(seconds: float) -> str:
+    s = max(0, int(seconds))
+    if s < 90:
+        return localefmt.chu(f"{s} giây", f"{s} seconds")
+    m = round(s / 60)
+    return localefmt.chu(f"{m} phút", f"{m} minutes")
+
+
+def _short_request(text: str, limit: int = 80) -> str:
+    s = re.sub(r"\s+", " ", str(text or "")).strip()
+    return s if len(s) <= limit else s[:limit].rsplit(" ", 1)[0].strip()
+
+
+def _spoken_step(step: str) -> str:
+    """Bước hiện tại để đọc to: bỏ biểu tượng đầu dòng và dấu chấm lửng ("⚙ Đang dùng công cụ: Write")."""
+    return re.sub(r"\s+", " ", re.sub(r"^[^\w]+", "", str(step or ""))).strip().rstrip(".… ")[:80]
+
+
+def status_line(jobs: List[dict], now: float) -> str:
+    """Câu đọc to cho biết các việc đang chạy: làm gì, bao lâu rồi, tới bước nào.
+
+    `jobs`: {"request", "started", "step"}; `now` cùng đồng hồ với `started`. Chỉ dùng số liệu thật
+    (không đoán bao giờ xong): người nghe đang không nhìn màn hình, nói sai còn tệ hơn im."""
+    jobs = sorted(jobs, key=lambda j: j.get("started", 0.0))
+    if not jobs:
+        return localefmt.chu("Em không có việc nào đang chạy ạ.", "Nothing is running right now.")
+    longest = _spoken_elapsed(now - jobs[0].get("started", now))
+    if len(jobs) == 1:
+        what = _short_request(jobs[0].get("request", ""))
+        step = _spoken_step(jobs[0].get("step", ""))
+        step_vi = (", hiện " + step[:1].lower() + step[1:]) if step else ""
+        step_en = (", now: " + step) if step else ""
+        return localefmt.chu(f'Em vẫn đang làm việc "{what}", được {longest}{step_vi}.',
+                             f'Still working on "{what}", {longest} so far{step_en}.')
+    names = "; ".join('"' + _short_request(j.get("request", ""), 50) + '"' for j in jobs[:3])
+    return localefmt.chu(f"Em đang làm {len(jobs)} việc: {names}. Việc lâu nhất đã được {longest}.",
+                         f"Working on {len(jobs)} jobs: {names}. The longest has run {longest}.")
 
 
 def speakable(text: str, limit: int = SPEAK_MAX) -> str:
@@ -820,6 +928,10 @@ def speakable(text: str, limit: int = SPEAK_MAX) -> str:
     cut = s[:limit]
     end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
     return (cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0]).strip()
+
+
+class _Status(str):
+    """Câu tiến độ trong hàng lời đọc: phân biệt với lời đọc kết quả để bỏ được khi kết quả về."""
 
 
 class ChatGPTLive(LiveProvider):
@@ -881,13 +993,15 @@ class ChatGPTLive(LiveProvider):
         }, timeout=40)
         self.thread_id = str(((res or {}).get("thread") or {}).get("id") or "")
         if not self.thread_id:
-            raise RuntimeError("Codex app-server không mở được thread cho ChatGPT Live.")
+            raise RuntimeError(localefmt.chu("Codex app-server không mở được thread cho ChatGPT Live.",
+                                              "Codex app-server could not open a thread for ChatGPT Live."))
         self.queue = self.srv.subscribe(self.thread_id)
 
     async def reconnect(self):
         # Không nối lại trong suốt được: trình duyệt phải bắt tay WebRTC lại từ đầu.
         await self.close()
-        raise RuntimeError("ChatGPT Live đã ngắt, hãy bấm gọi lại.")
+        raise RuntimeError(localefmt.chu("ChatGPT Live đã ngắt, hãy bấm gọi lại.",
+                                          "ChatGPT Live disconnected, press call again."))
 
     async def restore_history(self, messages: List[dict]):
         items, budget = [], HISTORY_CHARS
@@ -929,7 +1043,8 @@ class ChatGPTLive(LiveProvider):
         try:
             return await asyncio.wait_for(self._sdp, 25)
         except asyncio.TimeoutError:
-            raise RuntimeError("ChatGPT Live không trả lời bắt tay sau 25 giây.")
+            raise RuntimeError(localefmt.chu("ChatGPT Live không trả lời bắt tay sau 25 giây.",
+                                              "ChatGPT Live did not answer the handshake after 25 seconds."))
 
     def _flush_user(self) -> List[dict]:
         if not self._user_buf.strip():
@@ -939,11 +1054,14 @@ class ChatGPTLive(LiveProvider):
         self._user_last, self._user_last_at = text, time.monotonic()
         return [{"type": "transcript", "role": "user", "text": text, "final": True}]
 
+    def _recent_speech(self) -> str:
+        # Câu đang nghe dở (handoff hay tới trước done) đầy đủ hơn câu đã chốt lần trước.
+        return self._user_buf.strip() or (
+            self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else "")
+
     def _handoff_request(self, req: str) -> str:
         req = str(req or "").strip()
-        # Câu đang nghe dở (handoff hay tới trước done) đầy đủ hơn câu đã chốt lần trước.
-        recent = self._user_buf.strip() or (
-            self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else "")
+        recent = self._recent_speech()
         # Yêu cầu là MẢNH của câu người dùng đang nói ("là bao nhiêu em" trong "Doanh thu hôm nay ...
         # là bao nhiêu em", đo 01/10) thì dùng cả câu cho đủ ý.
         if recent and req and req.lower() in recent.lower():
@@ -964,7 +1082,7 @@ class ChatGPTLive(LiveProvider):
             text = str(p.get("message") or "lỗi không rõ")
             if self._sdp is not None and not self._sdp.done():
                 self._sdp.set_exception(RuntimeError(f"ChatGPT Live không mở được: {text}"))
-            return [{"type": "error", "message": f"ChatGPT Live lỗi: {text}"}]
+            return [{"type": "error", "message": localefmt.chu(f"ChatGPT Live lỗi: {text}", f"ChatGPT Live error: {text}")}]
         # Chỉ thông báo `transcript/done` của người dùng mới tạo bong bóng chốt. Đo trên dashboard thật
         # (01/10): model hay BẮT ĐẦU trả lời trước khi chữ cuối của người dùng về ("... có khỏe" rồi
         # mới tới " không"), và handoff tới trước cả done. Chốt sớm theo những mốc đó sinh bong bóng
@@ -1005,7 +1123,8 @@ class ChatGPTLive(LiveProvider):
             if item.get("type") != "handoff_request":
                 return []
             return [{"type": "tool_call", "id": str(item.get("handoff_id") or ""), "name": "ask_joyce",
-                     "args": {"request": self._handoff_request(item.get("input_transcript"))}}]
+                     "args": {"request": self._handoff_request(item.get("input_transcript"))},
+                     "said": self._recent_speech()}]
         if method == "turn/started":
             # Mỗi lần giao việc Codex TỰ mở một lượt agent: chặn ngay, việc thật do bộ não Joyce làm.
             tid = str(((p.get("turn") or {}).get("id")) or p.get("turnId") or "")
@@ -1015,9 +1134,13 @@ class ChatGPTLive(LiveProvider):
         if method == "thread/realtime/closed":
             if self._closing:
                 return []
-            return [{"type": "error", "message": f"ChatGPT Live đã ngắt ({p.get('reason') or 'không rõ lý do'})."}]
+            return [{"type": "error", "message": localefmt.chu(
+                f"ChatGPT Live đã ngắt ({p.get('reason') or 'không rõ lý do'}).",
+                f"ChatGPT Live disconnected ({p.get('reason') or 'reason unknown'}).")}]
         if method == "_exit":
-            return [] if self._closing else [{"type": "error", "message": "Codex app-server đã dừng, cuộc gọi ChatGPT Live kết thúc."}]
+            return [] if self._closing else [{"type": "error", "message": localefmt.chu(
+                "Codex app-server đã dừng, cuộc gọi ChatGPT Live kết thúc.",
+                "Codex app-server stopped, the ChatGPT Live call has ended.")}]
         return []
 
     async def _interrupt(self, turn_id: str):
@@ -1055,13 +1178,30 @@ class ChatGPTLive(LiveProvider):
         self._user_last, self._user_last_at = str(text), time.monotonic()
         await self.srv.request("thread/realtime/appendText", {"threadId": self.thread_id, "text": str(text)})
 
-    async def send_tool_result(self, call_id: str, name: str, result: str):
-        """Xếp lời đọc kết quả vào hàng, trả về ngay (route không phải đứng chờ model đọc xong)."""
-        self._speech_q.append(speakable(result) or "Em chưa có kết quả.")
+    def _enqueue_speech(self, text: str):
+        self._speech_q.append(text)
         if self._speech_task is None or self._speech_task.done():
             self._speech_task = asyncio.ensure_future(self._drain_speech())
             self._bg.add(self._speech_task)
             self._speech_task.add_done_callback(self._bg.discard)
+
+    async def send_tool_result(self, call_id: str, name: str, result: str):
+        """Xếp lời đọc kết quả vào hàng, trả về ngay (route không phải đứng chờ model đọc xong)."""
+        # Câu tiến độ còn kẹt trong hàng là câu cũ ngay khi kết quả thật về: đọc nó SAU câu trả lời
+        # ("em vẫn đang làm" rồi mới "xong rồi") nghe như Joyce lú.
+        self._speech_q[:] = [t for t in self._speech_q if not isinstance(t, _Status)]
+        self._enqueue_speech(speakable(result) or "Em chưa có kết quả.")
+
+    async def say_status(self, text: str) -> bool:
+        """Câu tiến độ cho người đang không nhìn màn hình. Đi chung hàng với lời đọc kết quả nên không
+        bao giờ chen vào giữa câu model đang nói, và bị bỏ nếu kết quả thật về trước."""
+        if self._closing:
+            return False
+        self._enqueue_speech(_Status(text))
+        return True
+
+    def is_quiet(self) -> bool:
+        return not self._user_buf.strip() and not self._speech_q and not self._model_busy()
 
     def _model_busy(self) -> bool:
         now = time.monotonic()
@@ -1137,12 +1277,14 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", 
     m = (cfg or {}).get("model") or {}
     prov = str(v.get("live_provider") or "gemini").strip().lower()
     if prov not in PROVIDERS:
-        raise RuntimeError(f"Nhà cung cấp Live '{prov}' không có. Chọn: {', '.join(PROVIDERS)}.")
+        raise RuntimeError(localefmt.chu(f"Nhà cung cấp Live '{prov}' không có. Chọn: {', '.join(PROVIDERS)}.",
+                                         f"Live provider '{prov}' does not exist. Choose: {', '.join(PROVIDERS)}."))
     if prov == "chatgpt":
         import codex_realtime
         ok, why = codex_realtime.realtime_available(cfg)
         if not ok:
-            raise RuntimeError(CHATGPT_UNAVAILABLE.get(why, "ChatGPT Live chưa dùng được."))
+            raise RuntimeError(CHATGPT_UNAVAILABLE.get(why, localefmt.chu("ChatGPT Live chưa dùng được.",
+                                                                           "ChatGPT Live is not available yet.")))
         kw = {"voice": str(v.get("chatgpt_voice") or ""), "recognition_lang": recognition_lang,
               "memory_index": memory_index}
         if system:
@@ -1150,7 +1292,8 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", 
         return ChatGPTLive(**kw)
     key = str(m.get(PROVIDERS[prov]["key_field"]) or "").strip()
     if not key:
-        raise RuntimeError(f"{PROVIDERS[prov]['label']} chưa có API key ở trang Models.")
+        raise RuntimeError(localefmt.chu(f"{PROVIDERS[prov]['label']} chưa có API key ở trang Models.",
+                                         f"{PROVIDERS[prov]['label']} has no API key on the Models page."))
     cls = _CLASSES[prov]
     kw = {"model": str(v.get("live_model") or ""), "voice": str(v.get("live_voice") or ""),
           "recognition_lang": recognition_lang}

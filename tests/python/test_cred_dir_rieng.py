@@ -36,7 +36,7 @@ catalog = json.loads((ROOT / "system" / "mcp-catalog.json").read_text(encoding="
 by_id = {c["id"]: c for c in catalog["connectors"]}
 
 # ---- 1. Mọi connector chạy workspace-mcp đều phải khai kho token riêng ----
-chay_ws = [c for c in catalog["connectors"] if "workspace-mcp" in (c.get("args") or [])]
+chay_ws = [c for c in catalog["connectors"] if "workspace-mcp@latest" in (c.get("args") or [])]
 check("tìm được connector chạy workspace-mcp", len(chay_ws) >= 2)
 thieu = [c["id"] for c in chay_ws
          if (c.get("cred_dir") or {}).get("env") != "WORKSPACE_MCP_CREDENTIALS_DIR"]
@@ -76,8 +76,8 @@ check("delete_connection có dọn kho token riêng", "forget_cred_dir" in than_
 check("resolved() có bơm env kho token xuống tiến trình con", "_cred_dir(c, con)" in src)
 
 # ---- 4b. Đổi ô đăng nhập (email/Client ID) cũng phải vứt token của tài khoản cũ ----
-# Vụ thật: user xoá đi đăng nhập lại bằng test.user@example.vn mà mọi tool vẫn trả về
-# testuser@gmail.com. Vì token cũ nằm nguyên trên đĩa, và USER_GOOGLE_EMAIL chỉ chọn
+# Vụ thật: user xoá đi đăng nhập lại bằng hi@minhquy.vn mà mọi tool vẫn trả về
+# blogminhquy@gmail.com. Vì token cũ nằm nguyên trên đĩa, và USER_GOOGLE_EMAIL chỉ chọn
 # credential nào để DÙNG chứ không ép đăng nhập lại. Đổi ô đăng nhập mà giữ token cũ là
 # bảo đảm chạy nhầm tài khoản.
 than_update = src.split("def update_connection")[1].split("\ndef ")[0]
@@ -92,7 +92,7 @@ import secrets_store  # noqa: E402
 
 _kho = {"connections": [{"id": "cid-ws", "connector_id": "google-workspace", "slug": "ws-test",
                          "label": "ws", "enabled": True, "perm": "safe",
-                         "secrets": {"user_email": secrets_store.encrypt("testuser@gmail.com")}}]}
+                         "secrets": {"user_email": secrets_store.encrypt("blogminhquy@gmail.com")}}]}
 _that_load, _that_save = mcp_store._load, mcp_store._save
 mcp_store._load = lambda: _kho
 mcp_store._save = lambda d: None
@@ -102,16 +102,16 @@ try:
 
     def _dung_lai_token():
         kho_token.mkdir(parents=True, exist_ok=True)
-        (kho_token / "testuser@gmail.com.json").write_text("{}", encoding="utf-8")
+        (kho_token / "blogminhquy@gmail.com.json").write_text("{}", encoding="utf-8")
 
     _dung_lai_token()
-    mcp_store.update_connection("cid-ws", {"fields": {"user_email": "testuser@gmail.com"}})
+    mcp_store.update_connection("cid-ws", {"fields": {"user_email": "blogminhquy@gmail.com"}})
     check("nhập LẠI Y HỆT email cũ -> giữ token, không bắt đăng nhập lại vô cớ", kho_token.is_dir())
 
     mcp_store.update_connection("cid-ws", {"label": "tên mới"})
     check("chỉ đổi tên -> giữ token", kho_token.is_dir())
 
-    mcp_store.update_connection("cid-ws", {"fields": {"user_email": "test.user@example.vn"}})
+    mcp_store.update_connection("cid-ws", {"fields": {"user_email": "hi@minhquy.vn"}})
     check("ĐỔI email sang tài khoản khác -> token cũ bị vứt (hết cảnh vẫn ra tài khoản cũ)",
           not kho_token.exists())
 

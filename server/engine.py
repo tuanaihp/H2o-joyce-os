@@ -21,9 +21,18 @@ from datetime import datetime, timezone
 
 import httpx
 
+import fast_mode   # composer Fast mode bolt: per-provider parameters (0.164.0)
 import limit_learner
+import localefmt
+import vision_input
+import steer_inbox   # 0.206.0: messages the owner sends while a turn runs
 
-# Lone surrogate (U+D800–U+DFFF) sanitizer - port từ hermes-agent/agent/message_sanitization.py.
+
+def _c(vi: str, en: str) -> str:
+    """Chữ hiện cho người dùng (lỗi, ghi chú cuối câu trả lời) theo ngôn ngữ giao diện."""
+    return localefmt.chu(vi, en)
+
+# Lone surrogate (U+D800-U+DFFF) sanitizer - port từ hermes-agent/agent/message_sanitization.py.
 # Model open-weight (qwen/deepseek/minimax/glm…) thi thoảng stream ra lone surrogate trong content.
 # Ký tự này KHÔNG hợp lệ UTF-8: (1) ghi conversations/*.md (open encoding utf-8) ném UnicodeEncodeError
 # → mất log học; (2) resend history → httpx ensure_ascii escape thành \udXXX gửi sang provider → có nơi
@@ -84,7 +93,14 @@ def _jittered_backoff(attempt: int, base: float = 1.0, max_delay: float = 8.0, j
 
 
 _RETRY_STATUS = {408, 429, 502, 503, 504, 529}   # 529 = Anthropic/OpenRouter "Overloaded" (transient)
-_RETRY_EXC = (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.ConnectError, httpx.RemoteProtocolError)
+# Lỗi mạng đáng chạy lại. `httpx.NetworkError` gom ConnectError, ReadError, WriteError, CloseError.
+# Trước 0.171.2 chỉ có ConnectError: kết nối mở được rồi bị cắt giữa chừng (ReadError, vd
+# "[WinError 1236] The network connection was aborted by the local system" trên Windows, thường do
+# mạng chập chờn, VPN hay phần mềm diệt virus) thì không được chạy lại, cả lượt chết ngay cú đầu.
+_MANG_GAY = (httpx.NetworkError, httpx.RemoteProtocolError)
+_RETRY_EXC = (httpx.ReadTimeout, httpx.ConnectTimeout) + _MANG_GAY
+# Số lần gửi MỘT vòng gọi model trong vòng tool khi kết nối gãy (xem `_gui_vong`).
+_LAN_GUI_VONG = 3
 
 # Cụm từ trong BODY báo lỗi tạm thời - bắt ca provider trả overload/rate-limit dưới status KHÔNG retriable
 # (vd 400/402/200-with-error). Hẹp & nghiêng "overload/throttle" để 400 sai-format thật KHÔNG khớp.
@@ -235,9 +251,52 @@ def ev_loi_exc(nhan, exc):
     và mỗi lần chạy lại là một lượt gọi model thật đã trả tiền.
     """
     ev = {"type": "error", "content": f"{nhan}: {_describe_exc(exc)}"}
+    da_thu = getattr(exc, "_joyce_da_thu", 0)
+    if da_thu:
+        # `_gui_vong` đã gửi lại vòng này đủ số lần. Không gắn `tam_thoi` nữa, kẻo tầng
+        # `thu_lai_khi_tam_thoi` chạy lại cả lượt và số lần gọi nở thành cấp số nhân.
+        ev["content"] += _c(f" (đã thử lại {da_thu} lần)", f" (retried {da_thu} times)") + _goi_y_mang()
+        return ev
     if isinstance(exc, _RETRY_EXC):
         ev["tam_thoi"] = True
+    if isinstance(exc, _MANG_GAY):
+        ev["mang"] = True
     return ev
+
+
+def _goi_y_mang() -> str:
+    """Câu dặn khi kết nối tới nhà cung cấp gãy hẳn sau mọi lần thử: chuỗi lỗi kỹ thuật một mình
+    không nói được người ta phải làm gì."""
+    return _c(" - kết nối tới nhà cung cấp bị cắt giữa chừng. Thường do mạng chập chờn, VPN, hoặc phần mềm "
+              "diệt virus/tường lửa trên máy chặn kết nối. Gửi lại tin là được; lặp lại nhiều lần thì kiểm "
+              "tra mạng và tạm tắt quét HTTPS của phần mềm diệt virus.",
+              " - the connection to the provider was cut mid-request. Usually a flaky network, a VPN, or an "
+              "antivirus/firewall on this machine dropping the connection. Send the message again; if it keeps "
+              "happening, check the network and turn off the antivirus HTTPS scanning.")
+
+
+async def _gui_vong(gui, nhan=""):
+    """Gửi MỘT vòng gọi model của vòng tool, gửi lại khi kết nối gãy giữa chừng (0.171.2).
+
+    Vòng tool gọi model nhiều lần trong một lượt. `thu_lai_khi_tam_thoi` chỉ chạy lại cả lượt
+    khi CHƯA chạy tool nào, nên một cú rớt mạng ở vòng thứ hai trở đi giết trọn lượt, dù tool đã
+    chạy xong và chỉ còn đợi model viết câu trả lời. Gửi lại đúng request đó thì an toàn: request
+    gãy chưa trả về gì, tool không chạy lại, cái mất duy nhất là tiền một lượt gọi model.
+
+    Chỉ gửi lại khi MẠNG gãy, không gửi lại khi hết giờ chờ: một request 180 giây mà gửi lại ba
+    lần là người ta ngồi nhìn màn hình chín phút. Hết lượt thì ném đúng lỗi gốc, gắn số lần đã thử
+    để `ev_loi_exc` nói cho người dùng."""
+    for lan in range(1, _LAN_GUI_VONG + 1):
+        try:
+            return await gui()
+        except _MANG_GAY as e:
+            if lan >= _LAN_GUI_VONG:
+                e._joyce_da_thu = lan
+                raise
+            cho = _jittered_backoff(lan)
+            print(f"[thử lại vòng {nhan or '?'}] lần {lan} rớt mạng, chờ {cho:.1f}s: {_describe_exc(e)[:160]}",
+                  file=sys.stderr)
+            await asyncio.sleep(cho)
 
 
 async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
@@ -301,14 +360,19 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
             cuoi.pop("cho", None)
             cuoi["da_thu"] = lan
             if lan > 1:
-                cuoi["content"] = f"{cuoi['content']} (đã thử lại {lan} lần)"
+                cuoi["content"] = cuoi["content"] + _c(f" (đã thử lại {lan} lần)", f" (retried {lan} times)")
+            if cuoi.pop("mang", None):
+                cuoi["content"] += _goi_y_mang()
             # Câu này đi thẳng lên thẻ bot của CHỦ. Một cục JSON của nhà cung cấp không nói
             # được phải làm gì tiếp, mà đó đúng là thứ chủ cần biết khi nhìn thẻ đỏ.
             if loi_hoan.get("ma") == 429:
-                cuoi["content"] += (
+                cuoi["content"] += _c(
                     f" - hạn mức nhà cung cấp đang đầy"
                     + (f", cửa sổ mở lại sau khoảng {cho:.0f}s" if cho > _WINDOW_WAIT_MAX else "")
-                    + ". Chờ cửa sổ trôi qua, hoặc đổi bộ não cho bot ở trang Models."
+                    + ". Chờ cửa sổ trôi qua, hoặc đổi bộ não cho bot ở trang Models.",
+                    f" - the provider's rate limit is full"
+                    + (f", the window reopens in about {cho:.0f}s" if cho > _WINDOW_WAIT_MAX else "")
+                    + ". Wait for the window to pass, or switch the bot's brain on the Models page."
                 )
             yield cuoi
             return
@@ -462,6 +526,13 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # picker vẫn nạp danh sách LIVE từ /openai/v1/models nên mặc định này chỉ là lưới an toàn.
 GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
+# DeepSeek (endpoint OpenAI-compatible). The picker loads the LIVE list from /models; this
+# default is only the safety net. `deepseek-chat` and `deepseek-reasoner` were retired on
+# 2026-07-24, so never fall back to them.
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_MODELS_URL = "https://api.deepseek.com/models"
+DEEPSEEK_DEFAULT_MODEL = "deepseek-flash"
+
 # Ollama - model chạy NGAY TRÊN MÁY người dùng. Khác mọi provider trên ở hai điểm, và cả hai
 # đều ăn vào cách viết mã chứ không chỉ là cấu hình:
 #   1. KHÔNG có API key. Nó nghe trên máy nhà nên không có gì để xác thực. Header Authorization
@@ -590,6 +661,34 @@ def _groq_is_reasoning(model):
     return any(s in m for s in ("qwen3", "deepseek-r1", "gpt-oss", "thinking", "reasoning"))
 
 
+# Joyce level -> DeepSeek `reasoning_effort`. DeepSeek only knows low|high|max (it maps
+# medium/xhigh to high on its own), so send the values it names instead of relying on that.
+_DEEPSEEK_EFFORT = {"low": "low", "medium": "high", "high": "high", "xhigh": "max", "ultra": "max"}
+_DEEPSEEK_THINKING_OFF = {"thinking": {"type": "disabled"}}
+
+
+def _deepseek_thinking(reasoning):
+    """Payload fields that switch DeepSeek thinking on or off for this request.
+
+    DeepSeek thinks BY DEFAULT, unlike every other OpenAI-compatible provider here. So "off"
+    has to be said out loud: leaving the field out is not off, it is thinking at effort
+    "high", which costs tokens and breaks the tool loop (see `deepseek_chat_with_mcp`).
+    """
+    if reasoning in (None, "", "off"):
+        return dict(_DEEPSEEK_THINKING_OFF)
+    return {"thinking": {"type": "enabled"},
+            "reasoning_effort": _DEEPSEEK_EFFORT.get(reasoning, "high")}
+
+
+def _thinking_rejected(status, body_text):
+    """A 400 that is about thinking mode itself (missing `reasoning_content` in history, or a
+    forced tool_choice), not about the user's request. Retrying with thinking off fixes it."""
+    if status != 400:
+        return False
+    low = (body_text or "").lower()
+    return "reasoning_content" in low or "thinking" in low
+
+
 def _gemini_is_reasoning(model):
     """Gemini: model 'thinking' (2.5 trở lên) nhận reasoning_effort qua endpoint OpenAI-compat.
     Model cũ (1.5 / 2.0-flash không thinking) → KHÔNG gửi để tránh 400."""
@@ -597,14 +696,56 @@ def _gemini_is_reasoning(model):
     return "2.5" in m or "gemini-3" in m or "thinking" in m
 
 
-async def _openai_compat_stream(url, label, api_key, model, messages, reasoning, send_reasoning):
+# ── Ollama (Local): its OWN thinking level, not the shared Effort button (0.95.1) ─────────────────
+# qwen3 and most local reasoning models think BY DEFAULT when the request says nothing. On a home machine one long think can
+# eat the whole turn: a user counted CSV rows with qwen3 and got "Ollama (Local) returned nothing" after 69 s of thinking, and
+# a rerun was still thinking after 5 minutes. Joyce never sent a thinking switch to this provider, so nothing could stop it.
+# And the Effort button is one setting for every model: "Medium" suits Claude but makes a local model ramble, "Off" tames the
+# local model but takes thinking away from Claude. So Ollama (Local) reads its own level, `model.ollama_local_reasoning`,
+# default "off", and the Effort button no longer reaches it.
+OLLAMA_LOCAL_REASONING_DEFAULT = "off"
+_OLLAMA_THINKING_OFF = {"reasoning_effort": "none"}    # Ollama's OpenAI layer maps "none" to think=false
+
+
+def ollama_local_reasoning() -> str:
+    """The thinking level for Ollama (Local): `model.ollama_local_reasoning`, "off" when unset or unreadable."""
+    try:
+        import config as cfgmod
+        v = str((cfgmod.read_settings().get("model", {}) or {}).get("ollama_local_reasoning") or "").strip().lower()
+    except Exception:      # noqa: BLE001 - an unreadable setting must not cost the turn; off is the safe level
+        v = ""
+    return v or OLLAMA_LOCAL_REASONING_DEFAULT
+
+
+def _ollama_thinking(level) -> dict:
+    """Payload fields for Ollama's thinking at this level. "off" is said OUT LOUD: leaving the field out is not off for qwen3,
+    it is thinking at the model's own default."""
+    if level in (None, "", "off"):
+        return dict(_OLLAMA_THINKING_OFF)
+    return {"reasoning_effort": api_effort(level)}
+
+
+def _thought_without_answer(label: str) -> dict:
+    """The error for a turn where the model only thought and never wrote an answer. Says what happened and what to change,
+    instead of a bare "returned nothing" that sends the user hunting for a broken connection."""
+    return {"type": "error", "content": _c(
+        f"{label} suy nghĩ hết lượt mà chưa viết ra câu trả lời. Hạ mức suy nghĩ của model này hoặc chia việc nhỏ hơn rồi thử lại.",
+        f"{label} spent the whole turn thinking and never wrote an answer. Lower this model's thinking level or split the "
+        f"task into smaller steps, then try again.")}
+
+
+async def _openai_compat_stream(url, label, api_key, model, messages, reasoning, send_reasoning,
+                                extra_payload=None, fast_extra=None):
     """Chat Completions dạng OpenAI (dùng chung cho OpenAI + Gemini qua endpoint tương thích).
-    Stream token-by-token + usage token ở chunk cuối. label chỉ dùng cho thông báo lỗi."""
+    Stream token-by-token + usage token ở chunk cuối. label chỉ dùng cho thông báo lỗi.
+    extra_payload: provider-specific fields merged last (DeepSeek's thinking switch)."""
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model, "messages": messages, "stream": True,
                "stream_options": {"include_usage": True}}   # → chunk cuối kèm usage token
     if reasoning not in (None, "", "off") and send_reasoning:
         payload["reasoning_effort"] = api_effort(reasoning)
+    payload.update(extra_payload or {})
+    payload.update(fast_extra or {})   # Fast mode (0.164.0)
     try:
         timeout = httpx.Timeout(120.0, connect=15.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -612,6 +753,9 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                 if r.status_code != 200:
                     body = await r.aread()
                     body_text = body.decode("utf-8", "replace")
+                    if fast_extra and fast_mode.refused(r.status_code, body_text, "service_tier"):
+                        yield {"type": "_fast_refused", "detail": body_text[:160]}
+                        return
                     # Nhà cung cấp vừa nói thẳng hạn mức thật của tài khoản này. Đó là con
                     # số đáng tin nhất đang có - đáng tin hơn mọi thứ tra từ tài liệu - nên
                     # phải học lấy thay vì vứt đi rồi bắt người dùng tự khai.
@@ -625,7 +769,7 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                            "remedy": _fact.remedy, "raw": _fact.raw}
                     yield ev_loi_http(label, r.status_code, body_text, r.headers, _fact)
                     return
-                got = False
+                got = thought = False
                 usage = None
                 async for line in r.aiter_lines():
                     line = (line or "").strip()
@@ -640,22 +784,29 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                         continue
                     if obj.get("usage"):
                         usage = obj["usage"]
-                    c = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                    delta = (obj.get("choices") or [{}])[0].get("delta") or {}
+                    if delta.get("reasoning") or delta.get("reasoning_content"):
+                        thought = True      # thinking text is never shown, only remembered for the error below
+                    c = delta.get("content")
                     if c:
                         got = True
                         yield {"type": "text", "content": c}
                 if usage:
                     yield {"type": "usage", "input": usage.get("prompt_tokens", 0), "output": usage.get("completion_tokens", 0)}
-                if not got:
-                    yield {"type": "error", "content": f"{label} trả về rỗng. Thử model khác."}
+                if not got and thought:
+                    yield _thought_without_answer(label)
+                elif not got:
+                    yield {"type": "error", "content": _c(f"{label} trả về rỗng. Thử model khác.",
+                                                          f"{label} returned nothing. Try another model.")}
     except Exception as e:
-        yield ev_loi_exc(f"{label} lỗi", e)
+        yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
 
 
 async def openai_stream(api_key, model, messages, reasoning="off"):
     """OpenAI Chat Completions (provider 'openai') - chat thuần, định dạng giống OpenRouter."""
-    async for ev in _openai_compat_stream(OPENAI_URL, "OpenAI", api_key, model or "gpt-4o-mini",
-                                          messages, reasoning, _openai_is_reasoning(model)):
+    async for ev in _fast_retry("openai", fast_mode.current(), lambda fast: _openai_compat_stream(
+            OPENAI_URL, "OpenAI", api_key, model or "gpt-4o-mini", messages, reasoning,
+            _openai_is_reasoning(model), fast_extra=fast_mode.compat_params("openai", fast))):
         yield ev
 
 
@@ -664,6 +815,17 @@ async def groq_stream(api_key, model, messages, reasoning="off"):
     không có tool nào; đường thường là groq_chat_with_mcp)."""
     async for ev in _openai_compat_stream(GROQ_URL, "Groq", api_key, model or GROQ_DEFAULT_MODEL,
                                           messages, reasoning, _groq_is_reasoning(model)):
+        yield ev
+
+
+async def deepseek_stream(api_key, model, messages, reasoning="off"):
+    """DeepSeek (endpoint OpenAI-compatible, provider 'deepseek') - nhánh KHÔNG tool.
+
+    Without tools DeepSeek ignores `reasoning_content` in history, so thinking can follow the
+    user's level freely here. `delta.reasoning_content` is not shown, only the answer."""
+    async for ev in _openai_compat_stream(DEEPSEEK_URL, "DeepSeek", api_key,
+                                          model or DEEPSEEK_DEFAULT_MODEL, messages, reasoning,
+                                          False, _deepseek_thinking(reasoning)):
         yield ev
 
 
@@ -679,14 +841,28 @@ async def ollama_stream(api_key, model, messages, reasoning="off"):
 
 
 async def ollama_local_stream(api_key, model, messages, reasoning="off"):
-    """Ollama trên máy nhà - nhánh KHÔNG tool. Cùng khuôn `ollama_stream`, chỉ khác URL."""
+    """Ollama trên máy nhà - nhánh KHÔNG tool. Cùng khuôn `ollama_stream`, chỉ khác URL.
+
+    `reasoning` (the shared Effort button) is ignored on purpose: the level is `ollama_local_reasoning()`, see the block
+    above `_openai_compat_stream`. A model that cannot think at all answers a thinking request with a 400 about thinking;
+    then the turn is asked again with thinking off, before any text went out."""
     url = ollama_local_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt địa chỉ Ollama trong trang Models.", "No Ollama address set on the Models page.")}
         return
-    async for ev in _openai_compat_stream(url, "Ollama (Local)", api_key, model,
-                                          messages, reasoning, False):
-        yield ev
+    extra = _ollama_thinking(ollama_local_reasoning())
+    while True:
+        retry = False
+        async for ev in _openai_compat_stream(url, "Ollama (Local)", api_key, model,
+                                              messages, "off", False, extra):
+            if (ev.get("type") == "error" and extra != _OLLAMA_THINKING_OFF
+                    and _thinking_rejected(400, str(ev.get("content") or "")) and " 400:" in str(ev.get("content") or "")):
+                retry = True
+                break
+            yield ev
+        if not retry:
+            return
+        extra = dict(_OLLAMA_THINKING_OFF)
 
 
 async def openai_compat_stream(api_key, model, messages, reasoning="off"):
@@ -696,7 +872,7 @@ async def openai_compat_stream(api_key, model, messages, reasoning="off"):
     mà gửi thừa thì có server trả 400 cho cả lượt."""
     url = openai_compat_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt Base URL cho OpenAI Compatible trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt Base URL cho OpenAI Compatible trong trang Models.", "No Base URL set for OpenAI Compatible on the Models page.")}
         return
     async for ev in _openai_compat_stream(url, "OpenAI Compatible", api_key or "none", model,
                                           messages, reasoning, False):
@@ -707,7 +883,7 @@ async def openai_compat_chat_with_mcp(api_key, model, messages, reasoning, mcp_t
     """Endpoint OpenAI-compatible tự khai + vòng tool-calling MCP (model phải biết gọi tool)."""
     url = openai_compat_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt Base URL cho OpenAI Compatible trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt Base URL cho OpenAI Compatible trong trang Models.", "No Base URL set for OpenAI Compatible on the Models page.")}
         return
     headers = {"Authorization": f"Bearer {api_key or 'none'}", "Content-Type": "application/json"}
     yield {"type": "meta", "model": model}
@@ -721,23 +897,50 @@ async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_to
     thì có đủ đồ nghề của Joyce y như mọi provider API khác."""
     url = ollama_local_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt địa chỉ Ollama trong trang Models.", "No Ollama address set on the Models page.")}
         return
     headers = {"Authorization": f"Bearer {api_key or 'local'}", "Content-Type": "application/json"}
+    # Own thinking level, not `reasoning` (the shared Effort button): see `ollama_local_reasoning`. With thinking on, a 400
+    # about thinking (a model that cannot think) drops to thinking off for the rest of the turn, the same rail as DeepSeek.
+    extra = _ollama_thinking(ollama_local_reasoning())
+    fallback = None if extra == _OLLAMA_THINKING_OFF else dict(_OLLAMA_THINKING_OFF)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(url, headers, model, messages,
-                                  mcp_tools, mcp_route, {}, "Ollama (Local)"):
+                                  mcp_tools, mcp_route, extra, "Ollama (Local)",
+                                  thinking_fallback=fallback):
         yield ev
 
 
 async def gemini_stream(api_key, model, messages, reasoning="off"):
     """Google Gemini qua endpoint OpenAI-compatible (provider 'gemini') - chat thuần, cùng định dạng."""
-    async for ev in _openai_compat_stream(GEMINI_URL, "Gemini", api_key, model or "gemini-2.5-flash",
-                                          messages, reasoning, _gemini_is_reasoning(model)):
+    async for ev in _fast_retry("gemini", fast_mode.current(), lambda fast: _openai_compat_stream(
+            GEMINI_URL, "Gemini", api_key, model or "gemini-2.5-flash", messages, reasoning,
+            _gemini_is_reasoning(model), fast_extra=fast_mode.compat_params("gemini", fast))):
         yield ev
 
 
+async def _fast_retry(provider, fast, make):
+    """Run a stream with Fast mode; if the provider refuses the fast parameter before any output
+    (the stream yields `_fast_refused`), run it once more without it. Fast mode never fails a turn."""
+    async for ev in make(fast):
+        if isinstance(ev, dict) and ev.get("type") == "_fast_refused":
+            fast_mode.remember(provider, "fallback", ev.get("detail", ""))
+            async for ev2 in make(False):
+                yield ev2
+            return
+        yield ev
+    if fast:
+        fast_mode.remember(provider, "on")
+
+
 async def anthropic_stream(api_key, model, messages, reasoning="off"):
+    """Anthropic Messages API without tools; Fast mode with one retry without it (0.164.0)."""
+    async for ev in _fast_retry("anthropic-api", fast_mode.current() and fast_mode.claude_supports(model or "claude-sonnet-4-6"),
+                                lambda fast: _anthropic_stream_once(api_key, model, messages, reasoning, fast)):
+        yield ev
+
+
+async def _anthropic_stream_once(api_key, model, messages, reasoning="off", fast=False):
     """Anthropic Messages API (provider 'anthropic-api') - nhánh KHÔNG tool (dự phòng khi hub
     không có tool nào; đường thường là anthropic_chat_with_mcp).
     Tách system ra field riêng (Anthropic không nhận role=system trong messages).
@@ -747,12 +950,16 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
     gỡ (xem claude_auth.py). Gói Claude Code nay đi qua binary `claude`, không qua đây.
     """
     sys_parts = [m.get("content", "") for m in messages if m.get("role") == "system"]
-    conv = [{"role": m["role"], "content": m.get("content", "")}
+    # Ảnh khách gửi (0.81.0) đi theo khuôn OpenAI trong Joyce; Anthropic có khuôn riêng, đổi ở đây.
+    conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
                "content-type": "application/json"}
     payload = {"model": model or "claude-sonnet-4-6", "max_tokens": 4096, "messages": conv, "stream": True}
     payload.update(_anthropic_reasoning(model, reasoning))   # thinking + effort + max_tokens nếu bật reasoning
+    fast_h, fast_b = fast_mode.anthropic_params(payload["model"], fast)   # the model actually sent
+    headers.update(fast_h)
+    payload.update(fast_b)
     sys_txt = "\n\n".join(s for s in sys_parts if s)
     if sys_txt:
         payload["system"] = sys_txt
@@ -764,6 +971,9 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
                 if r.status_code != 200:
                     body = await r.aread()
                     body_text = body.decode("utf-8", "replace")
+                    if fast_b and fast_mode.refused(r.status_code, body_text, "speed"):
+                        yield {"type": "_fast_refused", "detail": body_text[:160]}
+                        return
                     _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                     if _fact:
                         limit_learner.remember("anthropic", model, _fact)
@@ -806,22 +1016,26 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
                         if (obj.get("usage") or {}).get("output_tokens"):
                             usage_out = obj["usage"]["output_tokens"]
                     elif t == "error":
-                        yield {"type": "error", "content": f"Anthropic: {(obj.get('error') or {}).get('message', 'lỗi')}"}
+                        yield {"type": "error", "content": f"Anthropic: {(obj.get('error') or {}).get('message', _c('lỗi', 'error'))}"}
                         return
                 if usage_in or usage_out:
                     yield {"type": "usage", "input": usage_in, "output": usage_out}
                 if not got:
-                    yield {"type": "error", "content": f"Anthropic trả về rỗng (stop_reason={stop_reason}). Thử model khác trong Models."}
+                    yield {"type": "error", "content": _c(f"Anthropic trả về rỗng (stop_reason={stop_reason}). Thử model khác trong Models.",
+                                                          f"Anthropic returned nothing (stop_reason={stop_reason}). Try another model in Models.")}
                     return
                 # Stream xong nhưng KHÔNG phải end_turn/stop_sequence (max_tokens / refusal / ...) → báo user
                 if stop_reason and stop_reason not in ("end_turn", "stop_sequence"):
                     notes = {
-                        "max_tokens": "⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
-                        "refusal": "⚠️ Model từ chối phản hồi (refusal).",
+                        "max_tokens": _c("⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
+                                         "⚠️ The reply was cut off at max_tokens. Say 'continue' to let the model keep writing."),
+                        "refusal": _c("⚠️ Model từ chối phản hồi (refusal).", "⚠️ The model refused to answer (refusal)."),
                     }
-                    yield {"type": "text", "content": "\n\n" + notes.get(stop_reason, f"⚠️ Stream kết thúc bất thường (stop_reason={stop_reason}).")}
+                    yield {"type": "text", "content": "\n\n" + notes.get(stop_reason, _c(
+                        f"⚠️ Stream kết thúc bất thường (stop_reason={stop_reason}).",
+                        f"⚠️ The stream ended abnormally (stop_reason={stop_reason})."))}
     except Exception as e:
-        yield ev_loi_exc("Anthropic lỗi", e)
+        yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
 
 
 async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_spec):
@@ -880,6 +1094,7 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
     endpoints = {
         "openai": (OPENAI_URL, model or "gpt-4o-mini"),
         "groq": (GROQ_URL, model or GROQ_DEFAULT_MODEL),
+        "deepseek": (DEEPSEEK_URL, model or DEEPSEEK_DEFAULT_MODEL),
         "gemini": (GEMINI_URL, model or "gemini-2.5-flash"),
         "openrouter": (OPENROUTER_URL, model or "openai/gpt-4o-mini"),
         "ollama": (OLLAMA_URL, model),
@@ -896,7 +1111,11 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
         "tool_choice": {"type": "function", "function": {"name": fn}},
         "parallel_tool_calls": False, "stream": False,
     }
-    if reasoning not in (None, "", "off"):
+    if provider == "deepseek":
+        # A forced tool_choice is a 400 in DeepSeek thinking mode, and thinking is on by
+        # default. This call forces exactly one tool, so thinking stays off whatever the level.
+        payload.update(_DEEPSEEK_THINKING_OFF)
+    elif reasoning not in (None, "", "off"):
         if provider == "openrouter":
             payload["reasoning"] = {"effort": api_effort(reasoning)}
         elif ((provider == "openai" and _openai_is_reasoning(model)) or
@@ -934,6 +1153,13 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
 
 
 async def openrouter_stream(api_key, model, messages, reasoning="off"):
+    """OpenRouter without tools; Fast mode with one retry without it (0.164.0)."""
+    async for ev in _fast_retry("openrouter", fast_mode.current(),
+                                lambda fast: _openrouter_stream_once(api_key, model, messages, reasoning, fast)):
+        yield ev
+
+
+async def _openrouter_stream_once(api_key, model, messages, reasoning="off", fast=False):
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -946,6 +1172,8 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
                "stream_options": {"include_usage": True}}   # → chunk cuối kèm usage token
     if reasoning not in (None, "", "off"):
         payload["reasoning"] = {"effort": api_effort(reasoning)}   # OpenRouter chuẩn hoá effort cho mọi model reasoning
+    fast_extra = fast_mode.compat_params("openrouter", fast)
+    payload.update(fast_extra)
     # Jittered retry - CHỈ cho transient (429/5xx hoặc network exception) và CHỈ khi chưa yield text.
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
@@ -958,6 +1186,9 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
                     if r.status_code != 200:
                         body = await r.aread()
                         body_text = body.decode("utf-8", "replace")
+                        if fast_extra and fast_mode.refused(r.status_code, body_text, "service_tier"):
+                            yield {"type": "_fast_refused", "detail": body_text[:160]}
+                            return
                         _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                         # Lỗi vượt KÍCH THƯỚC không phải lỗi tạm thời: thử lại y nguyên chỉ
                         # tốn thêm một lượt để nhận đúng lỗi đó. Phải co lại rồi mới thử.
@@ -1018,15 +1249,21 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
                             yield {"type": "text", "content": _sanitize_surrogates(reasoning.strip())}
                             got_content = True   # reasoning đã là nội dung - vẫn cần báo truncation phía dưới
                         else:
-                            yield {"type": "error", "content": f"Model trả về rỗng (finish_reason={finish}). Thử lại hoặc đổi sang model khác trong Cài đặt."}
+                            yield {"type": "error", "content": _c(
+                                f"Model trả về rỗng (finish_reason={finish}). Thử lại hoặc đổi sang model khác trong Cài đặt.",
+                                f"The model returned nothing (finish_reason={finish}). Retry or switch to another model in Settings.")}
                             return
                     # Stream kết thúc nhưng KHÔNG phải 'stop' (length / content_filter / ...) → user cần biết phản hồi bị cắt
                     if finish and finish != "stop":
                         notes = {
-                            "length": "⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
-                            "content_filter": "⚠️ Phản hồi bị lọc do bộ lọc nội dung.",
+                            "length": _c("⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
+                                         "⚠️ The reply was cut off at max_tokens. Say 'continue' to let the model keep writing."),
+                            "content_filter": _c("⚠️ Phản hồi bị lọc do bộ lọc nội dung.",
+                                                 "⚠️ The reply was blocked by the content filter."),
                         }
-                        yield {"type": "text", "content": "\n\n" + notes.get(finish, f"⚠️ Stream kết thúc bất thường (finish_reason={finish}).")}
+                        yield {"type": "text", "content": "\n\n" + notes.get(finish, _c(
+                            f"⚠️ Stream kết thúc bất thường (finish_reason={finish}).",
+                            f"⚠️ The stream ended abnormally (finish_reason={finish})."))}
                     if usage:
                         yield {"type": "usage", "input": usage.get("prompt_tokens", 0), "output": usage.get("completion_tokens", 0)}
                     return  # success → thoát vòng retry
@@ -1037,11 +1274,13 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
         except _RETRY_EXC as e:
             # Đã yield text → KHÔNG retry (tránh duplicate output); hết lượt → cũng fail-fast
             if got_content or attempt >= max_attempts:
-                yield {"type": "error", "content": f"OpenRouter mạng lỗi: {_describe_exc(e)}"}
+                yield {"type": "error", "content": _c(f"OpenRouter mạng lỗi: {_describe_exc(e)}",
+                                                      f"OpenRouter network error: {_describe_exc(e)}")}
                 return
             await asyncio.sleep(_jittered_backoff(attempt))
         except Exception as e:
-            yield {"type": "error", "content": f"OpenRouter lỗi: {_describe_exc(e)}"}
+            yield {"type": "error", "content": _c(f"OpenRouter lỗi: {_describe_exc(e)}",
+                                                  f"OpenRouter error: {_describe_exc(e)}")}
             return
 
 
@@ -1056,17 +1295,25 @@ def _codex_input(messages):
         role = mm.get("role")
         content = mm.get("content", "") or ""
         if role == "system":
-            instructions.append(content)
+            instructions.append(vision_input.content_text(content))
             continue
-        ctype = "input_text" if role == "user" else "output_text"
-        inp.append({"type": "message", "role": role, "content": [{"type": ctype, "text": content}]})
+        # `content` có thể là danh sách có ẢNH khách gửi (0.81.0): đổi sang input_text/input_image.
+        inp.append({"type": "message", "role": role, "content": vision_input.to_responses(content, role)})
     return "\n\n".join(s for s in instructions if s), inp
 
 
 async def openai_responses_stream(access_token, account_id, model, messages, reasoning="off"):
+    """ChatGPT plan (OAuth) through the Codex Responses backend; Fast mode with one retry (0.164.0)."""
+    async for ev in _fast_retry("openai-oauth", fast_mode.current(), lambda fast: _openai_responses_stream_once(
+            access_token, account_id, model, messages, reasoning, fast)):
+        yield ev
+
+
+async def _openai_responses_stream_once(access_token, account_id, model, messages, reasoning="off", fast=False):
     """Chat qua gói ChatGPT (OAuth) - backend Codex Responses API. Model: gpt-5-codex / gpt-5."""
     if not access_token:
-        yield {"type": "error", "content": "Chưa đăng nhập ChatGPT (OAuth). Vào Models để kết nối."}
+        yield {"type": "error", "content": _c("Chưa đăng nhập ChatGPT (OAuth). Vào Models để kết nối.",
+                                              "Not signed in to ChatGPT (OAuth). Go to Models to connect.")}
         return
     import uuid
     instructions, inp = _codex_input(messages)
@@ -1074,6 +1321,8 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                "stream": True, "store": False}
     if reasoning not in (None, "", "off"):
         payload["reasoning"] = {"effort": api_effort(reasoning)}
+    fast_extra = fast_mode.responses_params(fast)
+    payload.update(fast_extra)
     headers = {
         "Authorization": f"Bearer {access_token}",
         "chatgpt-account-id": account_id or "",
@@ -1093,6 +1342,9 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                 if r.status_code != 200:
                     body = await r.aread()
                     body_text = body.decode("utf-8", "replace")
+                    if fast_extra and fast_mode.refused(r.status_code, body_text, "service_tier"):
+                        yield {"type": "_fast_refused", "detail": body_text[:160]}
+                        return
                     _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                     if _fact:
                         limit_learner.remember("openai-oauth", model, _fact)
@@ -1134,14 +1386,15 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                     elif et in ("response.failed", "error", "response.error"):
                         err = (obj.get("response") or {}).get("error") or obj.get("error") or {}
                         msg = err.get("message") if isinstance(err, dict) else str(err)
-                        yield {"type": "error", "content": "ChatGPT: " + (msg or "lỗi")}
+                        yield {"type": "error", "content": "ChatGPT: " + (msg or _c("lỗi", "error"))}
                         return
                 if usage:
                     yield {"type": "usage", "input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0)}
                 if not got:
-                    yield {"type": "error", "content": "ChatGPT trả về rỗng. Kiểm tra gói Plus/Pro hoặc thử lại."}
+                    yield {"type": "error", "content": _c("ChatGPT trả về rỗng. Kiểm tra gói Plus/Pro hoặc thử lại.",
+                                                          "ChatGPT returned nothing. Check the Plus/Pro plan or try again.")}
     except Exception as e:
-        yield ev_loi_exc("ChatGPT OAuth lỗi", e)
+        yield ev_loi_exc(_c("ChatGPT OAuth lỗi", "ChatGPT OAuth error"), e)
 
 
 # ============================================================
@@ -1187,7 +1440,7 @@ def _schedule_intent_text(messages, max_chars=600):
     """
     last = next((m.get("content") or "" for m in reversed(messages or [])
                  if m.get("role") == "user"), "")
-    text = str(last or "").strip()
+    text = vision_input.content_text(last).strip()
 
     # Dashboard đặt marker file nhiều dòng trước caption; Telegram đặt marker tải file ở
     # dòng đầu. Control text không phải lời user và không được tham gia nhận diện mutation.
@@ -1514,14 +1767,24 @@ async def schedule_cancel_gateway(messages, mcp_tools, mcp_route):
 
 
 async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, reasoning_extra, label,
-                        cache_system=False):
+                        cache_system=False, thinking_fallback=None):
     """Vòng Chat Completions + tool (OpenAI/OpenRouter). Non-stream từng vòng; yield tool_call + text cuối.
     cache_system=True (OpenRouter + model Claude): đánh cache_control lên system - OpenAI/Gemini
-    tự cache nên không cần."""
+    tự cache nên không cần.
+
+    thinking_fallback (DeepSeek with thinking on): the payload fields that turn thinking OFF.
+    Passing it means `reasoning_extra` turned thinking on, which changes three things:
+      - each assistant tool-call message keeps its `reasoning_content`, because DeepSeek
+        answers 400 when a thinking request with tools is missing it;
+      - a turn that must force a tool runs with thinking off from the start, because a forced
+        tool_choice is also a 400 in thinking mode;
+      - a 400 about thinking itself (Joyce history never stored `reasoning_content` for older
+        turns) drops to thinking off for the rest of the turn instead of failing it."""
     import mcp_client
     tools = _mcp_to_openai_tools(mcp_tools)
     msgs = _or_mark_system(messages) if cache_system else list(messages)
     usage_in = usage_out = 0
+    thinking_on = thinking_fallback is not None
     guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
     # Chỉ chờ cửa sổ hạn mức MỘT lần mỗi lượt: chờ hai lần là người dùng ngồi nhìn màn hình
     # đứng im nửa phút mà không hiểu chuyện gì.
@@ -1530,6 +1793,9 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     tool_fumbles = 0
     requirement = _tool_requirement(messages, mcp_tools)
     requirement_pending = bool(requirement)
+    if thinking_on and requirement_pending and tools:
+        thinking_on = False
+        reasoning_extra = thinking_fallback
     ignored_required = 0
     cancel_gate = await schedule_cancel_gateway(messages, mcp_tools, mcp_route)
     if cancel_gate:
@@ -1597,7 +1863,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 if requirement != "required" else "required"
             )
         payload.update(reasoning_extra or {})
-        try:
+        async def _gui(payload=payload):
             async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
                 r = await client.post(url, headers=headers, json=payload)
                 # Một số endpoint OpenAI-compatible chỉ nhận "required", không nhận named choice.
@@ -1605,8 +1871,28 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                         and requirement not in (None, "required")):
                     payload["tool_choice"] = "required"
                     r = await client.post(url, headers=headers, json=payload)
+            return r
+        try:
+            r = await _gui_vong(_gui, label)
+            if r.status_code == 200 and (reasoning_extra or {}).get("service_tier"):
+                fast_mode.remember(str(label).lower(), "on")
             if r.status_code != 200:
                 body_text = r.text or ""
+                # Fast mode (0.164.0): the provider refused service_tier, so drop it and retry the round.
+                if (reasoning_extra or {}).get("service_tier") and fast_mode.refused(r.status_code, body_text, "service_tier"):
+                    reasoning_extra = {k: v for k, v in reasoning_extra.items() if k != "service_tier"}
+                    fast_mode.remember(str(label).lower(), "fallback", body_text[:160])
+                    continue
+                if thinking_on and _thinking_rejected(r.status_code, body_text):
+                    thinking_on = False
+                    reasoning_extra = thinking_fallback
+                    for _m in msgs:
+                        if isinstance(_m, dict):
+                            _m.pop("reasoning_content", None)
+                    yield {"type": "tool_call", "name": "joyce_thinking_off",
+                           "content": _c(f"⚙ {label} không nhận chế độ suy nghĩ cho cuộc trò chuyện này, trả lời ở chế độ thường...",
+                                         f"⚙ {label} refused thinking mode for this conversation, answering in normal mode...")}
+                    continue
                 # Model YẾU tự bịa cú pháp gọi tool (Llama hay phát
                 # "<function=ten{...}</function>" thay vì JSON tool_calls chuẩn), provider
                 # trả 400 tool_use_failed. Đây KHÔNG phải lỗi của người dùng và cũng không
@@ -1622,7 +1908,8 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                         # Còn ép gọi một tool vừa bị gỡ thì request sau lại 400 ngay.
                         requirement_pending = False
                         yield {"type": "tool_call", "name": "joyce_no_tools",
-                               "content": "⚙ Model vấp cú pháp gọi công cụ, trả lời không dùng công cụ..."}
+                               "content": _c("⚙ Model vấp cú pháp gọi công cụ, trả lời không dùng công cụ...",
+                                             "⚙ The model fumbled the tool-call syntax, answering without tools...")}
                     continue
                 _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                 if _fact:
@@ -1635,8 +1922,10 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                             and not waited_for_window):
                         waited_for_window = True
                         yield {"type": "tool_call", "name": "joyce_wait_quota",
-                               "content": (f"⚙ Hạn mức phút này đã đầy, chờ "
-                                           f"{_fact.retry_after:.0f}s rồi thử lại...")}
+                               "content": _c(f"⚙ Hạn mức phút này đã đầy, chờ "
+                                             f"{_fact.retry_after:.0f}s rồi thử lại...",
+                                             f"⚙ This minute's rate limit is full, waiting "
+                                             f"{_fact.retry_after:.0f}s before retrying...")}
                         await asyncio.sleep(_fact.retry_after + 0.5)
                         continue
                     yield {"type": "limit_exceeded", "provider": label, "model": model,
@@ -1650,7 +1939,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 return
             data = r.json()
         except Exception as e:
-            yield ev_loi_exc(f"{label} lỗi", e)
+            yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
             return
         u = data.get("usage") or {}   # cộng dồn token mọi vòng (kể cả vòng gọi tool)
         usage_in += u.get("prompt_tokens", 0) or 0
@@ -1659,7 +1948,10 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         tcs = msg.get("tool_calls") or []
         if tcs:
             requirement_pending = False
-            msgs.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": tcs})
+            _asst = {"role": "assistant", "content": msg.get("content") or "", "tool_calls": tcs}
+            if thinking_on and msg.get("reasoning_content"):
+                _asst["reasoning_content"] = msg["reasoning_content"]
+            msgs.append(_asst)
             for tc in tcs:
                 fn = (tc.get("function") or {}).get("name")
                 try:
@@ -1677,6 +1969,9 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             nhac = guard.loi_nhac()
             if nhac:
                 msgs[-1]["content"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
+            _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
+            if _bs:
+                msgs[-1]["content"] += _bs
             if guard.ket():
                 if usage_in or usage_out:
                     yield {"type": "usage", "input": usage_in, "output": usage_out}
@@ -1697,9 +1992,11 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 continue
             yield {
                 "type": "error",
-                "content": (
+                "content": _c(
                     f"{label} model '{model}' đã bỏ qua tool bắt buộc nên Joyce không dùng câu trả lời "
-                    "có nguy cơ bịa dữ liệu. Hãy chọn model có hỗ trợ tool/function calling."
+                    "có nguy cơ bịa dữ liệu. Hãy chọn model có hỗ trợ tool/function calling.",
+                    f"{label} model '{model}' skipped a required tool, so Joyce did not use an answer "
+                    "that risks made-up data. Pick a model that supports tool/function calling."
                 ),
             }
             return
@@ -1707,8 +2004,10 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             yield {"type": "usage", "input": usage_in, "output": usage_out}
         if content:
             yield {"type": "text", "content": content}
+        elif msg.get("reasoning") or msg.get("reasoning_content"):
+            yield _thought_without_answer(label)
         else:
-            yield {"type": "error", "content": f"{label} trả về rỗng."}
+            yield {"type": "error", "content": _c(f"{label} trả về rỗng.", f"{label} returned nothing.")}
         return
     yield {"type": "text", "content": _het_vong_msg()}
 
@@ -1733,9 +2032,12 @@ def _het_vong_msg() -> str:
     """Chạm trần phải nói ĐƯỢC VIỆC CẦN LÀM. Bản cũ chỉ báo con số rồi im, người dùng không
     biết mình vừa mất gì hay chỉnh ở đâu."""
     n = _max_tool_rounds()
-    return (f"\n\n⚠ Đã chạy hết {n} vòng gọi tool cho lượt này nên phải dừng, câu trả lời ở "
-            f"trên có thể còn dở. Cách xử lý: chia nhỏ yêu cầu thành từng bước, hoặc nâng trần "
-            f"bằng biến môi trường JOYCE_MAX_TOOL_ROUNDS (tối đa 120) rồi khởi động lại Joyce.")
+    return _c(f"\n\n⚠ Đã chạy hết {n} vòng gọi tool cho lượt này nên phải dừng, câu trả lời ở "
+              f"trên có thể còn dở. Cách xử lý: chia nhỏ yêu cầu thành từng bước, hoặc nâng trần "
+              f"bằng biến môi trường JOYCE_MAX_TOOL_ROUNDS (tối đa 120) rồi khởi động lại Joyce.",
+              f"\n\n⚠ All {n} tool-call rounds for this turn were used, so it had to stop; the answer "
+              f"above may be incomplete. To fix: split the request into steps, or raise the limit "
+              f"with the environment variable JOYCE_MAX_TOOL_ROUNDS (up to 120) and restart Joyce.")
 
 
 class _LapGuard:
@@ -1776,9 +2078,12 @@ class _LapGuard:
 
 
 def _loi_ket_vong() -> str:
-    return (f"\n\n⚠ Model gọi lại cùng tool với cùng tham số {_LapGuard.DUNG} vòng liên tiếp "
-            "(kẹt vòng lặp) nên Joyce dừng lượt này để không đốt token vô ích. Câu trả lời ở "
-            "trên có thể còn dở - thử hỏi lại, nói rõ hơn yêu cầu, hoặc đổi model ở trang Models.")
+    return _c(f"\n\n⚠ Model gọi lại cùng tool với cùng tham số {_LapGuard.DUNG} vòng liên tiếp "
+              "(kẹt vòng lặp) nên Joyce dừng lượt này để không đốt token vô ích. Câu trả lời ở "
+              "trên có thể còn dở - thử hỏi lại, nói rõ hơn yêu cầu, hoặc đổi model ở trang Models.",
+              f"\n\n⚠ The model called the same tool with the same arguments {_LapGuard.DUNG} rounds in a row "
+              "(stuck in a loop), so Joyce stopped this turn to avoid burning tokens. The answer "
+              "above may be incomplete - ask again, state the request more clearly, or switch model on the Models page.")
 
 
 async def openai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
@@ -1786,6 +2091,7 @@ async def openai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, m
     extra = {}
     if reasoning not in (None, "", "off") and _openai_is_reasoning(model):
         extra["reasoning_effort"] = api_effort(reasoning)
+    extra.update(fast_mode.compat_params("openai", fast_mode.current()))   # Fast mode (0.164.0)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(OPENAI_URL, headers, model or "gpt-4o-mini", messages, mcp_tools, mcp_route, extra, "OpenAI"):
         yield ev
@@ -1800,6 +2106,22 @@ async def groq_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp
         extra["reasoning_effort"] = api_effort(reasoning)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(GROQ_URL, headers, model or GROQ_DEFAULT_MODEL, messages, mcp_tools, mcp_route, extra, "Groq"):
+        yield ev
+
+
+async def deepseek_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """DeepSeek + vòng tool-calling MCP - đủ đồ nghề của Joyce như các provider API khác.
+
+    Thinking is on by default at DeepSeek, so "off" sends an explicit switch. When the user
+    asks for thinking, `_cc_tool_loop` gets `thinking_fallback` and handles DeepSeek's two
+    thinking-mode rules for tool calls (see its docstring)."""
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    extra = _deepseek_thinking(reasoning)
+    fallback = None if extra == _DEEPSEEK_THINKING_OFF else dict(_DEEPSEEK_THINKING_OFF)
+    yield {"type": "meta", "model": model}
+    async for ev in _cc_tool_loop(DEEPSEEK_URL, headers, model or DEEPSEEK_DEFAULT_MODEL, messages,
+                                  mcp_tools, mcp_route, extra, "DeepSeek",
+                                  thinking_fallback=fallback):
         yield ev
 
 
@@ -1820,6 +2142,7 @@ async def gemini_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, m
     extra = {}
     if reasoning not in (None, "", "off") and _gemini_is_reasoning(model):
         extra["reasoning_effort"] = api_effort(reasoning)
+    extra.update(fast_mode.compat_params("gemini", fast_mode.current()))   # Fast mode (0.164.0)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(GEMINI_URL, headers, model or "gemini-2.5-flash", messages, mcp_tools, mcp_route, extra, "Gemini"):
         yield ev
@@ -1831,6 +2154,7 @@ async def openrouter_chat_with_mcp(api_key, model, messages, reasoning, mcp_tool
     extra = {}
     if reasoning not in (None, "", "off"):
         extra["reasoning"] = {"effort": api_effort(reasoning)}
+    extra.update(fast_mode.compat_params("openrouter", fast_mode.current()))   # Fast mode (0.164.0)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(OPENROUTER_URL, headers, model or "openai/gpt-4o-mini", messages, mcp_tools, mcp_route, extra, "OpenRouter",
                                   cache_system=_is_claude_model(model)):
@@ -1847,7 +2171,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
     import uuid
     import mcp_client
     if not access_token:
-        yield {"type": "error", "content": "Chưa đăng nhập ChatGPT (OAuth)."}
+        yield {"type": "error", "content": _c("Chưa đăng nhập ChatGPT (OAuth).", "Not signed in to ChatGPT (OAuth).")}
         return
     tools = [{"type": "function", "name": t["fn"], "description": (t.get("description") or t["fn"])[:1024],
               "parameters": t.get("schema") or {"type": "object", "properties": {}}} for t in mcp_tools]
@@ -1863,6 +2187,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
     if not (account_id or ""):
         headers.pop("chatgpt-account-id", None)
     model = model or "gpt-5-codex"
+    fast_extra = fast_mode.responses_params(fast_mode.current())   # Fast mode (0.164.0)
     yield {"type": "meta", "model": model}
     timeout = httpx.Timeout(180, connect=15)
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -1874,12 +2199,19 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                        "tools": tools, "stream": True, "store": False}
             if reasoning not in (None, "", "off"):
                 payload["reasoning"] = {"effort": api_effort(reasoning)}
+            payload.update(fast_extra)
             output, round_text = [], ""
+            streamed_items = {}
+            completed = False
             try:
                 async with client.stream("POST", CODEX_RESPONSES_URL, headers=headers, json=payload) as r:
                     if r.status_code != 200:
                         body = await r.aread()
                         body_text = body.decode("utf-8", "replace")
+                        if fast_extra and fast_mode.refused(r.status_code, body_text, "service_tier"):
+                            fast_extra = {}   # Fast mode refused: drop it and retry the round
+                            fast_mode.remember("openai-oauth", "fallback", body_text[:160])
+                            continue
                         _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                         if _fact:
                             limit_learner.remember("openai-oauth", model, _fact)
@@ -1890,6 +2222,8 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                            "remedy": _fact.remedy, "raw": _fact.raw}
                         yield ev_loi_http("ChatGPT", r.status_code, body_text, r.headers, _fact)
                         return
+                    if fast_extra:
+                        fast_mode.remember("openai-oauth", "on")
                     async for line in r.aiter_lines():
                         line = (line or "").strip()
                         if not line.startswith("data:"):
@@ -1908,7 +2242,15 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                             # Bóc dấu trích dẫn nội bộ ngay tại nguồn, y như đường không-tool:
                             # backend Codex phát chúng ở CẢ hai đường.
                             round_text += strip_provider_markers(obj.get("delta") or "")
+                        elif et == "response.output_item.done":
+                            item = obj.get("item") or {}
+                            if isinstance(item, dict) and item.get("type"):
+                                key = (item.get("id") or item.get("call_id")
+                                       or obj.get("output_index"))
+                                if key is not None:
+                                    streamed_items[key] = item
                         elif et == "response.completed":
+                            completed = True
                             _resp = obj.get("response") or {}
                             output = (_resp.get("output")) or []
                             _u = _resp.get("usage") or {}
@@ -1917,11 +2259,37 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                         elif et in ("response.failed", "error", "response.error"):
                             err = (obj.get("response") or {}).get("error") or obj.get("error") or {}
                             msg = err.get("message") if isinstance(err, dict) else str(err)
-                            yield {"type": "error", "content": "ChatGPT: " + (msg or "lỗi")}
+                            yield {"type": "error", "content": "ChatGPT: " + (msg or _c("lỗi", "error"))}
                             return
             except Exception as e:
-                yield ev_loi_exc("ChatGPT lỗi", e)
+                yield ev_loi_exc(_c("ChatGPT lỗi", "ChatGPT error"), e)
                 return
+            if not completed:
+                # A cut stream is the textbook temporary failure. `tam_thoi` lets
+                # thu_lai_khi_tam_thoi run the turn again, which it only does while nothing
+                # (no text, no tool call) has gone out yet, so no tool can run twice.
+                yield {"type": "error", "tam_thoi": True,
+                       "content": _c("ChatGPT: luồng phản hồi chưa hoàn tất.",
+                                     "ChatGPT: response stream did not complete.")}
+                return
+            if not output:
+                # Fallback to the items streamed one by one. A streamed `reasoning` item carries
+                # no encrypted content (the payload does not ask for it and store is False), so
+                # sending it back as input can be rejected by the API: keep only the ones that
+                # can be replayed.
+                output = [it for it in streamed_items.values()
+                          if it.get("type") != "reasoning" or it.get("encrypted_content")]
+            # A repeated SSE item must not execute a tool twice.
+            unique_output, seen_calls = [], set()
+            for item in output:
+                if item.get("type") == "function_call":
+                    call_id = item.get("call_id") or item.get("id")
+                    if call_id and call_id in seen_calls:
+                        continue
+                    if call_id:
+                        seen_calls.add(call_id)
+                unique_output.append(item)
+            output = unique_output
             fcalls = [o for o in output if o.get("type") == "function_call"]
             if fcalls:
                 for o in output:
@@ -1942,6 +2310,9 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                 nhac = guard.loi_nhac()
                 if nhac:
                     items[-1]["output"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
+                _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
+                if _bs:
+                    items[-1]["output"] += _bs
                 if guard.ket():
                     if usage_in or usage_out:
                         yield {"type": "usage", "input": usage_in, "output": usage_out}
@@ -1960,7 +2331,8 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
             if text:
                 yield {"type": "text", "content": text}
             else:
-                yield {"type": "error", "content": "ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool)."}
+                yield {"type": "error", "content": _c("ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool).",
+                                                      "ChatGPT returned nothing (the Codex backend may not support tools yet).")}
             return
         yield {"type": "text", "content": _het_vong_msg()}
 
@@ -1975,7 +2347,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     """
     import mcp_client
     sys_txt = "\n\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
-    conv = [{"role": m["role"], "content": m.get("content", "")}
+    conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
                "content-type": "application/json"}
@@ -1985,6 +2357,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
         tools[-1]["cache_control"] = {"type": "ephemeral"}   # tools = prefix ổn định, cache 1 lần đủ
     yield {"type": "meta", "model": model}
     extras = _anthropic_reasoning(model, reasoning)
+    fast_h, fast_b = fast_mode.anthropic_params(model or "claude-sonnet-4-6", fast_mode.current())   # Fast mode (0.164.0)
     timeout = httpx.Timeout(180, connect=15)
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
@@ -1996,13 +2369,21 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             payload = {"model": model or "claude-sonnet-4-6", "max_tokens": 4096,
                        "messages": _anthropic_mark_last(conv), "tools": tools, "stream": False}
             payload.update(extras or {})
+            payload.update(fast_b)
             if sys_txt:
                 payload["system"] = [{"type": "text", "text": sys_txt, "cache_control": {"type": "ephemeral"}}]
             try:
-                r = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
+                r = await _gui_vong(lambda: client.post(ANTHROPIC_URL, headers={**headers, **fast_h}, json=payload),
+                                    "Anthropic")
             except Exception as e:
-                yield ev_loi_exc("Anthropic lỗi", e)
+                yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
                 return
+            if fast_b and fast_mode.refused(r.status_code, r.text or "", "speed"):
+                fast_h, fast_b = {}, {}   # Fast mode refused: drop it and retry the round
+                fast_mode.remember("anthropic-api", "fallback", (r.text or "")[:160])
+                continue
+            if r.status_code == 200 and fast_b:
+                fast_mode.remember("anthropic-api", "on")
             if r.status_code == 400 and extras and "thinking" in (r.text or "").lower():
                 extras = {}   # thinking không tương thích payload/tool này → bỏ thinking, thử lại
                 continue
@@ -2021,7 +2402,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             try:
                 data = r.json()
             except Exception:
-                yield {"type": "error", "content": "Anthropic trả về không phải JSON."}
+                yield {"type": "error", "content": _c("Anthropic trả về không phải JSON.", "Anthropic did not return JSON.")}
                 return
             _u = data.get("usage") or {}   # cộng dồn token mọi vòng tool
             usage_in += ((_u.get("input_tokens") or 0) + (_u.get("cache_read_input_tokens") or 0)
@@ -2047,6 +2428,9 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                 nhac = guard.loi_nhac()
                 if nhac:
                     results[-1]["content"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
+                _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
+                if _bs:
+                    results.append({"type": "text", "text": _bs})
                 conv.append({"role": "user", "content": results})
                 if guard.ket():
                     if usage_in or usage_out:
@@ -2060,6 +2444,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             if text:
                 yield {"type": "text", "content": text}
             else:
-                yield {"type": "error", "content": "Anthropic trả về rỗng. Thử model khác trong Models."}
+                yield {"type": "error", "content": _c("Anthropic trả về rỗng. Thử model khác trong Models.",
+                                                      "Anthropic returned nothing. Try another model in Models.")}
             return
         yield {"type": "text", "content": _het_vong_msg()}

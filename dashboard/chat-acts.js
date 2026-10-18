@@ -79,7 +79,12 @@
       send = '<button class="msg-act" type="button" data-act="retry" title="' + esc(tw("cact.retry")) + '">↻</button>' +
         '<button class="msg-act" type="button" data-act="edit" title="' + esc(tw("cact.edit")) + '">' + ic("pencil") + '</button>';
     }
-    return '<div class="msg-acts">' + time + send +
+    // Trich dan (chat-quote.js): dat doan nay len tren o nhap de hoi tiep, khoi go lai. Co o ca tin
+    // nguoi dung lan tin Joyce. Bam truot cung vo hai: no chi dat chip, khong chay gi.
+    // Tin nguoi dung chi co anh thi khong co chu de trich, bo nut nhu nut gui lai.
+    var quote = (role === "user" && canResend === false) ? "" :
+      '<button class="msg-act" type="button" data-act="quote" title="' + esc(tw("cact.quote")) + '">' + ic("quote") + '</button>';
+    return '<div class="msg-acts">' + time + send + quote +
       '<button class="msg-act" type="button" data-act="copy" title="' + esc(tw("cact.copy")) + '">⧉</button>' +
       '<button class="msg-act" type="button" data-act="remember" title="' + esc(tw("cact.remember")) + '">' + ic("star") + '</button>' +
       "</div>";

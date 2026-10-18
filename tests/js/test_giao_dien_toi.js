@@ -48,6 +48,8 @@ all.forEach((p) => {
   if (p.endsWith(".css")) s = s.replace(/\/\*[\s\S]*?\*\//g, "");
   for (const m of s.matchAll(/(--[a-zA-Z0-9_-]+)\s*:/g)) defined.add(m[1]);
   for (const m of s.matchAll(/setProperty\(\s*["'`](--[a-zA-Z0-9_-]+)/g)) defined.add(m[1]);
+  // Tên biến đặt qua config (col-resize/workspace/teams gọi setProperty(o.varName,...)): coi là có định nghĩa.
+  for (const m of s.matchAll(/(?:varName|bien)\s*[:=]\s*["'`](--[a-zA-Z0-9_-]+)["'`]/g)) defined.add(m[1]);
 });
 const undef = {};
 own.forEach((p) => {

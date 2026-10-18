@@ -65,6 +65,7 @@ LIST_CALLS = []         # mỗi lần hỏi zalo_list_threads
 GUI = []                # mọi lần gọi zalo_send_message
 KHO_TIN = []            # tin "MCP" sẽ trả ở lần đọc kế tiếp
 TRA_LOI = {"v": "Dạ để em hướng dẫn nhé"}
+LOI_ENGINE = {"v": None}    # a str = the engine core returns an error string; an Exception = the engine raises
 LUOT_ENGINE = []
 
 
@@ -88,6 +89,7 @@ async def _goi_gia(conn, tool, args):
 
 zc._ket_noi = lambda: [dict(CONN)]
 zc._goi = _goi_gia
+zc.CHO_KHACH_IM = 0          # giao từng tin ngay: file này canh các rào khác; cửa sổ chờ ở test_zalo_cho_khach_nhan_xong.py
 zc.NHUONG_GIAY = 0.05       # test không chờ 20 giây thật
 zc.THU_LAI_TEN_GIAY = 0        # và làm mới bảng cuộc chat được ngay, không chờ 15 giây
 
@@ -95,6 +97,10 @@ zc.THU_LAI_TEN_GIAY = 0        # và làm mới bảng cuộc chat được ngay
 async def _engine(text, meta, progress, *, channel="", bot=None):
     LUOT_ENGINE.append({"text": text, "channel": channel, "meta": dict(meta or {}),
                         "prompt": chatbot_runtime.build_bot_prompt(bot)})
+    if isinstance(LOI_ENGINE["v"], Exception):
+        raise LOI_ENGINE["v"]
+    if LOI_ENGINE["v"]:
+        return LOI_ENGINE["v"]
     return {"text": TRA_LOI["v"], "files": []}
 
 
@@ -386,7 +392,6 @@ async def chay():
 
     # ---------- 3. chế độ TỰ ĐÁNH GIÁ ----------------------------------------------------------
     chatbot_store.update_bot(bid, {"reply_when": "auto"})
-    td.reset_cho_test()
     GUI.clear()
     truoc_log = len(chatbot_log.doc(bid, 500))
 
@@ -401,6 +406,32 @@ async def chay():
           "không ai gọi tên bạn" in LUOT_ENGINE[-1]["prompt"] and "[IM_LANG]" in LUOT_ENGINE[-1]["prompt"])
     check("và có TÀI LIỆU tra sẵn trong prompt (căn cứ để trả lời)",
           "7777" in LUOT_ENGINE[-1]["prompt"])
+
+    # ---- 0.102.1: a Tự đánh giá turn that FAILS stays out of the group ----
+    # Seen 2026-10-12 in a 69-member Zalo group: the engine failed on a message nobody addressed to the bot, and the
+    # bot posted "Em đang gặp trục trặc kỹ thuật..." tagged to that person.
+    for ma, loi, cau in (("lt-x", RuntimeError("engine sập"), "Joyce báo lỗi cổng 7777 đang bị dùng thì làm sao ạ?"),
+                         ("lt-s", "⚠ Codex không trả về nội dung nào.", "Joyce báo lỗi cổng 7777 khi khởi động thì xử lý sao ạ?")):
+        GUI.clear()
+        LOI_ENGINE["v"] = loi
+        n0 = len(LUOT_ENGINE)
+        KHO_TIN.append(nhom_msg(cau, ma, uid="77702" + ma[-1], nguoi="Johnny"))
+        await doc(0.4)
+        ten = "lõi trả chuỗi lỗi" if isinstance(loi, str) else "engine văng lỗi"
+        check(f"Tự đánh giá hỏng ({ten}): bot KHÔNG gửi câu xin lỗi vào nhóm",
+              len(LUOT_ENGINE) == n0 + 1 and not GUI, (len(LUOT_ENGINE) - n0, GUI))
+        ghi = [r for r in chatbot_log.doc(bid, 500) if r.get("bo_qua") == "loi_tu_dong"]
+        check(f"Tự đánh giá hỏng ({ten}): lỗi gốc vẫn vào nhật ký bot cho chủ",
+              ghi and ("Codex" if isinstance(loi, str) else "engine sập") in ghi[0]["loi"], ghi[:1])
+    GUI.clear()
+    LOI_ENGINE["v"] = "⚠ Codex không trả về nội dung nào."
+    KHO_TIN.append(nhom_msg("Joyce Vũ ơi lỗi cổng 7777 làm sao em", "lt-g", uid="7770299", nguoi="Học viên C"))
+    await doc(0.4)
+    # Chủ repo 15/10/2026: trục trặc kỹ thuật không gửi gì cho khách, kể cả người đã gọi bot.
+    # Chủ nghe ở chuông thông báo của Joyce, lỗi gốc nằm trong nhật ký bot.
+    check("người GỌI bot mà lượt hỏng thì KHÔNG nhận câu xin lỗi nào", not GUI, GUI)
+    LOI_ENGINE["v"] = None
+    GUI.clear()
 
     # câu hỏi nhưng tài liệu không có: im, ghi lý do
     GUI.clear()
@@ -444,17 +475,13 @@ async def chay():
     # bot tự chọn im (IM_LANG) trong lượt tự đánh giá
     GUI.clear()
     TRA_LOI["v"] = "[IM_LANG]"
-    td.reset_cho_test()
     KHO_TIN.append(nhom_msg("Đổi bộ não của Joyce ở đâu vậy mọi người?", "c5", uid="7770105"))
     await doc(0.4)
     check("bot viết [IM_LANG] thì không gửi gì", not GUI, GUI)
-    check("và lượt im không tốn hạn mức tự trả lời của nhóm",
-          td.duoc_tra_loi(bid, NHOM, "7770105") == "")
     TRA_LOI["v"] = "Dạ để em hướng dẫn nhé"
 
     # ---------- 4. nhường người đang nhắn tay ------------------------------------------------
     GUI.clear()
-    td.reset_cho_test()
     zc.NHUONG_GIAY = 0.4
     KHO_TIN.append(nhom_msg("Joyce báo lỗi cổng 7777 đang bị dùng thì làm sao ạ?", "d1", uid="7770106"))
     await zc.doc_mot_lan(dict(CONN))
@@ -470,7 +497,6 @@ async def chay():
 
     # tắt bot đúng lúc nó đang chờ: nút Tắt phải có tác dụng NGAY, kể cả với lượt đang ngủ
     GUI.clear()
-    td.reset_cho_test()
     zc.NHUONG_GIAY = 0.4
     KHO_TIN.append(nhom_msg("Đổi bộ não của Joyce ở đâu vậy mọi người?", "s1", uid="7770902"))
     await zc.doc_mot_lan(dict(CONN))
@@ -485,10 +511,8 @@ async def chay():
 
     # ---------- 4b. tiếng vọng trong chế độ Tự đánh giá -----------------------------------------
     # Câu bot có dấu hỏi và nói đúng chủ đề tài liệu, nên nếu nó quay về như tin khách thì bộ đánh
-    # giá sẽ cho qua và bot tự trả lời chính nó. Tắt khoảng nghỉ để canary này không dựa vào nó.
+    # giá sẽ cho qua và bot tự trả lời chính nó. (Từ 0.85.5 không còn khoảng nghỉ nào để dựa vào.)
     GUI.clear()
-    td.reset_cho_test()
-    td.TRAN_NHOM_GIO, td.TRAN_NGUOI_GIO, td.KHOANG_CACH_GIAY = 50, 50, 0
     zc._TAY.clear()
     TRA_LOI["v"] = ("Bạn thử đổi bộ não ở trang Models của Joyce nhé, còn lỗi cổng 7777 thì bạn "
                     "đã tắt tiến trình cũ chưa?")
@@ -502,27 +526,22 @@ async def chay():
           "chính nó", len(GUI) == 1 and len(LUOT_ENGINE) == n0, (GUI, len(LUOT_ENGINE) - n0))
     TRA_LOI["v"] = "Dạ để em hướng dẫn nhé"
 
-    # ---------- 5. hạn mức: không thành máy phát thanh --------------------------------------
+    # ---------- 5. không còn hạn mức tự trả lời (0.85.5) ------------------------------------
+    # Chủ gỡ 2026-10-07: "gỡ luôn để mô hình tự quyết định". Trước đó tối đa 8 lần mỗi nhóm, 3 lần mỗi
+    # người mỗi giờ và 20 giây nghỉ giữa hai lần. Giờ câu hỏi nào qua bộ đánh giá cũng được trả lời.
     GUI.clear()
-    td.reset_cho_test()
-    td.TRAN_NHOM_GIO, td.TRAN_NGUOI_GIO, td.KHOANG_CACH_GIAY = 2, 5, 0
     for i, uid in enumerate(("7770201", "7770202", "7770203")):
         KHO_TIN.append(nhom_msg("Đổi bộ não của Joyce ở đâu vậy mọi người?", f"cap{i}", uid=uid))
         await doc(0.4)
-    check("mỗi nhóm chỉ tự trả lời tối đa TRAN_NHOM_GIO lần mỗi giờ", len(GUI) == 2, GUI)
-    bo = [r for r in chatbot_log.doc(bid, 500) if r.get("bo_qua") == "het_han_muc"]
-    check("lượt bị chặn vì hạn mức có ghi lý do", bool(bo), chatbot_log.doc(bid, 3))
-
+    check("CANARY: ba người hỏi liên tiếp đều được bot tự trả lời", len(GUI) == 3, GUI)
     GUI.clear()
-    td.reset_cho_test()
-    td.TRAN_NHOM_GIO, td.TRAN_NGUOI_GIO = 50, 1
-    for i in range(2):
+    for i in range(3):
         KHO_TIN.append(nhom_msg("Đổi bộ não của Joyce ở đâu vậy mọi người?", f"f{i}", uid="7770301"))
         await doc(0.4)
-    check("một người chỉ được bot tự trả lời TRAN_NGUOI_GIO lần mỗi giờ", len(GUI) == 1, GUI)
-    check("người khác trong cùng nhóm vẫn được",
-          (KHO_TIN.append(nhom_msg("Đổi bộ não của Joyce ở đâu vậy mọi người?", "f9", uid="7770302")) or True)
-          and (await doc(0.4) or True) and len(GUI) == 2, GUI)
+    check("một người hỏi ba lần liền cũng được trả lời cả ba", len(GUI) == 3, GUI)
+    check("không lượt nào bị bỏ qua vì hạn mức",
+          not any(r.get("bo_qua") in ("het_han_muc", "het_han_nguoi", "vua_tra_loi")
+                  for r in chatbot_log.doc(bid, 500)))
 
     # ---------- 6. thống kê không bị tin bỏ qua làm lệch ----------------------------------
     tt = chatbot_log.tom_tat(bid)
@@ -530,7 +549,9 @@ async def chay():
     n_bo = sum(1 for r in ds if r.get("bo_qua"))
     check("tóm tắt tách riêng số tin bỏ qua", tt.get("bo_qua") == n_bo and n_bo >= 2, tt)
     check("và không tính chúng vào số lượt", tt["luot"] == len(ds) - n_bo, (tt, len(ds), n_bo))
-    check("cũng không làm loãng tỉ lệ bí", tt["bi"] == 0 and tt["ty_le_bi"] == 0.0, tt)
+    # Only the turn that really failed while someone CALLED the bot counts as stuck (0.102.1 adds one on purpose).
+    n_hong = sum(1 for r in ds if r.get("loi") and not r.get("bo_qua"))
+    check("cũng không làm loãng tỉ lệ bí", n_hong == 1 and tt["bi"] == n_hong, (tt, n_hong))
 
     chatbot_runtime.stop_bot(bid)
 

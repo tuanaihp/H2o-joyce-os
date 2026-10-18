@@ -21,7 +21,6 @@ Bốn chỗ dễ hỏng của mọi driver CLI, cộng hai chỗ riêng của en
 Test dựng một `grok` GIẢ bằng script Python nên chạy được ở CI không có binary thật.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
-from _cli_gia import ghi_cli  # CLI giả chạy được cả Windows lẫn Linux
 import asyncio
 import json
 import os
@@ -64,14 +63,29 @@ _HELP = """Usage: grok [OPTIONS] [COMMAND]
 """
 
 
+def _exe(v):
+    """Windows không có khái niệm shebang: viết kèm một .bat gọi đúng python đang chạy test,
+    để các `grok` giả vẫn chạy được. subprocess tự đi qua cmd.exe với .bat (Python >= 3.7.2)."""
+    if v is None or os.name != "nt" or not Path(str(v)).is_file():
+        return v
+    s = str(v)
+    bat = str(Path(s).with_name(Path(s).name + ".bat"))
+    # Idempotent: một process .bat đang chạy bị Windows KHOÁ file, ghi lại là WinError 32.
+    bp = Path(bat)
+    if not bp.is_file():
+        bp.write_text("@echo off" + chr(13) + chr(10) + 'set PYTHONIOENCODING=utf-8' + chr(13) + chr(10)
+                      + '"%s" "%s" %%*' % (sys.executable, s) + chr(13) + chr(10), encoding="ascii")
+    return bat
+
+
 def _nap_help(txt=_HELP, path="/fake/grok"):
     """Giả lập một máy CÓ `grok` và nhét sẵn `--help` vào cache.
 
     Phải stub cả `find_grok_cli`: `_help_text()` thoát ngay khi không tìm thấy binary, TRƯỚC
     khi nhìn tới cache - nên chỉ nhét cache thôi thì `co_co()` vẫn trả False.
     """
-    grok_cli.find_grok_cli = lambda: path
-    grok_cli._HELP_CACHE.update(path=path, text=txt, ts=float("inf"))
+    grok_cli.find_grok_cli = lambda: _exe(path)
+    grok_cli._HELP_CACHE.update(path=_exe(path), text=txt, ts=float("inf"))
 
 
 # ============================================================
@@ -169,13 +183,16 @@ def _gia(dong_ra, ma=0, stderr=""):
     d = Path(tempfile.mkdtemp(prefix="joyce-fakegrok-"))
     p = d / "grok"
     body = json.dumps(dong_ra)
-    p = Path(ghi_cli(p, "#!/usr/bin/env python3\n"
+    p.write_text(
+        "#!/usr/bin/env python3\n"
         "import sys, json\n"
         f"for l in {body}:\n"
         "    print(l, flush=True)\n"
         f"sys.stderr.write({stderr!r})\n"
-        f"sys.exit({ma})\n"))
-    return str(p)
+        f"sys.exit({ma})\n",
+        encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return _exe(str(p))
 
 
 def _chay_gia(dong_ra, ma=0, stderr="", prompt="xin chào"):
@@ -255,13 +272,12 @@ check("end status=error -> sự kiện error",
 # Đây KHÔNG phải phòng xa: `permission_cho_mode()` fail-closed, nên trên một bản CLI không khai
 # `--permission-mode` nó không truyền cờ nào, và lúc đó không có gì ngoài watchdog gỡ được.
 _treo = Path(tempfile.mkdtemp(prefix="joyce-grokhang-")) / "grok"
-# Trên Windows lệnh giả là .cmd gọi python: khi watchdog giết .cmd, python con vẫn giữ ống stdout nên
-# việc đọc treo tới khi nó thoát. Đóng fd 1, 2 của chính nó trước khi treo để ống được trả về ngay.
-_treo = Path(ghi_cli(_treo, "#!/usr/bin/env python3\nimport os, sys, time\n"
+_treo.write_text("#!/usr/bin/env python3\nimport sys, time\n"
                  "if '--help' in sys.argv:\n    print('  -p, --single')\n"
-                 "else:\n    os.close(1); os.close(2)\n    time.sleep(60)\n"))
+                 "else:\n    time.sleep(60)\n", encoding="utf-8")
+_treo.chmod(_treo.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 _gh = grok_cli.GrokCLI(cwd="/tmp")
-_gh.cli_path = str(_treo)
+_gh.cli_path = _exe(str(_treo))
 _gh.timeout = 2
 async def _go_treo():
     return [e async for e in _gh.query("hi")]
@@ -539,7 +555,8 @@ check("và vòng quay kiểm `connected` TRƯỚC khi kêu hết giờ",
 _login_home = tempfile.mkdtemp(prefix="joyce-grokhome-live-")
 _d = Path(tempfile.mkdtemp(prefix="joyce-fakelogin-"))
 _p = _d / "grok"
-_p = Path(ghi_cli(_p, "#!/usr/bin/env python3\n"
+_p.write_text(
+    "#!/usr/bin/env python3\n"
     "import sys, json, time, os, pathlib\n"
     # spinner dùng \r: `readline` của bản cũ đứng chờ \n nên dòng này kẹt trong bộ đệm
     "sys.stdout.write('Waiting for browser...\\r')\n"
@@ -549,7 +566,9 @@ _p = Path(ghi_cli(_p, "#!/usr/bin/env python3\n"
     "h = pathlib.Path(os.environ['GROK_HOME']); h.mkdir(parents=True, exist_ok=True)\n"
     "(h/'auth.json').write_text(json.dumps({'oauth': {'accessToken': 'x'*40}},\n"
     "                                      ensure_ascii=False))\n"
-    "print('Logged in as ai@x.ai')\n"))
+    "print('Logged in as ai@x.ai')\n",
+    encoding="utf-8")
+_p.chmod(_p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 _HOME_CU2 = os.environ.get("GROK_HOME")
 os.environ["GROK_HOME"] = _login_home
@@ -607,8 +626,9 @@ def _gia_kich_ban(than: str):
     """Dựng `grok` giả với thân hàm tự viết, và trỏ cả `co_co` vào nó."""
     d = Path(tempfile.mkdtemp(prefix="joyce-grokq-"))
     q = d / "grok"
-    q = Path(ghi_cli(q, "#!/usr/bin/env python3\nimport sys, json\n" + than))
-    return str(q)
+    q.write_text("#!/usr/bin/env python3\nimport sys, json\n" + than, encoding="utf-8")
+    q.chmod(q.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return _exe(str(q))
 
 
 def _chay(cli_path, prompt="chào grok"):
@@ -849,7 +869,7 @@ grok_cli.find_grok_cli = _that_find
 _CLAUDEMD = Path(ROOT, "CLAUDE.md").read_text(encoding="utf-8")
 check("CANARY: CLAUDE.md đã kể tên bộ não mới "
       "(câu này vào system prompt MỖI LƯỢT CHAT, sai là Joyce nói sai với mọi người dùng)",
-      "Grok Build" in _CLAUDEMD and "Ten brains" in _CLAUDEMD)
+      "Grok Build" in _CLAUDEMD and "Eleven brains" in _CLAUDEMD)
 check("và đã đếm lại số engine CLI", "three CLI engines" in _CLAUDEMD)
 check("CANARY: Gemini CLI đã gỡ khỏi system prompt (đường đó đã chết)",
       "Gemini CLI was removed" in _CLAUDEMD)

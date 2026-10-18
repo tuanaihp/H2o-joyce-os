@@ -18,7 +18,6 @@ có thể sai lặng lẽ:
 Test dựng một `agy` GIẢ bằng script Python nên chạy được ở CI không có gì cả.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
-from _cli_gia import ghi_cli, ghi_lai_cli  # CLI giả chạy được cả Windows lẫn Linux
 import asyncio
 import json
 import os
@@ -49,7 +48,8 @@ def _gia(dong_ra, ma=0, stderr="", help_text="", models_out="", vong_stdin=False
     """Dựng một `agy` giả: trả `--help` / `models` / lượt chat theo ý mình."""
     d = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-"))
     p = d / "agy"
-    p = Path(ghi_cli(p, "#!/usr/bin/env python3\n"
+    p.write_text(
+        "#!/usr/bin/env python3\n"
         "import sys\n"
         "a = sys.argv[1:]\n"
         f"if '--help' in a:\n    sys.stdout.write({help_text!r}); sys.exit(0)\n"
@@ -61,8 +61,26 @@ def _gia(dong_ra, ma=0, stderr="", help_text="", models_out="", vong_stdin=False
         + ("print(_sd, flush=True)\n" if vong_stdin else "")
         + f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
         f"sys.stderr.write({stderr!r})\n"
-        f"sys.exit({ma})\n"))
+        f"sys.exit({ma})\n",
+        encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return str(p), d
+
+
+
+def _exe(v):
+    """Windows khong co khai niem shebang: viet kem mot .bat goi dung python dang chay test,
+    de cac `agy` gia van chay duoc. subprocess tu di qua cmd.exe voi .bat (Python >= 3.7.2)."""
+    if v is None or os.name != "nt":
+        return v
+    s = str(v)
+    bat = str(Path(s).with_name(Path(s).name + ".bat"))
+    # Idempotent: một process .bat đang chạy bị Windows KHOÁ file, ghi lại là WinError 32.
+    bp = Path(bat)
+    if not bp.is_file():
+        bp.write_text("@echo off" + chr(13) + chr(10) + '"%s" "%s" %%*' % (sys.executable, s)
+                      + chr(13) + chr(10), encoding="ascii")
+    return bat
 
 
 def _reset_cache():
@@ -73,9 +91,9 @@ def _reset_cache():
 def _chay_gia(dong_ra, ma=0, stderr="", help_text="", prompt="xin chào", mode="full"):
     cli, d = _gia(dong_ra, ma, stderr, help_text)
     _reset_cache()
-    antigravity_cli.find_antigravity_cli = lambda: cli
+    antigravity_cli.find_antigravity_cli = lambda: _exe(cli)
     g = antigravity_cli.AntigravityCLI(cwd="/tmp")
-    g.cli_path = cli
+    g.cli_path = _exe(cli)
     g.mode = mode
 
     async def _go():
@@ -154,7 +172,7 @@ check("mức full: tự duyệt tool để headless không treo",
 # ============================================================
 _cli_moi, _ = _gia([], help_text=_HELP_MOI)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _cli_moi
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_moi)
 check("mode rỗng -> siết như suggest",
       antigravity_cli.co_quyen_cho_mode("") == ["--sandbox"])
 check("CANARY: mode gõ sai KHÔNG được thành toàn quyền",
@@ -212,13 +230,13 @@ for ten, ra, mong in [
 ]:
     _c, _ = _gia([], help_text=_HELP_MOI, models_out=ra)
     _reset_cache()
-    antigravity_cli.find_antigravity_cli = lambda c=_c: c
+    antigravity_cli.find_antigravity_cli = lambda c=_exe(_c): c
     check(f"bóc được model từ {ten}", antigravity_cli.list_models() == mong,
           antigravity_cli.list_models())
 
 _c_chu, _ = _gia([], help_text=_HELP_CU, models_out="gemini-3-pro  Gemini 3 Pro\nclaude-opus-4-6  Claude Opus 4.6\n")
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _c_chu
+antigravity_cli.find_antigravity_cli = lambda: _exe(_c_chu)
 check("bản cũ in chữ thuần cũng bóc được",
       antigravity_cli.list_models() == ["gemini-3-pro", "claude-opus-4-6"],
       antigravity_cli.list_models())
@@ -233,7 +251,7 @@ _THAT = ("Fetching available models...\n"
          "claude-sonnet-4-6\tClaude Sonnet 4.6 (Thinking)\n")
 _c_tab, _ = _gia([], help_text=_HELP_CU, models_out=_THAT)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _c_tab
+antigravity_cli.find_antigravity_cli = lambda: _exe(_c_tab)
 _ds_tab = antigravity_cli.list_models()
 check("CANARY: cột phân tách bằng TAB -> lấy ĐÚNG mã model, không dính tên hiển thị",
       _ds_tab == ["gemini-3.6-flash-high", "gemini-3.5-flash-high", "claude-sonnet-4-6"], _ds_tab)
@@ -329,7 +347,7 @@ async def _gom(g):
 
 antigravity_cli.find_antigravity_cli = lambda: None
 _g9 = antigravity_cli.AntigravityCLI()
-_g9.cli_path = None
+_g9.cli_path = _exe(None)
 _evs9 = chay(_gom(_g9))
 check("chưa cài CLI -> báo cách cài, không nổ",
       len(_evs9) == 1 and _evs9[0]["type"] == "error"
@@ -541,9 +559,9 @@ _cli_win, _d_win = _gia([json.dumps({"role": "assistant", "content": "Chào anh.
                         help_text=_HELP_CU,   # _HELP_CU không nhắc stdin: đúng như bản thật
                         vong_stdin=True)      # ...nhưng CÓ đọc stdin, để phép đo thấy được
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _cli_win
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_win)
 _g_win = antigravity_cli.AntigravityCLI(cwd=str(_d_win))
-_g_win.cli_path = _cli_win
+_g_win.cli_path = _exe(_cli_win)
 _g_win.instructions = "x" * 40000
 _ten_that = os.name
 try:
@@ -570,8 +588,8 @@ check("CANARY: dòng lệnh gửi đi nằm dưới trần 32767 của Windows",
 check("CANARY: prompt tới nơi NGUYÊN VẸN qua stdin (không cắt, không tóm tắt)",
       "x" * 40000 in _stdin_win and "hỏi gì đó" in _stdin_win, len(_stdin_win))
 check("CANARY: công thức stdin là thứ ĐO được trên máy, không phải hằng số chép tay",
-      antigravity_cli.duong_prompt_dai(_cli_win).startswith("stdin"),
-      antigravity_cli.duong_prompt_dai(_cli_win))
+      antigravity_cli.duong_prompt_dai(_exe(_cli_win)).startswith("stdin"),
+      antigravity_cli.duong_prompt_dai(_exe(_cli_win)))
 check("CANARY: không dựng file ngữ cảnh khi stdin đã đủ (đường trung thực hơn thì ưu tiên)",
       not (_d_win / ".joyce-agy").exists())
 
@@ -580,21 +598,17 @@ check("CANARY: không dựng file ngữ cảnh khi stdin đã đủ (đường t
 # dùng nhận một bong bóng rỗng. Hỏng lặng lẽ, không có câu lỗi nào để lần ra - đúng loại bug
 # đắt nhất, nên khoá lại bằng canary.
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _cli_moi
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_moi)
 _g_co = antigravity_cli.AntigravityCLI(cwd="/tmp")
-_g_co.cli_path = _cli_moi
+_g_co.cli_path = _exe(_cli_moi)
 _g_co.session_id = "abc"
 _g_co.include_dirs = ["/tmp"]
 _args_co = _g_co._build_args("câu hỏi")
 check("CANARY: khi prompt đi qua dòng lệnh thì `-p` nằm CUỐI (cờ sau nó bị agy bỏ qua)",
       _args_co[-2] == "-p" and _args_co[-1] == "câu hỏi", _args_co[-5:])
 
-if os.name == "nt":
-    check("CANARY Windows: trần argv là 30.000 đơn vị UTF-16 (chừa chỗ cho binary và cờ)",
-          antigravity_cli._tran_argv() == 30000)
-else:
-    check("CANARY: Linux vẫn đi argv như cũ (trần 128KB cho một tham số, chưa chạm)",
-          antigravity_cli._tran_argv() == 120000)
+check("CANARY: Linux vẫn đi argv như cũ (trần 128KB cho một tham số, chưa chạm)",
+      antigravity_cli._tran_argv() == (120000 if os.name != "nt" else 30000))
 try:
     os.name = "nt"
     check("và Windows lấy đúng trần chặt hơn", antigravity_cli._tran_argv() == 30000)
@@ -616,7 +630,8 @@ _HELP_MOI_KHONG_STDIN = _HELP_MOI.replace(". Appended to input on stdin", "")
 #      an toàn chỉ giăng cho ca "im lặng", đúng nửa số cách hỏng.
 _d_choi = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-choi-"))
 _cli_choi = _d_choi / "agy"
-_cli_choi = Path(ghi_cli(_cli_choi, "#!/usr/bin/env python3\nimport sys, json\n"
+_cli_choi.write_text(
+    "#!/usr/bin/env python3\nimport sys, json\n"
     "a = sys.argv[1:]\n"
     f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI_KHONG_STDIN!r}); sys.exit(0)\n"
     "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
@@ -625,11 +640,13 @@ _cli_choi = Path(ghi_cli(_cli_choi, "#!/usr/bin/env python3\nimport sys, json\n"
     "if not v or v == '-':\n"
     "    sys.stderr.write('Error: empty prompt. Usage: agy --print \"your prompt here\"')\n"
     "    sys.exit(1)\n"
-    "print(json.dumps({'role': 'assistant', 'content': 'Chào anh.'}), flush=True)\n"))
+    "print(json.dumps({'role': 'assistant', 'content': 'Chào anh.'}), flush=True)\n",
+    encoding="utf-8")
+_cli_choi.chmod(_cli_choi.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: str(_cli_choi)
+antigravity_cli.find_antigravity_cli = lambda: _exe(str(_cli_choi))
 _g_choi = antigravity_cli.AntigravityCLI(cwd=str(_d_choi))
-_g_choi.cli_path = str(_cli_choi)
+_g_choi.cli_path = _exe(str(_cli_choi))
 _g_choi.instructions = "x" * 40000
 _evs_choi = chay(_gom(_g_choi))
 check("CANARY: CLI chối mọi công thức stdin -> VẪN có câu trả lời (đi đường file)",
@@ -638,7 +655,7 @@ check("CANARY: CLI chối mọi công thức stdin -> VẪN có câu trả lời
 check("CANARY: không ném câu 'empty prompt' của CLI vào mặt người dùng khi đã tự xử xong",
       not any("empty prompt" in str(e.get("content") or "") for e in _evs_choi), _evs_choi)
 check("và nhớ lại để lượt sau khỏi đâm đầu vào công thức đã biết là hỏng",
-      antigravity_cli.duong_prompt_dai(str(_cli_choi)) == "file")
+      antigravity_cli.duong_prompt_dai(_exe(str(_cli_choi))) == "file")
 
 
 # ---- Nửa 1b: bản CLI nào KHÔNG chịu đọc stdin thì tự chuyển sang file ngay trong lượt đó ----
@@ -647,18 +664,21 @@ check("và nhớ lại để lượt sau khỏi đâm đầu vào công thức �
 # rỗng rồi tự đoán là đúng cái sai mà file engine này viết ra để tránh.
 _d_bo = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-boqua-"))
 _cli_bo = _d_bo / "agy"
-_cli_bo = Path(ghi_cli(_cli_bo, "#!/usr/bin/env python3\nimport sys, json\n"
+_cli_bo.write_text(
+    "#!/usr/bin/env python3\nimport sys, json\n"
     "a = sys.argv[1:]\n"
     f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI_KHONG_STDIN!r}); sys.exit(0)\n"
     "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
     "v = a[a.index('-p') + 1] if '-p' in a and a.index('-p') + 1 < len(a) else ''\n"
     "# Bỏ QUA stdin: prompt rỗng thì im lặng, y như bản agy cũ.\n"
     "if not v:\n    sys.exit(0)\n"
-    "print(json.dumps({'role': 'assistant', 'content': 'Chào anh.'}), flush=True)\n"))
+    "print(json.dumps({'role': 'assistant', 'content': 'Chào anh.'}), flush=True)\n",
+    encoding="utf-8")
+_cli_bo.chmod(_cli_bo.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: str(_cli_bo)
+antigravity_cli.find_antigravity_cli = lambda: _exe(str(_cli_bo))
 _g_bo = antigravity_cli.AntigravityCLI(cwd=str(_d_bo))
-_g_bo.cli_path = str(_cli_bo)
+_g_bo.cli_path = _exe(str(_cli_bo))
 _g_bo.instructions = "x" * 40000
 os.environ["JOYCE_AGY_PROMPT_DAI"] = "stdin"
 try:
@@ -681,21 +701,21 @@ check("CANARY: và lượt đi đường file đó nói rõ là model chưa đ�
 # mà chữ ký binary chỉ đổi khi nâng cấp `agy` nên không có gì gỡ ra được.
 _cli_nho, _d_nho = _gia([], help_text=_HELP_CU, vong_stdin=True)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _cli_nho
-antigravity_cli.nho_duong(_cli_nho, "file", "stdin trả về rỗng")
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_nho)
+antigravity_cli.nho_duong(_exe(_cli_nho), "file", "stdin trả về rỗng")
 check("nhớ được là bản này phải đi đường file",
-      antigravity_cli.duong_prompt_dai(_cli_nho) == "file")
+      antigravity_cli.duong_prompt_dai(_exe(_cli_nho)) == "file")
 _nho = antigravity_cli._doc_nho_duong()
 _nho["ts"] = _nho["ts"] - antigravity_cli._HAN_NHO_AM - 10
 antigravity_cli._ghi_nho_duong(_nho)
 check("CANARY: kết quả ÂM TÍNH hết hạn sau 24h -> đo lại, không đóng đinh vĩnh viễn",
-      antigravity_cli.duong_prompt_dai(_cli_nho).startswith("stdin"))
-antigravity_cli.nho_duong(_cli_nho, "stdin:trong", "đã chạy được")
+      antigravity_cli.duong_prompt_dai(_exe(_cli_nho)).startswith("stdin"))
+antigravity_cli.nho_duong(_exe(_cli_nho), "stdin:trong", "đã chạy được")
 _nho2 = antigravity_cli._doc_nho_duong()
 _nho2["ts"] = 0.0
 antigravity_cli._ghi_nho_duong(_nho2)
 check("còn kết quả DƯƠNG TÍNH thì nhớ mãi (bằng chứng chắc chắn, không cần đo lại)",
-      antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin:trong")
+      antigravity_cli.duong_prompt_dai(_exe(_cli_nho)) == "stdin:trong")
 
 
 # ---- Nửa 1c: dấu tiếng Việt không được hỏng dọc đường ----
@@ -709,7 +729,8 @@ check("còn kết quả DƯƠNG TÍNH thì nhớ mãi (bằng chứng chắc ch�
 # ưu" sang đọc thô rồi decode từng mẩu thì đỏ ngay.
 _d_cat = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-cat-"))
 _cli_cat = _d_cat / "agy"
-_cli_cat = Path(ghi_cli(_cli_cat, "#!/usr/bin/env python3\nimport sys, time, json\n"
+_cli_cat.write_text(
+    "#!/usr/bin/env python3\nimport sys, time, json\n"
     f"if '--help' in sys.argv[1:]:\n    sys.stdout.write({_HELP_MOI!r}); sys.exit(0)\n"
     "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
     "d = json.dumps({'role': 'assistant', 'content': 'gồm hạn từng đồng bộ'},"
@@ -718,11 +739,13 @@ _cli_cat = Path(ghi_cli(_cli_cat, "#!/usr/bin/env python3\nimport sys, time, jso
     "cut = next(i for i in range(1, len(b)) if b[i] & 0xC0 == 0x80)\n"
     "sys.stdout.buffer.write(b[:cut]); sys.stdout.buffer.flush()\n"
     "time.sleep(0.2)\n"
-    "sys.stdout.buffer.write(b[cut:]); sys.stdout.buffer.flush()\n"))
+    "sys.stdout.buffer.write(b[cut:]); sys.stdout.buffer.flush()\n",
+    encoding="utf-8")
+_cli_cat.chmod(_cli_cat.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: str(_cli_cat)
+antigravity_cli.find_antigravity_cli = lambda: _exe(str(_cli_cat))
 _g_cat = antigravity_cli.AntigravityCLI(cwd=str(_d_cat))
-_g_cat.cli_path = str(_cli_cat)
+_g_cat.cli_path = _exe(str(_cli_cat))
 _evs_cat = chay(_gom(_g_cat))
 _txt_cat = "".join(e.get("content", "") for e in _evs_cat if e.get("type") == "final")
 check("CANARY: byte bị cắt GIỮA ký tự tiếng Việt -> Joyce vẫn ghép lại nguyên vẹn",
@@ -768,21 +791,24 @@ check("chia thành nhiều mẩu thật (prompt dài hơn một mẩu)", len(_ma
 # Câu trả lời về mà CÓ ký tự hỏng: phải tự đổi đường thử lại, và nếu vẫn hỏng thì NÓI RA.
 _d_hong = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-hong-"))
 _cli_hong = _d_hong / "agy"
-_cli_hong = Path(ghi_cli(_cli_hong, "#!/usr/bin/env python3\nimport sys, json\n"
+_cli_hong.write_text(
+    "#!/usr/bin/env python3\nimport sys, json\n"
     f"if '--help' in sys.argv[1:]:\n    sys.stdout.write({_HELP_MOI_KHONG_STDIN!r}); sys.exit(0)\n"
     "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
     "print(json.dumps({'role': 'assistant', 'content': 'b\\ufffd\\ufffdo c\\ufffd\\ufffdo'},"
-    " ensure_ascii=False), flush=True)\n"))
+    " ensure_ascii=False), flush=True)\n",
+    encoding="utf-8")
+_cli_hong.chmod(_cli_hong.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: str(_cli_hong)
+antigravity_cli.find_antigravity_cli = lambda: _exe(str(_cli_hong))
 _g_hong = antigravity_cli.AntigravityCLI(cwd=str(_d_hong))
-_g_hong.cli_path = str(_cli_hong)
+_g_hong.cli_path = _exe(str(_cli_hong))
 _g_hong.instructions = "x" * 40000
 _evs_hong = chay(_gom(_g_hong))
 _txt_hong = "".join(e.get("content", "") for e in _evs_hong if e.get("type") == "final")
 check("CANARY: chữ về hỏng dấu -> tự đổi sang đường file rồi thử lại",
-      antigravity_cli.duong_prompt_dai(str(_cli_hong)) == "file",
-      antigravity_cli.duong_prompt_dai(str(_cli_hong)))
+      antigravity_cli.duong_prompt_dai(_exe(str(_cli_hong))) == "file",
+      antigravity_cli.duong_prompt_dai(_exe(str(_cli_hong))))
 check("CANARY: đổi đường vẫn hỏng -> NÓI THẲNG là lỗi nằm trong CLI, không im lặng",
       "hỏng dấu tiếng Việt" in _txt_hong, repr(_txt_hong[:120]))
 
@@ -799,9 +825,9 @@ def _tep_ngu_canh():
 def _chay_ep_file(dong_ra, giu=False, help_text=_HELP_MOI):
     cli, d = _gia(dong_ra, help_text=help_text)
     _reset_cache()
-    antigravity_cli.find_antigravity_cli = lambda: cli
+    antigravity_cli.find_antigravity_cli = lambda: _exe(cli)
     g = antigravity_cli.AntigravityCLI(cwd=str(d))
-    g.cli_path = cli
+    g.cli_path = _exe(cli)
     g.instructions = "x" * 40000
     os.environ["JOYCE_AGY_PROMPT_DAI"] = "file"
     if giu:
@@ -874,22 +900,23 @@ def _chay_file_voi_su_kien(dong_ra_fn, help_text=_HELP_MOI):
     """Chạy đường file với CLI giả biết nhắc ĐÚNG tên file ngữ cảnh mà lượt đó sinh ra."""
     cli, d = _gia([], help_text=help_text)
     _reset_cache()
-    antigravity_cli.find_antigravity_cli = lambda: cli
+    antigravity_cli.find_antigravity_cli = lambda: _exe(cli)
     g = antigravity_cli.AntigravityCLI(cwd=str(d))
-    g.cli_path = cli
+    g.cli_path = _exe(cli)
     g.instructions = "x" * 40000
     that = antigravity_cli._viet_file_ngu_canh
 
     def _viet_roi_dung_cli(cwd, nd):
         p, duong = that(cwd, nd)
-        ghi_lai_cli(cli,
+        Path(cli).write_text(
             "#!/usr/bin/env python3\nimport sys, json\n"
             "a = sys.argv[1:]\n"
             "if '--help' in a:\n    sys.stdout.write(%r); sys.exit(0)\n"
             "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
             "%s\n"
             % (help_text, "\n".join(
-                "print(%r, flush=True)" % l for l in dong_ra_fn(duong))))
+                "print(%r, flush=True)" % l for l in dong_ra_fn(duong))),
+            encoding="utf-8")
         return p, duong
 
     antigravity_cli._viet_file_ngu_canh = _viet_roi_dung_cli
@@ -946,9 +973,9 @@ check("CANARY: bản CLI không có stream-json -> KHÔNG đo được thì KHÔ
 _cli_sd, _d_sd = _gia([json.dumps({"role": "assistant", "content": "ok"})],
                       help_text=_HELP_MOI, vong_stdin=True)
 _reset_cache()
-antigravity_cli.find_antigravity_cli = lambda: _cli_sd
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_sd)
 _g_sd = antigravity_cli.AntigravityCLI(cwd=str(_d_sd))
-_g_sd.cli_path = _cli_sd
+_g_sd.cli_path = _exe(_cli_sd)
 _g_sd.instructions = "y" * 40000
 try:
     os.name = "nt"
@@ -979,14 +1006,14 @@ _HELP_EFFORT = (_HELP_MOI + "  --effort <level>   low, medium, high, xhigh\n")
 
 _reset_cache()
 _cli_e, _d_e = _gia([], help_text=_HELP_EFFORT)
-antigravity_cli.find_antigravity_cli = lambda: _cli_e
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_e)
 _g_khoa = antigravity_cli.AntigravityCLI(cwd="/tmp", model="gemini-3.8-flash-medium")
-_g_khoa.cli_path = _cli_e
+_g_khoa.cli_path = _exe(_cli_e)
 _g_khoa.effort = "high"
 check("CANARY: model đã khoá mức nghĩ thì dòng lệnh KHÔNG được có --effort",
       "--effort" not in _g_khoa._build_args("hỏi"), _g_khoa._build_args("hỏi"))
 _g_thuong = antigravity_cli.AntigravityCLI(cwd="/tmp", model="claude-sonnet-4-6")
-_g_thuong.cli_path = _cli_e
+_g_thuong.cli_path = _exe(_cli_e)
 _g_thuong.effort = "high"
 check("model thường thì vẫn truyền --effort như cũ (đừng vá quá tay)",
       "--effort" in _g_thuong._build_args("hỏi"), _g_thuong._build_args("hỏi"))
@@ -999,7 +1026,8 @@ def _gia_xung_effort(dong_ra):
     """
     d = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-eff-"))
     p = d / "agy"
-    p = Path(ghi_cli(p, "#!/usr/bin/env python3\n"
+    p.write_text(
+        "#!/usr/bin/env python3\n"
         "import sys\n"
         "a = sys.argv[1:]\n"
         f"if '--help' in a:\n    sys.stdout.write({_HELP_EFFORT!r}); sys.exit(0)\n"
@@ -1008,7 +1036,9 @@ def _gia_xung_effort(dong_ra):
         "    sys.stderr.write('invalid model selection (--model \"m\" --effort \"high\"): "
         "--model m conflicts with --effort=high')\n    sys.exit(1)\n"
         f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
-        "sys.exit(0)\n"))
+        "sys.exit(0)\n",
+        encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return str(p), d
 
 
@@ -1017,9 +1047,9 @@ def _gia_xung_effort(dong_ra):
 # bỏ cờ rồi chạy lại NGAY trong lượt này, người dùng vẫn có câu trả lời.
 _reset_cache()
 _cli_x, _d_x = _gia_xung_effort([json.dumps({"role": "assistant", "content": "Chào anh."})])
-antigravity_cli.find_antigravity_cli = lambda: _cli_x
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_x)
 _g_x = antigravity_cli.AntigravityCLI(cwd=str(_d_x), model="model-la")
-_g_x.cli_path = _cli_x
+_g_x.cli_path = _exe(_cli_x)
 _g_x.effort = "high"
 _evs_x = chay(_gom(_g_x))
 _lan_chay = [l.split("\x00") for l in
@@ -1038,9 +1068,9 @@ check("nhớ model đó trong phiên để lượt sau khỏi thử lại",
 # hiện hai bong bóng đỏ y hệt nhau - đúng cảnh trong ảnh chủ repo gửi.
 _reset_cache()
 _cli_l, _d_l = _gia([], ma=1, stderr="đứt cáp", help_text=_HELP_MOI)
-antigravity_cli.find_antigravity_cli = lambda: _cli_l
+antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_l)
 _g_l = antigravity_cli.AntigravityCLI(cwd=str(_d_l))
-_g_l.cli_path = _cli_l
+_g_l.cli_path = _exe(_cli_l)
 _g_l.instructions = "y" * 200000        # đủ dài để phải đi đường file
 _evs_l = chay(_gom(_g_l))
 check("CANARY: một sự cố chỉ hiện ĐÚNG MỘT bong bóng lỗi, không nhân đôi",
@@ -1066,7 +1096,8 @@ def _gia_gay_roi_hoi(so_lan_gay, dong_ra, stderr=_LOI_503, help_text=None):
     """`agy` giả: gãy `so_lan_gay` lần đầu, lần sau trả lời bình thường. Đếm bằng file."""
     d = Path(tempfile.mkdtemp(prefix="joyce-fakeagy-503-"))
     p = d / "agy"
-    p = Path(ghi_cli(p, "#!/usr/bin/env python3\n"
+    p.write_text(
+        "#!/usr/bin/env python3\n"
         "import sys, os\n"
         "a = sys.argv[1:]\n"
         f"if '--help' in a:\n    sys.stdout.write({(help_text or _HELP_MOI)!r}); sys.exit(0)\n"
@@ -1076,7 +1107,9 @@ def _gia_gay_roi_hoi(so_lan_gay, dong_ra, stderr=_LOI_503, help_text=None):
         f"if n < {int(so_lan_gay)}:\n"
         f"    sys.stderr.write({stderr!r}); sys.exit(1)\n"
         f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
-        "sys.exit(0)\n"))
+        "sys.exit(0)\n",
+        encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return str(p), d
 
 
@@ -1087,9 +1120,9 @@ try:
     _reset_cache()
     _cli_503, _d_503 = _gia_gay_roi_hoi(
         1, [json.dumps({"role": "assistant", "content": "Chào anh."})])
-    antigravity_cli.find_antigravity_cli = lambda: _cli_503
+    antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_503)
     _g_503 = antigravity_cli.AntigravityCLI(cwd=str(_d_503))
-    _g_503.cli_path = _cli_503
+    _g_503.cli_path = _exe(_cli_503)
     _evs_503 = chay(_gom(_g_503))
     check("CANARY: 503 chớp nhoáng -> tự hỏi lại, người dùng vẫn nhận câu trả lời",
           any(e["type"] == "final" and e["content"] == "Chào anh." for e in _evs_503), _evs_503)
@@ -1102,9 +1135,9 @@ try:
     # Gãy MÃI: hết nhịp thì phải nói rõ lỗi của AI, không quăng nguyên câu tiếng Anh sáu dòng.
     _reset_cache()
     _cli_mai, _d_mai = _gia_gay_roi_hoi(99, [])
-    antigravity_cli.find_antigravity_cli = lambda: _cli_mai
+    antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_mai)
     _g_mai = antigravity_cli.AntigravityCLI(cwd=str(_d_mai))
-    _g_mai.cli_path = _cli_mai
+    _g_mai.cli_path = _exe(_cli_mai)
     _evs_mai = chay(_gom(_g_mai))
     _loi_mai = " ".join(str(e.get("content") or "") for e in _evs_mai if e["type"] == "error")
     check("gãy mãi thì thử đủ nhịp rồi mới thôi (1 + 2 lần)",
@@ -1117,9 +1150,9 @@ try:
                             ("hết hạn mức", "RESOURCE_EXHAUSTED: quota exceeded")):
         _reset_cache()
         _cli_k, _d_k = _gia_gay_roi_hoi(99, [], stderr=_loi_khac)
-        antigravity_cli.find_antigravity_cli = lambda: _cli_k
+        antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_k)
         _g_k = antigravity_cli.AntigravityCLI(cwd=str(_d_k))
-        _g_k.cli_path = _cli_k
+        _g_k.cli_path = _exe(_cli_k)
         chay(_gom(_g_k))
         check(f"CANARY: {_ten} thì KHÔNG thử lại (chạy đúng 1 lần)",
               (_d_k / "dem.txt").read_text().strip() == "1", (_d_k / "dem.txt").read_text())
@@ -1128,7 +1161,7 @@ try:
     _reset_cache()
     _cli_t, _d_t = _gia_gay_roi_hoi(99, [], stderr=_LOI_503)
     # Lượt này in ra một tool_call rồi mới gãy -> đã đụng thế giới bên ngoài.
-    _cli_t = ghi_cli(Path(_cli_t),
+    Path(_cli_t).write_text(
         "#!/usr/bin/env python3\nimport sys, os\na = sys.argv[1:]\n"
         f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI!r}); sys.exit(0)\n"
         f"dem = {str(_d_t / 'dem.txt')!r}\n"
@@ -1136,10 +1169,12 @@ try:
         "open(dem, 'w').write(str(n + 1))\n"
         "print(%r, flush=True)\n" % json.dumps(
             {"type": "tool_use", "tool_name": "zalo_send_message", "tool_id": "t1"}) +
-        f"sys.stderr.write({_LOI_503!r}); sys.exit(1)\n")
-    antigravity_cli.find_antigravity_cli = lambda: _cli_t
+        f"sys.stderr.write({_LOI_503!r}); sys.exit(1)\n",
+        encoding="utf-8")
+    Path(_cli_t).chmod(Path(_cli_t).stat().st_mode | stat.S_IEXEC)
+    antigravity_cli.find_antigravity_cli = lambda: _exe(_cli_t)
     _g_t = antigravity_cli.AntigravityCLI(cwd=str(_d_t))
-    _g_t.cli_path = _cli_t
+    _g_t.cli_path = _exe(_cli_t)
     chay(_gom(_g_t))
     check("CANARY: lượt đã chạy tool thì KHÔNG thử lại (không gửi tin hai lần)",
           (_d_t / "dem.txt").read_text().strip() == "1", (_d_t / "dem.txt").read_text())

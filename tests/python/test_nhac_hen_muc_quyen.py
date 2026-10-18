@@ -94,7 +94,7 @@ class _Deps:
         return "sysprompt"
 
     @staticmethod
-    def apply_mcp(cli, mode="full", brain=None):
+    def apply_mcp(cli, mode="full", brain=None, vault_pin=False):
         _GHI["hub_mode"] = mode
         _GHI["hub_brain"] = brain
 

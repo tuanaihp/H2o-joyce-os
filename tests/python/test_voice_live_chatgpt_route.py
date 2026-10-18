@@ -18,7 +18,9 @@ import types
 import unittest
 from pathlib import Path
 
+import lang
 import sessions
+import voice_live
 
 
 class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
@@ -86,17 +88,22 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
 
                 async def close(self): pass
 
-            async def ask(req, conv_sid, brain, key=""):
+            async def ask(req, conv_sid, brain, key="", progress=None, call_lang=""):
+                calls["lang"] = call_lang
                 return "## Doanh thu hôm nay\n\n| Kênh | Tiền |\n|---|---|\n| POS | 12.500.000 |"
 
             def write_auth():
                 calls["auth"] += 1
 
-            namespace = dict(h2o_staff_mod=types.SimpleNamespace(staff_by_token=lambda tok: None), _STAFF_SCOPE=__import__('contextvars').ContextVar('staff_scope', default=None), 
-                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x,
+            namespace = dict(h2o_staff_mod=types.SimpleNamespace(staff_by_token=lambda tok: None), _STAFF_SCOPE=__import__("contextvars").ContextVar("staff_scope", default=None),
+                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x, lang_mod=lang,
                 cfgmod=types.SimpleNamespace(gate_active=lambda: False,
                                              read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),
-                voice_live=types.SimpleNamespace(make_provider=make_provider, MEMORY_CHARS=4000),
+                voice_live=types.SimpleNamespace(
+                    make_provider=make_provider, MEMORY_CHARS=4000,
+                    # the route's long-job heartbeat reads these as soon as a job starts
+                    STATUS_FIRST_S=voice_live.STATUS_FIRST_S, STATUS_EVERY_S=voice_live.STATUS_EVERY_S,
+                    STATUS_TICK_S=voice_live.STATUS_TICK_S),
                 openai_oauth=types.SimpleNamespace(write_codex_auth=write_auth),
                 _brain_memory_dir=lambda root: mem_dir, _brain_root=lambda b: directory,
                 _fit_memory_index=lambda mem, cap=None: mem[:cap],
@@ -119,6 +126,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(types_in_order, ["tool:running", "tool_result:", "tool:done"])
                 full = next(f for f in frames if f["type"] == "tool_result")
                 self.assertIn("12.500.000", full["text"])
+                self.assertEqual(calls["lang"], "vi", "bộ não chính trả lời đúng thứ tiếng của cuộc gọi")
                 self.assertIn("| POS |", full["text"], "bong bóng giữ bảng đầy đủ")
                 self.assertEqual(len(calls["results"]), 1)
                 saved = [m["content"] for m in store.get_messages(sid) if m["role"] == "assistant"]

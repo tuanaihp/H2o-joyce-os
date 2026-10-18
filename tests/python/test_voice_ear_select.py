@@ -65,11 +65,8 @@ check("chọn tay groq có key -> groq, lý do chosen", r["provider"] == "groq" 
 _goc_mcp = voice_ear._mcp_labels
 voice_ear._mcp_labels = lambda: ["Pancake POS", "Gmail", "joyce"]
 tv = voice_ear.vocab({"voice": {"hotwords": "Webcake"}})
-# Thứ tự đã chốt: tên kết nối MCP đứng TRƯỚC, từ người dùng khai (kèm tên trợ lý) đứng CUỐI để
-# sát audio nhất; cắt độ dài thì bỏ phần đầu. Xem voice_ear.vocab.
-check("từ mồi có tên trợ lý, từ người dùng khai (đứng cuối) và tên kết nối MCP (đứng trước)",
-      tv[-2:] == ["Joyce", "Webcake"] and "Pancake POS" in tv and "Gmail" in tv
-      and tv.index("Gmail") < tv.index("Joyce"))
+check("từ mồi có tên trợ lý, từ người dùng khai và tên kết nối MCP",
+      tv[:2] == ["Joyce", "Webcake"] and "Pancake POS" in tv and "Gmail" in tv)
 check("từ mồi không lặp tên trợ lý khi kết nối trùng tên", [t.lower() for t in tv].count("joyce") == 1)
 check("lớp sửa mờ nghe_sua.tu_vung KHÔNG nhận tên MCP",
       "Pancake POS" not in nghe_sua.tu_vung({"voice": {"hotwords": "Webcake"}}))

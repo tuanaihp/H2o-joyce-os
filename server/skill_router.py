@@ -23,6 +23,7 @@ biết mình bị chấm theo thước nào.
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 import hashlib
@@ -83,14 +84,23 @@ def validate_description(desc) -> Optional[str]:
     d = (desc or "").strip()
     if not d:
         return None    # rỗng là hợp lệ: POST /skills có body-fallback lo
+    import localefmt   # lười: module này giữ import mức module ở stdlib + fastyaml
     if len(d) > SKILL_DESC_MAX:
-        return (f"description dài {len(d)} ký tự, vượt trần {SKILL_DESC_MAX}. Router cắt "
-                f"đúng ở {SKILL_DESC_MAX} nên phần dư MẤT IM LẶNG và skill không route "
-                "được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file.")
+        return localefmt.chu(
+            f"description dài {len(d)} ký tự, vượt trần {SKILL_DESC_MAX}. Router cắt "
+            f"đúng ở {SKILL_DESC_MAX} nên phần dư MẤT IM LẶNG và skill không route "
+            "được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file.",
+            f"description is {len(d)} characters, over the {SKILL_DESC_MAX} limit. The router cuts "
+            f"at exactly {SKILL_DESC_MAX}, so the rest is LOST SILENTLY and the skill cannot be "
+            "routed. Move trigger examples into a '## When to use' section in the body.")
     if _DESC_BOILERPLATE_RE.match(d):
-        return ("description mở đầu bằng cụm sáo rỗng (vd 'Kích hoạt khi ...'). Mọi skill "
-                "đều mở như vậy nên nó đốt ngân sách mà không phân biệt gì. Nêu thẳng "
-                "năng lực, vd 'Tóm tắt biên bản họp thành danh sách việc cần làm.'")
+        return localefmt.chu(
+            "description mở đầu bằng cụm sáo rỗng (vd 'Kích hoạt khi ...'). Mọi skill "
+            "đều mở như vậy nên nó đốt ngân sách mà không phân biệt gì. Nêu thẳng "
+            "năng lực, vd 'Tóm tắt biên bản họp thành danh sách việc cần làm.'",
+            "description opens with filler (e.g. 'Activates when ...'). Every skill "
+            "opens that way, so it burns the budget without telling skills apart. State the "
+            "capability directly, e.g. 'Summarize meeting minutes into a list of action items.'")
     return None
 
 
@@ -151,6 +161,19 @@ def valid_slug(slug: str) -> bool:
     return bool(slug) and ".." not in slug and bool(_SLUG_RE.match(slug))
 
 
+# Slug của năng lực là MỘT FILE .md phẳng (trợ lý, quy trình). Khác thư mục skill (luôn ASCII), các file
+# này từng được đặt tên có dấu: `_slugify("Bống Work")` giữ nguyên chữ Việt, và các trợ lý mẫu cũng
+# vậy ("người-giải-thích.md"). `valid_slug` chỉ nhận A-Z0-9 nên mở Cài đặt của mọi trợ lý tên có dấu
+# đều báo "Không tải được trợ lý này" (chủ repo báo 09/10). Ở đây nhận chữ cái mọi thứ tiếng (\w
+# Unicode) nhưng vẫn đúng MỘT đoạn tên: không `/`, `\`, `:`, không `..`, nên không thoát khỏi thư mục.
+_FILE_SLUG_RE = re.compile(r"^[^\W_][\w.-]{0,99}$")
+
+
+def valid_file_slug(slug: str) -> bool:
+    slug = unicodedata.normalize("NFC", str(slug or "").strip())
+    return bool(slug) and ".." not in slug and bool(_FILE_SLUG_RE.match(slug))
+
+
 def resolve_skill_file(root, slug: str) -> Optional[Path]:
     """Path SKILL.md của 1 skill ĐANG BẬT, tìm theo thứ tự canonical → .claude → .agents.
     None nếu slug không hợp lệ hoặc không tồn tại. slug đã validate (1 đoạn, không '..') nên
@@ -171,14 +194,13 @@ def resolve_skill_file(root, slug: str) -> Optional[Path]:
 
 def split_frontmatter(text: str):
     """(meta dict, body). Không có frontmatter → ({}, text). Tha lỗi YAML."""
-    if (text or "").startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            try:
-                meta = fastyaml.safe_load(parts[1]) or {}
-            except Exception:
-                meta = {}
-            return (meta if isinstance(meta, dict) else {}), parts[2]
+    parts = fastyaml.split_frontmatter(text)
+    if parts:
+        try:
+            meta = fastyaml.safe_load(parts[0]) or {}
+        except Exception:
+            meta = {}
+        return (meta if isinstance(meta, dict) else {}), parts[1]
     return {}, (text or "")
 
 
@@ -217,9 +239,7 @@ def _meta_of(smd: Path, lang: str = "") -> dict:
         body.split("\n")[0][:SKILL_DESC_MAX] if body else "")
     return {"name": theo_ngon_ngu(meta, "name", lang) or smd.parent.name,
             "description": desc,
-            "group": meta.get("group") or "Chung",
-            "version": meta.get("version") or 1,
-            "status": meta.get("status") or "active"}
+            "group": meta.get("group") or "Chung"}
 
 
 def _iter_skill_dirs(base: Path):

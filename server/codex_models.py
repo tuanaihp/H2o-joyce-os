@@ -14,7 +14,7 @@ import threading
 import time
 from typing import Any, Optional
 
-from claude_cli import find_codex_cli
+from claude_cli import codex_env, find_codex_cli
 
 
 def _no_window() -> int:
@@ -35,6 +35,20 @@ _EFFORTS: dict = {}
 def efforts_for(model: str) -> list:
     """Các mức effort model này nhận, theo lời của chính Codex. [] = chưa biết."""
     return list(_EFFORTS.get(str(model or "").strip()) or [])
+
+
+_TIERS: dict = {}
+
+
+def tiers_for(model: str) -> list:
+    """Service tier ids this Codex model declares (e.g. ["priority"] for Fast). [] = unknown/none."""
+    return list(_TIERS.get(str(model or "").strip()) or [])
+
+
+def _nho_tiers(items) -> None:
+    for x in items or []:
+        if x.get("id"):
+            _TIERS[x["id"]] = list(x.get("service_tiers") or [])
 
 
 def _nho_efforts(items) -> None:
@@ -100,6 +114,12 @@ def _normalize_items(items: Any) -> list[dict]:
                 if isinstance(x, dict) and x.get("reasoningEffort")
             ],
             "upgrade": raw.get("upgrade"),
+            # 0.164.0, Fast mode: the tier ids the model declares ("priority" is Fast).
+            "service_tiers": [
+                str(t.get("id")) for t in (raw.get("serviceTiers") or [])
+                if isinstance(t, dict) and t.get("id")
+            ],
+            "default_service_tier": raw.get("defaultServiceTier"),
         })
     # Codex thường đã xếp default đầu tiên. Bảo đảm điều đó để fallback của
     # Joyce cũng dùng đúng default hiện hành nếu upstream đổi thứ tự.
@@ -164,6 +184,7 @@ def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
             errors="replace",
             bufsize=1,
             creationflags=_no_window(),
+            env=codex_env(),
         )
         threading.Thread(target=reader, name="joyce-codex-models", daemon=True).start()
         send({
@@ -204,6 +225,7 @@ def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
         if not models:
             return None
         _nho_efforts(models)
+        _nho_tiers(models)
         default = next((x["id"] for x in models if x["is_default"]), models[0]["id"])
         return {
             "models": [x["id"] for x in models],

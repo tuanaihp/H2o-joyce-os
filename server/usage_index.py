@@ -19,7 +19,6 @@ import glob
 import json
 import os
 import sqlite3
-import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -60,7 +59,7 @@ _DIMS = {"provider", "source", "activity", "model", "project", "day"}
 # khong co else), va o "tien mat thang nay" bao 0 trong khi vi van voi di. 'groq' va 'gemini'
 # tung thieu dung nhu vay.
 _API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth", "ollama",
-                  "groq", "gemini"}
+                  "groq", "gemini", "deepseek"}
 
 
 def _claude_dir() -> str:
@@ -116,9 +115,17 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+# First words of the prompt compaction.py sends when it moves a long chat onto a fresh Claude
+# thread. A thread that opens with them IS a user chat, even when conversations.db no longer
+# names it (it only keeps the CURRENT thread of each conversation). Kept in sync with
+# compaction.py by tests/python/test_usage_index.py.
+CHAT_RESUME_MARKER = "[KHÔI PHỤC NGỮ CẢNH HỘI THOẠI]"
+
+
 def _chat_sessions() -> set:
-    """Tap cli_session_id trong conversations.db = cac phien do NGUOI DUNG mo (chat).
-    Thieu file / loi -> set() (khong chan)."""
+    """Tap cli_session_id cua cac phien do NGUOI DUNG mo (chat): mach hien tai cua moi hoi
+    thoai (sessions.cli_session_id) CONG moi mach cu da tung gan (cli_session_history, tu
+    0.107.0). Thieu bang lich su thi chi la mach hien tai nhu cu. Thieu file / loi -> set()."""
     p = _conversations_db()
     out = set()
     try:
@@ -129,11 +136,28 @@ def _chat_sessions() -> set:
                         "SELECT cli_session_id FROM sessions WHERE cli_session_id IS NOT NULL AND cli_session_id<>''"):
                     if sid:
                         out.add(sid)
+                try:
+                    for (sid,) in c.execute("SELECT cli_session_id FROM cli_session_history"):
+                        if sid:
+                            out.add(sid)
+                except sqlite3.OperationalError:
+                    pass   # DB older than 0.107.0: no history table yet
             finally:
                 c.close()
     except Exception:
         pass
     return out
+
+
+def _mo_dau_khoi_phuc(obj) -> bool:
+    """A user line whose prompt opens with CHAT_RESUME_MARKER (see above)."""
+    if not isinstance(obj, dict) or obj.get("type") != "user":
+        return False
+    content = (obj.get("message") or {}).get("content")
+    if isinstance(content, list):
+        content = next((x.get("text") for x in content
+                        if isinstance(x, dict) and x.get("type") == "text"), "")
+    return isinstance(content, str) and content.lstrip().startswith(CHAT_RESUME_MARKER)
 
 
 def _unchanged(conn, path, size, mtime) -> bool:
@@ -258,6 +282,8 @@ def _scan_claude(conn, chat, brains) -> int:
                         obj = json.loads(line)
                     except Exception:
                         continue
+                    if _mo_dau_khoi_phuc(obj) and obj.get("sessionId"):
+                        chat.add(obj["sessionId"])
                     ev = up.parse_claude_line(obj, chat, brains)
                     if ev:
                         events.append(ev)
@@ -420,7 +446,9 @@ def _migrate_events_once(conn) -> None:
 # cho toan bo lich su, va trang bao "0 luot" trong khi 560 trieu token nam so so ra do. Nen
 # doi schema thi phai QUET LAI: xoa sach dau vet da-quet mot lan duy nhat, refresh ke tiep tu
 # dung lai het. Ton mot lan (vai giay toi vai chuc giay tuy so file), sau do lai tang dan.
-_SCHEMA_MARK = "__schema_v3_turns__"
+# v4 (0.107.0): rotated chat threads were counted as background. Rescan once so the history the
+# disk still holds is reclassified (see _chat_sessions and CHAT_RESUME_MARKER).
+_SCHEMA_MARK = "__schema_v4_chat_threads__"
 
 
 def _migrate_schema_once(conn) -> bool:
@@ -448,13 +476,8 @@ def _migrate_schema_once(conn) -> bool:
     return True
 
 
-_refresh_lock = threading.Lock()
-
 def refresh() -> dict:
     """Quet tang dan ca 3 nguon. Tra so file/event thuc su xu ly lan nay."""
-    if not _refresh_lock.acquire(blocking=False):
-        return {"claude_files": 0, "codex_files": 0, "api_events": 0, "quet_lai": False,
-                "skipped": True}
     res = {"claude_files": 0, "codex_files": 0, "api_events": 0, "quet_lai": False}
     conn = _connect()
     try:
@@ -469,7 +492,6 @@ def refresh() -> dict:
         conn.commit()
     finally:
         conn.close()
-        _refresh_lock.release()
     return res
 
 
@@ -685,20 +707,23 @@ def insights(period: str = "this_month", today: date = None) -> list:
 
     if billable >= MIN_BILLABLE_FOR_CACHE and k["cache_hit"] < CACHE_LOW:
         out.append({"code": "cache_low", "level": "warn",
-                    "title": "Cache hit thấp (%.0f%%)" % (k["cache_hit"] * 100),
-                    "detail": "Đang nạp lại ngữ cảnh nhiều, tốn token. Cân nhắc /compact hoặc chia phiên để tận dụng cache."})
+                    "title": localefmt.chu("Cache hit thấp (%.0f%%)", "Low cache hit (%.0f%%)") % (k["cache_hit"] * 100),
+                    "detail": localefmt.chu("Đang nạp lại ngữ cảnh nhiều, tốn token. Cân nhắc /compact hoặc chia phiên để tận dụng cache.",
+                                            "Context is being reloaded a lot, which costs tokens. Consider /compact or splitting the session to make use of the cache.")})
 
     bg = next((x["tokens"] for x in s["by_activity"] if x["key"] == "background"), 0)
     if total > 0 and bg / total >= BACKGROUND_SHARE:
         out.append({"code": "background_heavy", "level": "warn",
-                    "title": "Hoạt động ngầm chiếm %.0f%% token" % (bg / total * 100),
-                    "detail": "Loop/lịch chạy nền đang ngốn nhiều (%s). Xem lại tần suất các loop hoặc tắt bớt." % _fmt_tok(bg)})
+                    "title": localefmt.chu("Hoạt động ngầm chiếm %.0f%% token", "Background activity uses %.0f%% of tokens") % (bg / total * 100),
+                    "detail": localefmt.chu("Loop/lịch chạy nền đang ngốn nhiều (%s). Xem lại tần suất các loop hoặc tắt bớt.",
+                                            "Background loops/schedules are using a lot (%s). Review how often the loops run or turn some off.") % _fmt_tok(bg)})
 
     opus = sum(x["tokens"] for x in s["by_model"] if str(x["key"]).startswith("claude-opus"))
     if total > 0 and opus / total >= EXPENSIVE_SHARE:
         out.append({"code": "expensive_model", "level": "info",
-                    "title": "Opus chiếm %.0f%% token" % (opus / total * 100),
-                    "detail": "Opus đắt gấp nhiều lần sonnet/haiku. Việc nhẹ cân nhắc hạ model ở trang Model."})
+                    "title": localefmt.chu("Opus chiếm %.0f%% token", "Opus uses %.0f%% of tokens") % (opus / total * 100),
+                    "detail": localefmt.chu("Opus đắt gấp nhiều lần sonnet/haiku. Việc nhẹ cân nhắc hạ model ở trang Model.",
+                                            "Opus costs many times more than sonnet/haiku. For light work, consider a smaller model on the Models page.")})
 
     cs, ce = s["range"]
     conn = _connect()
@@ -709,8 +734,9 @@ def insights(period: str = "this_month", today: date = None) -> list:
         conn.close()
     if row and (row[1] or 0) >= SESSION_BLOAT:
         out.append({"code": "session_bloat", "level": "warn",
-                    "title": "Có phiên phình to (%s token vào)" % _fmt_tok(row[1]),
-                    "detail": "Một phiên nạp %s token đầu vào. Cân nhắc tách phiên để giảm chi phí ngữ cảnh." % _fmt_tok(row[1])})
+                    "title": localefmt.chu("Có phiên phình to (%s token vào)", "A session has grown large (%s input tokens)") % _fmt_tok(row[1]),
+                    "detail": localefmt.chu("Một phiên nạp %s token đầu vào. Cân nhắc tách phiên để giảm chi phí ngữ cảnh.",
+                                            "One session loaded %s input tokens. Consider splitting the session to cut context cost.") % _fmt_tok(row[1])})
 
     prev = k["tokens_prev"]
     if prev > 0 and total > 0:
@@ -720,8 +746,9 @@ def insights(period: str = "this_month", today: date = None) -> list:
         prev_pd = prev / max(1, (pe_d - ps_d).days + 1)
         if prev_pd > 0 and cur_pd / prev_pd >= SPIKE_RATIO:
             out.append({"code": "spike", "level": "warn",
-                        "title": "Token/ngày tăng %.0f%% so kỳ trước" % ((cur_pd / prev_pd - 1) * 100),
-                        "detail": "Mức tiêu thụ tăng đột biến. Kiểm tra nguồn tăng chính ở phần breakdown."})
+                        "title": localefmt.chu("Token/ngày tăng %.0f%% so kỳ trước", "Tokens/day up %.0f%% on the previous period") % ((cur_pd / prev_pd - 1) * 100),
+                        "detail": localefmt.chu("Mức tiêu thụ tăng đột biến. Kiểm tra nguồn tăng chính ở phần breakdown.",
+                                                "Usage spiked. Check the main source of the increase in the breakdown.")})
 
     out.sort(key=lambda x: 0 if x["level"] == "warn" else 1)
     return out

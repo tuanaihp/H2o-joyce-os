@@ -4,7 +4,25 @@
 
 **AI agentic đổi được bộ não + Second Brain - chạy trên model nào bạn muốn (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic API, Groq, Ollama), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
 
-***Tiếng Việt** · [English](README.en.md)*
+<!-- flags:start -->
+<p align="center">
+<b>🌐 Có 12 thứ tiếng</b><br><br>
+<a href="README.en.md"><img src="docs/assets/flags/gb.svg" width="30" alt="English" title="English"></a>
+<img src="docs/assets/flags/vn.svg" width="30" alt="Tiếng Việt" title="Tiếng Việt">
+<a href="docs/i18n/zh/README.md"><img src="docs/assets/flags/cn.svg" width="30" alt="简体中文" title="简体中文"></a>
+<a href="docs/i18n/es/README.md"><img src="docs/assets/flags/es.svg" width="30" alt="Español" title="Español"></a>
+<a href="docs/i18n/ja/README.md"><img src="docs/assets/flags/jp.svg" width="30" alt="日本語" title="日本語"></a>
+<a href="docs/i18n/hi/README.md"><img src="docs/assets/flags/in.svg" width="30" alt="हिन्दी" title="हिन्दी"></a>
+<a href="docs/i18n/pt-BR/README.md"><img src="docs/assets/flags/br.svg" width="30" alt="Português" title="Português"></a>
+<a href="docs/i18n/ko/README.md"><img src="docs/assets/flags/kr.svg" width="30" alt="한국어" title="한국어"></a>
+<a href="docs/i18n/ru/README.md"><img src="docs/assets/flags/ru.svg" width="30" alt="Русский" title="Русский"></a>
+<a href="docs/i18n/de/README.md"><img src="docs/assets/flags/de.svg" width="30" alt="Deutsch" title="Deutsch"></a>
+<a href="docs/i18n/fr/README.md"><img src="docs/assets/flags/fr.svg" width="30" alt="Français" title="Français"></a>
+<a href="docs/i18n/id/README.md"><img src="docs/assets/flags/id.svg" width="30" alt="Bahasa Indonesia" title="Bahasa Indonesia"></a>
+</p>
+<!-- flags:end -->
+
+[🇬🇧 English](README.en.md) · 🇻🇳 **Tiếng Việt** · [🇨🇳 简体中文](docs/i18n/zh/README.md) · [🇪🇸 Español](docs/i18n/es/README.md) · [🇯🇵 日本語](docs/i18n/ja/README.md) · [🇮🇳 हिन्दी](docs/i18n/hi/README.md) · [🇧🇷 Português](docs/i18n/pt-BR/README.md) · [🇰🇷 한국어](docs/i18n/ko/README.md) · [🇷🇺 Русский](docs/i18n/ru/README.md) · [🇩🇪 Deutsch](docs/i18n/de/README.md) · [🇫🇷 Français](docs/i18n/fr/README.md) · [🇮🇩 Bahasa Indonesia](docs/i18n/id/README.md) · [🌍 Giúp dịch](CONTRIBUTING.md)
 
 </div>
 
@@ -41,7 +59,7 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 
 | | Chatbot thường | **Joyce OS** |
 |---|---|---|
-| Bộ não | Khoá cứng 1 model, API gọi rời từng câu | **Đổi được**: 12 nhà cung cấp, cái nào cũng đủ tool, MCP, skill, session - kể cả model chạy ngay trên máy bạn qua Ollama |
+| Bộ não | Khoá cứng 1 model, API gọi rời từng câu | **Đổi được**: 13 nhà cung cấp, cái nào cũng đủ tool, MCP, skill, session - kể cả model chạy ngay trên máy bạn qua Ollama |
 | Trí nhớ | Quên sau mỗi phiên | **Second Brain sống** - nhớ bạn, dày lên qua từng hội thoại |
 | Dữ liệu | Bịa hoặc không có | **Số liệu thật** từ kết nối bạn đấu vào (POS, Ads, Lịch, Zalo…) |
 | Tự cải thiện | Không | **Vòng lặp tự chạy nền** + hàng đợi việc do AI tự vận hành |

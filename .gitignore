@@ -106,6 +106,12 @@ server/kanban.sqlite3*
 # kanban.sqlite3* trên - test không đặt JOYCE_STATE_DIR sẽ ghi rơi vào server/ vì
 # execute_workflow giờ luôn chạm workflow_runs.get_store().
 server/workflow_runs.sqlite3*
+# 1.4.0 (port Javis): sổ sự cố việc nền (incident_desk), mốc việc xong trên tab Việc
+# (job_marks), file đang mở trong trình xem tài liệu, mốc watchdog - đều là state chạy.
+server/incidents.json
+server/job_marks.sqlite3*
+server/file-views.json
+server/watchdog-fails
 server/tg_brain.json
 server/update_state.json
 server/logs/
@@ -200,3 +206,27 @@ tools/cloudflared.exe
 tools/tunnel.log
 tools/tunnel-last.json
 tools/tunnel-notify.log
+
+# Scratch ingestion artifacts
+extract/
+plans/
+# Bổ sung port 1.4.x (Javis): các kho/state chạy do module mới sinh ra trong server/ khi
+# JOYCE_STATE_DIR không đặt. Giữ sạch `git status` và không commit dữ liệu chạy.
+server/agy-update.json
+server/conversations.db.pre-*
+server/conversations.db.post-*
+server/mcp-stdio-pids.json
+server/resonance.sqlite3*
+server/team.sqlite3*
+server/tg_brain.json
+server/loop_beat.json
+server/loop_restarts.json
+server/joyce_core.json
+server/agent-calls.sqlite3*
+server/agent-review.sqlite3*
+server/incident_desk.sqlite3*
+server/change_receipts.sqlite3*
+server/memory_receipts.sqlite3*
+server/worktrees/
+server/news_read.json
+joyce-sheet/

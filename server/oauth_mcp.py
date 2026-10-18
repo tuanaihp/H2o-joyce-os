@@ -10,6 +10,7 @@ Không import mcp_client/mcp_hub (tránh vòng import).
 import base64
 import hashlib
 import json
+import re
 import secrets as _secrets
 import sys
 import time
@@ -18,6 +19,7 @@ import urllib.parse
 import httpx
 
 import mcp_store
+import localefmt
 import secrets_store
 from config import STATE_DIR
 
@@ -107,11 +109,16 @@ def _meta_localhost(uri):
 
 def _meta_token_error(tk, redirect_uri=""):
     e = (tk or {}).get("error") or {}
-    msg = e.get("message") or (json.dumps(tk, ensure_ascii=False)[:200] if tk else "không rõ")
+    msg = e.get("message") or (json.dumps(tk, ensure_ascii=False)[:200] if tk
+                               else localefmt.chu("không rõ", "unknown"))
     rd = redirect_uri or "http://localhost:7777/connect/oauth/callback"
-    return (f"Facebook từ chối: {msg}. Kiểm tra: (1) 'Valid OAuth Redirect URIs' trong app khớp CHÍNH XÁC "
-            f"{rd} (dùng 'localhost' KHÔNG phải 127.0.0.1); (2) App đang ở Development Mode và bạn là "
-            f"Admin/Developer/Tester của app; (3) App ID + App Secret dán đúng.")
+    return localefmt.chu(
+        f"Facebook từ chối: {msg}. Kiểm tra: (1) 'Valid OAuth Redirect URIs' trong app khớp CHÍNH XÁC "
+        f"{rd} (dùng 'localhost' KHÔNG phải 127.0.0.1); (2) App đang ở Development Mode và bạn là "
+        f"Admin/Developer/Tester của app; (3) App ID + App Secret dán đúng.",
+        f"Facebook refused: {msg}. Check: (1) 'Valid OAuth Redirect URIs' in the app matches EXACTLY "
+        f"{rd} (use 'localhost', NOT 127.0.0.1); (2) the app is in Development Mode and you are an "
+        f"Admin/Developer/Tester of the app; (3) the App ID + App Secret are pasted correctly.")
 
 
 async def _meta_longlive(token_endpoint, client_id, client_secret, token):
@@ -134,6 +141,7 @@ async def _discover(url):
     """Tìm authorization server metadata cho 1 MCP url. Trả dict metadata hoặc None."""
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
         issuer = None
+        www_scope, prm_scopes = "", []
         try:
             r = await client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                              "params": {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -144,6 +152,10 @@ async def _discover(url):
             for part in www.split(","):
                 if "resource_metadata" in part:
                     m = part.split("=", 1)[-1].strip().strip('"')
+            # scope="..." trong WWW-Authenticate: phạm vi máy chủ MCP nói nó CẦN (chuẩn MCP, ưu tiên số một).
+            ms = re.search(r'scope="([^"]*)"', www)
+            if ms:
+                www_scope = ms.group(1).strip()
             # Chống SSRF: metadata URL do server trả về CHỈ được fetch khi cùng host với
             # chính MCP url user đã khai (chuẩn RFC 9728 đặt metadata cùng origin).
             if m:
@@ -151,6 +163,7 @@ async def _discover(url):
                 up = urllib.parse.urlparse(url)
                 if mp.scheme in ("http", "https") and mp.netloc == up.netloc:
                     rm = (await client.get(m)).json()
+                    prm_scopes = [str(x) for x in (rm.get("scopes_supported") or []) if str(x).strip()]
                     servers = rm.get("authorization_servers") or []
                     if servers:
                         issuer = servers[0]
@@ -188,13 +201,39 @@ async def _discover(url):
                 if r.status_code == 200:
                     md = r.json()
                     if md.get("authorization_endpoint") and md.get("token_endpoint"):
+                        md["_www_scope"], md["_prm_scopes"] = www_scope, prm_scopes
                         return md
             except Exception:
                 continue
     return None
 
 
-async def start_auth(conn_id, redirect_uri):
+# Chọn phạm vi (scope) cho nhánh DISCOVERY (0.175.1). Trước đây Joyce xin NGUYÊN danh sách `scopes_supported` của máy chủ
+# đăng nhập, tức mọi phạm vi máy đó BIẾT, không phải phạm vi ứng dụng được phép xin. Higgsfield đăng nhập qua Clerk: danh sách
+# có `private_metadata`, ứng dụng tự đăng ký (DCR) không được xin, Clerk trả invalid_scope và không kết nối được (chủ repo
+# 16/10/2026). Thứ tự theo chuẩn MCP: scope trong WWW-Authenticate của máy chủ MCP, rồi `scopes_supported` của protected
+# resource metadata (RFC 9728), cuối cùng mới tới danh sách của máy chủ đăng nhập. Phạm vi nhà cung cấp đã từ chối một lần
+# (`blocked_scopes`, ghi lúc nhận invalid_scope) bị bỏ ở mọi nguồn; `scope_omit` = không gửi scope nào.
+def _chon_scopes(md, ent):
+    ent = ent or {}
+    if ent.get("scope_omit"):
+        return []
+    chan = {str(x) for x in (ent.get("blocked_scopes") or [])}
+    for nguon in (str(md.get("_www_scope") or "").split(), md.get("_prm_scopes") or [], md.get("scopes_supported") or []):
+        if nguon:
+            return [str(x) for x in nguon if str(x).strip() and str(x) not in chan]
+    return []
+
+
+def _scope_bi_tu_choi(desc):
+    """Tên phạm vi trong lời báo invalid_scope, vd Clerk: "... not allowed to request scope 'private_metadata'"."""
+    return [x for x in re.findall(r"""['"`]([A-Za-z0-9_.:/-]+)['"`]""", str(desc or "")) if x.lower() != "scope"]
+
+
+_SCOPE_THU_LAI = 2   # tự bỏ phạm vi bị từ chối rồi mở lại trang đăng nhập tối đa ngần ấy lần, tránh vòng lặp
+
+
+async def start_auth(conn_id, redirect_uri, _retry=0):
     """Bắt đầu OAuth cho 1 connection. Trả {ok, url?} hoặc {ok:False, error}.
 
     2 nhánh:
@@ -203,7 +242,7 @@ async def start_auth(conn_id, redirect_uri):
     - DISCOVERY (còn lại, vd Meta): tự tìm metadata + tự đăng ký client (DCR) như chuẩn MCP."""
     conn = _conn(conn_id)
     if not conn:
-        return {"ok": False, "error": "Kết nối không tồn tại"}
+        return {"ok": False, "error": localefmt.chu("Kết nối không tồn tại", "Connection does not exist")}
     auth = (conn.get("connector") or {}).get("auth") or {}
     store = _load()
     ent = store.get(conn_id) or {}
@@ -214,8 +253,11 @@ async def start_auth(conn_id, redirect_uri):
         client_id = (creds.get("client_id") or "").strip()
         client_secret = creds.get("client_secret") or ""
         if not client_id:
-            return {"ok": False, "error": "Chưa có Client ID. Dán Client ID + Client Secret bạn tạo "
-                                          "ở nhà cung cấp (Google Cloud / Slack app) rồi bấm Kết nối lại."}
+            return {"ok": False, "error": localefmt.chu(
+                "Chưa có Client ID. Dán Client ID + Client Secret bạn tạo "
+                "ở nhà cung cấp (Google Cloud / Slack app) rồi bấm Kết nối lại.",
+                "No Client ID yet. Paste the Client ID + Client Secret you created "
+                "at the provider (Google Cloud / Slack app), then press Connect again.")}
         authorize_endpoint = auth["authorize_url"]
         token_endpoint = auth["token_url"]
         scopes = auth.get("scopes") or []
@@ -228,11 +270,14 @@ async def start_auth(conn_id, redirect_uri):
         provider = (auth.get("provider") or "").strip().lower()
     else:
         if not conn.get("url"):
-            return {"ok": False, "error": "Kết nối không có URL"}
+            return {"ok": False, "error": localefmt.chu("Kết nối không có URL", "The connection has no URL")}
         md = await _discover(conn["url"])
         if not md:
-            return {"ok": False, "error": "Server này không khai OAuth chuẩn MCP (không tìm thấy "
-                                          ".well-known metadata). Dùng API key nếu nhà cung cấp có."}
+            return {"ok": False, "error": localefmt.chu(
+                "Server này không khai OAuth chuẩn MCP (không tìm thấy "
+                ".well-known metadata). Dùng API key nếu nhà cung cấp có.",
+                "This server does not declare standard MCP OAuth (no "
+                ".well-known metadata found). Use an API key if the provider offers one.")}
         authorize_endpoint = md["authorization_endpoint"]
         token_endpoint = md["token_endpoint"]
         client_id = ent.get("client_id", "")
@@ -259,14 +304,19 @@ async def start_auth(conn_id, redirect_uri):
             # Máy chủ MCP chỉ nhận ứng dụng được cấp phép sẵn + tắt tự đăng ký (DCR). Với Meta Ads
             # đây là beta giới hạn (allowlist client như ChatGPT/Claude/Perplexity) - không phải lỗi
             # máy user, và dán client_id thủ công cũng không qua được resource server. Báo trung thực.
-            msg = ("Máy chủ này chưa cho phép kết nối tự phục vụ: nó chỉ chấp nhận các ứng dụng "
-                   "được nhà cung cấp cấp phép sẵn và đã TẮT tự đăng ký ứng dụng (DCR). Đây là giới "
-                   "hạn phía nhà cung cấp (Meta Ads đang mở beta dần theo tài khoản), không phải lỗi "
-                   "máy bạn - thử lại sau khi tài khoản được mở.")
+            msg = localefmt.chu(
+                "Máy chủ này chưa cho phép kết nối tự phục vụ: nó chỉ chấp nhận các ứng dụng "
+                "được nhà cung cấp cấp phép sẵn và đã TẮT tự đăng ký ứng dụng (DCR). Đây là giới "
+                "hạn phía nhà cung cấp (Meta Ads đang mở beta dần theo tài khoản), không phải lỗi "
+                "máy bạn - thử lại sau khi tài khoản được mở.",
+                "This server does not allow self-service connections yet: it only accepts apps "
+                "pre-approved by the provider and has TURNED OFF dynamic client registration (DCR). "
+                "This is a provider-side limit (Meta Ads is rolling out its beta account by account), "
+                "not a problem with your machine - try again once your account is enabled.")
             if dcr_detail:
-                msg += f" (máy chủ báo: {dcr_detail})"
+                msg += localefmt.chu(f" (máy chủ báo: {dcr_detail})", f" (server says: {dcr_detail})")
             return {"ok": False, "error": msg}
-        scopes = md.get("scopes_supported") or []
+        scopes = _chon_scopes(md, ent)
         scope_param, scope_sep = "scope", " "
         extra_params = {}
         add_resource = True
@@ -283,7 +333,8 @@ async def start_auth(conn_id, redirect_uri):
         _pending.pop(k, None)
     _pending[state] = {"conn_id": conn_id, "verifier": verifier, "token_endpoint": token_endpoint,
                        "client_id": client_id, "client_secret": client_secret,
-                       "redirect_uri": redirect_uri, "provider": provider, "ts": now}
+                       "redirect_uri": redirect_uri, "provider": provider, "ts": now,
+                       "discovery": not explicit, "retry": _retry}
     q = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri, "state": state}
     if not is_meta:                   # Meta classic flow KHÔNG dùng PKCE (client_secret đủ)
         q["code_challenge"] = challenge
@@ -317,10 +368,32 @@ def _email_from_id_token(idt):
         return ""
 
 
-async def handle_callback(state, code):
+async def handle_callback(state, code, error="", error_description=""):
     p = _pending.pop(state or "", None)
     if not p:
-        return {"ok": False, "error": "Phiên OAuth không hợp lệ hoặc đã hết hạn - thử lại từ đầu"}
+        return {"ok": False, "error": localefmt.chu("Phiên OAuth không hợp lệ hoặc đã hết hạn - thử lại từ đầu",
+                                                    "The OAuth session is invalid or has expired - start again")}
+    if error:
+        # Nhà cung cấp báo lỗi ngay ở bước xin quyền: KHÔNG có code để đổi. Trước 0.175.1 Joyce vẫn đem chuỗi rỗng đi đổi
+        # và chỉ hiện "invalid_grant", che mất lỗi thật.
+        if error == "invalid_scope" and p.get("discovery") and p.get("retry", 0) < _SCOPE_THU_LAI:
+            store = _load()
+            ent = store.get(p["conn_id"]) or {}
+            bad = _scope_bi_tu_choi(error_description)
+            if bad:
+                cu = list(ent.get("blocked_scopes") or [])
+                ent["blocked_scopes"] = cu + [x for x in bad if x not in cu]
+            else:
+                ent["scope_omit"] = True   # không biết phạm vi nào sai: thử lại không xin phạm vi nào
+            store[p["conn_id"]] = ent
+            _save(store)
+            again = await start_auth(p["conn_id"], p["redirect_uri"], _retry=p.get("retry", 0) + 1)
+            if again.get("ok"):
+                return {"ok": False, "retry_url": again["url"], "conn_id": p["conn_id"]}
+        detail = f"{error}: {error_description}" if error_description else error
+        return {"ok": False, "conn_id": p["conn_id"], "error": localefmt.chu(
+            "Nhà cung cấp từ chối đăng nhập (" + detail[:300] + "). Bấm Kết nối lại để thử từ đầu.",
+            "The provider refused the sign-in (" + detail[:300] + "). Press Connect again to start over.")}
     is_meta = (p.get("provider") == "meta")
     try:
         if is_meta:
@@ -345,9 +418,11 @@ async def handle_callback(state, code):
                 r = await client.post(p["token_endpoint"], data=data, headers={"Accept": "application/json"})
             tk = r.json()
             if "access_token" not in tk:
-                return {"ok": False, "error": f"Đổi code thất bại: {json.dumps(tk, ensure_ascii=False)[:200]}"}
+                return {"ok": False, "error": localefmt.chu("Đổi code thất bại: ", "Code exchange failed: ")
+                        + json.dumps(tk, ensure_ascii=False)[:200]}
     except Exception as e:
-        return {"ok": False, "error": f"Đổi code thất bại: {type(e).__name__}: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Đổi code thất bại: {type(e).__name__}: {e}",
+                                                    f"Code exchange failed: {type(e).__name__}: {e}")}
     store = _load()
     ent = store.get(p["conn_id"]) or {}
     first_auth = not ent.get("access_token")   # lần đăng nhập ĐẦU (chưa từng có token) mới tự đặt tên

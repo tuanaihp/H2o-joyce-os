@@ -78,3 +78,6 @@ yt-dlp>=2026.8.19
 # tzdata: Windows không có cơ sở dữ liệu múi giờ hệ thống, zoneinfo tìm "Asia/Tokyo" sẽ không thấy và
 # localefmt rơi lặng lẽ về UTC+7. Ghim để đổi múi giờ trên Windows ăn đúng.
 tzdata==2026.5
+
+# pypdf: boc chu PDF cho tool joyce_read_file (server/doc_text.py), de engine API va Ollama doc duoc PDF
+pypdf==6.18.1

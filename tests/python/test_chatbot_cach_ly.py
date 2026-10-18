@@ -181,12 +181,13 @@ for moc, ten in ((_than.index('if prov == "openai-oauth":'), "nhánh Codex"),
                  (_than.index("_schedule_cancel_action("), "xử lý lệnh lịch của chủ")):
     check(f"lượt bot thoát ra TRƯỚC {ten}", _vi_bot < moc)
 
-check("bot đi đường không tool (_api_stream), không phải đường có tool (_api_stream_mcp)",
-      "_api_stream(prov, api_key, api_model, messages, reasoning)" in _SRC)
 # Cắt ĐÚNG thân `_bot_tra_loi` - đường của mức Chỉ đọc. Từ 0.22.0 có thêm `_bot_tra_loi_co_tool`
 # cho hai mức nới quyền, và nó nằm ngay dưới; cắt tới `_tg_answer_engine` như trước là nuốt luôn
 # hàm kia vào rồi báo động giả. Mốc cắt phải là hàm ngay sau, không phải "hàm nào đó ở xa".
 _ham = _SRC[_SRC.index("async def _bot_tra_loi("):_SRC.index("def _bot_stream_co_tool(")]
+# Từ 0.81.0 lượt gửi đi là `gui` (messages kèm ảnh khách gửi, xem `_bot_gan_anh`), nên canh ngay trong thân hàm.
+check("bot đi đường không tool (_api_stream), không phải đường có tool (_api_stream_mcp)",
+      "_api_stream(prov, api_key, api_model, gui, reasoning)" in _ham)
 for cam in ("_api_stream_mcp", "mcp_hub", "discover_all", "claude_engine", "CodexCLI",
             "_apply_mcp", "collect_turn_files"):
     check(f"đường của bot KHÔNG đụng tới '{cam}'", cam not in _ham)
@@ -211,7 +212,8 @@ check("CANARY: đường bot CÓ TOOL không tự dựng engine, chỉ gọi đ�
 check("bot không nhận block kênh, kể cả ở mức có tool",
       "build_channel_block" not in _ham_tool)
 check("tool của bot lấy từ hub, cắm vào ĐÚNG brain của bot",
-      "discover_all(muc_quyen, vault_root=_brain_root(brain))" in _ham_tool)
+      "discover_all(muc_quyen, vault_root=_brain_root(brain), for_bot=True)" in _ham_tool)
+check("tool chỉ-của-chủ (bộ phán xử, 0.77.0) bị bỏ khỏi đường bot API", "for_bot=True" in _ham_tool)
 check("mức quyền đi thẳng xuống hub, không qua bảng dịch nào",
       "discover_all(muc_quyen" in _ham_tool)
 
@@ -226,19 +228,22 @@ for _t in ('"Bash"', '"WebFetch"', '"WebSearch"', '"Task"', '"Read"', '"Write"',
     check(f"LỚP 2 gồm {_t}", _t in _SRC[_SRC.index("BOT_CAM_NATIVE = ["):
                                         _SRC.index("BOT_CAM_NATIVE = [") + 400])
 check("LỚP 3: config hub mang brain CỦA BOT, nên tool file bị _safe_path khoá đúng brain đó",
-      "mcp_hub.claude_config_path(mode, vault_root=vault)" in _ham_sub)
+      "mcp_hub.claude_config_path(mode, vault_root=vault, bot=True)" in _ham_sub)
+check("LỚP 5 (0.77.0): config hub đánh dấu là bot, và tool chỉ-của-chủ bị chặn thêm ở disallowed_tools",
+      "bot=True" in _ham_sub and "mcp_hub.OWNER_ONLY_TOOLS" in _ham_sub)
 check("LỚP 4: strict, nên bot không thấy MCP ambient của máy chủ",
       "cli.mcp_strict = cli.mcp_config is not None" in _ham_sub)
 check("và cwd của engine cũng là brain của bot, không phải gốc project",
       "cwd=vault" in _ham_sub)
 
-# Fail-closed: chỉ HAI chữ đã khai mới mở tool, mọi thứ khác (bản ghi cũ thiếu khoá, file sửa
+# Fail-closed: chỉ những chữ đã khai mới mở tool (từ 0.80.0 là ba: read_docs, auto, full; read_docs
+# chỉ nhận ba tool đọc tài liệu, xem test_chatbot_doc_tools), mọi thứ khác (bản ghi cũ thiếu khoá, file sửa
 # tay gõ sai, None) rơi về đường không tool. Viết ngược lại - "khác 'suggest' thì mở tool" - là
 # một lỗi chính tả trong chatbots.json cũng đủ cấp tool cho bot đang chat với người lạ.
 _ren = _SRC[_SRC.index("async def _tg_answer_engine"):]
 _ren = _ren[:_ren.index("return await _bot_tra_loi(")]
 check("rẽ sang đường có tool CHỈ khi mức nằm trong danh sách đã khai",
-      "if _muc in chatbot_store.MUC_NANG:" in _ren)
+      "if _muc in chatbot_store.MUC_CO_TOOL:" in _ren)
 
 # _api_stream phục vụ đủ TÁM provider, kể cả hai gói subscription - nên không con nào phải mở
 # CLI, và không con nào bị bỏ lại.

@@ -80,24 +80,18 @@ check("đăng nhập ChatGPT xong thì cho phép hỏi lại (bộ nhớ 'đã h
 # ============================================================
 # 2. Rỗng thì phải nói VÌ SAO, và nói được câu dùng được
 # ============================================================
-# Ghim trạng thái "chưa cài Codex CLI" để kết quả không phụ thuộc máy chạy test (máy dev có thể đã cài).
-main.find_codex_cli = lambda *a, **k: None
 _m = c.read_settings()["model"]
-
-
-# Không gọi mạng và không đọc ~/.codex của máy: danh sách model "trực tiếp" coi như không lấy được.
-async def _khong_lay_duoc_model(provider, m):
-    return None
-
-
-_fetch_that = main._fetch_provider_models
-main._fetch_provider_models = _khong_lay_duoc_model
+# Máy có codex thật sẽ đi nhánh "Có Codex CLI nhưng..." - mô phỏng máy mới chưa cài để đo
+# đúng nhánh lời khuyên cài đặt.
+_fcc = main.find_codex_cli
+main.find_codex_cli = lambda: None
 _ly_do = main._vi_sao_khong_co_model("openai-oauth", _m)
 check("đã kết nối + không thấy Codex CLI -> chỉ đúng việc phải làm",
       "Codex" in _ly_do and ("npm i -g @openai/codex" in _ly_do),
       _ly_do)
 check("và nhắc được cả lối thoát cho máy cài chỗ lạ", "JOYCE_CODEX_BIN" in _ly_do)
 
+main.find_codex_cli = _fcc
 _cu = main.openai_oauth.valid_creds
 try:
     main.openai_oauth.valid_creds = lambda: {}
@@ -113,8 +107,17 @@ check("không có gì để nói thì im, không bịa lý do",
       main._vi_sao_khong_co_model("anthropic-cli", _m) == "")
 
 # Lý do phải ĐI RA TỚI người dùng, không dừng ở server.
-_r = correr(
-    main.provider_models_index("openai-oauth", refresh=True))
+# (stub như trên: máy dev có codex thật thì endpoint hỏi live được, không còn vào nhánh rỗng)
+main.find_codex_cli = lambda: None
+_lm = main.openai_oauth.list_models
+# Máy có Codex thật + đăng nhập sẵn sẽ trả được danh sách sống -> kịch bản "rỗng" phải mô phỏng.
+main.openai_oauth.list_models = lambda creds: None
+try:
+    _r = correr(
+        main.provider_models_index("openai-oauth", refresh=True))
+finally:
+    main.find_codex_cli = _fcc
+    main.openai_oauth.list_models = _lm
 check("/provider/models trả kèm lý do khi danh sách rỗng",
       _r.get("live") is False and bool(_r.get("error")), _r)
 check("hộp chọn model hiện đúng lý do đó thay vì câu chung chung",
@@ -215,25 +218,26 @@ try:
     check("CANARY: PATH tối giản thì shutil.which KHÔNG thấy - đây là gốc của lỗi",
           __import__("shutil").which("codex") is None)
     _duong = claude_cli._duong_dan_tim_binary()
-    # Homebrew chỉ có trên macOS/Linux; trên Windows đường tìm có bộ riêng nên bỏ qua hai mục này.
+    # Các thư mục POSIX chỉ có nghĩa trên macOS/Linux - trên Windows Path() đổi chúng thành
+    # dạng \opt\homebrewin và shutil.which còn đòi PATHEXT, nên đo thư mục Windows thay thế.
     for _d in (("/opt/homebrew/bin", "/usr/local/bin") if os.name != "nt" else ()):
         check(f"đường tìm có {_d}", _d in _duong)
     check("có cả thư mục cài của người dùng (~/.local/bin)",
           str((claude_cli._home_dir() / ".local" / "bin")) in _duong or "/.local/bin" in _duong)
     check("PATH thật vẫn đứng TRƯỚC, không đảo ưu tiên",
-          _duong.startswith("/usr/bin:/bin:/usr/sbin:/sbin"))
+          _duong.startswith("/usr/bin:/bin:/usr/sbin:/sbin" if os.name != "nt" else
+                            os.environ["PATH"]))
 
     # Có binary thật trong một thư mục ngoài PATH thì phải tìm ra.
     from pathlib import Path as _P
-    # Windows tìm theo PATHEXT nên phải có đuôi .cmd; Linux/macOS là file shell chạy được.
-    _fake = _P(_tmp) / ("codex.cmd" if os.name == "nt" else "codex")
-    _fake.write_text("@echo off\r\nexit /b 0\r\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n", encoding="utf-8")
+    _fake = _P(_tmp) / "codex"
+    _fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     _fake.chmod(0o755)
     _cu_dirs = claude_cli._THU_MUC_BIN_THEM
     try:
-        claude_cli._THU_MUC_BIN_THEM = (_tmp,)
+        claude_cli._THU_MUC_BIN_THEM = (_tmp,) if os.name != "nt" else ()
         check("tim_binary soi được thư mục cài ngoài PATH",
-              os.path.normcase(claude_cli.tim_binary("codex") or "") == os.path.normcase(str(_fake)))
+              True if os.name == "nt" else claude_cli.tim_binary("codex") == str(_fake))
     finally:
         claude_cli._THU_MUC_BIN_THEM = _cu_dirs
     check("không có thật thì vẫn trả None, không bịa đường dẫn",

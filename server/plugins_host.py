@@ -17,8 +17,9 @@ khi có plugin đăng ký (0 overhead khi không plugin nào dùng hook).
 
 AN TOÀN (lớp CỨNG - plugin chạy code Python THẬT trong tiến trình server):
     - Bundled: tự nạp khi effective-enabled (mặc định theo manifest `enabled:`).
-    - Vault:  CHỈ nạp khi env  JOYCE_ENABLE_VAULT_PLUGINS=true  (giống Hermes
-      HERMES_ENABLE_PROJECT_PLUGINS - chống RCE khi ai đó ghi được vào vault) VÀ enabled:true.
+    - Vault:  loaded when the manifest says enabled:true. Since 0.162.0 (owner decision) user and vault
+      plugins load by default; JOYCE_ENABLE_USER_PLUGINS=false opts out (it used to be opt-in, like
+      Hermes HERMES_ENABLE_PROJECT_PLUGINS).
     - Enable-state: bundled ở STATE_DIR/plugins.json (override, KHÔNG mutate file app);
       vault ở frontmatter plugin.yaml.
     - 1 plugin lỗi KHÔNG làm sập hub: mọi load/tool/hook đều bọc try/except.
@@ -42,6 +43,8 @@ import yaml
 import fastyaml
 
 import mcp_catalog
+import localefmt
+import turn_context
 from config import STATE_DIR
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -66,6 +69,34 @@ _HTTP_NGUON = frozenset({"bundled", "pack", "user"})
 _RESERVED_TOOLS = {"joyce_connections", "joyce_read_file", "joyce_list_dir",
                    "joyce_write_file", "joyce_use_skill"}
 
+# Name of the in-process plugin MCP server the Claude Agent SDK engine mounts (claude_sdk_engine).
+PLUGIN_SERVER = "joyce-plugins"
+
+
+def grant_patterns(names) -> List[str]:
+    """Allowlist entries that grant a gated background session exactly these plugin tools.
+
+    Background lanes below Full run with an allowlist (Read/Write/Edit...) and no MCP, which used
+    to mean no plugin tool at all: a Kanban job or a workflow step that had to make an image could
+    never reach `joyce_generate_image` without opening Full access, which also opens posting and
+    messaging. Naming the tool here grants that one tool and nothing else. Both server names are
+    listed: the SDK engine serves plugins in-process as `joyce-plugins`, and when the hub is
+    attached the same tool is also reachable as `mcp__joyce__<name>`. The tool's own `min_mode`
+    is still checked at call time against the session mode, so this never lifts a level."""
+    out: List[str] = []
+    for n in names or ():
+        n = str(n or "").strip()
+        if _TOOL_RE.match(n):
+            out += [f"mcp__{PLUGIN_SERVER}__{n}", f"mcp__joyce__{n}"]
+    return list(dict.fromkeys(out))
+
+
+def granted_plugin_tools(allowed) -> set:
+    """Plugin tool names an allowlist grants through the in-process server (see grant_patterns)."""
+    pre = f"mcp__{PLUGIN_SERVER}__"
+    return {str(p)[len(pre):] for p in (allowed or ()) if str(p).startswith(pre) and "*" not in str(p)}
+
+
 _lock = threading.Lock()
 # cache theo vault_root: {sig, plugins:[LoadedPlugin], hooks:{event:[cb]}, errors:{slug:msg}}
 _cache: Dict[str, dict] = {}
@@ -75,14 +106,22 @@ def valid_slug(s: Any) -> bool:
     return bool(_SLUG_RE.match(str(s or "")))
 
 
+_OFF_VALUES = ("0", "false", "no", "off")
+
+
 def _env_user_enabled() -> bool:
-    """Cho phép chạy plugin do NGƯỜI DÙNG cài (global STATE_DIR/plugins + vault/plugins). Chúng chạy
-    code Python THẬT trong tiến trình server nên mặc định TẮT - bật bằng JOYCE_ENABLE_USER_PLUGINS=true
-    (hoặc alias cũ JOYCE_ENABLE_VAULT_PLUGINS=true) rồi khởi động lại. Plugin BUNDLED không chịu gate này."""
+    """May user-installed plugins run (global STATE_DIR/plugins + vault/plugins)?
+
+    0.162.0, owner decision: YES BY DEFAULT. Each plugin still runs only when its own manifest says
+    `enabled: true` (a plugin created from chat starts at `enabled: false`), and the permission level
+    of the caller still decides every tool call. Opt out with JOYCE_ENABLE_USER_PLUGINS=false (or
+    the old alias JOYCE_ENABLE_VAULT_PLUGINS=false) and a restart. The new name wins when both are
+    set; an empty value counts as not set. Bundled plugins never go through this gate."""
     for k in ("JOYCE_ENABLE_USER_PLUGINS", "JOYCE_ENABLE_VAULT_PLUGINS"):
-        if str(os.getenv(k, "")).strip().lower() in ("1", "true", "yes", "on"):
-            return True
-    return False
+        v = str(os.getenv(k, "") or "").strip().lower()
+        if v:
+            return v not in _OFF_VALUES
+    return True
 
 
 # Alias tương thích: main.py + code cũ còn gọi _env_vault_enabled().
@@ -224,6 +263,28 @@ def _slug_bundled() -> set:
         return set()
 
 
+def _theo_ngon_ngu(manifest: dict, khoa: str, goc: str) -> str:
+    """Tên/mô tả HIỂN THỊ trên trang Plugins theo ngôn ngữ giao diện của thiết bị đang xem.
+
+    Cùng quy ước với SKILL.md: khoá `name_<mã>` / `description_<mã>` nằm cạnh bản gốc
+    (`name_en: ...`). Không có bản cho ngôn ngữ đó thì dùng bản tiếng Anh nếu có (cùng luật suy
+    biến với dashboard), không nữa thì bản gốc. Chỉ dùng để HIỂN THỊ: mô tả tool gửi cho model
+    vẫn lấy bản gốc."""
+    try:
+        import lang_registry
+        import localefmt
+        ma = localefmt.ngon_ngu_giao_dien()
+        if ma == lang_registry.MAC_DINH:
+            return goc
+        for m in (ma, lang_registry.DU_PHONG_GIAO_DIEN):
+            v = manifest.get(f"{khoa}_{m}")
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+    except Exception:
+        pass
+    return goc
+
+
 def _read_manifest(pdir: Path) -> Tuple[dict, str]:
     f = pdir / "plugin.yaml"
     if not f.is_file():
@@ -299,8 +360,8 @@ def describe(vault_root: Optional[str] = None) -> List[dict]:
         loaded = want and (env_ok or source in ("bundled", "pack"))
         mm = manifest.get("min_mode", "readonly")
         out.append({
-            "slug": slug, "name": name, "source": source,
-            "description": manifest.get("description", ""),
+            "slug": slug, "name": _theo_ngon_ngu(manifest, "name", name), "source": source,
+            "description": _theo_ngon_ngu(manifest, "description", manifest.get("description", "")),
             "version": str(manifest.get("version", "")), "author": manifest.get("author", ""),
             "enabled": bool(want), "loaded": bool(loaded), "gated": gated,
             "min_mode": mm if mm in VALID_MIN_MODE else "readonly",
@@ -349,10 +410,13 @@ class PluginContext:
     def register_tool(self, name: str, description: str, handler: Callable,
                       schema: Optional[dict] = None, parameters: Optional[dict] = None,
                       min_mode: str = "readonly", check_fn: Optional[Callable] = None,
-                      emoji: str = "") -> None:
+                      emoji: str = "", visible_fn: Optional[Callable] = None) -> None:
         """Thêm 1 tool cho MỌI engine. handler(args: dict, ctx: PluginContext) -> str (sync|async).
         min_mode: readonly(mặc định, luôn chạy) | safe(chặn ở chế độ suggest) | full(chỉ chế độ full).
-        check_fn(): None nếu sẵn sàng, hoặc str lý do để chặn (vd chưa đăng nhập)."""
+        check_fn(): None nếu sẵn sàng, hoặc str lý do để chặn (vd chưa đăng nhập).
+        visible_fn(vault_root) -> bool: tool chỉ có mặt trong danh sách khi hàm trả True cho brain đó.
+        Khác check_fn: check_fn chặn lúc GỌI nhưng tool vẫn hiện, visible_fn giấu hẳn tool khỏi brain
+        chưa bật tính năng, nên brain đó không thấy, không tốn chỗ trong prompt và không gọi nhầm."""
         if not _TOOL_RE.match(str(name or "")):
             raise ValueError(f"tên tool không hợp lệ (a-z0-9_): {name!r}")
         if min_mode not in VALID_MIN_MODE:
@@ -360,7 +424,7 @@ class PluginContext:
         self._tools.append({
             "name": name, "description": description or name, "handler": handler,
             "schema": schema or parameters or {"type": "object", "properties": {}},
-            "min_mode": min_mode, "check_fn": check_fn, "emoji": emoji,
+            "min_mode": min_mode, "check_fn": check_fn, "emoji": emoji, "visible_fn": visible_fn,
         })
 
     def on_unload(self, fn: Callable) -> None:
@@ -380,7 +444,7 @@ class PluginContext:
     def register_hook(self, event: str, callback: Callable) -> None:
         """Đăng ký callback lifecycle. v1 hỗ trợ: 'pre_tool_call', 'post_tool_call'
         (bắn quanh MỌI tool call). callback(**kwargs) - nhận tool_name, args, result, mode,
-        vault_root. Luôn khai `**kwargs` trong callback: các khoá mới được thêm theo thời gian
+        vault_root, turn. Luôn khai `**kwargs` trong callback: các khoá mới được thêm theo thời gian
         (vd `denied` ở post_tool_call), và một callback khai cứng tham số sẽ gãy khi đó.
 
         **`pre_tool_call` CHẶN ĐƯỢC** (từ 0.63.1 - trước đó nó chỉ quan sát được dù docstring
@@ -392,6 +456,15 @@ class PluginContext:
 
         Hook ném lỗi thì tool VẪN CHẠY (fail-open có chủ ý, xem `_fire_pre`). `post_tool_call`
         không chặn được: lúc đó tool đã chạy rồi.
+
+        **`turn`** (cả pre lẫn post): ai đang nói trong lượt gọi tool này, dạng
+        `{"kenh", "sender_id", "chat_type", "chat_id", "la_chu"}` - chi tiết ở `turn_context`.
+        `None` = không xác định được (việc nền, engine chưa mang được khoá lượt): hook cần danh
+        tính thì coi None là "không ai", KHÔNG phải "chủ máy".
+
+        **`chatbot_turn_context`**: fired once per chatbot turn, right before the engine runs. It
+        receives `channel, account_id, bot_id, chat_type, chat_id, sender_id, vault_root, trial` and
+        may return ONE short line for that turn's system prompt. See `chatbot_turn_context` below.
         """
         self._hooks.setdefault(str(event), []).append(callback)
 
@@ -603,7 +676,7 @@ def _load_all(vault_root: Optional[str], scope_vault: bool = True) -> dict:
                 continue
             if source in ("user", "vault"):
                 if not env_ok:
-                    continue   # gate CỨNG: plugin user (global+vault) cần JOYCE_ENABLE_USER_PLUGINS=true
+                    continue   # opted out on this machine: JOYCE_ENABLE_USER_PLUGINS=false
                 if not valid_slug(slug):
                     errors[slug] = "slug không hợp lệ"
                     continue
@@ -834,7 +907,7 @@ def set_removed(slug: str, removed: bool) -> dict:
     cập nhật sau không làm nó mọc lại."""
     slug = str(slug or "").strip()
     if not slug:
-        return {"ok": False, "error": "thiếu slug"}
+        return {"ok": False, "error": localefmt.chu("thiếu slug", "missing slug")}
     st = _read_state()
     ds = set(st.get("removed") or [])
     ds.add(slug) if removed else ds.discard(slug)
@@ -864,6 +937,14 @@ def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
             if fn in _RESERVED_TOOLS or fn in seen:
                 print(f"[plugins] tool '{fn}' ({lp.slug}) trùng tên - bỏ qua", file=sys.stderr)
                 continue
+            vis = t.get("visible_fn")
+            if vis is not None:
+                try:
+                    if not vis(vault_root):
+                        continue
+                except Exception as e:  # noqa: BLE001 - không chắc thì giấu, đừng lộ tool chưa bật
+                    print(f"[plugins] visible_fn của '{fn}' lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+                    continue
             seen.add(fn)
             desc = t["description"]
             if lp.source == "vault":
@@ -975,24 +1056,116 @@ def wrap_with_hooks(fn: str, base_call: Callable, mode: str, vault_root: Optiona
     không: lúc đó tool đã chạy rồi, thứ nó trả về không còn đổi được gì.
     """
     async def _wrapped(args):
+        # Read at CALL time, never when the route is built: routes are cached and shared by every
+        # turn (mcp_hub.discover_all), so a turn captured at build time would be someone else's.
+        turn = turn_context.current()
         quyet = await _fire_pre(vault_root,
                                 {"tool_name": fn, "args": args, "mode": mode,
-                                 "vault_root": vault_root})
+                                 "vault_root": vault_root, "turn": turn})
         if quyet.get("deny"):
             ket = _cau_bi_chan(fn, quyet["deny"])
             # Vẫn bắn post_tool_call: hook kiểm toán cần thấy CẢ lời gọi bị chặn, không thì
             # nhật ký chỉ có phần trôi lọt và đó là loại nhật ký tệ nhất.
             await _fire("post_tool_call", vault_root,
                         {"tool_name": fn, "args": args, "result": ket, "mode": mode,
-                         "vault_root": vault_root, "denied": True})
+                         "vault_root": vault_root, "denied": True,
+                         "turn": dict(turn) if turn else None})
             return ket
         if isinstance(quyet.get("args"), dict):
             args = quyet["args"]
         result = await base_call(args)
         await _fire("post_tool_call", vault_root,
-                    {"tool_name": fn, "args": args, "result": result, "mode": mode, "vault_root": vault_root})
+                    {"tool_name": fn, "args": args, "result": result, "mode": mode, "vault_root": vault_root,
+                     "turn": dict(turn) if turn else None})
         return result
     return _wrapped
+
+
+# ============================================================
+# chatbot_turn_context - one line of operator context per chatbot turn
+# ============================================================
+# Why this hook exists: a chatbot turn only shows the model "[Display name] text", and a display name
+# is something anyone can type. The channel layer does know which platform account sent the message,
+# but no plugin could see it, so any rule of the form "this account gets X" had to be baked into the
+# core (PR #659, closed: one tutoring centre's roster). This is the generic seam instead: a plugin
+# hears who sent the turn and may hand back ONE short line of context for the bot's system prompt.
+#
+# Contract (callback(**kwargs), always declare **kwargs):
+#     channel, account_id, bot_id, chat_type ("private" | "group"), chat_id, sender_id,
+#     vault_root (the bot's brain), trial (True on the "Try bot" turn)
+#   returns a str (one line) or None. Anything else is ignored.
+#
+# What the core guarantees, so a careless plugin cannot hurt a reply:
+#   - no plugin registered -> nothing runs and the prompt is byte-for-byte the same as before;
+#   - a raising or slow callback (CHATBOT_CONTEXT_TIMEOUT_S) is logged and skipped, the turn goes on;
+#   - each line is flattened to one line without control characters and cut at CHATBOT_CONTEXT_LINE_MAX,
+#     all lines together at CHATBOT_CONTEXT_TOTAL_MAX;
+#   - the core never writes the sender id into the prompt itself: only what a plugin chose to return.
+CHATBOT_TURN_CONTEXT = "chatbot_turn_context"
+CHATBOT_CONTEXT_LINE_MAX = 300
+CHATBOT_CONTEXT_TOTAL_MAX = 900
+CHATBOT_CONTEXT_TIMEOUT_S = 2.0
+_CTRL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+")
+
+
+def clean_context_line(value: Any, limit: int = CHATBOT_CONTEXT_LINE_MAX) -> str:
+    """A hook's return value as one safe prompt line, or "" (not a string, or nothing left).
+    Newlines and every control / bidi / zero-width character become one space, so a line can never
+    start a new block of the prompt; the result is cut at `limit` characters."""
+    if not isinstance(value, str):
+        return ""
+    s = re.sub(r"\s+", " ", _CTRL_RE.sub(" ", value)).strip()
+    return s[:max(0, int(limit))].rstrip()
+
+
+def has_chatbot_context_hooks(vault_root: Optional[str] = None) -> bool:
+    return bool(_load_all(vault_root)["hooks"].get(CHATBOT_TURN_CONTEXT))
+
+
+async def _call_with_timeout(cb: Callable, payload: dict, timeout: float):
+    """Run one callback within `timeout` seconds. A sync callback runs in a worker thread so it cannot
+    block the event loop that serves every other chat; past the deadline its thread is abandoned (Python
+    cannot kill it) and its answer, if it ever comes, is dropped."""
+    if inspect.iscoroutinefunction(cb):
+        return await asyncio.wait_for(cb(**payload), timeout)
+    loop = asyncio.get_running_loop()
+    t0 = loop.time()
+    out = await asyncio.wait_for(asyncio.to_thread(cb, **payload), timeout)
+    if inspect.isawaitable(out):
+        out = await asyncio.wait_for(out, max(0.01, timeout - (loop.time() - t0)))
+    return out
+
+
+async def chatbot_turn_context(vault_root: Optional[str], payload: dict,
+                               timeout: Optional[float] = None) -> List[str]:
+    """Fire `chatbot_turn_context` and return the cleaned lines, in plugin load order. [] when no plugin
+    listens, which is the common case. Never raises. `timeout` per callback, default
+    CHATBOT_CONTEXT_TIMEOUT_S (read at call time)."""
+    timeout = CHATBOT_CONTEXT_TIMEOUT_S if timeout is None else float(timeout)
+    try:
+        cbs = list(_load_all(vault_root)["hooks"].get(CHATBOT_TURN_CONTEXT) or [])
+    except Exception as e:      # noqa: BLE001 - a broken plugin host must not cost a reply
+        print(f"[plugins] hook {CHATBOT_TURN_CONTEXT}: load failed: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+    lines: List[str] = []
+    used = 0
+    for cb in cbs:
+        if used >= CHATBOT_CONTEXT_TOTAL_MAX:
+            break
+        try:
+            out = await _call_with_timeout(cb, dict(payload), timeout)   # a fresh copy: one hook cannot edit the next one's view
+        except asyncio.TimeoutError:
+            print(f"[plugins] hook {CHATBOT_TURN_CONTEXT}: {getattr(cb, '__qualname__', cb)} "
+                  f"timed out after {timeout}s, skipped", file=sys.stderr)
+            continue
+        except Exception as e:      # noqa: BLE001
+            print(f"[plugins] hook {CHATBOT_TURN_CONTEXT} failed: {type(e).__name__}: {e}", file=sys.stderr)
+            continue
+        line = clean_context_line(out, min(CHATBOT_CONTEXT_LINE_MAX, CHATBOT_CONTEXT_TOTAL_MAX - used))
+        if line:
+            lines.append(line)
+            used += len(line)
+    return lines
 
 
 def fire_hook(event: str, vault_root: Optional[str] = None, **payload) -> None:
@@ -1017,7 +1190,7 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
     """Bật/tắt 1 plugin. Bundled → ghi STATE_DIR/plugins.json (không đụng file app);
     vault → ghi enabled vào frontmatter plugin.yaml. Trả {ok, source, gated, note}."""
     if not valid_slug(slug):
-        return {"ok": False, "error": "slug không hợp lệ"}
+        return {"ok": False, "error": localefmt.chu("slug không hợp lệ", "invalid slug")}
     # xác định plugin thuộc nguồn nào
     found = None
     for source, pdir in _iter_plugin_dirs(vault_root):
@@ -1025,7 +1198,7 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
             found = (source, pdir)
             break
     if not found:
-        return {"ok": False, "error": "không tìm thấy plugin"}
+        return {"ok": False, "error": localefmt.chu("không tìm thấy plugin", "plugin not found")}
     source, pdir = found
     if not enabled:
         # "Tắt" phải là DỪNG, không phải "biến khỏi danh sách". Thiếu bước này thì thread hay
@@ -1036,7 +1209,8 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
         # tắt. Ghi `enabled` vào manifest trong thư mục gói sẽ làm chữ ký mã lệch ngay lần nạp
         # sau, tức tự tay biến gói thành "đã đổi so với lúc đồng ý".
         return {"ok": False, "source": source,
-                "error": "Plugin này đến từ một gói. Bật hoặc tắt cả gói ở Kho cài đặt."}
+                "error": localefmt.chu("Plugin này đến từ một gói. Bật hoặc tắt cả gói ở Kho cài đặt.",
+                                       "This plugin comes from a pack. Turn the whole pack on or off in the Store.")}
     if source == "bundled":
         st = _read_state()
         en = set(st.get("enabled") or [])
@@ -1060,9 +1234,12 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
     try:
         f.write_text(yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False), encoding="utf-8")
     except Exception as e:
-        return {"ok": False, "error": f"ghi manifest lỗi: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"ghi manifest lỗi: {e}", f"could not write the manifest: {e}")}
     invalidate()
     gated = bool(enabled and not _env_user_enabled())
-    note = ("Đã bật trong manifest NHƯNG plugin do người dùng cài chỉ chạy khi đặt biến môi trường "
-            "JOYCE_ENABLE_USER_PLUGINS=true rồi khởi động lại (bảo vệ chống chạy code lạ).") if gated else ""
+    note = localefmt.chu(
+        "Đã bật trong manifest NHƯNG máy này đang tắt plugin do người dùng cài bằng "
+        "JOYCE_ENABLE_USER_PLUGINS=false. Bỏ biến đó (hoặc đặt true) rồi khởi động lại để chạy.",
+        "Enabled in the manifest, BUT this machine turns user-installed plugins off with "
+        "JOYCE_ENABLE_USER_PLUGINS=false. Remove it (or set it to true) and restart to run it.") if gated else ""
     return {"ok": True, "source": source, "gated": gated, "note": note}

@@ -1,7 +1,9 @@
 name: Truy cập Joyce
+name_en: "Joyce access"
 slug: joyce-access
 version: 1.0.0
 description: Lấy lại đường truy cập Joyce (link tunnel Cloudflare mới nhất + link local) và gửi lại qua Telegram khi người dùng đòi. Link tunnel đổi mỗi lần cloudflared khởi động lại nên link cũ thường chết - tool này đọc bản mới nhất đã lưu.
+description_en: "Fetches the current way to reach Joyce (latest Cloudflare tunnel link plus the local link) and re-sends it over Telegram when asked. The tunnel link changes every time cloudflared restarts so the old one is usually dead - this tool reads the newest saved one."
 author: Joyce (bundled)
 enabled: true
 min_mode: readonly
