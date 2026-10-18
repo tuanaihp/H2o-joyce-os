@@ -111,14 +111,17 @@
     var rings = [], ry, rx;
     for (ry = FIG.headY[0]; ry <= FIG.headY[1]; ry += 0.0125) {
       rx = headRx(ry);
-      if (rx > 0.012) rings.push([ry, rx, rx * 1.05, 0]);        // đầu (z hơi sâu hơn x)
+      if (rx > 0.012) rings.push([ry, rx, rx * 1.05, 0]);        // 0 = đầu (z hơi sâu hơn x)
     }
     for (ry = FIG.neckY[0]; ry <= FIG.neckY[1]; ry += 0.014) {
-      rings.push([ry, FIG.neckR, FIG.neckR * 1.1, 0]);           // cổ
+      // Cổ lõm: mảnh ngay dưới cằm, loe dần ra chỗ gặp vai - không phải ống thẳng.
+      var nt = (ry - FIG.neckY[0]) / (FIG.neckY[1] - FIG.neckY[0]);
+      var nr = FIG.neckR * (1.30 - 0.30 * nt);
+      rings.push([ry, nr, nr * 1.1, 1]);                         // 1 = cổ
     }
     for (ry = FIG.torsoY[0]; ry <= FIG.torsoY[1]; ry += 0.013) {
       rx = torsoRx(ry);
-      rings.push([ry, rx, 0.10 + rx * 0.28, 0]);                 // thân/vai (z ~0.28x)
+      rings.push([ry, rx, 0.10 + rx * 0.28, 2]);                 // 2 = thân/vai (z ~0.28x)
     }
     // Chia hạt theo chu vi vành (vành rộng nhận nhiều hạt hơn).
     var circ = rings.map(function (rg) { return Math.PI * (rg[1] + rg[2]); });
@@ -136,30 +139,39 @@
       var rg = rings[ri], cnt = Math.min(cnts[ri], nBody - i);
       for (var pj = 0; pj < cnt; pj++, i++) {
         var a = (pj / cnt) * Math.PI * 2 + rand() * 0.12;        // đều quanh vành + rung nhẹ
-        pos[i * 3] = Math.cos(a) * rg[1] + (rand() - 0.5) * 0.006;
-        pos[i * 3 + 1] = rg[0] + (rand() - 0.5) * 0.005;
-        pos[i * 3 + 2] = Math.sin(a) * rg[2] + (rand() - 0.5) * 0.006;
+        // Vành gợn sóng (nét đặc trưng bản mẫu): bán kính đập theo góc + cao độ
+        // dao động nhẹ - đường nhìn "sống" chứ không phải elip trơn.
+        var wob = 1 + 0.045 * Math.sin(a * 3 + ri * 1.7);
+        var px = Math.cos(a) * rg[1] * wob;
+        pos[i * 3] = px + (rand() - 0.5) * 0.006;
+        pos[i * 3 + 1] = rg[0] + (rand() - 0.5) * 0.005 + 0.004 * Math.sin(a * 5 + ri * 0.9);
+        pos[i * 3 + 2] = Math.sin(a) * rg[2] * wob + (rand() - 0.5) * 0.006;
+        // Gờ tai: hai điểm cực biên x của vành đầu nhô nhẹ ra.
+        if (rg[3] === 0 && rg[0] > 0.36 && rg[0] < 0.53 && Math.abs(Math.cos(a)) > 0.88) {
+          pos[i * 3] = px * 1.07;
+        }
       }
     }
     while (i < nBody) { i++; pos[(i - 1) * 3 + 1] = 0.4; }       // an toàn: phần dư chụm vào cổ
 
     // Lõi vàng (kind=1) = não + sống lưng + nốt ngực, như "hệ thần kinh" phát
     // sáng chạy xuyên pho tượng - nét nhận diện chính trong ảnh mẫu.
-    var nBrain = Math.round(nCore * 0.45), nSpine = Math.round(nCore * 0.30),
+    var nBrain = Math.round(nCore * 0.50), nSpine = Math.round(nCore * 0.28),
         nChestN = nCore - nBrain - nSpine;
-    for (i = nBody; i < nBody + nBrain; i++) {                    // não: cụm trong đầu
+    for (i = nBody; i < nBody + nBrain; i++) {                    // não: phủ vùng mặt, lệch trước
       var u2 = rand() * 2 - 1, t2 = rand() * Math.PI * 2, rr2 = Math.sqrt(1 - u2 * u2);
       r = Math.cbrt(rand());
-      pos[i * 3] = FIG.brain[0] + rr2 * Math.cos(t2) * 0.055 * r;
-      pos[i * 3 + 1] = FIG.brain[1] + u2 * 0.08 * r;
-      pos[i * 3 + 2] = FIG.brain[2] + rr2 * Math.sin(t2) * 0.05 * r;
+      pos[i * 3] = FIG.brain[0] + rr2 * Math.cos(t2) * 0.075 * r;
+      pos[i * 3 + 1] = FIG.brain[1] + u2 * 0.10 * r;
+      pos[i * 3 + 2] = FIG.brain[2] + 0.02 + rr2 * Math.sin(t2) * 0.055 * r;
       kind[i] = 1;
     }
-    for (i = nBody + nBrain; i < nBody + nBrain + nSpine; i++) {  // sống lưng xoắn nhẹ
-      var sy = lerp(-0.05, 0.42, rand());
-      pos[i * 3] = Math.sin(sy * 9) * 0.016 + (rand() - 0.5) * 0.006;
+    for (i = nBody + nBrain; i < nBody + nBrain + nSpine; i++) {  // sống lưng: 3 sợi tết lệch pha
+      var sy = lerp(-0.08, 0.42, rand());
+      var ph2 = ((i - nBody - nBrain) % 3) * 2.094;
+      pos[i * 3] = Math.sin(sy * 9 + ph2) * 0.018 + (rand() - 0.5) * 0.006;
       pos[i * 3 + 1] = sy;
-      pos[i * 3 + 2] = 0.01 + Math.cos(sy * 9) * 0.016 + (rand() - 0.5) * 0.006;
+      pos[i * 3 + 2] = 0.01 + Math.cos(sy * 9 + ph2) * 0.018 + (rand() - 0.5) * 0.006;
       kind[i] = 1;
     }
     for (i = nBody + nBrain + nSpine; i < nBody + nCore; i++) {   // nốt ngực sáng
