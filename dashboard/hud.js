@@ -1052,7 +1052,10 @@
     var stage = view.querySelector("#planetStage");
     if (!stage) return;
     try {
-      humanoid = window.JoyceHumanoid.create({});
+      humanoid = window.JoyceHumanoid.create({
+        // Nút EXIT của lớp nhìn Apex quay về chế độ Lõi nước.
+        onExit: function () { setHumanoid(false); },
+      });
       humanoid.mount(stage);
     } catch (e) {
       try { console.warn("[hud] humanoid không dựng được:", e); } catch (_) {}

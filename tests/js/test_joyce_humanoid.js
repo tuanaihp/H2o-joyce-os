@@ -1,13 +1,16 @@
 // 3D Joyce (joyce-humanoid.js): pho tượng hạt thay lớp nhìn "3D View".
 // Chạy: node tests/js/test_joyce_humanoid.js
 //
-// Kiểm hai tầng:
+// Kiểm ba tầng:
 //   1) Hình người tham số hoá (sampleFigure - hàm thuần, không cần GL): đủ hạt,
 //      đúng bố cục đầu/cổ/vai, lõi vàng cam kind=1 trong đầu, bụi mờ kind=2.
 //   2) API vòng đời (create/mount/setJoyceState/setAudioAmplitude/activate) với
 //      DOM giả - canvas getContext trả null (máy không có WebGL2) phải chịu được:
 //      dataset.quality="nogl", không ném, activate/pause/destroy vẫn gọi được.
-//   3) Nối dây bằng source (khuôn test_mat_trang): tab đổi tên 3D Joyce, script
+//   3) Đường render APEX (apex-humanoid.js, global JoyceHumanoidApex): renderer
+//      tham chiếu được ưu tiên khi có sẵn; ctor nổ / assets fail -> rơi về
+//      procedural; setJoyceState map sang plate-state, setAudioAmplitude -> setLevel.
+//   4) Nối dây bằng source (khuôn test_mat_trang): tab đổi tên 3D Joyce, script
 //      nạp, brain-v2 gọi setHumanoid, hud feed trạng thái, i18n nhãn mới.
 const fs = require("fs");
 const path = require("path");
@@ -110,6 +113,12 @@ check("THINKING xoáy vòng (swirl>0)", H.STATE_CFG.THINKING.swirl > 0);
 check("ERROR có tông đỏ (err=1)", H.STATE_CFG.ERROR.err === 1);
 check("INTERRUPTING mờ đi (dim<1)", H.STATE_CFG.INTERRUPTING.dim < 1);
 
+// ---------- 4b) mapState sang plate-state của APEX ----------
+check("mapState tồn tại", typeof H.mapState === "function");
+check("mapState: LISTENING->listening, SPEAKING->speaking, THINKING->thinking", H.mapState("LISTENING") === "listening" && H.mapState("speaking") === "speaking" && H.mapState("THINKING") === "thinking");
+check("mapState: READY/CONNECTING->idle, ERROR->error, INTERRUPTING->interrupting", H.mapState("READY") === "idle" && H.mapState("CONNECTING") === "idle" && H.mapState("ERROR") === "error" && H.mapState("INTERRUPTING") === "interrupting");
+check("mapState: trạng thái lạ -> idle", H.mapState("BOGUS") === "idle" && H.mapState() === "idle");
+
 // ---------- 4) Profiles ----------
 check("4 hồ sơ chất lượng", Object.keys(H.PROFILES).sort().join(",") === "balanced,high,reduced,safe");
 check("high nhiều hạt hơn safe", H.PROFILES.high.body > H.PROFILES.safe.body);
@@ -120,8 +129,10 @@ const host = el();
 const R = H.create({});
 check("create trả instance đủ API", ["mount","resize","setJoyceState","setAudioAmplitude","setInCall","pause","resume","activate","destroy","info","setQuality","isActive"].every((k) => typeof R[k] === "function"));
 R.mount(host);
-check("mount gắn canvas + nhãn trạng thái vào stage", host.children.length === 2 && host.children[0].className === "humanoid-gl" && host.children[1].className === "hum-status");
+check("mount gắn lớp bọc .hum-layer vào stage", host.children.length === 1 && host.children[0].className === "hum-layer");
+check("layer chứa canvas + nhãn trạng thái (fallback procedural)", host.children[0].children.length === 2 && host.children[0].children[0].className === "humanoid-gl" && host.children[0].children[1].className === "hum-status");
 check("không WebGL2 -> dataset.quality=\"nogl\", không ném", host.dataset.quality === "nogl");
+check("không có JoyceHumanoidApex -> mode procedural", host.dataset.mode === "procedural" && R.info().mode === "procedural");
 check("info().gl=false khi không có GL", R.info().gl === false);
 
 R.setJoyceState("listening");
@@ -142,6 +153,66 @@ R.activate(false);
 check("deactivate tắt lớp nhìn", !R.isActive() && !H.isActive());
 R.activate(true); R.pause(); R.resume(); R.destroy();
 check("pause/resume/destroy không ném khi không GL", true);
+
+// ---------- 5b) Đường render APEX (JoyceHumanoidApex stub) ----------
+// Renderer APEX được ưu tiên khi global JoyceHumanoidApex có mặt: mount dựng
+// instance trong .hum-layer, activate->enter, deactivate->pause, state/level
+// được chuyển tiếp; destroy->dispose. Các đường hỏng phải rơi về procedural.
+(async function apexSection() {
+  const tick = () => new Promise((r) => setImmediate(r));
+  function fakeApex(behavior) {
+    const calls = { opts: null, enter: 0, pause: 0, resume: 0, dispose: 0, states: [], levels: [] };
+    global.window.JoyceHumanoidApex = function (hostEl, opts) {
+      calls.opts = opts;
+      const self = this;
+      self.loaded = false;
+      self.root = el(); hostEl.appendChild(self.root);
+      self.ready = Promise.resolve().then(() => { self.loaded = behavior !== "fail"; });
+      ["enter", "pause", "resume", "dispose"].forEach((m) => { self[m] = () => { calls[m]++; }; });
+      self.setState = (s) => { calls.states.push(s); };
+      self.setLevel = (v) => { calls.levels.push(v); };
+    };
+    return calls;
+  }
+  // a) APEX khoẻ -> mode apex, state/level/enter/pause/dispose chuyển tiếp đúng.
+  let calls = fakeApex("ok");
+  const hostA = el(), RA = H.create({});
+  RA.activate(true);                 // chọn tab trước khi mount (want persist)
+  RA.mount(hostA);
+  check("apex: mount dựng .hum-layer chứa root .jh của Apex", hostA.children.length === 1 && hostA.children[0].className === "hum-layer" && hostA.children[0].children.length === 1);
+  check("apex: options assetsBase/controls/demo/autoStart đúng hợp đồng", calls.opts && calls.opts.assetsBase === "/static/humanoid/" && calls.opts.controls === false && calls.opts.demo === false && calls.opts.autoStart === false);
+  await tick(); await tick();
+  check("apex: mode=\"apex\" sau khi ready+loaded", hostA.dataset.mode === "apex" && RA.info().mode === "apex");
+  check("apex: activate trước load -> enter() được gọi khi ready", calls.enter === 1);
+  RA.setJoyceState("SPEAKING"); RA.setAudioAmplitude(0.7);
+  check("apex: setJoyceState -> setState(plate), setAudioAmplitude -> setLevel", calls.states.indexOf("speaking") >= 0 && calls.levels.indexOf(0.7) >= 0);
+  RA.activate(false);
+  check("apex: deactivate -> pause()", calls.pause === 1);
+  RA.activate(true);
+  check("apex: re-activate -> enter() lại (replay lắp ráp)", calls.enter === 2);
+  RA.destroy();
+  check("apex: destroy -> dispose()", calls.dispose === 1);
+
+  // b) Ctor nổ -> rơi về procedural ngay trong mount.
+  global.window.JoyceHumanoidApex = function () { throw new Error("no apex"); };
+  const hostB = el(), RB = H.create({});
+  RB.mount(hostB);
+  check("apex ctor nổ -> fallback procedural (canvas trong layer)", hostB.dataset.mode === "procedural" && hostB.children[0].children[0].className === "humanoid-gl");
+  RB.destroy();
+
+  // c) Assets hỏng (ready nhưng loaded=false) -> dọn apex rồi fallback.
+  calls = fakeApex("fail");
+  const hostC = el(), RC = H.create({});
+  RC.mount(hostC);
+  await tick(); await tick();
+  check("apex assets fail -> dispose + fallback procedural", calls.dispose === 1 && hostC.dataset.mode === "procedural" && RC.info().mode === "procedural");
+  RC.activate(true);
+  check("fallback procedural vẫn activate được", RC.isActive() === true);
+  RC.destroy();
+
+  delete global.window.JoyceHumanoidApex;
+  finish();
+})().catch((e) => { console.log("FAIL apex section thả ngoại lệ: " + (e && e.message)); fails.push("apex section"); finish(); });
 
 // ---------- 6) Nối dây dashboard (source checks, khuôn test_mat_trang) ----------
 const IDX = fs.readFileSync(path.join(__dirname, "../../dashboard/index.html"), "utf8");
@@ -165,6 +236,32 @@ check("hud.js: nhớ lựa chọn qua localStorage", /joyce\.hudHumanoid/.test(H
 check("i18n vi/en: bview.hd = \"3D Joyce\"", VI["bview.hd"] === "3D Joyce" && EN["bview.hd"] === "3D Joyce");
 check("css: lớp humanoid-gl + hum-status + humanoid-on dim tinh cầu", /\.humanoid-gl/.test(CSS) && /\.hum-status/.test(CSS) && /humanoid-on \.planet-gl/.test(CSS));
 
-console.log();
-if (fails.length) { console.log(fails.length + " FAIL: " + fails.join(", ")); process.exit(1); }
-console.log("TẤT CẢ PASS");
+// ---------- 7) Tích hợp APEX trên đĩa (source checks) ----------
+const APEX = fs.readFileSync(path.join(__dirname, "../../dashboard/apex-humanoid.js"), "utf8");
+const HCSS = fs.readFileSync(path.join(__dirname, "../../dashboard/humanoid.css"), "utf8");
+const GI = fs.readFileSync(path.join(__dirname, "../../.gitignore"), "utf8");
+check("index.html: nạp apex-humanoid.js trước joyce-humanoid.js", IDX.indexOf("/static/apex-humanoid.js") > 0 && IDX.indexOf("/static/apex-humanoid.js") < IDX.indexOf("/static/joyce-humanoid.js"));
+check("index.html: link humanoid.css", /\/static\/humanoid\.css/.test(IDX));
+check("apex-humanoid.js: export global JoyceHumanoidApex", /global\.JoyceHumanoidApex\s*=/.test(APEX));
+check("apex-humanoid.js: KHÔNG đè global JoyceHumanoid", !/global\.JoyceHumanoid\s*=/.test(APEX));
+check("apex-humanoid.js: assetsBase mặc định ./assets/ (wrapper ghi đè /static/humanoid/)", /assetsBase\|\|'\.\/assets\/'/.test(APEX));
+check("apex-humanoid.js: class JoyceHumanoid có API enter/setState/setLevel/pause/resume/dispose", ["enter", "setState", "setLevel", "pause", "resume", "dispose"].every((m) => new RegExp("\\n\\s{4}" + m + "\\(").test(APEX)));
+check("humanoid.css: đã gỡ rule demo-host html,body + #joyce-humanoid", !/html,body\{/.test(HCSS) && !/#joyce-humanoid\{/.test(HCSS));
+check("humanoid.css: giữ scoped .jh", /\.jh\{/.test(HCSS));
+check("style.css: có rule .hum-layer", /\.hum-layer/.test(CSS));
+check(".gitignore chặn dashboard/humanoid/ (artwork license chưa xác minh)", /^dashboard\/humanoid\//m.test(GI));
+const ADIR = path.join(__dirname, "../../dashboard/humanoid");
+if (fs.existsSync(ADIR)) {
+  const need = ["apex-idle-v1.webp", "apex-listening-v1.webp", "apex-thinking-v1.webp", "apex-speaking-v1.webp", "apex-speaking-strong-v1.webp", "backdrop-v1.webp", "apex-assembly-25-v1.webp", "apex-assembly-60-v1.webp"];
+  let wOK = true;
+  for (const f of need) { const p = path.join(ADIR, f); if (!fs.existsSync(p)) { wOK = false; break; } const b = fs.readFileSync(p); if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WEBP") wOK = false; }
+  check("assets APEX đủ 8 plate WebP hợp lệ trong dashboard/humanoid/", wOK);
+} else {
+  console.log("info  dashboard/humanoid/ vắng trên máy này -> renderer sẽ tự rơi về procedural (đúng thiết kế)");
+}
+
+function finish() {
+  console.log();
+  if (fails.length) { console.log(fails.length + " FAIL: " + fails.join(", ")); process.exit(1); }
+  console.log("TẤT CẢ PASS");
+}

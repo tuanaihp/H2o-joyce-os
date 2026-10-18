@@ -3970,10 +3970,12 @@ body.ne-full-on .cview { z-index: 250; }
 .hud-center.hud-on.brain-overlays-hidden.hud-peek-b .fv-ctl { opacity: 1; pointer-events: auto; }
 .planet-hd canvas:first-child { filter: contrast(1.08) saturate(1.15); }
 .planet-hd { --planet-glow: drop-shadow(0 0 30px rgba(80,180,255,.25)); }
-/* 3D Joyce (joyce-humanoid.js): pho tượng ~16 nghìn hạt phát sáng phủ lên khoang.
-   Canvas trong suốt nên tinh cầu bên dưới (đang pause) làm phông sao mờ - khi bật
-   lớp humanoid-on thì tinh cầu hạ mờ để pho tượng nổi bật. Click xuyên qua
-   (pointer-events none) nên vệ tinh / sao tri thức của tinh cầu vẫn bấm được. */
+/* 3D Joyce (joyce-humanoid.js): lớp bọc .hum-layer chứa renderer đang dùng -
+   APEX (apex-humanoid.js, DOM .jh bên trong) hoặc fallback procedural
+   (canvas .humanoid-gl + .hum-status). Khi bật lớp humanoid-on thì tinh cầu
+   hạ mờ để pho tượng nổi bật. Layer bắt pointer events để nút EXIT / cử chỉ
+   / ripple của APEX dùng được; fallback giữ pointer-events:none như cũ. */
+#planetStage .hum-layer { position: absolute; inset: 0; z-index: 1; }
 #planetStage .humanoid-gl { position: absolute; left: 0; top: 0; display: block; pointer-events: none; z-index: 1; }
 #planetStage .hum-status {
   position: absolute; left: 16px; bottom: 14px; z-index: 1; pointer-events: none;

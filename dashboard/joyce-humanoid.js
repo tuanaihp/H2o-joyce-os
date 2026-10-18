@@ -1,9 +1,13 @@
 // ============================================
 // JOYCE HUMANOID - lớp nhìn "3D Joyce" trong khoang não (thay "3D View").
 //
-// Pho tượng bán thân người dựng từ ~16 nghìn hạt phát sáng (WebGL2 point sprites,
-// không thư viện ngoài - đúng chuẩn brain-planet.js): đầu elip + cổ trụ + vai
-// bán cầu dẹt, lõi "não" màu vàng cam giữa đầu, thêm bụi mờ quanh thân.
+// Hai đường render, cùng một API vòng đời (mount/activate/setJoyceState/
+// setAudioAmplitude/pause/resume/destroy):
+//   1) APEX (apex-humanoid.js -> global JoyceHumanoidApex): renderer tham chiếu
+//      plates WebP + trường hạt, mount khi class có mặt VÀ assets nạp được.
+//   2) Procedural (file này, fallback): pho tượng bán thân ~16 nghìn hạt WebGL2
+//      point sprites tham số hoá - đầu/cổ/vai contour, lõi "não" vàng cam,
+//      sống lưng tết + nốt ngực. Dùng khi thiếu apex file/assets/WebGL.
 //
 // Phản ứng theo trạng thái THẬT của Joyce (hud.js feedPlanet đẩy vào):
 //   READY        thở nhẹ, lơ lửng
@@ -275,9 +279,24 @@
     return "high";
   }
 
+  // Bản đồ trạng thái Joyce -> trạng thái plate của renderer APEX
+  // (apex-humanoid.js): idle/listening/thinking/speaking là plate riêng;
+  // interrupting/reconnecting/error hiện đúng nhãn nhưng dùng plate idle.
+  var APEX_STATES = { READY: "idle", CONNECTING: "idle", LISTENING: "listening",
+                      THINKING: "thinking", SPEAKING: "speaking",
+                      INTERRUPTING: "interrupting", RECONNECTING: "reconnecting",
+                      ERROR: "error" };
+  function mapState(s) {
+    s = String(s || "READY").toUpperCase();
+    return APEX_STATES[s] || "idle";
+  }
+
   function create(opts) {
     opts = opts || {};
-    var host = null, cv = null, st = null, gl = null, prog = null, vao = null;
+    var host = null, layer = null, cv = null, st = null, gl = null, prog = null, vao = null;
+    // mode: null chưa dựng | "apex" renderer tham chiếu (apex-humanoid.js) |
+    // "procedural" pho tượng hạt tham số hoá (fallback khi thiếu assets/WebGL).
+    var apex = null, mode = null;
     var bufs = null, uni = {}, fig = null;
     var destroyed = false, paused = true, running = false, raf = 0, mounted = false;
     var active = false;                 // tab "3D Joyce" đang được chọn hay không
@@ -425,9 +444,13 @@
       st.dataset.st = state.toLowerCase();
     }
 
-    var R = {};
-    R.mount = function (el) {
-      host = el; mounted = true;
+    // ---------- Đường render ----------
+    // Renderer chính = APEX (texture plates tham chiếu + hạt 2D). Nếu
+    // apex-humanoid.js không nạp được, ctor nổ, hoặc assets hỏng/thiếu ->
+    // tự động rơi về renderer procedural (hạt tham số hoá) bên dưới.
+    function startProcedural() {
+      mode = "procedural";
+      if (host && host.dataset) { host.dataset.mode = "procedural"; host.dataset.quality = profile; }
       cv = document.createElement("canvas");
       cv.className = "humanoid-gl"; cv.setAttribute("aria-hidden", "true");
       // Ẩn bằng style.display, KHÔNG bằng thuộc tính hidden: CSS ".planet-stage >
@@ -437,31 +460,49 @@
       st = document.createElement("div");
       st.className = "hum-status"; st.setAttribute("aria-hidden", "true");
       st.style.display = "none";
-      host.appendChild(cv); host.appendChild(st);
-      if (host.dataset) host.dataset.quality = profile;
+      layer.appendChild(cv); layer.appendChild(st);
       initGL(); resize(); syncStatus();
-      if (window.ResizeObserver) { ro = new ResizeObserver(resize); ro.observe(host); }
-      else on(window, "resize", resize);
-    };
-    R.resize = resize;
-    R.setJoyceState = function (s) {
-      s = normState(s);
-      if (s !== state) { state = s; stateAt = performance.now(); syncStatus(); }
-    };
-    R.setAudioAmplitude = function (v) { amp = clamp(+v || 0, 0, 1); };
-    R.setInCall = function (v) { inCall = !!v; };
-    R.pause = function () { paused = true; stopLoop(); };
-    R.resume = function () { paused = false; if (!document.hidden) startLoop(); resize(); };
-    R.isActive = function () { return active; };
-    // Bật/tắt lớp nhìn humanoid (tab "3D Joyce"). Bật lần đầu = tạo hình lại
-    // từ đầu (intro lắp ráp). Tắt = ẩn canvas + dừng vòng lặp để nhường GPU.
-    R.activate = function (on) {
-      on = !!on;
-      if (on === active) return;
-      active = on;
-      if (host) host.classList.toggle("humanoid-on", on);
+    }
+    function dropApex() {
+      if (apex) { try { apex.dispose(); } catch (e) {} apex = null; }
+      if (layer) { try { layer.textContent = ""; } catch (e) {} }
+      startProcedural();
+      if (active) applyActive(true);
+    }
+    function startApex() {
+      var Ctor = null;
+      try { Ctor = window.JoyceHumanoidApex; } catch (e) {}
+      if (!Ctor) return;
+      try {
+        apex = new Ctor(layer, {
+          assetsBase: opts.assetsBase || "/static/humanoid/",
+          autoStart: false,            // activate() điều khiển enter()
+          controls: false,             // giấu nav demo - mic/TTS thật của Joyce lái
+          demo: false,                 // không envelope giả khi speaking
+          maxDpr: profile === "high" ? 1.5 : profile === "balanced" ? 1.25 : 1,
+          fps: 40,
+          reducedMotion: profile === "reduced" || reduced,
+          onExit: function () { if (opts.onExit) opts.onExit(); },
+          onError: function () {},
+        });
+      } catch (e) { apex = null; return; }
+      Promise.resolve(apex.ready).then(function () {
+        if (destroyed || !apex) return;
+        if (!apex.loaded) { dropApex(); return; }   // assets/WebGL fail -> fallback
+        mode = "apex";
+        if (host && host.dataset) host.dataset.mode = "apex";
+        try { apex.setState(mapState(state)); apex.setLevel(amp); } catch (e) {}
+        if (active) { try { apex.enter(); } catch (e) {} }
+      }).catch(function () { if (!destroyed) dropApex(); });
+    }
+
+    // Bật/tắt hẳn phần hiển thị: lớp bọc .hum-layer giấu cả cây DOM của
+    // renderer đang dùng (apex .jh hoặc canvas+hud-status procedural).
+    function applyActive(on) {
+      if (layer) layer.style.display = on ? "" : "none";
+      if (apex && apex.loaded) { try { on ? apex.enter() : apex.pause(); } catch (e) {} }
       // "" = trả về display:block của stylesheet; "none" = giấu hẳn (xem lý do
-      // ở mount - [hidden] thua specificity nên không dùng được).
+      // ở startProcedural - [hidden] thua specificity nên không dùng được).
       if (cv) cv.style.display = on ? "" : "none";
       if (st) st.style.display = on ? "" : "none";
       if (on) {
@@ -469,6 +510,51 @@
         paused = false;
         if (!document.hidden) startLoop();
       } else stopLoop();
+    }
+
+    var R = {};
+    R.mount = function (el) {
+      if (mounted || !el) return;
+      host = el; mounted = true;
+      layer = document.createElement("div");
+      layer.className = "hum-layer";
+      layer.style.display = "none";
+      host.appendChild(layer);
+      startApex();
+      if (!apex) startProcedural();
+      if (window.ResizeObserver) { ro = new ResizeObserver(resize); ro.observe(host); }
+      else on(window, "resize", resize);
+    };
+    R.resize = resize;
+    R.setJoyceState = function (s) {
+      s = normState(s);
+      if (s !== state) {
+        state = s; stateAt = performance.now(); syncStatus();
+        if (apex && apex.loaded) { try { apex.setState(mapState(state)); } catch (e) {} }
+      }
+    };
+    R.setAudioAmplitude = function (v) {
+      amp = clamp(+v || 0, 0, 1);
+      if (apex && apex.loaded) { try { apex.setLevel(amp); } catch (e) {} }
+    };
+    R.setInCall = function (v) { inCall = !!v; };
+    R.pause = function () {
+      paused = true; stopLoop();
+      if (apex && apex.loaded) { try { apex.pause(); } catch (e) {} }
+    };
+    R.resume = function () {
+      paused = false; if (!document.hidden) startLoop(); resize();
+      if (apex && apex.loaded) { try { apex.resume(); } catch (e) {} }
+    };
+    R.isActive = function () { return active; };
+    // Bật/tắt lớp nhìn humanoid (tab "3D Joyce"). Bật lần đầu = tạo hình lại
+    // từ đầu (intro lắp ráp). Tắt = ẩn layer + dừng vòng lặp để nhường GPU.
+    R.activate = function (on) {
+      on = !!on;
+      if (on === active) return;
+      active = on;
+      if (host) host.classList.toggle("humanoid-on", on);
+      applyActive(on);
       try { window.dispatchEvent(new CustomEvent("joyce:humanoid-view", { detail: { on: on } })); } catch (_) {}
     };
     R.setQuality = function (p) {
@@ -481,13 +567,17 @@
     };
     R.destroy = function () {
       if (destroyed) return; destroyed = true; stopLoop();
+      if (apex) { try { apex.dispose(); } catch (e) {} apex = null; }
       listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) {} });
       listeners = []; if (ro) { try { ro.disconnect(); } catch (e) {} ro = null; }
       if (cv && cv.parentNode) cv.parentNode.removeChild(cv);
       if (st && st.parentNode) st.parentNode.removeChild(st);
+      if (layer && layer.parentNode) layer.parentNode.removeChild(layer);
+      host = layer = cv = st = null;
     };
     R.info = function () {
       return { state: state, active: active, profile: profile, points: fig ? fig.n : 0,
+               mode: mode || (apex ? "apex-loading" : "procedural"),
                reduced: reduced, inCall: inCall, gl: !!gl, amp: amp };
     };
     profile = pickProfile(null);
@@ -503,6 +593,8 @@
     STATE_CFG: STATE_CFG,
     PROFILES: PROFILES,
     STATES: STATES.slice(),
+    APEX_STATES: APEX_STATES,
+    mapState: mapState,
     isActive: function () { return this._inst ? this._inst.isActive() : false; },
     activate: function (on) { if (this._inst) this._inst.activate(on); },
     info: function () { return this._inst ? this._inst.info() : null; },

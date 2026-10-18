@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.13] - 2026-10-19
+### Thêm mới
+- **3D Joyce nâng cấp lên renderer tham chiếu APEX**: lớp nhìn giờ dùng bộ render lấy cảm hứng apex-humanoid (plates WebP + trường hạt 2.5D) do Astra chuẩn bị - hình người contour rỗng ruột, não vàng, sống lưng tết và địa hình năng lượng đúng hình mẫu, thay pho tượng tham số hoá trước đó. Cảnh lắp ráp, nút EXIT (quay về Lõi nước), ripple khi chạm vào pho tượng và sự chú ý theo con trỏ đi kèm sẵn.
+- Trạng thái và mức âm thật của Joyce vẫn lái hình: LISTENING/THINKING/SPEAKING đổi đúng plate, mức mic/loa khuấy lõi và vùng miệng; không tạo đường mic thứ hai.
+- **Dự phòng tự động**: thiếu renderer APEX, thiếu assets hoặc lỗi khởi tạo thì pho tượng hạt tham số hoá (bản 1.3.12) tự thay thế - lớp nhìn không bao giờ trống. Plates APEX nằm trong `dashboard/humanoid/` và đang được giữ local (license artwork chưa xác minh, không đẩy lên git).
+
 ## [1.3.12] - 2026-10-19
 ### Thêm mới
 - **Lớp nhìn "3D Joyce" thay "3D View"**: tab đầu của khoang não giờ hiện pho tượng bán thân dựng từ hơn 13 nghìn hạt phát sáng (WebGL2 thuần, không thư viện ngoài) thay cho chế độ tinh cầu siêu nét cũ. Pho tượng phản ứng theo trạng thái thật của Joyce: lơ lửng khi sẵn sàng, nghiêng tới trước khi lắng nghe, hạt quay vòng khi đang nghĩ, khuấy động theo mức âm khi nói, mờ đi khi bị ngắt, tông đỏ khi lỗi. Vùng miệng và lõi não vàng cam đập theo giọng nói.

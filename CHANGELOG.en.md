@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.13] - 2026-10-19
+### Added
+- **3D Joyce upgraded to the APEX reference renderer**: the view now runs the apex-humanoid-inspired renderer prepared by Astra (WebP plates + a 2.5D particle field) - a hollow contour figure with a golden brain, braided spine and energy terrain matching the reference, replacing the earlier parameterized figure. Assembly intro, an EXIT button (back to Water Core), touch ripples and pointer attention come built in.
+- Joyce's real state and audio still drive the figure: LISTENING/THINKING/SPEAKING switch the correct plate, mic/speaker level agitates the core and mouth band; no second mic pipeline is created.
+- **Automatic fallback**: if the APEX renderer, its assets, or its initialization fails, the parameterized particle figure (1.3.12) takes over so the view is never blank. The APEX plates live in `dashboard/humanoid/` and stay local for now (artwork license unverified, not pushed to git).
+
 ## [1.3.12] - 2026-10-19
 ### Added
 - **"3D Joyce" view replaces "3D View"**: the brain chamber's first tab now shows a particle humanoid bust built from over 13,000 glowing points (pure WebGL2, no external library) instead of the old high-definition planet mode. The figure reacts to Joyce's real state: drifting gently when ready, leaning in while listening, particles orbiting while thinking, agitating with audio level while speaking, dimming when interrupted, and a red tint on error. The mouth band and the golden brain core pulse with speech.

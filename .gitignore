@@ -231,3 +231,7 @@ server/memory_receipts.sqlite3*
 server/worktrees/
 server/news_read.json
 joyce-sheet/
+
+# Plates tham chiếu APEX cho lớp nhìn 3D Joyce - giữ local vì license artwork
+# chưa xác minh (xem tai-lieu-update-tu-openai/JOYCE_APEX_HUMANOID/ASSET_PROVENANCE.md).
+dashboard/humanoid/
