@@ -627,8 +627,12 @@
           controls: false,             // giấu nav demo - mic/TTS thật của Joyce lái
           demo: false,                 // không envelope giả khi speaking
           maxDpr: profile === "high" ? 1.5 : profile === "balanced" ? 1.25 : 1,
-          fps: 40,
-          reducedMotion: profile === "reduced" || reduced,
+          fps: profile === "high" || profile === "balanced" ? 40 : 24,
+          // Profile "reduced" chỉ hạ dpr/fps — KHÔNG được bỏ intro lắp ráp hay
+          // field hạt (đó là nét mặt của Joyce). Chỉ cờ prefers-reduced-motion
+          // của OS (accessibility) mới được tắt; để undefined thì apex tự đọc
+          // mediaQuery của chính nó + bắt được khi OS đổi giữa chừng.
+          reducedMotion: reduced || undefined,
           onExit: function () { if (opts.onExit) opts.onExit(); },
           onError: function () {},
           onGestureRequest: function () { toggleHands(); },
