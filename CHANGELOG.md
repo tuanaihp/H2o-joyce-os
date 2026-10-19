@@ -2,6 +2,14 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.23] - 2026-10-19
+### Thêm mới
+- **3D Joyce xuất hiện bằng hạt lượng tử**: mở tab 3D Joyce, các hạt phóng ra từ một đốm sáng dưới chân, xoắn thành dòng sao chổi rồi ghép thành hình người; ghép xong thì nhân vật quen thuộc hiện lên đúng chỗ đó. Giao diện sau đó giữ nguyên như cũ.
+- **3D Joyce giơ tay làm việc**: khi bạn giao một việc, nhân vật đưa hai tay hạt lên chạm vào các bảng hologram trước mặt, bảng hiện đúng tên việc đang làm (ví dụ "Tìm kiếm web: ...") và các dòng kết quả lần lượt hiện ra; lúc trả lời, tay hạ về trước ngực và nhịp theo giọng nói. Không có việc gì thì tay tan đi.
+
+### Sửa lỗi
+- Sửa các kiểm tra tự động đang đỏ (chữ gạch dài trong bản dịch, danh sách trang lệch, kiểm tra camera cũ).
+
 ## [1.3.22] - 2026-10-21
 ### Thêm mới
 - **Bảng HUẤN LUYỆN cử chỉ tay** (`gesture-trainer.mjs`, mở từ nút "🎓 DẠY" cạnh HAND CAM trong 3D Joyce hoặc thẻ "Cử chỉ tay" trong Cài đặt): dạy Joyce nhận diện theo đúng tay người dùng thay vì ngưỡng chung. Mỗi cử chỉ **quét 3 lần với nhịp khác nhau** - hệ thống lấy trung bình + độ lệch làm ngưỡng khoan dung riêng; 3 lần lệch nhau quá thì báo quét lại chứ không lưu bừa. Bảng này CÓ khung xem trước camera (luyện phải thấy tay), khác chế độ điều khiển vẫn chạy ẩn.
@@ -12,8 +20,7 @@
 - **Mở bảng luyện tạm ngừng cam điều khiển** (khỏi 2 worker đua CPU), đóng bảng thì mở lại nếu trước đó đang bật.
 
 ### Sửa lỗi
-- Joyce mở được trang **Phân việc não** khi được nhờ chuyển trang (trước đó bị chặn như trang lạ).
-- Chữ trên trang Phân việc não và bảng huấn luyện cử chỉ dùng dấu gạch nối thường, đúng quy ước giao diện.
+- Bản tiếng Đức của trang Phân việc não và bảng huấn luyện cử chỉ dùng dấu gạch nối thường, đúng quy ước giao diện.
 - Ảnh Docker: script khởi động container được đánh dấu chạy được, tránh lỗi "permission denied" khi bật container.
 
 ### Bảo mật

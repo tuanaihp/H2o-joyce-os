@@ -8748,12 +8748,85 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
 
 _ALBUM_IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"}
 
+# Nguồn "sale": Supabase của app H2O STUDIO Sale Album (styles -> albums -> photos,
+# ảnh trỏ thẳng R2). Key publishable nằm sẵn trong bundle public của trang đó —
+# RLS quyết định quyền đọc; env cho phép đổi khi chủ app xoay project mà không sửa code.
+_SALE_SUPA_URL = os.environ.get(
+    "H2O_SALE_SUPABASE_URL", "https://rlqrittjugurokbvtxlt.supabase.co").rstrip("/")
+_SALE_SUPA_KEY = os.environ.get(
+    "H2O_SALE_SUPABASE_KEY", "sb_publishable_xIpjDs2aSl8-ziw529EW5g_zF6mNfkT")
+_SALE_CACHE = {"ts": 0.0, "key": "", "data": None}   # cache join 5 phút
+
+
+async def _sale_album_images(style: str = ""):
+    """Đọc styles+albums+photos từ Supabase REST, join thành danh sách ảnh phẳng
+    (caption "Style · Album"). Ảnh trả URL R2 tuyệt đối — trình duyệt tải trực tiếp
+    từ Cloudflare, không qua Joyce server lẫn Vercel serverless."""
+    now = time.time()
+    ck = style or "*"
+    if (_SALE_CACHE["data"] is not None and _SALE_CACHE["key"] == ck
+            and now - _SALE_CACHE["ts"] < 300):
+        return _SALE_CACHE["data"], None
+    try:
+        import httpx
+        h = {"apikey": _SALE_SUPA_KEY, "Authorization": f"Bearer {_SALE_SUPA_KEY}"}
+        base = _SALE_SUPA_URL + "/rest/v1"
+        async with httpx.AsyncClient(timeout=12) as c:
+            st, al, ph = await asyncio.gather(
+                c.get(base + "/styles", headers=h, params={
+                    "select": "id,title,order", "deleted": "eq.false", "order": "order"}),
+                c.get(base + "/albums", headers=h, params={
+                    "select": "id,title,style_id,order", "deleted": "eq.false", "order": "order"}),
+                c.get(base + "/photos", headers=h, params={
+                    "select": "id,image,alt,order,album_id,style_id", "deleted": "eq.false",
+                    "order": "order", "limit": "400",
+                    **({"style_id": f"eq.{style}"} if style else {})}))
+        st.raise_for_status(); al.raise_for_status(); ph.raise_for_status()
+        styles_by_id = {s["id"]: s.get("title") or s["id"] for s in st.json() or []}
+        albums_by_id = {a["id"]: a for a in al.json() or []}
+        s_ord = {s["id"]: s.get("order", 9999) for s in st.json() or []}
+        a_ord = {a["id"]: a.get("order", 9999) for a in al.json() or []}
+        imgs = []
+        for p in ph.json() or []:
+            u = str(p.get("image") or "")
+            if not u.startswith("http"):
+                continue
+            alb = albums_by_id.get(p.get("album_id")) or {}
+            sid = p.get("style_id") or alb.get("style_id") or ""
+            st_title = styles_by_id.get(sid, "")
+            name = " · ".join(x for x in (st_title, str(alb.get("title") or "")) if x) \
+                or str(p.get("alt") or "photo")
+            imgs.append({"name": name, "url": u, "alt": str(p.get("alt") or ""),
+                         "style": sid, "album": p.get("album_id") or "",
+                         "_so": s_ord.get(sid, 9999), "_ao": a_ord.get(p.get("album_id"), 9999),
+                         "_po": p.get("order", 0)})
+        # Xếp theo trình tự trình diễn của app: style -> album -> order trong album.
+        imgs.sort(key=lambda x: (x["_so"], x["_ao"], x["_po"], x["name"]))
+        for x in imgs:
+            del x["_so"], x["_ao"], x["_po"]
+        _SALE_CACHE.update(ts=now, key=ck, data=imgs)
+        return imgs, None
+    except Exception as e:
+        return None, str(e).split("\n")[0][:160]
+
 
 @app.get("/album")
-def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh")):
-    """Album trình chiếu của lớp nhìn 3D Joyce (mở bằng cử chỉ vuốt tay): quét đệ quy
-    attachments/ rồi sources/ của brain (mặc định Sales Hinh Anh), trả ảnh theo path
-    tương đối gốc brain để mở qua /files/raw. Trần 400 ảnh, mới trước cũ sau."""
+async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh"),
+                     source: str = Query("local"), style: str = Query("")):
+    """Album trình chiếu của lớp nhìn 3D Joyce (mở bằng cử chỉ vuốt tay).
+    source=local (mặc định): quét đệ quy attachments/ rồi sources/ của brain, trả
+    path tương đối gốc brain để mở qua /files/raw. Trần 400 ảnh, mới trước cũ sau.
+    source=sale: kho ảnh H2O Sale Album trên Supabase (tùy chọn lọc style=<id>)."""
+    if source == "sale":
+        imgs, err = await _sale_album_images(style.strip())
+        if err:
+            return {"source": "sale", "images": [], "error": "sale_unreachable", "detail": err}
+        return {"source": "sale", "images": imgs[:400]}
+    # rglob + stat() đồng bộ trên cả cây ảnh: chạy ở luồng phụ để không chặn event loop.
+    return await asyncio.to_thread(_album_local_scan, brain)
+
+
+def _album_local_scan(brain: str):
     try:
         broot = Path(_brain_root(brain)).resolve()
     except Exception:

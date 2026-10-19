@@ -1164,6 +1164,10 @@ function handleMessage(data) {
   // sendMessage nuốt lặng mọi tin sau đó, và vòng giữ mic không mở lại vì tưởng đang xử lý -
   // khung chat chết cứng ở "đang suy nghĩ" ngay sau khi một việc nền báo xong. Chủ dự án gặp
   // 15/09: "sau khi có đoạn chạy nền thì không nói nữa luôn, không nhắn tiếp vào khung chat".
+  // Sự kiện cho đôi tay hạt của 3D Joyce (joyce-gestures.js). Chỉ là tín hiệu giao diện, không tốn gì.
+  function avatarAct(kind, label) {
+    try { window.dispatchEvent(new CustomEvent("joyce:avatar-act", { detail: { kind: kind, label: label || "" } })); } catch (e) {}
+  }
   const KHUNG_LUOT = ["status", "tool_call", "tool_result", "stream", "response", "error", "turn_done"];
   // Tia tri thức (docs/dev/2026-10-tia-tri-thuc-khi-hoi.md): báo nhịp của lượt cho tinh cầu.
   const veTriThuc = (pha, them) => {
@@ -1300,8 +1304,10 @@ function handleMessage(data) {
       // ("Chay lenh: git status") thay cho "Dang goi: Bash" (0.64.44).
       const _nhan = window.JoyceSteps ? window.JoyceSteps.nhanDong(data) : (data.content || "");
       showActivity(escapeHtml(_nhan));
+      avatarAct("tool", _nhan);   // 3D Joyce: tay bấm bảng hologram, bảng hiện đúng việc này
     }
   } else if (data.type === "tool_result") {
+    if (isActive) avatarAct("result");
     if (t && window.JoyceSteps) t.buoc = window.JoyceSteps.nhan(t.buoc, data);
     if (isActive) { veKhoiBuoc(t, true); showActivity(Icons.msg("check", window.t("app.act_analyzing"), { cls: "ic-ok" })); }
   } else if (data.type === "stream") {
@@ -1309,6 +1315,7 @@ function handleMessage(data) {
     t.text += (data.content || "");
     if (isActive) {
       petReact("viet");   // chữ trả lời đang chảy về: linh vật chuyển từ nghĩ sang cắm cúi viết
+      avatarAct("answer");
       if (!t.triThucTraLoi) { t.triThucTraLoi = true; veTriThuc("answer"); }
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
       t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
@@ -1440,6 +1447,7 @@ function handleMessage(data) {
   } else if (data.type === "system") {
     if (isActive) appendJoyceMessage(data.content);
   } else if (data.type === "turn_done") {
+    if (isActive) avatarAct("done");
     // Lượt của phiên này kết thúc (xong / lỗi / bị dừng): bỏ cờ chạy, dọn buffer, refresh Lịch sử.
     // turn_done của lượt ĐÃ DỪNG mà về sau khi lượt mới đã gửi (câu nói chen ngang, lưới thời
     // gian nổ trước) thì chỉ là tiếng vọng: bỏ qua, không xoá trạng thái lượt mới đang chạy.

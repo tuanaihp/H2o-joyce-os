@@ -246,16 +246,9 @@ check("apex-humanoid.js: export global JoyceHumanoidApex", /global\.JoyceHumanoi
 check("apex-humanoid.js: KHÔNG đè global JoyceHumanoid", !/global\.JoyceHumanoid\s*=/.test(APEX));
 check("apex-humanoid.js: assetsBase mặc định ./assets/ (wrapper ghi đè /static/humanoid/)", /assetsBase\|\|'\.\/assets\/'/.test(APEX));
 check("apex-humanoid.js: class JoyceHumanoid có API enter/setState/setLevel/pause/resume/dispose", ["enter", "setState", "setLevel", "pause", "resume", "dispose"].every((m) => new RegExp("\\n\\s{4}" + m + "\\(").test(APEX)));
-// Hand-tracking camera (MediaPipe, tại máy): nút gesture -> toggleHands,
-// detectHands đọc landmarks, pause/exit/dispose giải phóng camera.
-check("apex-humanoid.js: có toggleHands + detectHands + stopHands", /async toggleHands\(/.test(APEX) && /detectHands\(\)\{/.test(APEX) && /stopHands\(\)\{/.test(APEX));
-check("apex-humanoid.js: gesture action -> toggleHands", /a==='gesture'\)\{this\.toggleHands\(\)/.test(APEX));
-check("apex-humanoid.js: pause/exit/dispose giải phóng camera", /pause\(\)\{[^}]*stopHands\(\)/.test(APEX) && /exit\(\)\{[^}]*stopHands\(\)/.test(APEX) && /dispose\(\)\{[^}]*stopHands\(\)/.test(APEX));
-check("apex-humanoid.js: resume/enter tự mở lại camera khi handsWanted", /resume\(\)\{[^}]*handsWanted[^}]*toggleHands\(\)/.test(APEX) && /enter\(\)\{[^}]*handsWanted[^}]*toggleHands\(\)/.test(APEX));
-check("apex-humanoid.js: nạp vision_bundle.mjs + hand_landmarker.task từ assetsBase", /vision_bundle\.mjs/.test(APEX) && /hand_landmarker\.task/.test(APEX));
-check("apex-humanoid.js: open palm -> quiet giảm level", /hands&&this\.hands\.quiet\)target\*=\.3/.test(APEX));
+// Camera tay đã chuyển sang bộ joyce-hands/ (Worker, xem test_joyce_hands.js): avatar chỉ giữ nút mở.
+check("apex-humanoid.js: camera tay nằm ở joyce-hands/, avatar chỉ gọi onGestureRequest", !/toggleHands|detectForVideo|jh-cam/.test(APEX) && /onGestureRequest/.test(APEX));
 check("apex-humanoid.js: parallax tilt theo attention trong shader", /q\.y-\.5\)\*attention\.x\*/.test(APEX));
-check("apex-humanoid.js: có video preview .jh-cam", /class="jh-cam"/.test(APEX));
 // Quay đầu giả-3D: yaw uniform, nén ngang foreshorten, vùng mặt trượt hơn viền.
 check("apex-humanoid.js: yaw uniform + foreshorten ngang trong shader", /uniform float yaw/.test(APEX) && /cos\(turn\*\.42\)/.test(APEX));
 check("apex-humanoid.js: vùng mặt trượt nhiều hơn viền khi quay", /\.012\+\.038\*inner/.test(APEX));
@@ -278,6 +271,28 @@ if (fs.existsSync(ADIR)) {
 } else {
   console.log("info  dashboard/humanoid/ vắng trên máy này -> renderer sẽ tự rơi về procedural (đúng thiết kế)");
 }
+
+// ---------- 8) Cảnh mở đầu: hạt lượng tử ghép thành hình (1.3.23) ----------
+const QSRC = fs.readFileSync(path.join(__dirname, '../../dashboard/joyce-quantum.js'), 'utf8');
+const Q = require(path.join(__dirname, '../../dashboard/joyce-quantum.js'));
+const WRAP = fs.readFileSync(path.join(__dirname, '../../dashboard/joyce-humanoid.js'), 'utf8');
+check('index.html: nạp joyce-quantum.js giữa apex-humanoid.js và joyce-humanoid.js', IDX.indexOf('/static/apex-humanoid.js') < IDX.indexOf('/static/joyce-quantum.js') && IDX.indexOf('/static/joyce-quantum.js') < IDX.indexOf('/static/joyce-humanoid.js'));
+check('quantum: có chế độ introOnly (nền trong suốt, không nút, bỏ núi)', QSRC.includes('options.introOnly === true') && QSRC.includes('this.intro ? 0.0 : 1.0') && QSRC.includes('scene.counts.land'));
+check('quantum: KHÔNG nạp file ảnh nào', !QSRC.includes('new Image('));
+check('wrapper: mở lớp nhìn chạy cảnh hạt rồi mới bật hình gốc', WRAP.includes('function startIntro(onApex)') && WRAP.includes('startIntro(enterApex)') && WRAP.includes('new window.JoyceQuantumIntro('));
+check('wrapper: hạt lấy khuôn từ CHÍNH ảnh nhân vật (khớp hình cuối)', WRAP.includes('image: apex && apex.images && apex.images.idle') && WRAP.includes('aspect: apex && apex.aspect'));
+const img = { data: new Uint8ClampedArray(4 * 10 * 10) };
+for (let i = 0; i < 100; i++) { const on = (i % 10) >= 3 && (i % 10) < 7; img.data[i * 4] = on ? 30 : 0; img.data[i * 4 + 1] = on ? 220 : 0; img.data[i * 4 + 2] = on ? 255 : 0; img.data[i * 4 + 3] = 255; }
+const smp = Q.sampleImageData(img.data, 10, 10, 1000);
+let inBand = true; for (let k = 0; k < smp.n; k++) { const u = smp.uv[k * 2]; if (u < 0.3 || u > 0.7) inBand = false; }
+check('sampleImageData: chỉ lấy điểm sáng, đích nằm đúng vùng sáng của ảnh, giữ màu', smp.n > 0 && inBand && smp.col[1] > 0.8);
+check('sampleImageData: tôn trọng trần số hạt', Q.sampleImageData(img.data, 10, 10, 5).n === 5);
+check('intro dùng cùng phép đặt khung với renderer ảnh (figureRect)', QSRC.includes('Math.min(h * 1.01, w * 1.6)'));
+check('wrapper: rời lớp nhìn / huỷ thì dọn cảnh hạt', WRAP.includes('closeHands(); stopIntro();') && /stopIntro\(\);[\s\S]{0,120}if \(apex\) \{ try \{ apex\.dispose/.test(WRAP));
+check('wrapper: có cảnh hạt thì hình gốc hiện nhanh (không lắp ráp lần hai)', WRAP.includes('assemblyDuration: introAvailable() ? 1.4'));
+check('wrapper: giảm chuyển động của hệ điều hành thì bỏ cảnh hạt', WRAP.includes('JoyceQuantumIntro && !reduced'));
+const sc = Q.buildScene(Q.BUDGET.safe);
+check('quantum: buildScene chạy được, đủ số hạt', sc.n === Object.values(Q.BUDGET.safe).reduce((a, c) => a + c, 0));
 
 function finish() {
   console.log();

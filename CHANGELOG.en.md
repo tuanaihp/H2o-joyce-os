@@ -2,6 +2,14 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.23] - 2026-10-19
+### Added
+- **3D Joyce now appears in quantum particles**: when you open 3D Joyce, particles shoot out of a point of light, swirl into a comet stream and assemble into a human figure; the familiar avatar then appears in exactly that spot. Everything after the intro stays as before.
+- **3D Joyce raises its hands to work**: when you give it a task, the avatar lifts two particle hands and taps holographic panels in front of it; the panel shows the actual task (for example "Web search: ...") and result rows appear one by one. While answering, the hands settle at chest height and move with the voice. With nothing to do, the hands fade away.
+
+### Fixed
+- Fixed failing automated checks (long dashes in translations, mismatched page lists, stale camera checks).
+
 ## [1.3.22] - 2026-10-21
 ### Added
 - **Hand-gesture TRAINER panel** (`gesture-trainer.mjs`, opened from the "🎓 DẠY" button next to HAND CAM in 3D Joyce or the "Hand gestures" card in Settings): teaches Joyce YOUR hand instead of shared thresholds. Each gesture is **scanned 3 times at different tempos** - the mean and deviation become the personal tolerance band; reps that disagree too much are rejected with a rescan hint instead of being saved. Unlike the headless control mode, this panel shows a camera preview on purpose - you must see your hand to train it.
@@ -12,8 +20,7 @@
 - **Opening the trainer pauses the control camera** (two workers don't race the CPU); closing it resumes hand control if it was on.
 
 ### Fixed
-- Joyce can open the **Brain routing** page when asked to switch pages (it was blocked as an unknown page).
-- Text on the Brain routing page and the gesture trainer uses a plain hyphen, matching the UI convention.
+- The German text on the Brain routing page and the gesture trainer uses a plain hyphen, matching the UI convention.
 - Docker image: the container start script is marked executable, avoiding a "permission denied" error on start.
 
 ### Security

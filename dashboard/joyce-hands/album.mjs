@@ -1,6 +1,7 @@
 // Album trình chiếu trong khoang não (.hud-center), mở bằng cử chỉ vuốt tay.
-// Nguồn ảnh: GET /album?brain=<tên> -> quét attachments/ + sources/ của brain
-// (mặc định "Ban Hang - Sales Hinh Anh"); từng ảnh mở qua /files/raw.
+// Nguồn ảnh ưu tiên: GET /album?source=sale -> kho H2O Sale Album trên Supabase
+// (trả URL R2 tuyệt đối, trình duyệt tải thẳng từ Cloudflare). Lỗi/trống -> về
+// nguồn local GET /album?brain=<tên> (attachments/ + sources/ của brain, qua /files/raw).
 // Zoom: khoảng cách ngón cái-ngón trỏ (pinchRatio 0..1.5) map tuyến tính 1x..4.5x
 // khi album đang mở và chỉ có MỘT tay trong khung.
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -11,6 +12,7 @@ export class JoyceAlbum {
     if (!host) throw new TypeError('JoyceAlbum cần host (.hud-center).');
     this.host = host; this.brain = brain; this.onState = onState;
     this.el = null; this.images = null; this.i = 0; this.zoom = 1;
+    this.src = 'local';
     this.loading = null; this.opened = false; this.disposed = false;
   }
   isOpen() { return this.opened; }
@@ -27,10 +29,14 @@ export class JoyceAlbum {
     if (this.images) return this.images;
     if (!this.loading) {
       const b = encodeURIComponent(this.brain);
-      this.loading = fetch('/album?brain=' + b, { credentials: 'same-origin' })
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => { this.images = (d && d.images) || []; return this.images; })
-        .catch(() => { this.images = []; return this.images; });
+      const get = u => fetch(u, { credentials: 'same-origin' })
+        .then(r => (r.ok ? r.json() : null)).catch(() => null);
+      this.loading = get('/album?source=sale')
+        .then(d => (d && d.images && d.images.length ? { list: d.images, src: 'sale' } : null))
+        .then(hit => hit || get('/album?brain=' + b)
+          .then(d => ({ list: (d && d.images) || [], src: 'local' })))
+        .then(res => { this.images = res.list; this.src = res.src; return this.images; })
+        .catch(() => { this.images = []; this.src = 'local'; return this.images; });
     }
     return this.loading;
   }
@@ -38,15 +44,17 @@ export class JoyceAlbum {
     if (!this.images.length) {
       this.img.removeAttribute('src');
       this.cap.textContent = 'Album trống';
-      this.el.querySelector('.ja-hint').textContent = 'thả ảnh vào attachments/ hoặc sources/ của brain "' + this.brain + '"';
+      this.el.querySelector('.ja-hint').textContent = 'kiểm tra kết nối Sale Album hoặc thả ảnh vào brain "' + this.brain + '"';
       const fig = this.el.querySelector('figure');
-      fig.innerHTML = '<div class="ja-empty">Chưa có ảnh nào trong album của brain<br><b>' + this.brain + '</b><br><span style="font-size:11px;opacity:.7">thả file .jpg/.png/.webp vào attachments/ hoặc sources/ rồi vuốt lại</span></div>';
+      fig.innerHTML = '<div class="ja-empty">Chưa lấy được ảnh nào<br><b>H2O Sale Album · ' + this.brain + '</b><br><span style="font-size:11px;opacity:.7">kiểm tra mạng/Supabase hoặc thả ảnh vào attachments/ của brain rồi vuốt lại</span></div>';
       return;
     }
     const it = this.images[this.i];
-    const b = encodeURIComponent(this.brain);
-    this.img.src = '/files/raw?brain=' + b + '&path=' + encodeURIComponent(it.path);
-    this.img.alt = it.name;
+    // Ảnh sale có url tuyệt đối (R2) -> tải thẳng; ảnh local có path -> qua /files/raw.
+    this.img.src = /^https?:/i.test(it.url || '')
+      ? it.url
+      : '/files/raw?brain=' + encodeURIComponent(this.brain) + '&path=' + encodeURIComponent(it.path);
+    this.img.alt = it.alt || it.name;
     this.cap.textContent = (this.i + 1) + ' / ' + this.images.length + ' · ' + it.name;
     this.setZoom(1);
   }
