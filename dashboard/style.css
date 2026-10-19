@@ -4704,3 +4704,45 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .mp-host .msg, .mp-host .tm-msg, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .mp-host .msg :is(input, textarea, [contenteditable]), .mp-host .tm-msg :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
 }
+
+/* ---- Bung khoang não toàn màn hình (nút #stageFullscreen) ---- */
+.stage-full-btn .fs-off { display: none; }
+.stage-full-btn.playing .fs-on { display: none; }
+.stage-full-btn.playing .fs-off { display: block; }
+.hud-center:fullscreen {
+  width: 100vw; height: 100vh; background: var(--brain-bg, #04090d);
+}
+.hud-center:fullscreen #starfield { z-index: 0; }
+
+/* ---- Album trình chiếu bằng cử chỉ tay (joyce-hands/album.mjs) ---- */
+/* Pho tượng thu nhỏ góc phải dưới khi album mở để nhường sân khấu cho ảnh. */
+.hud-center.album-open #planetStage .hum-layer {
+  transform: scale(.26); transform-origin: 100% 100%;
+  transition: transform .45s cubic-bezier(.2,.8,.25,1);
+}
+#planetStage .hum-layer { transition: transform .45s cubic-bezier(.2,.8,.25,1); }
+.joyce-album {
+  position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+  background: radial-gradient(ellipse at 50% 55%, rgba(4,16,22,.55), rgba(2,8,12,.88));
+  opacity: 0; pointer-events: none; transition: opacity .35s ease;
+}
+.hud-center.album-open .joyce-album { opacity: 1; pointer-events: auto; }
+.joyce-album figure { margin: 0; max-width: 92%; max-height: 86%; display: grid; place-items: center; overflow: hidden; }
+.joyce-album img {
+  max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 10px;
+  box-shadow: 0 24px 90px #000c, 0 0 0 1px #19ddff22;
+  transform: scale(var(--ja-zoom,1)) translate(var(--ja-x,0px), var(--ja-y,0px));
+  transition: transform .12s ease-out; will-change: transform;
+}
+.joyce-album .ja-cap {
+  position: absolute; left: 50%; bottom: 4.5%; transform: translateX(-50%);
+  color: #9fd8e8; font: 11px 'Courier New', monospace; letter-spacing: .14em;
+  background: #041117cc; border: 1px solid #164d5b; border-radius: 8px; padding: 7px 14px;
+  text-transform: uppercase; white-space: nowrap;
+}
+.joyce-album .ja-hint {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  color: #5e8a96; font: 10px 'Courier New', monospace; letter-spacing: .18em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.joyce-album .ja-empty { color: #9fd8e8; font: 13px var(--font, sans-serif); text-align: center; line-height: 1.7; }

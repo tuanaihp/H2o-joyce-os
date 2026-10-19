@@ -8746,6 +8746,42 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
     return raw_file_response(brain, path, dl=bool(dl))
 
 
+_ALBUM_IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"}
+
+
+@app.get("/album")
+async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh")):
+    """Album trình chiếu của lớp nhìn 3D Joyce (mở bằng cử chỉ vuốt tay): quét đệ quy
+    attachments/ rồi sources/ của brain (mặc định Sales Hinh Anh), trả ảnh theo path
+    tương đối gốc brain để mở qua /files/raw. Trần 400 ảnh, mới trước cũ sau."""
+    try:
+        broot = Path(_brain_root(brain)).resolve()
+    except Exception:
+        return {"brain": brain, "images": [], "error": "brain_not_found"}
+    imgs = []
+    for sub in ("attachments", "sources"):
+        d = (broot / sub).resolve()
+        if not d.is_dir() or broot not in (d, *d.parents):
+            continue
+        try:
+            for p in sorted(d.rglob("*"), key=lambda x: (-x.stat().st_mtime, x.name)):
+                if not p.is_file() or p.suffix.lower() not in _ALBUM_IMG_EXTS:
+                    continue
+                try:
+                    rel = p.relative_to(broot)
+                except ValueError:
+                    continue
+                imgs.append({"name": p.name, "path": str(rel).replace("\\", "/"),
+                             "dir": sub, "mtime": int(p.stat().st_mtime)})
+                if len(imgs) >= 400:
+                    break
+        except OSError:
+            continue
+        if len(imgs) >= 400:
+            break
+    return {"brain": brain, "images": imgs}
+
+
 # ---- CHIA SẺ CÔNG KHAI một file (nút Chia sẻ trong trình sửa) ----
 # Người cầm link KHÔNG đăng nhập, nên đây là mặt tiền công khai duy nhất chạm vào file trong
 # brain. Ba điều giữ nó lành:

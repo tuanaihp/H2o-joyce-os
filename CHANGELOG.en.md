@@ -2,6 +2,13 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.21] - 2026-10-21
+### Added
+- **Fullscreen brain chamber button** (⤢ next to the eye icon in stage-tools): requestFullscreen on `.hud-center` - in the 3D Joyce view the whole screen is just the virtual figure + voice + camera; ESC or press again to exit.
+- **Hand swipe opens the PHOTO ALBUM slideshow** (new gesture in GestureEngine): a fast finger sweep ≥0.28 of the frame in <450ms fires a swipe - swipe right/left opens the album then flips photos, swipe down closes it. The album pulls images from the **"Ban Hang - Sales Hinh Anh"** brain (new `GET /album` endpoint scans `attachments/` + `sources/`, images served through the existing `/files/raw`); when empty it explains where to drop photos.
+- **Figure shrinks while the album is open**: `.hum-layer` scales to 26% at the bottom-right corner with a smooth transition while the slideshow takes center stage.
+- **Two-fingertip continuous album zoom**: the thumb-index distance (pinchRatio already in tracking results) maps directly to 1x..4.5x - spread fingers to zoom in, close to zoom out. Only counts with exactly one hand and not in palm pose (palm remains the quiet gesture).
+
 ## [1.3.20] - 2026-10-21
 ### Added
 - **Camera hand control for the avatar - full Worker edition** (`dashboard/joyce-hands/`): integrates JOYCE_HAND_GESTURE_KIT into the 3D Joyce view in HEADLESS mode - pressing "✋ HAND CAM" requests camera permission and starts tracking immediately; the video lives outside the DOM so the interface shows only Joyce (state is shown via the CAM ON button + the avatar's notice line); pressing again or leaving the view stops everything. The camera never requests a microphone and everything is processed on-device - no frames or landmarks leave the browser.

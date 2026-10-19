@@ -2466,6 +2466,8 @@
   "bview.core": "Liquid Core",
   "bview.hd": "3D Joyce",
   "bview.graph": "Constellation",
+  "bview.full_aria": "Expand brain chamber fullscreen",
+  "bview.full_title": "Expand brain chamber fullscreen (ESC to exit)",
   "bview.exp_title": "Quick experience settings",
   "bview.exp_full": "Open the full Settings page",
   "mode.fast": "Fast",

@@ -4,7 +4,10 @@ export class GestureEngine {
   constructor(options = {}) {
     this.options = { mirror: true, pinchOn: .32, pinchOff: .5,
       pinchHoldMs: 160, palmHoldMs: 650, releaseMs: 200,
-      pinchCooldownMs: 650, palmCooldownMs: 1800, maxGapMs: 300, ...options };
+      pinchCooldownMs: 650, palmCooldownMs: 1800, maxGapMs: 300,
+      // Vuốt tay: quãng ≥0.28 khung hình trong ≤450ms, trục chéo ≤0.22, cooldown 1200ms.
+      swipeMinDelta: .28, swipeMaxSpanMs: 450, swipeMaxCross: .22, swipeCooldownMs: 1200,
+      ...options };
     this.reset();
   }
   reset() {
@@ -12,6 +15,7 @@ export class GestureEngine {
     this.pinchAt = null; this.pinchFired = false;
     this.palmAt = null; this.palmOrigin = null; this.palmFired = false; this.releaseAt = null;
     this.lastPinch = -Infinity; this.lastPalm = -Infinity;
+    this.swipeTrail = []; this.lastSwipe = -Infinity;
   }
   update(landmarks, now, aspect = 4 / 3) {
     const empty = { tracked: false, pointer: null, gestures: [], pose: 'none' };
@@ -53,6 +57,20 @@ export class GestureEngine {
       this.palmAt=null; this.palmOrigin=null;
       if (this.releaseAt===null) this.releaseAt=now;
       if (now-this.releaseAt>=o.releaseMs) this.palmFired=false;
+    }
+    // Vuốt tay nhanh qua khung hình (trái/phải/xuống) -> mở/lật/đóng album.
+    // Độc lập pose: vuốt giữa palm cũng tính (palm dwell đã tự reset khi tay lắc).
+    this.swipeTrail.push({ x: this.pointer.x, y: this.pointer.y, t: now });
+    while (this.swipeTrail.length && now - this.swipeTrail[0].t > o.swipeMaxSpanMs) this.swipeTrail.shift();
+    if (this.swipeTrail.length >= 3 && now - this.lastSwipe >= o.swipeCooldownMs) {
+      const a = this.swipeTrail[0], b = this.swipeTrail[this.swipeTrail.length - 1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      let dir = null;
+      if (dx >= o.swipeMinDelta && Math.abs(dy) <= o.swipeMaxCross) dir = 'right';
+      else if (dx <= -o.swipeMinDelta && Math.abs(dy) <= o.swipeMaxCross) dir = 'left';
+      else if (dy >= o.swipeMinDelta && Math.abs(dx) <= o.swipeMaxCross) dir = 'down';
+      else if (dy <= -o.swipeMinDelta && Math.abs(dx) <= o.swipeMaxCross) dir = 'up';
+      if (dir) { gestures.push({ type: 'swipe', dir, x: b.x, y: b.y }); this.lastSwipe = now; this.swipeTrail = []; }
     }
     return {tracked:true, pointer:{...this.pointer}, gestures,
       pose:this.pinch?'pinch':open?'palm':'tracking', pinchRatio:ratio};

@@ -43,6 +43,28 @@
     });
 
     initTimelapse();
+    initFullscreen();
+  }
+
+  // Nút bung khoang não: requestFullscreen trên .hud-center -> màn hình chỉ còn
+  // visual não (3D Joyce nếu đang bật) + cụm stage-tools; ESC/bấm lại thu về.
+  function initFullscreen() {
+    var btn = document.getElementById("stageFullscreen"), target = document.querySelector(".hud-center");
+    if (!btn || !target) return;
+    function syncing(on) {
+      btn.classList.toggle("playing", !!on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.title = on ? "Thu khoang não về cửa sổ" : "Bung khoang não toàn màn hình";
+    }
+    btn.addEventListener("click", function () {
+      try {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (target.requestFullscreen) target.requestFullscreen();
+      } catch (e) {}
+    });
+    document.addEventListener("fullscreenchange", function () {
+      syncing(document.fullscreenElement === target);
+    });
   }
 
   // Nút timelapse "cuộc đời brain": chiếu lại note mọc dần theo thời gian tạo.

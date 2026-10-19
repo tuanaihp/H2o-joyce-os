@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=2">
-  <link rel="stylesheet" href="/static/style.css?v=125">
+  <link rel="stylesheet" href="/static/style.css?v=126">
   <link rel="stylesheet" href="/static/humanoid.css?v=2">
   <link rel="stylesheet" href="/static/console.css?v=110">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
@@ -249,6 +249,19 @@
           </svg>
           <svg class="brain-eye-off" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 3l18 18M10.6 6.15A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a15 15 0 0 1-2.05 2.65M6.3 6.35C3.85 8.05 2.5 12 2.5 12s3.5 6 9.5 6a9.5 9.5 0 0 0 3.1-.52M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>
+          </svg>
+        </button>
+
+        <!-- Bung khoang não ra toàn màn hình: ở lớp nhìn 3D Joyce thì chỉ còn
+             người ảo + camera/giọng nói (ESC hoặc bấm lại để thu về). -->
+        <button class="brain-overlay-toggle stage-full-btn" id="stageFullscreen" type="button"
+                aria-pressed="false" aria-label="Bung khoang não toàn màn hình" data-i18n-aria="bview.full_aria"
+                title="Bung khoang não toàn màn hình" data-i18n-title="bview.full_title">
+          <svg class="fs-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path>
+          </svg>
+          <svg class="fs-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path>
           </svg>
         </button>
 
@@ -971,7 +984,7 @@
   <script src="/static/vn-geo.js?v=1"></script>
   <script src="/static/brain-planet.js?v=25"></script>
   <script src="/static/apex-humanoid.js?v=4"></script>
-  <script src="/static/joyce-humanoid.js?v=6"></script>
+  <script src="/static/joyce-humanoid.js?v=7"></script>
   <script src="/static/hud.js?v=22"></script>
   <script src="/static/brain-v2.js?v=2"></script>
   <script src="/static/chat-render.js?v=17"></script>
@@ -1094,7 +1107,7 @@
        JoyceChatBorrow mà console.js expose ở trên, nên phải nạp SAU console.js. -->
   <script src="/static/chat-dock.js?v=1"></script>
   <script src="/static/mobile-chat.js?v=11"></script>
-  <script src="/static/brain-view.js?v=1"></script>
+  <script src="/static/brain-view.js?v=2"></script>
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>
   <script src="/static/notifications.js?v=3"></script>

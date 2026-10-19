@@ -1,9 +1,10 @@
 // Never change voice state in response to a gesture: host voice remains the source of truth.
-export function connectJoyceHands(controller,avatar,{onQuietRequest=()=>{},onGesture=()=>{}}={}) {
+export function connectJoyceHands(controller,avatar,{onQuietRequest=()=>{},onGesture=()=>{},onTracking=()=>{}}={}) {
   const tracking=({detail})=>{
     if(avatar.disposed)return;
     const p=detail.tracked?detail.pointer:null;
     avatar.setAttention?.(p?p.x*2-1:0,p?p.y*2-1:0);
+    onTracking(detail);
   };
   const gesture=({detail})=>{
     if(avatar.disposed)return;

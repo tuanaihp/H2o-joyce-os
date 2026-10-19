@@ -2,6 +2,13 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.21] - 2026-10-21
+### Thêm mới
+- **Nút bung khoang não toàn màn hình** (⤢ cạnh icon mắt trong stage-tools): requestFullscreen trên `.hud-center` - ở lớp nhìn 3D Joyce thì toàn màn hình chỉ còn người ảo + giọng nói + camera, ESC hoặc bấm lại để thu về.
+- **Vuốt tay mở ALBUM TRÌNH CHIẾU** (cử chỉ mới trong GestureEngine): quét ngón nhanh ≥0,28 khung hình trong <450ms phát swipe - vuốt phải/trái mở album rồi lật ảnh, vuốt xuống đóng. Album lấy ảnh từ brain **"Ban Hang - Sales Hinh Anh"** (endpoint mới `GET /album` quét `attachments/` + `sources/`, ảnh mở qua `/files/raw` sẵn có); trống thì báo cách bỏ ảnh vào.
+- **Pho tượng thu nhỏ khi album mở**: `.hum-layer` co về 26% góc phải-dưới với hiệu ứng trượt, album chiếm trung tâm sân khấu.
+- **Hai đầu ngón tay zoom album liên tục**: khoảng cách ngón cái-ngón trỏ (pinchRatio sẵn có trong kết quả tracking) map 1x..4,5x trực tiếp - dang 2 ngón phóng to, khép lại thu nhỏ. Chỉ tính khi đúng 1 tay và không phải pose palm (palm vẫn là cử chỉ ngừng nói).
+
 ## [1.3.20] - 2026-10-21
 ### Thêm mới
 - **Điều khiển avatar bằng tay qua camera - bản Worker hoàn chỉnh** (`dashboard/joyce-hands/`): tích hợp JOYCE_HAND_GESTURE_KIT vào lớp nhìn 3D Joyce, chạy CHẾ ĐỘ ẨN - bấm "✋ HAND CAM" là camera tự xin quyền + nhận diện ngay, video sống ngoài DOM nên giao diện chỉ có Joyce (trạng thái báo qua nút CAM ON + dòng notice của avatar); bấm lại hoặc rời lớp nhìn thì tắt hẳn. Không bao giờ xin micro, xử lý toàn bộ tại máy - không khung hình/landmark nào rời trình duyệt.

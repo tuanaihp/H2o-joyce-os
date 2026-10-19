@@ -100,6 +100,39 @@ async function main() {
   const rp = g.update(h, 0);
   check("pointer mirror: x 0..1, tay trái -> attention phải", rp.pointer.x > 0.5 && rp.pointer.x <= 1, rp.pointer.x);
 
+  // ---- Vuốt tay: quét nhanh >=0.28 khung trong <450ms -> 1 swipe, cooldown ----
+  // Swipe đo trên đầu ngón trỏ (pointer mirrored): tay người dùng sang PHẢI ->
+  // raw x GIẢM -> mirrored pointer.x TĂNG -> dir 'right'. Chỉ đổ lm[8], giữ tay trong khung.
+  const handAt = (x8, y8) => { const hh = fakeHand("open"); hh[8] = { x: x8, y: y8 }; return hh; };
+  g = new GestureEngine();
+  let swipes = [];
+  for (let t = 0; t <= 400; t += 50) g.update(handAt(0.85, 0.18), t);          // giữ ngón ở bên phải raw (mirrored trái)
+  for (let t = 450; t <= 550; t += 50) {                                     // quét ngón sang trái raw = mirrored PHẢI
+    const r = g.update(handAt(0.3, 0.18), t);
+    swipes = swipes.concat(r.gestures.filter((x) => x.type === "swipe"));
+  }
+  check("vuốt phải nhanh -> bắn swipe right đúng 1 lần", swipes.length === 1 && swipes[0].dir === "right", JSON.stringify(swipes));
+  for (let t = 600; t <= 700; t += 50) {                                     // quét tiếp trong cooldown
+    const r = g.update(handAt(0.08, 0.18), t);
+    swipes = swipes.concat(r.gestures.filter((x) => x.type === "swipe"));
+  }
+  check("vuốt trong cooldown không bắn thêm", swipes.length === 1, swipes.length);
+  g = new GestureEngine();
+  swipes = [];
+  for (let t = 0; t <= 1200; t += 100) {                                     // di chuyển CHẬM -> không swipe
+    const r = g.update(handAt(0.85 - t * 0.0004, 0.18), t);
+    swipes = swipes.concat(r.gestures.filter((x) => x.type === "swipe"));
+  }
+  check("tay trôi chậm không bắn swipe", swipes.length === 0, swipes.length);
+  g = new GestureEngine();
+  swipes = [];
+  for (let t = 0; t <= 400; t += 50) g.update(handAt(0.3, 0.15), t);
+  for (let t = 450; t <= 550; t += 50) {
+    const r = g.update(handAt(0.3, 0.75), t);                                // vuốt XUỐNG
+    swipes = swipes.concat(r.gestures.filter((x) => x.type === "swipe"));
+  }
+  check("vuốt xuống -> swipe down (đóng album)", swipes.length === 1 && swipes[0].dir === "down", JSON.stringify(swipes));
+
   // ---- Tài nguyên tĩnh ----
   for (const f of ["gesture-engine.mjs", "hand-controller.mjs", "hand-worker.js",
                    "joyce-bridge.mjs", "voice-quiet-gate.mjs", "hand-panel.mjs", "hand-panel.css"])
@@ -130,6 +163,29 @@ async function main() {
   check("wrapper: asset URL /static/joyce-hands + /static/humanoid", wrap.includes("/static/joyce-hands/") && wrap.includes("hand_landmarker.task"));
   check("wrapper: tắt cam khi rời lớp nhìn", wrap.includes("closeHands()"));
   check("wrapper: disposeHands trong destroy", wrap.includes("disposeHands()"));
+  check("wrapper: album.mjs nạp lười cùng kit", wrap.includes("album.mjs"));
+  check("wrapper: swipe -> album.swipe(dir)", wrap.includes('d.type === "swipe"') && wrap.includes("album.swipe"));
+  check("wrapper: pinchRatio -> zoom album (1 tay, không palm)", wrap.includes("zoomFromRatio") && wrap.includes('d.pose !== "palm"'));
+
+  // ---- Album trình chiếu + fullscreen ----
+  const album = read("dashboard/joyce-hands/album.mjs");
+  check("album.mjs tồn tại", !!album);
+  check("album: nguồn /album + ảnh qua /files/raw", album.includes("/album?brain=") && album.includes("/files/raw?brain="));
+  check("album: brain mặc định Sales Hinh Anh", album.includes("Ban Hang - Sales Hinh Anh"));
+  check("album: swipe phải/trái lật, xuống đóng", album.includes("'right'") && album.includes("this.close()"));
+  check("album: zoom liên tục từ ratio 2 ngón, kẹp 1..4.5", album.includes("zoomFromRatio") && album.includes("ZOOM_MAX = 4.5"));
+  check("album: pho tượng thu nhỏ qua class album-open", album.includes("album-open"));
+  const css = read("dashboard/style.css");
+  check("css: album overlay + hum-layer thu nhỏ khi album mở", css.includes(".joyce-album") && css.includes("album-open #planetStage .hum-layer"));
+  check("css: hud-center fullscreen", css.includes(".hud-center:fullscreen"));
+  const html2 = read("dashboard/index.html");
+  check("index.html: nút stageFullscreen cạnh icon mắt", html2.includes('id="stageFullscreen"'));
+  const bview = read("dashboard/brain-view.js");
+  check("brain-view: requestFullscreen trên .hud-center", bview.includes("requestFullscreen") && bview.includes("hud-center"));
+  const srv = read("server/main.py");
+  check("server: endpoint GET /album quét attachments+sources", srv.includes('@app.get("/album")') && srv.includes("_ALBUM_IMG_EXTS"));
+  const eng = read("dashboard/joyce-hands/gesture-engine.mjs");
+  check("engine: swipe trail + dir right/left/down/up", eng.includes("swipeTrail") && eng.includes("dir = 'down'"));
 
   // ---- Hợp đồng riêng tư/an toàn của controller+worker ----
   const ctl = read("dashboard/joyce-hands/hand-controller.mjs");
@@ -145,7 +201,7 @@ async function main() {
   // ---- index.html ----
   const html = read("dashboard/index.html");
   check("index.html: không tải CSS panel (không khung camera trên UI)", !html.includes("hand-panel.css"));
-  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=4") && html.includes("joyce-humanoid.js?v=6"));
+  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=4") && html.includes("joyce-humanoid.js?v=7"));
 
   console.log(fails ? fails + " FAIL" : "ALL PASS");
   process.exit(fails ? 1 : 0);

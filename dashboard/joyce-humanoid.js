@@ -477,6 +477,7 @@
     // palm -> VoiceQuietGate -> đường ngắt thoại THẬT của app.js (stopCurrent()
     // = nút "Dừng": cắt TTS đang phát + huỷ lượt đúng phiên; mic/cuộc gọi giữ nguyên).
     var handCtl = null, handsDetach = null, handsGate = null, handsMods = null, handsLoading = null;
+    var album = null;      // JoyceAlbum: trình chiếu ảnh trong khoang não (vuốt tay mở)
     function handAssets() {
       return { workerURL: "/static/joyce-hands/hand-worker.js",
                moduleURL: "/static/humanoid/mediapipe/vision_bundle.mjs",
@@ -489,11 +490,27 @@
       var speaking = !!(os && (" " + os.className + " ").indexOf(" speaking ") >= 0);
       return { state: speaking ? "speaking" : "idle", responseId: sid || (speaking ? "live" : ""), sessionId: sid };
     }
+    function ensureAlbum() {
+      if (album || !handsMods || !handsMods.album) return;
+      var hc = document.querySelector(".hud-center");
+      if (!hc) return;
+      album = new handsMods.album.JoyceAlbum({ host: hc, brain: "Ban Hang - Sales Hinh Anh" });
+    }
     function wireHands() {
       if (!handCtl || !handsMods || !apex || !apex.root || apex.disposed) return;
       if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
+      ensureAlbum();
       handsDetach = handsMods.bridge.connectJoyceHands(handCtl, apex, {
         onQuietRequest: function (meta) { if (handsGate) handsGate.request(meta); },
+        onGesture: function (d) {
+          // Vuốt tay qua camera -> mở/lật/đóng album trình chiếu trên sân khấu não.
+          if (d && d.type === "swipe" && album) album.swipe(d.dir);
+        },
+        onTracking: function (d) {
+          // Album đang mở: khoảng cách 2 đầu ngón (cái-trỏ) = zoom liên tục.
+          // Chỉ tính khi đúng 1 tay, không phải pose palm (đó là cử chỉ ngừng nói).
+          if (album && album.isOpen() && d.tracked && d.pose !== "palm" && (d.handCount === 1 || d.handCount === undefined)) album.zoomFromRatio(d.pinchRatio);
+        },
       });
     }
     function syncHandButton(state) {
@@ -514,9 +531,10 @@
         import("/static/joyce-hands/hand-controller.mjs"),
         import("/static/joyce-hands/joyce-bridge.mjs"),
         import("/static/joyce-hands/voice-quiet-gate.mjs"),
+        import("/static/joyce-hands/album.mjs"),
       ]).then(function (mods) {
         if (destroyed) return;
-        handsMods = { controller: mods[0], bridge: mods[1], gate: mods[2] };
+        handsMods = { controller: mods[0], bridge: mods[1], gate: mods[2], album: mods[3] };
         var video = document.createElement("video");   // không gắn DOM -> không khung hình
         handCtl = new handsMods.controller.JoyceHandController(Object.assign(handAssets(), { video: video }));
         handCtl.addEventListener("status", function (e) {
@@ -536,10 +554,11 @@
         handCtl.start();
       }).catch(function () {}).finally(function () { handsLoading = null; });
     }
-    function closeHands() { if (handCtl) { try { handCtl.stop(); } catch (e) {} } }
+    function closeHands() { if (handCtl) { try { handCtl.stop(); } catch (e) {} } if (album) { try { album.close(); } catch (e) {} } }
     function disposeHands() {
       if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
       if (handsGate) { try { handsGate.dispose(); } catch (e) {} handsGate = null; }
+      if (album) { try { album.dispose(); } catch (e) {} album = null; }
       if (handCtl) { try { handCtl.dispose(); } catch (e) {} handCtl = null; }
       handsMods = null;
     }
