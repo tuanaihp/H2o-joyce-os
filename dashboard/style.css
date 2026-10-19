@@ -13,6 +13,8 @@
    và viền vòng thay cho quầng sáng.
    ========================================================================== */
 :root {
+  /* Album trình chiếu cử chỉ tay (joyce-hands/album.mjs đặt lại lúc chạy): giá trị gốc. */
+  --ja-zoom: 1; --ja-x: 0px; --ja-y: 0px;
   /* Báo cho trình duyệt biết đang ở tông nào. Thiếu dòng này thì các thứ do TRÌNH
      DUYỆT tự vẽ vẫn giữ mặc định sáng/tối cũ: thanh cuộn hệ thống, caret, ô date,
      select popup, checkbox, và nền vàng của autofill. CSS không với tới chúng. */
@@ -126,6 +128,8 @@
    thương hiệu hơn trắng lạnh. Thẻ/bảng để trắng thật nên vẫn nổi rõ trên nền.
    ========================================================================== */
 :root[data-theme="light"] {
+  /* Album trình chiếu cử chỉ tay (joyce-hands/album.mjs đặt lại lúc chạy): giá trị gốc. */
+  --ja-zoom: 1; --ja-x: 0px; --ja-y: 0px;
   color-scheme: light;
   --bg: #f4fafb;
   --bg2: #ffffff;
@@ -3971,7 +3975,7 @@ body.ne-full-on .cview { z-index: 250; }
 .planet-hd canvas:first-child { filter: contrast(1.08) saturate(1.15); }
 .planet-hd { --planet-glow: drop-shadow(0 0 30px rgba(80,180,255,.25)); }
 /* 3D Joyce (joyce-humanoid.js): lớp bọc .hum-layer chứa renderer đang dùng -
-   APEX (apex-humanoid.js, DOM .jh bên trong) hoặc fallback procedural
+   QUANTUM (joyce-quantum.js, DOM .jh bên trong) hoặc fallback procedural
    (canvas .humanoid-gl + .hum-status). Khi bật lớp humanoid-on thì tinh cầu
    hạ mờ để pho tượng nổi bật. Layer bắt pointer events để nút EXIT / cử chỉ
    / ripple của APEX dùng được; fallback giữ pointer-events:none như cũ. */

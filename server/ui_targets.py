@@ -20,7 +20,7 @@ import unicodedata
 PAGES = (
     "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
     "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects",
-    "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
+    "selfimprove", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
     "staff", "usage", "pet", "share",
 )
 
