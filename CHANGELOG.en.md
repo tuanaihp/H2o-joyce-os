@@ -2,6 +2,13 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.18] - 2026-10-20
+### Added
+- **Fallback chain for direct chat** (new "Direct chat" card on the Task routing page): the dashboard chat box, Telegram and other direct channels previously only retried transient errors on the same provider - running out of quota killed the turn and made Telegram commands impossible. The owner now configures an ordered chain of fallback brains; when the main brain returns a quota/dead-key error, Joyce walks each link through its own key ring before jumping to the next, inside the same turn, keeping the conversation context and MCP tools.
+- **Safe brain switching**: the chain only changes provider before any content has been emitted - once text, a tool_call or usage has gone out, rotation stops immediately because replaying on another provider would duplicate real actions (sending twice, writing twice). Non-quota errors (500, timeouts, unknown models) are not rotated either.
+- **User-ordered chain precedes the machine-guessed one on Telegram**: the existing `_fallback_chain` (installed CLIs → Ollama local → Groq → other API) now tries the owner's `chat_fallbacks` first; heuristics run only after. Dashboard chat with a plan-login CLI main keeps previous behavior (a binary cannot be rotated by config).
+- **"Direct chat" card on the Task routing page**: shows the active main brain (changed on the Models page), an add/remove/reorder list of API-provider fallbacks; the background table is now titled "BACKGROUND jobs" so it cannot be confused with the chat box.
+
 ## [1.3.17] - 2026-10-20
 ### Added
 - **New "Task routing" page** (Connections group, next to Models): lists every kind of background job that actually calls an LLM - reminders/cron, loops, Kanban dispatch, source ingestion, daily brief, group reply policy, agent judge, self-improvement - and assigns each type its own provider/model instead of one shared background model. Each type shows what it does plus a free/sensible provider suggestion; leaving it empty keeps the shared background model from the Models page as before. If the assigned provider dies at runtime, work still falls through the fallback chain.

@@ -5256,6 +5256,8 @@
       return;
     }
     const tasks = data.tasks || [], rings = data.rings || [];
+    const chatMain = data.chat_main || {}, apiProvs = data.api_providers || [];
+    const chatFbs = (data.chat_fallbacks || []).map(e => ({ provider: e.provider || "", model: e.model || "" }));
     const provById = Object.fromEntries(provs.map(p => [p.id, p]));
     const ringById = Object.fromEntries(rings.map(r => [r.provider, r]));
 
@@ -5284,6 +5286,46 @@
       </tr>`;
     };
 
+    // Chuỗi dự phòng CHAT: chỉ provider API (phiên gói CLI không xoay được). Render lại
+    // vùng fb mỗi khi người dùng thêm/xoá/đổi thứ tự, giữ state trong chatFbs.
+    const apiProvOpts = (sel) =>
+      provs.filter(p => apiProvs.includes(p.id))
+        .map(p => `<option value="${esc(p.id)}"${sel === p.id ? " selected" : ""}>` +
+          `${esc(p.label)}${p.configured ? "" : " · " + esc(t("rt.not_conn"))}</option>`).join("");
+
+    const fbRows = () => chatFbs.map((e, i) => `
+      <div class="rt-fb-row" data-i="${i}">
+        <span class="rt-fb-no">${i + 1}</span>
+        <select class="rt-fb-prov"><option value="">${esc(t("rt.fb_pick"))}</option>${apiProvOpts(e.provider)}</select>
+        <input class="rt-fb-model" list="rtfb-${i}" value="${esc(e.model || "")}" placeholder="${esc(t("rt.model_ph"))}">
+        <datalist id="rtfb-${i}">${((provById[e.provider] || {}).models || []).map(mm => `<option value="${esc(mm)}">`).join("")}</datalist>
+        <button class="gcard-btn ghost rt-fb-up" type="button" title="↑"${i === 0 ? " disabled" : ""}>↑</button>
+        <button class="gcard-btn ghost rt-fb-dn" type="button" title="↓"${i === chatFbs.length - 1 ? " disabled" : ""}>↓</button>
+        <button class="gcard-btn ghost rt-fb-del" type="button" title="×">×</button>
+      </div>`).join("");
+
+    const readFb = () => {
+      chatFbs.length = 0;
+      el.querySelectorAll(".rt-fb-row").forEach(row => {
+        const p = row.querySelector(".rt-fb-prov").value;
+        const m = row.querySelector(".rt-fb-model").value.trim();
+        if (p) chatFbs.push({ provider: p, model: m });
+      });
+    };
+    const paintFb = () => {
+      const box = el.querySelector("#rtFbRows");
+      if (box) box.innerHTML = fbRows() || `<div class="rt-fb-empty">${esc(t("rt.fb_empty"))}</div>`;
+    };
+    const fbEvents = () => {
+      el.querySelectorAll(".rt-fb-row").forEach(row => {
+        const i = +row.dataset.i;
+        row.querySelector(".rt-fb-up").onclick = () => { readFb(); const x = chatFbs.splice(i, 1)[0]; chatFbs.splice(i - 1, 0, x); paintFb(); fbEvents(); };
+        row.querySelector(".rt-fb-dn").onclick = () => { readFb(); const x = chatFbs.splice(i, 1)[0]; chatFbs.splice(i + 1, 0, x); paintFb(); fbEvents(); };
+        row.querySelector(".rt-fb-del").onclick = () => { readFb(); chatFbs.splice(i, 1); paintFb(); fbEvents(); };
+      });
+    };
+    const mainLabel = (provById[chatMain.provider] || {}).label || chatMain.provider || "?";
+
     const ringRow = (r) => {
       const pdef = provById[r.provider] || {};
       const st = r.keys.map(k => {
@@ -5308,6 +5350,22 @@
     };
 
     el.innerHTML = `<div class="cview-section rt-page">
+      <div class="rt-card">
+        <div class="rt-card-h">${esc(t("rt.chat_head"))}</div>
+        <div class="rt-card-d">${esc(t("rt.chat_desc"))}</div>
+        <div class="rt-chat-main">
+          <span class="rt-fb-no">0</span>
+          <b>${esc(mainLabel)}</b>
+          <span class="rt-chat-model">${esc(chatMain.model || "")}</span>
+          <span class="rt-hint">${esc(t(chatMain.api ? "rt.chat_main_api" : "rt.chat_main_cli"))}</span>
+        </div>
+        <div id="rtFbRows">${fbRows() || `<div class="rt-fb-empty">${esc(t("rt.fb_empty"))}</div>`}</div>
+        <div class="rt-card-act">
+          <button class="gcard-btn ghost" id="rtFbAdd" type="button">${esc(t("rt.fb_add"))}</button>
+          <button class="gcard-btn" id="rtFbSave" type="button">${esc(t("rt.fb_save"))}</button>
+          <span class="rt-st" id="rtFbSt"></span>
+        </div>
+      </div>
       <div class="rt-card">
         <div class="rt-card-h">${esc(t("rt.tasks_head"))}</div>
         <div class="rt-card-d">${esc(t("rt.tasks_desc"))}</div>
@@ -5345,6 +5403,16 @@
     });
     const rst = el.querySelector("#rtReset");
     if (rst) rst.onclick = () => postJson("/task-engines/reset", {}, 8000).then(() => renderRouting(el));
+    fbEvents();
+    const fbAdd = el.querySelector("#rtFbAdd"), fbSave = el.querySelector("#rtFbSave");
+    if (fbAdd) fbAdd.onclick = () => { readFb(); chatFbs.push({ provider: "", model: "" }); paintFb(); fbEvents(); };
+    if (fbSave) fbSave.onclick = () => {
+      readFb();
+      postJson("/chat-fallbacks", { fallbacks: chatFbs }, 8000).then(r => {
+        const st = el.querySelector("#rtFbSt");
+        if (st) st.textContent = r && r.ok ? t("rt.saved") : (r && r.error) || t("rt.save_fail");
+      });
+    };
     el.querySelectorAll(".rt-ring").forEach(box => {
       const prov = box.dataset.prov;
       const ta = box.querySelector(".rt-keys");

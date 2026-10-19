@@ -2,6 +2,13 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.18] - 2026-10-20
+### Thêm mới
+- **Chuỗi dự phòng cho CHAT trực tiếp** (card "Chat trực tiếp" trên trang Phân việc não): khung chat dashboard, Telegram và các kênh trực tiếp trước chỉ có thử lại tạm thời trên cùng provider - hết quota là lượt chết, không ra lệnh được từ Telegram. Giờ chủ xếp sẵn một chuỗi não dự phòng có thứ tự; khi não chính trả lỗi quota/key chết, Joyce duyệt từng mắt theo đúng vòng quay key của nó rồi mới nhảy mắt kế, trong cùng một lượt và giữ nguyên ngữ cảnh hội thoại + MCP tools.
+- **An toàn khi đổi não**: chuỗi chỉ đổi provider khi lượt CHƯA phát nội dung nào ra ngoài - đã có chữ, tool_call hay usage là dừng xoay ngay, vì chạy lại trên nhà khác sẽ nhân đôi hành động thật (gửi tin hai lần, ghi file hai lần). Lỗi không phải quota (500, timeout, model không tồn tại) cũng không bị xoay mò.
+- **Chuỗi chủ tự xếp đi trước chuỗi máy đoán trên Telegram**: `_fallback_chain` sẵn có (CLI đã cài → Ollama local → Groq → API khác) giờ ưu tiên `chat_fallbacks` do chủ chọn trước, heuristic chỉ chạy sau. Dashboard với não chính là gói CLI vẫn giữ hành vi cũ (binary không xoay bằng cấu hình được).
+- **Card "Chat trực tiếp" trong trang Phân việc não**: hiện não chính đang chạy (đổi ở trang Models), danh sách não dự phòng thêm/xoá/lên-xuống thứ tự, chỉ nhận provider API; bảng việc nền đổi tiêu đề rõ "việc NỀN" để không lẫn với khung chat.
+
 ## [1.3.17] - 2026-10-20
 ### Thêm mới
 - **Trang "Phân việc não" mới** (nhóm Kết nối, cạnh Models): liệt kê mọi loại việc nền thật sự gọi LLM - nhắc hẹn/cron, vòng lặp, việc Kanban, tiêu hoá nguồn, bản tin, quyết định trả lời nhóm, phán xét agent, tự học - và cho gán từng loại một provider/model riêng thay vì chỉ một model việc nền chung. Mỗi loại kèm mô tả việc là gì và gợi ý provider free/hợp lý; để trống thì vẫn theo model việc nền chung trên trang Models như cũ. Khi provider được gán chết lúc chạy, việc vẫn rơi xuống chuỗi dự phòng như trước.

@@ -2399,6 +2399,84 @@ def _provider_key(mcfg, d):
     return mcfg.get(d["key_field"], "") if d.get("key_field") else ""
 
 
+# ---- Chuỗi dự phòng CHAT: hết quota thì tự đổi não (1.3.18) -------------------------------
+# model.chat_fallbacks = [{provider, model}] theo thứ tự ưu tiên, sửa ở trang Phân việc não.
+# Chỉ provider API nào có key/endpoint chạy được mới vào chuỗi (CLI engine = phiên đăng nhập
+# gói, không xoay qua đây được). Mỗi provider bung ra các key CHƯA cháy của vòng quay, nên
+# "provider khác" thực chất là lưới provider × key - Gemini có 3 key thì thử hết 3 trước khi
+# nhảy sang Groq.
+def _chat_fallback_specs(skip_prov: str = "") -> list:
+    """[(provider, key, model)] dự phòng cho một lượt chat, theo thứ tự người dùng xếp."""
+    try:
+        m = cfgmod.read_settings().get("model", {}) or {}
+    except Exception:
+        return []
+    out, seen = [], set()
+    for e in (m.get("chat_fallbacks") or []):
+        prov = (e.get("provider") or "").strip() if isinstance(e, dict) else ""
+        model = (e.get("model") or "").strip() if isinstance(e, dict) else ""
+        if not prov or prov == skip_prov or (prov, model) in seen:
+            continue
+        if prov not in aux_engine.API_PROVIDERS:
+            continue
+        seen.add((prov, model))
+        out.extend(_spec_keys(prov, "", model, m))
+    return out
+
+
+def _spec_keys(prov: str, key: str, model: str, mcfg: dict = None) -> list:
+    """Bung một (provider, model) ra [(prov, key_i, model)] theo vòng quay key. Provider
+    endpoint (ollama-local/openai-compat) có 'key' sentinel do caller quyết - giữ nguyên
+    key đó, chỉ provider key-thật mới đi vòng."""
+    if prov in ("ollama-local", "openai-compat"):
+        d = _provider_def(prov) or {}
+        k = key or (_provider_key(mcfg or {}, d) if mcfg is not None else "")
+        return [(prov, k, model)] if k else []
+    ks = task_router.usable_keys(prov, {"model": mcfg} if mcfg else None)
+    if not ks:
+        ks = [key] if key else []
+    elif key and key not in ks:
+        ks = [key] + ks     # key caller đưa (ví dụ do pin) được thử trước rồi tới vòng
+    return [(prov, k, model) for k in ks]
+
+
+async def _stream_chain(specs, make_stream):
+    """Chạy lượt chat qua chuỗi spec dự phòng; chỉ đổi spec khi CHƯA phát nội dung nào.
+
+    Đã ra chữ/tool_call/usage rồi thì KHÔNG được chạy lại trên provider khác: nội dung đã
+    tới tay người đọc (hoặc tool đã làm việc thật), chạy lại là nhân đôi. Lỗi quota/auth
+    của key hiện tại thì đánh dấu cháy để lượt sau khỏi thử lại."""
+    last_err = None
+    for i, (prov, key, model) in enumerate(specs):
+        emitted, err = False, None
+        try:
+            async for ev in make_stream(prov, key, model):
+                t = ev.get("type")
+                if t == "error":
+                    err = ev.get("content") or "lỗi không rõ"
+                    break
+                if t in ("text", "tool_call", "final", "usage"):
+                    emitted = True
+                yield ev
+        except Exception as e:
+            err = f"{type(e).__name__}: {e}"
+        if err is None:
+            return
+        last_err = err
+        if emitted or not task_router.quota_error(err):
+            break
+        if key:
+            task_router.burn_key(prov, key, err, task_router.burn_cooldown(err))
+        if i + 1 < len(specs):
+            nxt = specs[i + 1]
+            print(f"[chat fallback] {prov}/{model or '?'} chết quota "
+                  f"({str(err)[:110]}) -> chuyển {nxt[0]}/{nxt[2] or '?'}",
+                  file=__import__('sys').stderr)
+            continue
+        break
+    yield {"type": "error", "content": last_err or "Mọi não dự phòng đều không gọi được."}
+
+
 def _chat_provider(mcfg):
     """Provider dùng cho chat (id, kind, key, model) - từ model chính hiệu lực."""
     em = _effective_main({"model": mcfg})
@@ -2630,6 +2708,12 @@ def _fallback_chain(mcfg, cur_prov, cur_model):
         seen.add((pid, model or ""))
         chain.append((pid, kind, key, model))
 
+    # 1.3.18: chuỗi CHỦ tự xếp ở trang Phân việc não đi TRƯỚC thứ tự máy đoán - ý chí
+    # người dùng ưu tiên hơn heuristic. `_add` tự lọc nhà chưa cấu hình.
+    for _e in (mcfg.get("chat_fallbacks") or []):
+        if isinstance(_e, dict):
+            _add(_e.get("provider"), _e.get("model") or "")
+
     # kind=cli/oauth chỉ chạy được khi binary có trên máy - shutil.which lọc trước để
     # chuỗi không chứa nhà chắc chắn hỏng ngay từ đầu.
     for pid, binary in (("anthropic-cli", "claude"), ("openai-oauth", "codex"),
@@ -2696,10 +2780,17 @@ def _api_stream(prov, key, model, messages, reasoning="off"):
     bản này chỉ OpenRouter tự thử lại, nên một cú 429 chớp nhoáng của Anthropic giết trọn
     lượt trả lời: người nhắn cho bot nhận câu xin lỗi kỹ thuật, người trực bị gọi dậy, còn
     thứ cần làm chỉ là chờ một giây rồi hỏi lại.
+
+    1.3.18: qua chuỗi `_stream_chain` - key chính chết quota thì thử các key còn lại của
+    cùng provider (vòng quay task_router), hết key mới tới provider dự phòng trong
+    `model.chat_fallbacks`. Hết quota không còn nghĩa là chat chết.
     """
-    return engine.thu_lai_khi_tam_thoi(
-        lambda: _api_stream_goc(prov, key, model, messages, reasoning),
-        nhan=f"{prov}/{model or 'mặc định'}")
+    specs = _spec_keys(prov, key, model) + _chat_fallback_specs(skip_prov=prov)
+    return _stream_chain(
+        specs,
+        lambda p, k, m: engine.thu_lai_khi_tam_thoi(
+            lambda: _api_stream_goc(p, k, m, messages, reasoning),
+            nhan=f"{p}/{m or 'mặc định'}"))
 
 
 # Allowlist rỗng-thật cho engine Claude Code: bật cổng `can_use_tool` mà không tool nào khớp,
@@ -2995,27 +3086,36 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         # Vòng tool cũng được chạy lại khi gãy tạm thời, nhưng chỉ tới khi nó chạy tool ĐẦU
         # TIÊN: từ đó trở đi lượt này đã để lại dấu vết ngoài đời (ghi file, gửi tin, đặt
         # lịch) và chạy lại là làm hai lần. Điều kiện đó do `thu_lai_khi_tam_thoi` giữ.
-        def _vong_tool():
-            if prov == "openrouter":
-                return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "openai":
-                return engine.openai_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "anthropic-api":
-                return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "gemini":
-                return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "groq":
-                return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "deepseek":
-                return engine.deepseek_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "openai-compat":
-                return engine.openai_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            if prov == "ollama-local":
-                return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
-            return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        def _vong_tool(p, k, m):
+            if p == "openrouter":
+                return engine.openrouter_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "openai":
+                return engine.openai_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "anthropic-api":
+                return engine.anthropic_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "gemini":
+                return engine.gemini_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "groq":
+                return engine.groq_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "deepseek":
+                return engine.deepseek_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "openai-compat":
+                return engine.openai_compat_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "ollama-local":
+                return engine.ollama_local_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            return engine.ollama_chat_with_mcp(k, m, messages, reasoning, tools, route)
 
-        if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "openai-compat"):
-            return engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool")
+        # 1.3.18: chuỗi dự phòng cũng áp cho nhánh có tool. An toàn vì `_stream_chain` chỉ
+        # đổi provider khi CHƯA phát nội dung nào - tool_call đầu tiên phát ra là ngừng
+        # xoay ngay (tool đã làm việc thật, chạy lại = làm hai lần), khớp đúng ràng buộc
+        # của `thu_lai_khi_tam_thoi` bên trong.
+        if prov in _API_TOOL_PROVIDERS:
+            specs = _spec_keys(prov, key, model) + _chat_fallback_specs(skip_prov=prov)
+            return _stream_chain(
+                specs,
+                lambda p, k, m: engine.thu_lai_khi_tam_thoi(
+                    lambda: _vong_tool(p, k, m),
+                    nhan=f"{p}/{m or 'mặc định'}+tool"))
     return _api_stream(prov, key, model, messages, reasoning)
 
 
@@ -4173,8 +4273,16 @@ async def providers_get():
 @app.get("/task-engines")
 async def task_engines_get():
     s = cfgmod.read_settings()
+    m = s.get("model") or {}
+    main_prov, main_kind, _k, main_model = _chat_provider(m)
     return {"tasks": task_router.task_list(s),
-            "rings": task_router.all_ring_status(s)}
+            "rings": task_router.all_ring_status(s),
+            "chat_main": {"provider": main_prov, "kind": main_kind,
+                          "model": main_model or "",
+                          "api": main_kind == "api"},
+            "chat_fallbacks": [e for e in (m.get("chat_fallbacks") or [])
+                               if isinstance(e, dict) and (e.get("provider") or "").strip()],
+            "api_providers": list(aux_engine.API_PROVIDERS)}
 
 
 @app.post("/task-engines")
@@ -4218,6 +4326,33 @@ async def key_rings_reset(request: Request):
         body = {}
     n = task_router.unburn((body or {}).get("provider") or None)
     return {"ok": True, "unburned": n}
+
+
+@app.post("/chat-fallbacks")
+async def chat_fallbacks_set(request: Request):
+    """Đặt chuỗi não dự phòng cho CHAT (dashboard/Telegram/bot): hết quota não chính thì
+    duyệt danh sách theo thứ tự. Chỉ nhận provider API - CLI engine chạy bằng phiên gói,
+    không nằm trong cơ chế này."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    items, seen = [], set()
+    for e in (body or {}).get("fallbacks") or []:
+        if not isinstance(e, dict):
+            continue
+        prov = (e.get("provider") or "").strip()
+        model = (e.get("model") or "").strip()
+        if not prov or (prov, model) in seen:
+            continue
+        if prov not in aux_engine.API_PROVIDERS:
+            return JSONResponse({"error": f"provider không xoay được: {prov}"}, status_code=400)
+        seen.add((prov, model))
+        items.append({"provider": prov, "model": model})
+    s = cfgmod.read_settings()
+    s.setdefault("model", {})["chat_fallbacks"] = items
+    cfgmod.write_settings(s)
+    return {"ok": True, "count": len(items)}
 
 
 # ---- ChatGPT OAuth (device-code) - đăng nhập gói ChatGPT thay API key ----
