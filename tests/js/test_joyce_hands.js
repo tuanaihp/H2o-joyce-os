@@ -118,14 +118,17 @@ async function main() {
   check("apex: KHÔNG còn landmarker/hands state", !apex.includes("landmarker") && !apex.includes("toggleHands"));
   check("apex: không còn video .jh-cam", !apex.includes("jh-cam"));
 
-  // ---- Khớp nối wrapper ----
+  // ---- Khớp nối wrapper (chế độ headless: không khung xem trước) ----
   const wrap = read("dashboard/joyce-humanoid.js");
-  check("wrapper: mountHandPanel lười", wrap.includes("mountHandPanel"));
+  check("wrapper: JoyceHandController nạp lười", wrap.includes("JoyceHandController") && wrap.includes("hand-controller.mjs"));
+  check("wrapper: video KHÔNG gắn DOM (giao diện chỉ là Joyce)", wrap.includes("document.createElement(\"video\")") && !wrap.includes("appendChild(video"));
+  check("wrapper: không mount panel xem trước", !wrap.includes("mountHandPanel"));
   check("wrapper: connectJoyceHands", wrap.includes("connectJoyceHands"));
   check("wrapper: VoiceQuietGate -> stopCurrent", wrap.includes("VoiceQuietGate") && wrap.includes("stopCurrent"));
-  check("wrapper: onGestureRequest truyền apex", wrap.includes("onGestureRequest: function"));
+  check("wrapper: onGestureRequest -> toggleHands tự bật camera", wrap.includes("onGestureRequest: function () { toggleHands(); }"));
+  check("wrapper: trạng thái camera -> nút + notice avatar", wrap.includes("syncHandButton") && wrap.includes("apex.notice"));
   check("wrapper: asset URL /static/joyce-hands + /static/humanoid", wrap.includes("/static/joyce-hands/") && wrap.includes("hand_landmarker.task"));
-  check("wrapper: đóng panel khi rời lớp nhìn", wrap.includes("closeHands()"));
+  check("wrapper: tắt cam khi rời lớp nhìn", wrap.includes("closeHands()"));
   check("wrapper: disposeHands trong destroy", wrap.includes("disposeHands()"));
 
   // ---- Hợp đồng riêng tư/an toàn của controller+worker ----
@@ -141,7 +144,7 @@ async function main() {
 
   // ---- index.html ----
   const html = read("dashboard/index.html");
-  check("index.html: link hand-panel.css", html.includes("/static/joyce-hands/hand-panel.css"));
+  check("index.html: không tải CSS panel (không khung camera trên UI)", !html.includes("hand-panel.css"));
   check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=4") && html.includes("joyce-humanoid.js?v=6"));
 
   console.log(fails ? fails + " FAIL" : "ALL PASS");

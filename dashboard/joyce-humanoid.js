@@ -471,11 +471,12 @@
     }
 
     // ---- Điều khiển tay qua camera (kit /static/joyce-hands/) ----
-    // Panel + controller sống trên document.body, nạp lười khi bấm HAND CAM.
-    // Bridge: tracking -> apex.setAttention, pinch -> apex.pulse, palm -> VoiceQuietGate.
-    // Quiet đi vào đường ngắt thoại THẬT của app.js: stopCurrent() (= nút "Dừng",
-    // cắt TTS đang phát + huỷ lượt đúng phiên; cuộc gọi/mic không bị tắt).
-    var handsPanel = null, handsDetach = null, handsGate = null, handsMods = null, handsLoading = null;
+    // KHÔNG có khung xem trước: video sống ngoài DOM, giao diện chỉ là pho tượng.
+    // Bấm ✋ HAND CAM -> tự xin quyền camera + bật nhận diện; bấm lại/rời lớp nhìn
+    // -> tắt hẳn. Bridge: tracking -> apex.setAttention, pinch -> apex.pulse,
+    // palm -> VoiceQuietGate -> đường ngắt thoại THẬT của app.js (stopCurrent()
+    // = nút "Dừng": cắt TTS đang phát + huỷ lượt đúng phiên; mic/cuộc gọi giữ nguyên).
+    var handCtl = null, handsDetach = null, handsGate = null, handsMods = null, handsLoading = null;
     function handAssets() {
       return { workerURL: "/static/joyce-hands/hand-worker.js",
                moduleURL: "/static/humanoid/mediapipe/vision_bundle.mjs",
@@ -489,23 +490,40 @@
       return { state: speaking ? "speaking" : "idle", responseId: sid || (speaking ? "live" : ""), sessionId: sid };
     }
     function wireHands() {
-      if (!handsPanel || !handsMods || !apex || !apex.root || apex.disposed) return;
+      if (!handCtl || !handsMods || !apex || !apex.root || apex.disposed) return;
       if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
-      handsDetach = handsMods.bridge.connectJoyceHands(handsPanel.controller, apex, {
+      handsDetach = handsMods.bridge.connectJoyceHands(handCtl, apex, {
         onQuietRequest: function (meta) { if (handsGate) handsGate.request(meta); },
       });
     }
-    function openHandsPanel() {
-      if (handsPanel) { try { handsPanel.open(); } catch (e) {} return; }
+    function syncHandButton(state) {
+      var b = apex && apex.root && apex.root.querySelector("[data-action=gesture]");
+      if (!b) return;
+      b.disabled = state === "starting";
+      b.setAttribute("aria-pressed", String(state === "active"));
+      b.textContent = state === "active" ? "✋ CAM ON" : "✋ HAND CAM";
+    }
+    function toggleHands() {
       if (handsLoading) return;
+      if (handCtl) {
+        if (handCtl.state === "active" || handCtl.state === "starting") handCtl.stop();
+        else handCtl.start();
+        return;
+      }
       handsLoading = Promise.all([
-        import("/static/joyce-hands/hand-panel.mjs"),
+        import("/static/joyce-hands/hand-controller.mjs"),
         import("/static/joyce-hands/joyce-bridge.mjs"),
         import("/static/joyce-hands/voice-quiet-gate.mjs"),
       ]).then(function (mods) {
         if (destroyed) return;
-        handsMods = { panel: mods[0], bridge: mods[1], gate: mods[2] };
-        handsPanel = handsMods.panel.mountHandPanel(document.body, handAssets());
+        handsMods = { controller: mods[0], bridge: mods[1], gate: mods[2] };
+        var video = document.createElement("video");   // không gắn DOM -> không khung hình
+        handCtl = new handsMods.controller.JoyceHandController(Object.assign(handAssets(), { video: video }));
+        handCtl.addEventListener("status", function (e) {
+          syncHandButton(e.detail.state);
+          if (apex && apex.notice && e.detail.state !== "off") apex.notice(e.detail.message);
+        });
+        handCtl.addEventListener("error", function (e) { if (apex && apex.notice && e.detail) apex.notice(e.detail.message); });
         handsGate = new handsMods.gate.VoiceQuietGate({
           getSnapshot: voiceSnapshot,
           interruptSpeech: function () { try { if (window.stopCurrent) window.stopCurrent(); } catch (e) {} },
@@ -515,16 +533,14 @@
           },
         });
         wireHands();
-        handsPanel.open();
+        handCtl.start();
       }).catch(function () {}).finally(function () { handsLoading = null; });
     }
-    function closeHands() {
-      if (handsPanel) { try { handsPanel.close(); } catch (e) {} }
-    }
+    function closeHands() { if (handCtl) { try { handCtl.stop(); } catch (e) {} } }
     function disposeHands() {
       if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
       if (handsGate) { try { handsGate.dispose(); } catch (e) {} handsGate = null; }
-      if (handsPanel) { try { handsPanel.dispose(); } catch (e) {} handsPanel = null; }
+      if (handCtl) { try { handCtl.dispose(); } catch (e) {} handCtl = null; }
       handsMods = null;
     }
     function startApex() {
@@ -542,7 +558,7 @@
           reducedMotion: profile === "reduced" || reduced,
           onExit: function () { if (opts.onExit) opts.onExit(); },
           onError: function () {},
-          onGestureRequest: function () { openHandsPanel(); },
+          onGestureRequest: function () { toggleHands(); },
         });
       } catch (e) { apex = null; return; }
       Promise.resolve(apex.ready).then(function () {
