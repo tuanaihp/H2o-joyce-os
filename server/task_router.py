@@ -520,8 +520,10 @@ def set_keys(provider: str, keys, settings: dict = None) -> int:
             clean.append(k)
     s = settings if settings is not None else cfgmod.read_settings()
     m = s.setdefault("model", {})
-    if clean:
-        m[field] = clean[0]
+    # Vòng rỗng phải xoá CẢ key chính: bản cũ chỉ ghi khi clean không rỗng nên
+    # "xoá key cuối" để lại một key chính ma vẫn được dùng - người dùng tưởng đã gỡ
+    # hết mà máy vẫn cầm key cũ đi gọi.
+    m[field] = clean[0] if clean else ""
     m[provider + "_keys"] = clean[1:]
     if settings is None:
         cfgmod.write_settings(s)
@@ -536,6 +538,27 @@ def set_keys(provider: str, keys, settings: dict = None) -> int:
             slots.pop(fp, None)
         _save_burns()
     return len(clean)
+
+
+def add_key(provider: str, key: str, settings: dict = None) -> int:
+    """Thêm MỘT key vào cuối vòng (không trùng). Trả số key sau khi thêm; -1 nếu key rỗng,
+    -2 nếu key đã có trong vòng."""
+    k = (key or "").strip()
+    if not k:
+        return -1
+    ks = keys_for(provider, settings)
+    if k in ks:
+        return -2
+    return set_keys(provider, ks + [k], settings)
+
+
+def remove_key(provider: str, index: int, settings: dict = None) -> int:
+    """Gỡ key ở vị trí `index` khỏi vòng. Trả số key còn lại; -1 nếu index xấu."""
+    ks = keys_for(provider, settings)
+    if index < 0 or index >= len(ks):
+        return -1
+    ks.pop(index)
+    return set_keys(provider, ks, settings)
 
 
 # ── Nhận diện lỗi quota + thời gian chờ ─────────────────────────────────────────────────

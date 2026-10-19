@@ -6296,3 +6296,18 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .rt-dx.ok { border-color: var(--green, #2fbf71); color: var(--green, #2fbf71); }
 .rt-dx.save { border-color: var(--green, #2fbf71); color: var(--green, #2fbf71); }
 .rt-dx.warn { border-color: var(--amber, #e0a145); color: var(--amber, #e0a145); }
+.rt-keys-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.rt-key { display: flex; align-items: center; gap: 6px; }
+.rt-key .rt-slot { flex: 1; }
+.rt-key-no { display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 6px; background: var(--bg3, #20262e);
+  color: var(--text3); font-size: 10.5px; margin-right: 7px; font-weight: 700; }
+.rt-key-del { flex: none; width: 24px; height: 24px; border-radius: 7px;
+  border: 1px solid var(--line); background: transparent; color: var(--text3);
+  font-size: 14px; line-height: 1; cursor: pointer; }
+.rt-key-del:hover { border-color: var(--red, #f87171); color: var(--red, #f87171); }
+.rt-keys-empty { font-size: 11.5px; color: var(--text3); font-style: italic; padding: 4px 2px; }
+.rt-key-add { display: flex; gap: 6px; margin-top: 6px; }
+.rt-key-new { flex: 1; min-width: 0; background: var(--bg2, #14181d); border: 1px solid var(--line);
+  border-radius: 9px; color: var(--text); font-size: 12px; padding: 7px 10px; }
+.rt-key-new:focus { border-color: var(--acc, #4c8dff); outline: none; }

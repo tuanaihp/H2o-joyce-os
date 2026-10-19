@@ -5258,6 +5258,8 @@
     const tasks = data.tasks || [], rings = data.rings || [];
     const chatMain = data.chat_main || {}, apiProvs = data.api_providers || [];
     const chatFbs = (data.chat_fallbacks || []).map(e => ({ provider: e.provider || "", model: e.model || "" }));
+    const auxFbs = (data.aux_fallbacks || []).map(e => ({ provider: e.provider || "", model: e.model || "" }));
+    const auxFbProvs = data.aux_fb_providers || apiProvs;
     const provById = Object.fromEntries(provs.map(p => [p.id, p]));
 
     // Đổ danh sách model vào datalist của một provider. Catalog sẵn có thì dùng ngay;
@@ -5365,27 +5367,76 @@
         fillModels(row.querySelector(".rt-fb-prov").value, row.querySelector("datalist"));
       });
     };
+
+    // Chuỗi dự phòng VIỆC NỀN (aux_fallbacks): như chuỗi chat nhưng nhận cả provider
+    // CLI (Codex/ChatGPT-gmail, Grok CLI, Antigravity) vì việc nền xoay theo engine.
+    const auxProvOpts = (sel) =>
+      provs.filter(p => auxFbProvs.includes(p.id))
+        .map(p => `<option value="${esc(p.id)}"${sel === p.id ? " selected" : ""}>` +
+          `${esc(p.label)}${p.configured ? "" : " · " + esc(t("rt.not_conn"))}</option>`).join("");
+    const auxFbRows = () => auxFbs.map((e, i) => `
+      <div class="rt-fb-row rt-aux-row" data-i="${i}">
+        <span class="rt-fb-no">${i + 1}</span>
+        <select class="rt-fb-prov rt-aux-prov"><option value="">${esc(t("rt.fb_pick"))}</option>${auxProvOpts(e.provider)}</select>
+        <input class="rt-fb-model rt-aux-model" list="rtaux-${i}" value="${esc(e.model || "")}" placeholder="${esc(t("rt.model_ph"))}">
+        <datalist id="rtaux-${i}">${((provById[e.provider] || {}).models || []).map(mm => `<option value="${esc(mm)}">`).join("")}</datalist>
+        <button class="gcard-btn ghost rt-aux-up" type="button" title="↑"${i === 0 ? " disabled" : ""}>↑</button>
+        <button class="gcard-btn ghost rt-aux-dn" type="button" title="↓"${i === auxFbs.length - 1 ? " disabled" : ""}>↓</button>
+        <button class="gcard-btn ghost rt-aux-del" type="button" title="×">×</button>
+      </div>`).join("");
+    const readAuxFb = () => {
+      auxFbs.length = 0;
+      el.querySelectorAll(".rt-aux-row").forEach(row => {
+        const p = row.querySelector(".rt-aux-prov").value;
+        const m = row.querySelector(".rt-aux-model").value.trim();
+        if (p) auxFbs.push({ provider: p, model: m });
+      });
+    };
+    const paintAuxFb = () => {
+      const box = el.querySelector("#rtAuxRows");
+      if (box) box.innerHTML = auxFbRows() || `<div class="rt-fb-empty">${esc(t("rt.auxfb_empty"))}</div>`;
+    };
+    const auxFbEvents = () => {
+      el.querySelectorAll(".rt-aux-row").forEach(row => {
+        const i = +row.dataset.i;
+        row.querySelector(".rt-aux-up").onclick = () => { readAuxFb(); const x = auxFbs.splice(i, 1)[0]; auxFbs.splice(i - 1, 0, x); paintAuxFb(); auxFbEvents(); };
+        row.querySelector(".rt-aux-dn").onclick = () => { readAuxFb(); const x = auxFbs.splice(i, 1)[0]; auxFbs.splice(i + 1, 0, x); paintAuxFb(); auxFbEvents(); };
+        row.querySelector(".rt-aux-del").onclick = () => { readAuxFb(); auxFbs.splice(i, 1); paintAuxFb(); auxFbEvents(); };
+        row.querySelector(".rt-aux-prov").onchange = () =>
+          fillModels(row.querySelector(".rt-aux-prov").value, row.querySelector("datalist"));
+        fillModels(row.querySelector(".rt-aux-prov").value, row.querySelector("datalist"));
+      });
+    };
     const mainLabel = (provById[chatMain.provider] || {}).label || chatMain.provider || "?";
 
     const ringRow = (r) => {
       const pdef = provById[r.provider] || {};
-      const st = r.keys.map(k => {
+      // Khung dọc: mỗi key MỘT dòng (đuôi + trạng thái + nút xoá riêng), thêm key bằng
+      // ô nhập phía dưới - không giới hạn số key (Gemini 10 key cũng xếp được). Key chỉ
+      // hiện ĐUÔI, server giữ bản đầy đủ; xoá/thêm đi qua endpoint theo vị trí.
+      const st = r.keys.map((k, i) => {
         const cls = k.burned ? "rt-slot burned" : "rt-slot ok";
         const meta = k.burned
           ? t("rt.slot_burned", { gio: new Date(k.until * 1000).toLocaleTimeString((window.JoyceI18n && JoyceI18n.locale()) || "vi-VN", { hour: "2-digit", minute: "2-digit" }) })
           : (k.uses ? t("rt.slot_uses", { so: k.uses }) : "");
-        return `<span class="${cls}" title="${esc(k.why || "")}">${esc(k.tail)}${meta ? ` <i>${esc(meta)}</i>` : ""}</span>`;
+        return `<div class="rt-key" data-i="${i}">
+          <span class="${cls}" title="${esc(k.why || "")}"><b class="rt-key-no">${i + 1}</b>${esc(k.tail)}${meta ? ` <i>${esc(meta)}</i>` : ""}</span>
+          <button class="rt-key-del" type="button" title="${esc(t("rt.key_del"))}">×</button>
+        </div>`;
       }).join("");
       return `<div class="rt-ring" data-prov="${esc(r.provider)}">
         <div class="rt-ring-head">
           <b>${esc(pdef.label || r.provider)}</b>
           <span class="rt-ring-sum">${t("rt.ring_sum", { so: r.total, chay: r.burned })}</span>
         </div>
-        <div class="rt-slots">${st || `<span class="rt-slot">${esc(t("rt.no_keys"))}</span>`}</div>
-        <textarea class="rt-keys" rows="2" placeholder="${esc(t("rt.keys_ph"))}" spellcheck="false"></textarea>
+        <div class="rt-keys-list">${st || `<div class="rt-keys-empty">${esc(t("rt.no_keys"))}</div>`}</div>
+        <div class="rt-key-add">
+          <input class="rt-key-new" type="password" placeholder="${esc(t("rt.key_ph"))}" spellcheck="false" autocomplete="off">
+          <button class="gcard-btn rt-add" type="button">${esc(t("rt.key_add"))}</button>
+        </div>
         <div class="rt-ring-act">
-          <button class="gcard-btn rt-save" type="button">${esc(t("rt.save_ring"))}</button>
           <button class="gcard-btn ghost rt-unburn" type="button"${r.burned ? "" : " disabled"}>${esc(t("rt.unburn"))}</button>
+          <span class="rt-st"></span>
         </div>
       </div>`;
     };
@@ -5412,6 +5463,16 @@
         <div class="rt-card-d">${esc(t("rt.tasks_desc"))}</div>
         <table class="rt-table"><tbody>${tasks.map(taskRow).join("")}</tbody></table>
         <div class="rt-card-act"><button class="gcard-btn ghost" id="rtReset" type="button">${esc(t("rt.reset_all"))}</button></div>
+      </div>
+      <div class="rt-card">
+        <div class="rt-card-h">${esc(t("rt.auxfb_head"))}</div>
+        <div class="rt-card-d">${esc(t("rt.auxfb_desc"))}</div>
+        <div id="rtAuxRows">${auxFbRows() || `<div class="rt-fb-empty">${esc(t("rt.auxfb_empty"))}</div>`}</div>
+        <div class="rt-card-act">
+          <button class="gcard-btn ghost" id="rtAuxAdd" type="button">${esc(t("rt.auxfb_add"))}</button>
+          <button class="gcard-btn" id="rtAuxSave" type="button">${esc(t("rt.fb_save"))}</button>
+          <span class="rt-st" id="rtAuxSt"></span>
+        </div>
       </div>
       <div class="rt-card">
         <div class="rt-card-h">${esc(t("rt.rings_head"))}</div>
@@ -5462,12 +5523,34 @@
         if (st) st.textContent = r && r.ok ? t("rt.saved") : (r && r.error) || t("rt.save_fail");
       });
     };
+    auxFbEvents();
+    const auxAdd = el.querySelector("#rtAuxAdd"), auxSave = el.querySelector("#rtAuxSave");
+    if (auxAdd) auxAdd.onclick = () => { readAuxFb(); auxFbs.push({ provider: "", model: "" }); paintAuxFb(); auxFbEvents(); };
+    if (auxSave) auxSave.onclick = () => {
+      readAuxFb();
+      postJson("/task-engines/aux-fallbacks", { fallbacks: auxFbs }, 8000).then(r => {
+        const st = el.querySelector("#rtAuxSt");
+        if (st) st.textContent = r && r.ok ? t("rt.saved") : (r && r.error) || t("rt.save_fail");
+      });
+    };
     el.querySelectorAll(".rt-ring").forEach(box => {
       const prov = box.dataset.prov;
-      const ta = box.querySelector(".rt-keys");
-      box.querySelector(".rt-save").onclick = () =>
-        postJson("/key-rings", { provider: prov, keys: ta.value }, 8000)
+      const inp = box.querySelector(".rt-key-new");
+      const stEl = box.querySelector(".rt-st");
+      const say = (r) => { if (stEl) stEl.textContent = (r && r.ok) ? t("rt.saved") : ((r && r.error) || t("rt.save_fail")); };
+      const add = () => {
+        const k = (inp.value || "").trim();
+        if (!k) { if (stEl) stEl.textContent = t("rt.key_empty"); return; }
+        postJson("/key-rings/add", { provider: prov, key: k }, 8000)
+          .then(r => { if (r && r.ok) renderRouting(el); else say(r); });
+      };
+      box.querySelector(".rt-add").onclick = add;
+      inp.onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); add(); } };
+      box.querySelectorAll(".rt-key-del").forEach(btn => {
+        btn.onclick = () => postJson("/key-rings/remove",
+          { provider: prov, index: +btn.closest(".rt-key").dataset.i }, 8000)
           .then(() => renderRouting(el));
+      });
       const ub = box.querySelector(".rt-unburn");
       if (ub) ub.onclick = () =>
         postJson("/key-rings/reset", { provider: prov }, 8000)

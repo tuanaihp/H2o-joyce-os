@@ -312,6 +312,38 @@ check("task_list mọi hàng đều có dx.state", all(t["dx"]["state"]
 check("dx + use không chứa chuỗi key nào",
       all("kAAA" not in json.dumps(t) and "kBBB" not in json.dumps(t) for t in tl))
 
+# ============================================================
+# 4. Vòng key khung dọc: add/remove từng key + xoá key chính khi vòng rỗng (1.3.19)
+# ============================================================
+import config as _cfg  # noqa: E402
+
+_s = _cfg.read_settings()
+_s.setdefault("model", {})["gemini_api_key"] = "kEXIST-1234567890"
+_s["model"]["gemini_keys"] = []
+_cfg.write_settings(_s)
+
+check("add_key thêm vào cuối vòng",
+      tr.add_key("gemini", "kNEW-abcdefgh") == 2 and
+      tr.keys_for("gemini")[-1] == "kNEW-abcdefgh")
+check("add_key key trùng bị từ chối (-2)",
+      tr.add_key("gemini", "kNEW-abcdefgh") == -2)
+check("add_key key rỗng bị từ chối (-1)", tr.add_key("gemini", "  ") == -1)
+check("remove_key index giữa vòng",
+      tr.remove_key("gemini", 1) == 1 and tr.keys_for("gemini") == ["kEXIST-1234567890"])
+check("remove_key index xấu -> -1",
+      tr.remove_key("gemini", 9) == -1 and tr.remove_key("gemini", -1) == -1)
+# Xoá key CUỐI CÙNG: key chính cũng phải đi - trước đây m[field] chỉ ghi khi vòng không
+# rỗng nên để lại một key ma vẫn chạy được.
+check("gỡ key cuối: vòng rỗng và key chính bị xoá luôn",
+      tr.remove_key("gemini", 0) == 0 and tr.keys_for("gemini") == [] and
+      not (_cfg.read_settings().get("model") or {}).get("gemini_api_key"))
+
+# Chuỗi dự phòng việc nền: provider được phép gồm cả engine CLI (Codex=gmail, Grok, Agy)
+# vì xoay theo engine; anthropic-cli không vì nó đã là mắt mặc định.
+check("aux_fb_providers gồm codex+grok+agy+api",
+      set(("openai-oauth", "grok-cli", "antigravity-cli")) <= set(aux_engine.AUX_FB_PROVIDERS)
+      and "anthropic-cli" not in aux_engine.AUX_FB_PROVIDERS)
+
 print("\nOK - test_task_router: tất cả pass" if not _fails
       else f"\nFAIL {len(_fails)}: {_fails}")
 sys.exit(1 if _fails else 0)

@@ -600,6 +600,56 @@ class _FallbackChain:
         yield {"type": "error", "content": noi}
 
 
+# Provider được phép nằm trong chuỗi dự phòng VIỆC NỀN (settings.model.aux_fallbacks).
+# Khác chat_fallbacks (chỉ API): việc nền chạy được cả engine CLI vì _FallbackChain xoay
+# theo engine chứ không theo key - nên Codex (đăng nhập Gmail), Grok CLI, Antigravity
+# đều được xếp làm mắt. anthropic-cli không có trong danh sách vì nó ĐÃ là mắt mặc định.
+AUX_FB_PROVIDERS = (CODEX, GROK_CLI, ANTIGRAVITY) + tuple(API_PROVIDERS)
+
+
+def _engine_for_spec(sp, claude_cli_obj, mode, tag, codex_profile=None):
+    """spec {provider, model} -> engine việc nền tương ứng, hoặc None nếu provider không
+    dựng được ở đây. Tách ra để chuỗi dự phòng việc nền (aux_fallbacks) dựng được nhiều
+    mắt từ một danh sách spec thay vì chỉ mắt chính."""
+    prov = (sp or {}).get("provider")
+    if prov == CODEX:
+        return _build_codex(sp, claude_cli_obj, mode, tag, codex_profile)
+    if prov == GROK_CLI:
+        return _build_grok(sp, claude_cli_obj, mode, tag)
+    if prov == ANTIGRAVITY:
+        return _build_antigravity(sp, claude_cli_obj, mode, tag)
+    if prov in API_PROVIDERS:
+        return _build_api(sp, claude_cli_obj, mode, tag)
+    return None
+
+
+def _aux_fb_links(cli, mode, tag, settings, primary_sp, codex_profile=None):
+    """Dựng các mắt từ settings.model.aux_fallbacks: chuỗi provider chủ tự xếp cho việc
+    nền - hết key/quota provider trước thì nhảy provider sau (mỗi nhà vẫn xoay hết vòng
+    key của chính nó trước). Bỏ mắt trùng provider+model với mắt chính và mắt không
+    khả dụng (thiếu key/chưa cài CLI) để chuỗi không mang xác chết."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    m = (s.get("model") or {})
+    links, seen = [], set()
+    if primary_sp:
+        seen.add(((primary_sp.get("provider") or ""), (primary_sp.get("model") or "")))
+    for e in m.get("aux_fallbacks") or []:
+        if not isinstance(e, dict):
+            continue
+        prov, mdl = (e.get("provider") or "").strip(), (e.get("model") or "").strip()
+        if not prov or (prov, mdl) in seen or prov not in AUX_FB_PROVIDERS:
+            continue
+        seen.add((prov, mdl))
+        sp = {"provider": prov, "model": mdl}
+        ok, _why = availability(sp, s)
+        if not ok:
+            continue
+        eng = _engine_for_spec(sp, cli, mode, tag, codex_profile)
+        if eng is not None:
+            links.append(eng)
+    return links
+
+
 def _build_api(spec, claude_cli_obj, mode, tag):
     return _ApiAuxEngine(
         provider=spec["provider"],
@@ -917,6 +967,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             # Máy có thể CHƯA đăng nhập Claude (người dùng chỉ chạy Gemini/OpenAI...):
             # thêm bộ não CHÍNH làm mắt kế để việc nền đi theo đúng bộ não đang sống.
             chain = [cli]
+            chain += _aux_fb_links(cli, mode, tag, settings, sp, codex_profile)
             mn = _main_fallback_engine(cli, mode, tag, settings, {CLAUDE}, codex_profile)
             if mn:
                 chain.append(mn)
@@ -928,18 +979,18 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         if not ok:
             print(f"[aux] {why} → việc nền tạm dùng lại Claude.", file=sys.stderr)
             return _chain_tagged(cli, tag)
-        if prov == CODEX:
-            primary = _build_codex(sp, cli, mode, tag, codex_profile)
-        elif prov == GROK_CLI:
-            primary = _build_grok(sp, cli, mode, tag)
-        elif prov == ANTIGRAVITY:
-            primary = _build_antigravity(sp, cli, mode, tag)
-        elif prov in API_PROVIDERS:
-            primary = _build_api(sp, cli, mode, tag)
-        else:
+        primary = _engine_for_spec(sp, cli, mode, tag, codex_profile)
+        if primary is None:
             return _chain_tagged(cli, tag)
-        chain = [primary, cli]
-        mn = _main_fallback_engine(cli, mode, tag, settings, {CLAUDE, prov}, codex_profile)
+        # Chuỗi chủ tự xếp (aux_fallbacks) đứng SAU mắt chính và TRƯỚC các mắt máy đoán:
+        # ý chí chủ (gemini -> groq -> codex-gmail...) ưu tiên hơn heuristic sẵn có.
+        chain = [primary]
+        _fbs = _aux_fb_links(cli, mode, tag, settings, sp, codex_profile)
+        chain += _fbs
+        chain.append(cli)
+        _fb_provs = {getattr(e, "provider", "") for e in _fbs}
+        mn = _main_fallback_engine(cli, mode, tag, settings,
+                                   {CLAUDE, prov} | _fb_provs, codex_profile)
         if mn:
             chain.append(mn)
         or_free = _openrouter_free_engine(cli, mode, tag, settings)

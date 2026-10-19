@@ -4282,7 +4282,10 @@ async def task_engines_get():
                           "api": main_kind == "api"},
             "chat_fallbacks": [e for e in (m.get("chat_fallbacks") or [])
                                if isinstance(e, dict) and (e.get("provider") or "").strip()],
-            "api_providers": list(aux_engine.API_PROVIDERS)}
+            "aux_fallbacks": [e for e in (m.get("aux_fallbacks") or [])
+                              if isinstance(e, dict) and (e.get("provider") or "").strip()],
+            "api_providers": list(aux_engine.API_PROVIDERS),
+            "aux_fb_providers": list(aux_engine.AUX_FB_PROVIDERS)}
 
 
 @app.post("/task-engines")
@@ -4303,6 +4306,36 @@ async def task_engines_set(request: Request):
 def task_engines_reset():
     task_router.clear_task_specs()
     return {"ok": True}
+
+
+@app.post("/task-engines/aux-fallbacks")
+async def aux_fallbacks_set(request: Request):
+    """Chuỗi provider dự phòng cho VIỆC NỀN (settings.model.aux_fallbacks): mắt chính của
+    loại việc hết key/quota thì nhảy sang provider kế trong danh sách này, rồi mới tới
+    các mắt máy đoán (Claude -> não chính -> openrouter-free). KHÁC chuỗi chat: nhận cả
+    engine CLI đăng nhập gói (Codex/ChatGPT-gmail, Grok CLI, Antigravity) vì xoay theo
+    engine chứ không theo key."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    items, seen = [], set()
+    for e in (body or {}).get("fallbacks") or []:
+        if not isinstance(e, dict):
+            continue
+        prov = (e.get("provider") or "").strip()
+        model = (e.get("model") or "").strip()
+        if not prov or (prov, model) in seen:
+            continue
+        if prov not in aux_engine.AUX_FB_PROVIDERS:
+            return JSONResponse({"error": f"provider không nằm trong chuỗi việc nền: {prov}"},
+                                status_code=400)
+        seen.add((prov, model))
+        items.append({"provider": prov, "model": model})
+    s = cfgmod.read_settings()
+    s.setdefault("model", {})["aux_fallbacks"] = items
+    cfgmod.write_settings(s)
+    return {"ok": True, "count": len(items)}
 
 
 @app.post("/key-rings")
@@ -4326,6 +4359,46 @@ async def key_rings_reset(request: Request):
         body = {}
     n = task_router.unburn((body or {}).get("provider") or None)
     return {"ok": True, "unburned": n}
+
+
+@app.post("/key-rings/add")
+async def key_rings_add(request: Request):
+    """Thêm MỘT key vào cuối vòng của provider - UI khung dọc thêm từng key (không giới
+    hạn số key), khác /key-rings là thay nguyên vòng. Trả số key sau thêm."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    prov = (body or {}).get("provider") or ""
+    if prov not in task_router.KEY_FIELD:
+        return JSONResponse({"error": "provider không hợp lệ"}, status_code=400)
+    n = task_router.add_key(prov, (body or {}).get("key") or "")
+    if n == -1:
+        return JSONResponse({"error": "key rỗng"}, status_code=400)
+    if n == -2:
+        return JSONResponse({"error": "key đã có trong vòng"}, status_code=400)
+    return {"ok": True, "count": n}
+
+
+@app.post("/key-rings/remove")
+async def key_rings_remove(request: Request):
+    """Gỡ key ở vị trí index khỏi vòng (UI khung dọc, nút × từng dòng). Vòng rỗng thì
+    key chính cũng bị gỡ - không để lại key ma."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    prov = (body or {}).get("provider") or ""
+    if prov not in task_router.KEY_FIELD:
+        return JSONResponse({"error": "provider không hợp lệ"}, status_code=400)
+    try:
+        idx = int((body or {}).get("index"))
+    except Exception:
+        return JSONResponse({"error": "index không hợp lệ"}, status_code=400)
+    n = task_router.remove_key(prov, idx)
+    if n < 0:
+        return JSONResponse({"error": "index không hợp lệ"}, status_code=400)
+    return {"ok": True, "count": n}
 
 
 @app.post("/chat-fallbacks")
