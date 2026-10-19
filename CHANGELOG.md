@@ -10,6 +10,9 @@
 - **Ghi sổ không rơi mất qua strip_tools**: lớp bóc tool cho lượt không-tin-cậy (phán xét trả lời nhóm) giờ giữ nguyên gắn loại việc khi dựng lại chuỗi engine.
 - **i18n**: tiếng Đức được dịch đủ toàn bộ trang Phân việc não (trước thiếu hẳn khối rt.*).
 
+### Sửa
+- **Ô model không gợi ý sau khi đổi provider** (cả hàng não dự phòng chat lẫn bảng việc nền): datalist chỉ vẽ một lần theo provider lúc render nên đổi nhà vẫn giữ model cũ hoặc trống. Giờ đổi provider là nạp lại gợi ý; riêng nhà catalog động (OpenAI Compatible, Ollama Local, Ollama Cloud, Codex) còn gọi `/provider/models` hỏi danh sách LIVE - kể cả hàng đã lưu provider từ trước cũng tự nạp ngay khi mở trang.
+
 ## [1.3.18] - 2026-10-20
 ### Thêm mới
 - **Chuỗi dự phòng cho CHAT trực tiếp** (card "Chat trực tiếp" trên trang Phân việc não): khung chat dashboard, Telegram và các kênh trực tiếp trước chỉ có thử lại tạm thời trên cùng provider - hết quota là lượt chết, không ra lệnh được từ Telegram. Giờ chủ xếp sẵn một chuỗi não dự phòng có thứ tự; khi não chính trả lỗi quota/key chết, Joyce duyệt từng mắt theo đúng vòng quay key của nó rồi mới nhảy mắt kế, trong cùng một lượt và giữ nguyên ngữ cảnh hội thoại + MCP tools.

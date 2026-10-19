@@ -10,6 +10,9 @@
 - **Ledger survives strip_tools**: the tool-stripping layer for untrusted turns (group reply judge) now keeps the job-type tag when rebuilding the engine chain.
 - **i18n**: the whole Task routing page is now translated to German (the rt.* block was missing entirely).
 
+### Fixed
+- **Model box gave no suggestions after switching provider** (both chat fallback rows and the background table): the datalist was painted once at render for the old provider, so a new provider kept stale or empty suggestions. Switching provider now repaints suggestions, and dynamic-catalog providers (OpenAI Compatible, Ollama Local/Cloud, Codex) query `/provider/models` for the LIVE list - rows saved earlier load theirs on page open too.
+
 ## [1.3.18] - 2026-10-20
 ### Added
 - **Fallback chain for direct chat** (new "Direct chat" card on the Task routing page): the dashboard chat box, Telegram and other direct channels previously only retried transient errors on the same provider - running out of quota killed the turn and made Telegram commands impossible. The owner now configures an ordered chain of fallback brains; when the main brain returns a quota/dead-key error, Joyce walks each link through its own key ring before jumping to the next, inside the same turn, keeping the conversation context and MCP tools.

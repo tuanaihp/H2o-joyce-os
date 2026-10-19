@@ -5259,6 +5259,25 @@
     const chatMain = data.chat_main || {}, apiProvs = data.api_providers || [];
     const chatFbs = (data.chat_fallbacks || []).map(e => ({ provider: e.provider || "", model: e.model || "" }));
     const provById = Object.fromEntries(provs.map(p => [p.id, p]));
+
+    // Đổ danh sách model vào datalist của một provider. Catalog sẵn có thì dùng ngay;
+    // provider động (openai-compat, ollama-local...) default_models rỗng nên phải hỏi
+    // /provider/models LIVE - trước đây thiếu bước này nên ô model đứng trơ không gợi ý.
+    const fillModels = (provId, dl) => {
+      if (!dl) return;
+      const paint = (ms) => { dl.innerHTML = (ms || []).map(mm => `<option value="${esc(mm)}">`).join(""); };
+      const have = (provById[provId] || {}).models || [];
+      paint(have);
+      if (!provId || have.length) return;
+      fetch("/provider/models?provider=" + encodeURIComponent(provId), { cache: "no-store" })
+        .then(r => r.json())
+        .then(d => {
+          const ms = d.models || [];
+          if (provById[provId]) provById[provId].models = ms;
+          paint(ms);
+        })
+        .catch(() => {});
+    };
     const ringById = Object.fromEntries(rings.map(r => [r.provider, r]));
 
     const provOpts = (sel) =>
@@ -5337,6 +5356,13 @@
         row.querySelector(".rt-fb-up").onclick = () => { readFb(); const x = chatFbs.splice(i, 1)[0]; chatFbs.splice(i - 1, 0, x); paintFb(); fbEvents(); };
         row.querySelector(".rt-fb-dn").onclick = () => { readFb(); const x = chatFbs.splice(i, 1)[0]; chatFbs.splice(i + 1, 0, x); paintFb(); fbEvents(); };
         row.querySelector(".rt-fb-del").onclick = () => { readFb(); chatFbs.splice(i, 1); paintFb(); fbEvents(); };
+        // Đổi provider phải nạp lại gợi ý model của NHÀ MỚI - trước đây datalist
+        // chỉ vẽ một lần theo provider lúc render nên đổi nhà vẫn thấy model cũ/trống.
+        row.querySelector(".rt-fb-prov").onchange = () =>
+          fillModels(row.querySelector(".rt-fb-prov").value, row.querySelector("datalist"));
+        // Hàng đã lưu provider từ trước: catalog của nhà động (openai-compat...) thường
+        // rỗng lúc render, phải hỏi live ngay chứ không đợi chủ đổi select.
+        fillModels(row.querySelector(".rt-fb-prov").value, row.querySelector("datalist"));
       });
     };
     const mainLabel = (provById[chatMain.provider] || {}).label || chatMain.provider || "?";
@@ -5408,12 +5434,12 @@
           if (st) st.textContent = r && r.ok ? t("rt.saved") : t("rt.save_fail");
         });
       sel.onchange = () => {
-        const p = provById[sel.value] || {};
         dl.id = `rtm-${task}`;
         inp.setAttribute("list", `rtm-${task}`);
-        dl.innerHTML = (p.models || []).map(mm => `<option value="${esc(mm)}">`).join("");
+        fillModels(sel.value, dl);
         save();
       };
+      if (sel.value) fillModels(sel.value, dl);   // nhà động đã gán từ trước: nạp live ngay
       inp.onchange = save;
     });
     const rst = el.querySelector("#rtReset");
