@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.17] - 2026-10-20
+### Added
+- **New "Task routing" page** (Connections group, next to Models): lists every kind of background job that actually calls an LLM - reminders/cron, loops, Kanban dispatch, source ingestion, daily brief, group reply policy, agent judge, self-improvement - and assigns each type its own provider/model instead of one shared background model. Each type shows what it does plus a free/sensible provider suggestion; leaving it empty keeps the shared background model from the Models page as before. If the assigned provider dies at runtime, work still falls through the fallback chain.
+- **Multi-key rotation per provider**: each API provider (Gemini, Groq, OpenRouter, DeepSeek, OpenAI, Anthropic, Ollama cloud) now accepts several keys from legitimately registered accounts - paste one per line on the Task routing page. A key rejected for quota/429/auth errors is "burned" for a while (inferred from the error: per-minute waits ~1 minute, per-day waits until UTC midnight) and Joyce jumps to the next key within the same turn, before the fallback chain moves to another engine. Burn state persists in `key_burns.json` so a restart does not retry freshly burned keys; the page shows key tails, per-key call counts and a manual unblock button - full keys are never displayed.
+- **Per-key attribution**: turns and tokens are credited to the exact key slot in use (identified by fingerprint + last 4 characters), so it is visible which account carries the load without storing raw keys in the ledger.
+
 ## [1.3.16] - 2026-10-19
 ### Fixed
 - **Tunnel and link delivery mistook another app's cloudflared**: `tunnel_notify` and the watchdog previously matched any `cloudflared.exe` process, so while H2O Video Studio's own tunnel (port 5170) ran they believed the Joyce tunnel (:7777) was alive - a freshly booted server would open no tunnel and send no Telegram link, and refresh would even kill the other app's tunnel. Detection and kill now match the command line pointing at :7777, keeping both apps' tunnels fully independent.

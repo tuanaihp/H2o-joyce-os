@@ -56,6 +56,7 @@
     // doc nhanh horn folder/code vi day la LINK song chu khong phai ma nguon.
     projects: "rocket",
     models: "cpu",
+    routing: "git-branch",
     channels: "send",
     mcp: "plug",
     plugins: "toolbox",
@@ -123,7 +124,7 @@
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
     "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "projects", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "terminal", "coding", "projects", "selfimprove", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
@@ -173,7 +174,7 @@
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "webhooks"] },
-    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "tools"] },
+    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
@@ -199,7 +200,7 @@
   // Tổng quan (trừ Hôm nay) là mặt quản trị toàn hệ thống: server trả 403 cho nhân viên.
   const RAIL_AN_NHAN_VIEN = new Set(["command", "calendar", "reports",
     "terminal", "coding", "projects", "plugins", "selfimprove", "webhooks",
-    "mcp", "packs", "channels", "models", "tools", "settings", "share", "account", "nghiencuu"]);
+    "mcp", "packs", "channels", "models", "routing", "tools", "settings", "share", "account", "nghiencuu"]);
   // Phòng ban và Tài liệu chưng cất: trưởng phòng (quan_ly) thấy đúng phòng/brain của mình (server
   // lọc theo phạm vi); nhân viên thường và học việc không thấy (server trả 403 cho họ).
   const RAIL_AN_KHONG_QUAN_LY = new Set(["departments", "chungcat"]);
@@ -252,7 +253,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -686,6 +687,7 @@
     if (id === "pet") return renderPetPage(el);
     if (id === "share") return renderSharePage(el);
     if (id === "models")   return renderModels(el);
+    if (id === "routing")  return renderRouting(el);
     if (id === "mcp")      return renderConnect(el);
     if (id === "plugins")  return renderPlugins(el);
     if (id === "tools")    return renderTools(el);
@@ -5231,6 +5233,129 @@
     const pane = el.querySelector("#mTabPane");
     if (_modelTab === "local") await renderModelsLocalTab(pane);
     else await renderModelsCloudTab(pane);
+  }
+
+  // ===== Trang Phân việc não (1.3.17): loại tác vụ nào chạy model nào + vòng quay API key =====
+  // Server task_router trả danh mục loại việc nền THẬT (bám call-site tag), không phải
+  // danh sách bịa. Mỗi loại gán một provider/model riêng; để trống = theo model việc nền
+  // chung trên trang Models. Phía dưới là vòng quay nhiều key mỗi provider API: key hết
+  // quota thì server tự chuyển key kế trong cùng lượt rồi mới tới mắt fallback.
+  async function renderRouting(el) {
+    const vi = (window.JoyceI18n && JoyceI18n.lang() === "vi");
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
+    let data = {}, provs = [];
+    try {
+      const [te, pv] = await Promise.all([
+        fetch("/task-engines", { cache: "no-store" }).then(r => r.json()),
+        fetch("/providers", { cache: "no-store" }).then(r => r.json()),
+      ]);
+      data = te || {};
+      provs = (pv && pv.providers) || [];
+    } catch (e) {
+      el.innerHTML = `<div class="cview-placeholder"><div>${esc(String(e))}</div></div>`;
+      return;
+    }
+    const tasks = data.tasks || [], rings = data.rings || [];
+    const provById = Object.fromEntries(provs.map(p => [p.id, p]));
+    const ringById = Object.fromEntries(rings.map(r => [r.provider, r]));
+
+    const provOpts = (sel) =>
+      `<option value="">${esc(t("rt.default_opt"))}</option>` +
+      provs.map(p => `<option value="${esc(p.id)}"${sel === p.id ? " selected" : ""}>` +
+        `${esc(p.label)}${p.configured ? "" : " · " + esc(t("rt.not_conn"))}</option>`).join("");
+
+    const taskRow = (tt) => {
+      const spec = tt.spec || {};
+      const selProv = tt.custom ? (spec.provider || "") : "";
+      const pdef = provById[spec.provider] || {};
+      const rec = (tt.goi_y || []).includes(spec.provider);
+      return `<tr data-task="${esc(tt.id)}">
+        <td class="rt-cell-name">
+          <div class="rt-name">${esc(vi ? tt.vi : tt.en)}${rec ? ` <span class="rt-rec">${esc(t("rt.rec_badge"))}</span>` : ""}</div>
+          <div class="rt-desc">${esc(vi ? tt.vi_mo_ta : tt.en_mo_ta)}</div>
+          <div class="rt-hint">${esc(vi ? tt.vi_goi_y : tt.en_goi_y)}</div>
+        </td>
+        <td class="rt-cell-prov"><select class="rt-prov">${provOpts(selProv)}</select></td>
+        <td class="rt-cell-model">
+          <input class="rt-model" list="rtm-${esc(tt.id)}" value="${esc(spec.model || "")}" placeholder="${esc(t("rt.model_ph"))}">
+          <datalist id="rtm-${esc(tt.id)}">${(pdef.models || []).map(mm => `<option value="${esc(mm)}">`).join("")}</datalist>
+        </td>
+        <td class="rt-cell-st"><span class="rt-st">${tt.custom ? esc(t("rt.custom")) : esc(t("rt.inherit"))}</span></td>
+      </tr>`;
+    };
+
+    const ringRow = (r) => {
+      const pdef = provById[r.provider] || {};
+      const st = r.keys.map(k => {
+        const cls = k.burned ? "rt-slot burned" : "rt-slot ok";
+        const meta = k.burned
+          ? t("rt.slot_burned", { gio: new Date(k.until * 1000).toLocaleTimeString((window.JoyceI18n && JoyceI18n.locale()) || "vi-VN", { hour: "2-digit", minute: "2-digit" }) })
+          : (k.uses ? t("rt.slot_uses", { so: k.uses }) : "");
+        return `<span class="${cls}" title="${esc(k.why || "")}">${esc(k.tail)}${meta ? ` <i>${esc(meta)}</i>` : ""}</span>`;
+      }).join("");
+      return `<div class="rt-ring" data-prov="${esc(r.provider)}">
+        <div class="rt-ring-head">
+          <b>${esc(pdef.label || r.provider)}</b>
+          <span class="rt-ring-sum">${t("rt.ring_sum", { so: r.total, chay: r.burned })}</span>
+        </div>
+        <div class="rt-slots">${st || `<span class="rt-slot">${esc(t("rt.no_keys"))}</span>`}</div>
+        <textarea class="rt-keys" rows="2" placeholder="${esc(t("rt.keys_ph"))}" spellcheck="false"></textarea>
+        <div class="rt-ring-act">
+          <button class="gcard-btn rt-save" type="button">${esc(t("rt.save_ring"))}</button>
+          <button class="gcard-btn ghost rt-unburn" type="button"${r.burned ? "" : " disabled"}>${esc(t("rt.unburn"))}</button>
+        </div>
+      </div>`;
+    };
+
+    el.innerHTML = `<div class="cview-section rt-page">
+      <div class="rt-card">
+        <div class="rt-card-h">${esc(t("rt.tasks_head"))}</div>
+        <div class="rt-card-d">${esc(t("rt.tasks_desc"))}</div>
+        <table class="rt-table"><tbody>${tasks.map(taskRow).join("")}</tbody></table>
+        <div class="rt-card-act"><button class="gcard-btn ghost" id="rtReset" type="button">${esc(t("rt.reset_all"))}</button></div>
+      </div>
+      <div class="rt-card">
+        <div class="rt-card-h">${esc(t("rt.rings_head"))}</div>
+        <div class="rt-card-d">${esc(t("rt.rings_desc"))}</div>
+        <div class="rt-rings">${rings.map(ringRow).join("")}</div>
+      </div>
+      <div class="rt-note">${esc(t("rt.note"))}</div>
+    </div>`;
+
+    // Lưu ngay khi đổi provider; model lưu khi rời ô (change). Provider đổi thì nạp lại
+    // datalist model của provider mới.
+    el.querySelectorAll("tr[data-task]").forEach(tr => {
+      const task = tr.dataset.task;
+      const sel = tr.querySelector(".rt-prov");
+      const inp = tr.querySelector(".rt-model");
+      const dl = tr.querySelector("datalist");
+      const save = () => postJson("/task-engines", { task, provider: sel.value, model: inp.value.trim() }, 8000)
+        .then(r => {
+          const st = tr.querySelector(".rt-st");
+          if (st) st.textContent = r && r.ok ? t("rt.saved") : t("rt.save_fail");
+        });
+      sel.onchange = () => {
+        const p = provById[sel.value] || {};
+        dl.id = `rtm-${task}`;
+        inp.setAttribute("list", `rtm-${task}`);
+        dl.innerHTML = (p.models || []).map(mm => `<option value="${esc(mm)}">`).join("");
+        save();
+      };
+      inp.onchange = save;
+    });
+    const rst = el.querySelector("#rtReset");
+    if (rst) rst.onclick = () => postJson("/task-engines/reset", {}, 8000).then(() => renderRouting(el));
+    el.querySelectorAll(".rt-ring").forEach(box => {
+      const prov = box.dataset.prov;
+      const ta = box.querySelector(".rt-keys");
+      box.querySelector(".rt-save").onclick = () =>
+        postJson("/key-rings", { provider: prov, keys: ta.value }, 8000)
+          .then(() => renderRouting(el));
+      const ub = box.querySelector(".rt-unburn");
+      if (ub) ub.onclick = () =>
+        postJson("/key-rings/reset", { provider: prov }, 8000)
+          .then(() => renderRouting(el));
+    });
   }
 
   // ===== Tab Local Model (Ollama chạy trên máy) =====

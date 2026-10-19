@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.17] - 2026-10-20
+### Thêm mới
+- **Trang "Phân việc não" mới** (nhóm Kết nối, cạnh Models): liệt kê mọi loại việc nền thật sự gọi LLM - nhắc hẹn/cron, vòng lặp, việc Kanban, tiêu hoá nguồn, bản tin, quyết định trả lời nhóm, phán xét agent, tự học - và cho gán từng loại một provider/model riêng thay vì chỉ một model việc nền chung. Mỗi loại kèm mô tả việc là gì và gợi ý provider free/hợp lý; để trống thì vẫn theo model việc nền chung trên trang Models như cũ. Khi provider được gán chết lúc chạy, việc vẫn rơi xuống chuỗi dự phòng như trước.
+- **Vòng quay nhiều API key cho một provider**: mỗi provider API (Gemini, Groq, OpenRouter, DeepSeek, OpenAI, Anthropic, Ollama cloud) giờ nhận nhiều key của các tài khoản hợp lệ chủ tự đăng ký - dán mỗi dòng một key trên trang Phân việc não. Key nào bị từ chối vì hết quota/429/lỗi xác thực sẽ "cháy" một thời gian (ước lượng theo nội dung lỗi: lỗi phút chờ ~1 phút, lỗi ngày chờ tới nửa đêm UTC) và Joyce tự nhảy sang key kế ngay trong cùng lượt, trước khi chuỗi fallback tới engine khác. Trạng thái cháy lưu ở `key_burns.json` nên restart server cũng không thử lại key vừa cháy; trang hiển thị đuôi key, số lượt mỗi key gánh và nút mở khoá tay - không bao giờ lộ key đầy đủ.
+- **Attribution theo key**: lượt và token ghi về đúng key slot đang dùng (nhận diện bằng fingerprint + 4 ký tự đuôi), để thấy tài khoản nào đang gánh việc mà không lưu key thô trong sổ.
+
 ## [1.3.16] - 2026-10-19
 ### Sửa lỗi
 - **Tunnel + gửi link nhận lầm cloudflared của app khác**: `tunnel_notify` và watchdog trước chỉ lọc theo tên tiến trình `cloudflared.exe`, nên khi H2O Video Studio chạy tunnel riêng (port 5170) chúng tưởng tunnel của Joyce (:7777) vẫn sống - server mới boot xong sẽ không mở tunnel mới và không gửi link về Telegram; thao tác refresh còn giết nhầm tunnel của app kia. Giờ nhận diện/giết theo command line trỏ về :7777, tunnel hai app song song hoàn toàn độc lập.

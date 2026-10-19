@@ -70,6 +70,7 @@ import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói Su
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
+import task_router  # phân việc não theo loại tác vụ + vòng quay API key (trang Phân việc não)
 import mcp_store
 import mcp_client
 import mcp_catalog
@@ -4164,6 +4165,59 @@ def _apply_mcp(cli, mode="full", brain=None, vault_pin=False):
 @app.get("/providers")
 async def providers_get():
     return {"providers": _providers_view(cfgmod.read_settings())}
+
+
+# ---- Phân việc não: loại tác vụ -> provider/model + vòng quay API key ----
+# Trang "Phân việc não" (routing) đọc/ghi qua các endpoint này. task_models nằm trong
+# settings["model"]; vòng key là <provider>_keys + trạng thái cháy ở state/key_burns.json.
+@app.get("/task-engines")
+async def task_engines_get():
+    s = cfgmod.read_settings()
+    return {"tasks": task_router.task_list(s),
+            "rings": task_router.all_ring_status(s)}
+
+
+@app.post("/task-engines")
+async def task_engines_set(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    ok = task_router.set_task_spec((body or {}).get("task") or "",
+                                   (body or {}).get("provider") or "",
+                                   (body or {}).get("model") or "")
+    if not ok:
+        return JSONResponse({"error": "task không hợp lệ"}, status_code=400)
+    return {"ok": True}
+
+
+@app.post("/task-engines/reset")
+def task_engines_reset():
+    task_router.clear_task_specs()
+    return {"ok": True}
+
+
+@app.post("/key-rings")
+async def key_rings_set(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    prov = (body or {}).get("provider") or ""
+    if prov not in task_router.KEY_FIELD:
+        return JSONResponse({"error": "provider không hợp lệ"}, status_code=400)
+    n = task_router.set_keys(prov, (body or {}).get("keys") or [])
+    return {"ok": True, "count": n}
+
+
+@app.post("/key-rings/reset")
+async def key_rings_reset(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    n = task_router.unburn((body or {}).get("provider") or None)
+    return {"ok": True, "unburned": n}
 
 
 # ---- ChatGPT OAuth (device-code) - đăng nhập gói ChatGPT thay API key ----

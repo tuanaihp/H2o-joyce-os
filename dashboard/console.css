@@ -6231,3 +6231,41 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
   background: var(--card); color: var(--text2); }
 button.ovw-cap-lk { font: inherit; cursor: pointer; transition: border-color .15s, color .15s; }
 button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-ink); }
+
+/* ---- Trang Phan viec nao (routing, 1.3.17) ---- */
+.rt-page { display: flex; flex-direction: column; gap: 14px; max-width: 1060px; }
+.rt-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.rt-card-h { font-size: 14px; font-weight: 650; margin-bottom: 4px; }
+.rt-card-d { font-size: 12px; color: var(--text3); margin-bottom: 12px; }
+.rt-card-act { margin-top: 10px; display: flex; justify-content: flex-end; }
+.rt-table { width: 100%; border-collapse: collapse; }
+.rt-table td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.rt-table tr:first-child td { border-top: 0; }
+.rt-cell-name { width: 44%; }
+.rt-name { font-size: 13px; font-weight: 600; }
+.rt-rec { font-size: 10.5px; font-weight: 600; color: var(--green, #2fbf71); border: 1px solid var(--green, #2fbf71);
+  border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
+.rt-desc { font-size: 11.5px; color: var(--text2); margin-top: 2px; }
+.rt-hint { font-size: 11px; color: var(--text3); margin-top: 2px; font-style: italic; }
+.rt-prov, .rt-model { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px;
+  padding: 7px 9px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); }
+.rt-prov { min-width: 170px; }
+.rt-model { min-width: 180px; }
+.rt-cell-st { white-space: nowrap; font-size: 11px; color: var(--text3); padding-top: 13px; }
+.rt-rings { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.rt-ring { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.rt-ring-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.rt-ring-head b { font-size: 13px; }
+.rt-ring-sum { font-size: 11px; color: var(--text3); }
+.rt-slots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.rt-slot { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
+  color: var(--text2); font-family: ui-monospace, monospace; }
+.rt-slot.ok { border-color: var(--green, #2fbf71); color: var(--green, #2fbf71); }
+.rt-slot.burned { border-color: var(--red, #e05555); color: var(--red, #e05555); }
+.rt-slot i { font-style: normal; opacity: 0.8; font-family: inherit; }
+.rt-keys { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 11.5px;
+  padding: 8px 9px; border-radius: 9px; border: 1px dashed var(--line); background: var(--bg);
+  color: var(--text); resize: vertical; }
+.rt-ring-act { display: flex; gap: 8px; margin-top: 8px; }
+.rt-note { font-size: 11.5px; color: var(--text3); line-height: 1.6; padding: 0 4px; }

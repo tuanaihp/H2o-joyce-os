@@ -52,6 +52,7 @@
   "page.kanban.title": "Aufgaben (Kanban)",
   "page.kanban.sub": "Joyce schreibt die Spezifikation, verteilt und führt Hintergrundaufgaben aus",
   "page.models.label": "Modelle",
+  "page.routing.label": "Aufgaben-Routing",
   "page.models.sub": "Hauptmodell & Anbieter",
   "page.channels.label": "Admin-Kanäle",
   "page.channels.title": "Admin-Kanäle",

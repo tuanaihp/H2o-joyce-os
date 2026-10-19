@@ -39,6 +39,8 @@ server/staff_avatars/
 server/coding.json
 server/tg_sid.json
 server/business_weather.json
+server/kenh_du_phong.json
+server/key_burns.json
 # Log so sánh test và tài liệu tham khảo đưa cho agent - giữ trên máy, không vào repo
 tests-baseline*.log
 tai-lieu-update-tu-openai/

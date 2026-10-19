@@ -37,6 +37,7 @@ import time
 from typing import Optional
 
 import config as cfgmod
+import task_router
 
 CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
@@ -45,24 +46,9 @@ ANTIGRAVITY = "antigravity-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "deepseek", "anthropic-api", "ollama",
                  "ollama-local", "openai-compat")
 
-# provider -> tên trường chứa API key trong settings["model"]
-_KEY_FIELD = {
-    "openrouter": "openrouter_key",
-    "openai": "openai_api_key",
-    "gemini": "gemini_api_key",
-    "groq": "groq_api_key",
-    "deepseek": "deepseek_api_key",
-    "anthropic-api": "anthropic_api_key",
-    "ollama": "ollama_key",
-    # Bản chạy MÁY NHÀ. Trường này thường RỖNG - Ollama trần không có xác thực - và điều đó
-    # là bình thường chứ không phải "chưa cấu hình": thứ xác định nó dùng được hay không là
-    # ĐỊA CHỈ (`ollama_local_endpoint`), còn khoá chỉ cần khi ai đó đặt Ollama sau reverse
-    # proxy. Xem `_key_of` bên dưới, chỗ ollama-local được miễn kiểm khoá rỗng.
-    "ollama-local": "ollama_local_key",
-    # Endpoint OpenAI-compatible tự khai. Như ollama-local: thứ quyết định dùng được là ĐỊA CHỈ
-    # (`openai_compat_base`), khoá có thể rỗng khi endpoint không đòi xác thực.
-    "openai-compat": "openai_compat_key",
-}
+# provider -> tên trường chứa API key trong settings["model"]. Bản chuẩn nằm ở
+# task_router.KEY_FIELD (nhà của vòng quay nhiều key); alias để mã cũ đọc _KEY_FIELD vẫn chạy.
+_KEY_FIELD = task_router.KEY_FIELD
 
 # mode của Joyce -> sandbox của Codex CLI. Bản đồ thật nằm ở `claude_cli.codex_sandbox_cho_mode`
 # (nó còn đọc cờ JOYCE_CODEX_SANDBOX); giữ dict này để mã cũ đọc tên mức vẫn chạy.
@@ -161,9 +147,13 @@ async def pick_openrouter_free(key: str = "") -> str:
     return best
 
 
-def read_spec(settings: dict = None) -> dict:
+def read_spec(settings: dict = None, tag: str = None) -> dict:
     """{'provider','model'} của model việc nền. Cấu hình cũ chỉ có 'model' (luôn là alias
     Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ.
+
+    `tag` (1.3.17): loại tác vụ đang chạy. Trang Phân việc não gán từng loại một provider/
+    model riêng trong settings.model.task_models (task_router.spec_for_tag); tag=None hoặc
+    loại chưa gán thì vẫn về model việc nền chung (auxiliary) như cũ.
 
     PHANH NGÂN SÁCH: nếu tháng này đã tiêu quá trần tiền người dùng đặt VÀ họ đã bật tự
     phanh, việc nền không được tiêu thêm tiền mặt nữa. Nó không dừng lại - nó chuyển sang
@@ -172,8 +162,16 @@ def read_spec(settings: dict = None) -> dict:
     phần tiêu tiền lúc người ta không ngồi nhìn.
     """
     s = settings if settings is not None else cfgmod.read_settings()
-    aux = (s.get("model", {}) or {}).get("auxiliary") or {}
-    spec = {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    if tag:
+        try:
+            spec = task_router.spec_for_tag(tag, s)
+        except Exception:                    # noqa: BLE001 - lỗi tra loại thì về auxiliary
+            spec = None
+    else:
+        spec = None
+    if spec is None:
+        aux = (s.get("model", {}) or {}).get("auxiliary") or {}
+        spec = {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
     if spec["provider"] not in API_PROVIDERS:
         return spec                      # gói thuê bao: không tính tiền theo token, kệ phanh
     try:
@@ -250,7 +248,13 @@ def api_key_for(provider: str, settings: dict = None) -> str:
     if provider == "openai-compat":
         # Có Base URL là chạy được; khoá rỗng thì gửi "none" (endpoint không đòi xác thực).
         return (m.get(field) or "none") if (m.get("openai_compat_base") or "").strip() else ""
-    return m.get(field) or ""
+    if provider == "ollama-local":
+        # Endpoint quyết định, khoá có thể rỗng - lấy key đầu vòng nếu ai đó điền thêm.
+        ks = task_router.keys_for(provider, s)
+        return ks[0] if ks else ""
+    # 1.3.17: vòng quay nhiều key - trả key chưa bị đánh dấu cháy; hết key sạch -> ""
+    # để caller/availability coi engine như không sẵn sàng và fallback sang mắt sau.
+    return task_router.pick_key(provider, s)
 
 
 def availability(spec: dict, settings: dict = None) -> tuple:
@@ -340,8 +344,12 @@ class _ApiAuxEngine:
         import engine as eng
         import mcp_hub
 
-        key = api_key_for(self.provider)
-        if not key:
+        # Vòng quay nhiều key (task_router, 1.3.17): key chưa 'cháy' xếp trước; key bị
+        # quota/429/auth từ chối thì đánh dấu cháy và thử ngay key kế TRONG CÙNG lượt,
+        # trước khi chuỗi fallback tới mắt sau. ollama-local trần có key "" vẫn là một
+        # slot hợp lệ; provider nào key bắt buộc mà ring chỉ có "" thì báo thiếu key.
+        ring = task_router.usable_keys(self.provider) or [""]
+        if not any(ring):
             import localefmt
             yield {"type": "error", "content": localefmt.chu(f"Chưa có API key cho {self.provider}.",
                                                              f"No API key for {self.provider}.")}
@@ -354,7 +362,7 @@ class _ApiAuxEngine:
             try:
                 s = cfgmod.read_settings()
                 override = ((s.get("model", {}) or {}).get("fallback_openrouter_model") or "").strip()
-                self.model = override or await pick_openrouter_free(key)
+                self.model = override or await pick_openrouter_free(ring[0])
                 if not override and self.model:
                     s.setdefault("model", {})["fallback_openrouter_model"] = self.model
                     cfgmod.write_settings(s)
@@ -397,39 +405,63 @@ class _ApiAuxEngine:
             messages.append({"role": "system", "content": sysprompt})
         messages.append({"role": "user", "content": prompt})
 
-        if tools:
-            fn = {"openrouter": eng.openrouter_chat_with_mcp,
-                  "openai": eng.openai_chat_with_mcp,
-                  "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
-                  "deepseek": eng.deepseek_chat_with_mcp,
-                  "anthropic-api": eng.anthropic_chat_with_mcp,
-                  "ollama": eng.ollama_chat_with_mcp,
-                  "ollama-local": eng.ollama_local_chat_with_mcp,
-                  "openai-compat": eng.openai_compat_chat_with_mcp}[self.provider]
-            stream = fn(key, self.model, messages, self.reasoning, tools, route)
-        else:
-            fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
-                  "gemini": eng.gemini_stream, "groq": eng.groq_stream,
-                  "deepseek": eng.deepseek_stream,
-                  "anthropic-api": eng.anthropic_stream,
-                  "ollama": eng.ollama_stream,
-                  "ollama-local": eng.ollama_local_stream,
-                  "openai-compat": eng.openai_compat_stream}[self.provider]
-            stream = fn(key, self.model, messages, self.reasoning)
-
         # Đường API sinh "text" theo mảnh; việc nền chỉ đọc "final" nên gom lại rồi phát MỘT lần.
-        buf = []
-        async for ev in stream:
-            t = ev.get("type")
-            if t == "text":
-                buf.append(ev.get("content") or "")
-            elif t in ("tool_call", "error", "usage"):
-                if t == "usage":
+        # Mỗi lần thử một key của ring: lỗi quota/auth -> burn + key kế; lỗi khác -> trả luôn
+        # (xoay key không cứu được lỗi server/prompt); hết key -> trả lỗi cuối để chuỗi
+        # fallback sang mắt engine khác.
+        last_err = None
+        for key in ring:
+            if tools:
+                fn = {"openrouter": eng.openrouter_chat_with_mcp,
+                      "openai": eng.openai_chat_with_mcp,
+                      "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
+                      "deepseek": eng.deepseek_chat_with_mcp,
+                      "anthropic-api": eng.anthropic_chat_with_mcp,
+                      "ollama": eng.ollama_chat_with_mcp,
+                      "ollama-local": eng.ollama_local_chat_with_mcp,
+                      "openai-compat": eng.openai_compat_chat_with_mcp}[self.provider]
+                stream = fn(key, self.model, messages, self.reasoning, tools, route)
+            else:
+                fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
+                      "gemini": eng.gemini_stream, "groq": eng.groq_stream,
+                      "deepseek": eng.deepseek_stream,
+                      "anthropic-api": eng.anthropic_stream,
+                      "ollama": eng.ollama_stream,
+                      "ollama-local": eng.ollama_local_stream,
+                      "openai-compat": eng.openai_compat_stream}[self.provider]
+                stream = fn(key, self.model, messages, self.reasoning)
+            buf = []
+            err = None
+            async for ev in stream:
+                t = ev.get("type")
+                if t == "text":
+                    buf.append(ev.get("content") or "")
+                elif t == "usage":
                     self._ghi_muc_dung(ev)
-                yield ev
-                if t == "error":
-                    return
-        yield {"type": "final", "content": "".join(buf)}
+                    try:
+                        task_router.note_use(self.provider, key,
+                                             ev.get("input", 0), ev.get("output", 0))
+                    except Exception:
+                        pass
+                    yield ev
+                elif t == "tool_call":
+                    yield ev
+                elif t == "error":
+                    err = ev.get("content") or "lỗi không rõ"
+                    break
+            if err is None:
+                yield {"type": "final", "content": "".join(buf)}
+                return
+            if key and task_router.quota_error(err):
+                task_router.burn_key(self.provider, key, err, task_router.burn_cooldown(err))
+                print(f"[aux keyring] {self.provider} key {task_router._tail(key)} cháy "
+                      f"({err[:120]}) → thử key kế", file=sys.stderr)
+                last_err = err
+                continue
+            yield {"type": "error", "content": err}
+            return
+        yield {"type": "error",
+               "content": last_err or f"Mọi key của {self.provider} đều không gọi được."}
 
     def _ghi_muc_dung(self, ev: dict) -> None:
         """Cộng lượt việc nền này vào sổ mức dùng.
@@ -825,7 +857,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     engine Claude như xưa; hỏng cấu hình kiểu gì việc nền cũng phải chạy được chứ không chết.
     """
     try:
-        sp = spec if spec is not None else read_spec(settings)
+        sp = spec if spec is not None else read_spec(settings, tag=tag)
         prov = sp.get("provider", CLAUDE)
         # MỨC FULL KHÔNG CÓ CHUỖI DỰ PHÒNG. Đây là quyết định có chủ ý, không phải bỏ sót.
         #
