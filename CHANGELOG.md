@@ -11,6 +11,15 @@
 - **Hồ sơ lưu trên server**: `GET/PUT /hands/profile` → `STATE_DIR/hand_gestures.json`, validate chặt (tối đa 16 cử chỉ, action whitelist, vec/tol 5 float, calib trong biên an toàn). Bảng lưu xong phát sự kiện `joyce-hands:profile` → cam điều khiển đang chạy áp ngưỡng mới ngay không cần tắt mở.
 - **Mở bảng luyện tạm ngừng cam điều khiển** (khỏi 2 worker đua CPU), đóng bảng thì mở lại nếu trước đó đang bật.
 
+### Sửa lỗi
+- Joyce mở được trang **Phân việc não** khi được nhờ chuyển trang (trước đó bị chặn như trang lạ).
+- Chữ trên trang Phân việc não và bảng huấn luyện cử chỉ dùng dấu gạch nối thường, đúng quy ước giao diện.
+- Ảnh Docker: script khởi động container được đánh dấu chạy được, tránh lỗi "permission denied" khi bật container.
+
+### Bảo mật
+- Nâng thư viện đọc PDF (vá 3 lỗi PDF độc làm treo/ngốn RAM) và thư viện Claude Agent SDK (vá lỗi chèn cờ qua mã phiên).
+- Album trình chiếu không còn làm khựng cả server khi thư mục có nhiều ảnh; lưu hồ sơ cử chỉ với dữ liệu sai kiểu trả lỗi gọn thay vì lỗi 500.
+
 ## [1.3.21] - 2026-10-21
 ### Thêm mới
 - **Nút bung khoang não toàn màn hình** (⤢ cạnh icon mắt trong stage-tools): requestFullscreen trên `.hud-center` - ở lớp nhìn 3D Joyce thì toàn màn hình chỉ còn người ảo + giọng nói + camera, ESC hoặc bấm lại để thu về.

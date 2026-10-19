@@ -8750,7 +8750,7 @@ _ALBUM_IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"}
 
 
 @app.get("/album")
-async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh")):
+def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh")):
     """Album trình chiếu của lớp nhìn 3D Joyce (mở bằng cử chỉ vuốt tay): quét đệ quy
     attachments/ rồi sources/ của brain (mặc định Sales Hinh Anh), trả ảnh theo path
     tương đối gốc brain để mở qua /files/raw. Trần 400 ảnh, mới trước cũ sau."""
@@ -8830,8 +8830,14 @@ async def hands_profile_put(request: Request):
         body = {}
     if not isinstance(body, dict):
         return JSONResponse({"error": "body không hợp lệ"}, status_code=400)
+    raw_custom = body.get("custom")
+    raw_calib = body.get("calib")
+    if not isinstance(raw_custom, list):
+        raw_custom = []
+    if not isinstance(raw_calib, dict):
+        raw_calib = {}
     custom, seen = [], set()
-    for g in (body.get("custom") or [])[:16]:
+    for g in raw_custom[:16]:
         if not isinstance(g, dict):
             continue
         vec = _f5(g.get("vec"), 0.0, 1.0)
@@ -8847,7 +8853,7 @@ async def hands_profile_put(request: Request):
         custom.append({"id": gid, "label": label, "action": action, "vec": vec, "tol": tol})
     calib = {}
     for k, (lo, hi) in _HAND_CALIB_RANGES.items():
-        v = (body.get("calib") or {}).get(k)
+        v = raw_calib.get(k)
         if isinstance(v, (int, float)) and lo <= float(v) <= hi:
             calib[k] = float(v)
     if calib.get("pinchOn") is not None and calib.get("pinchOff") is not None \

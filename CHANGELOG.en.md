@@ -11,6 +11,15 @@
 - **Profile persisted server-side**: `GET/PUT /hands/profile` → `STATE_DIR/hand_gestures.json` with strict validation (≤16 gestures, action whitelist, 5-float vec/tol, bounded calib keys). Saving fires `joyce-hands:profile` so a running control camera picks up new thresholds instantly without a restart.
 - **Opening the trainer pauses the control camera** (two workers don't race the CPU); closing it resumes hand control if it was on.
 
+### Fixed
+- Joyce can open the **Brain routing** page when asked to switch pages (it was blocked as an unknown page).
+- Text on the Brain routing page and the gesture trainer uses a plain hyphen, matching the UI convention.
+- Docker image: the container start script is marked executable, avoiding a "permission denied" error on start.
+
+### Security
+- Upgraded the PDF reader library (fixes 3 malicious-PDF hang/memory issues) and the Claude Agent SDK (fixes flag injection through the session id).
+- The slideshow album no longer stalls the whole server on folders with many images; saving a gesture profile with wrongly typed data now fails cleanly instead of a 500 error.
+
 ## [1.3.21] - 2026-10-21
 ### Added
 - **Fullscreen brain chamber button** (⤢ next to the eye icon in stage-tools): requestFullscreen on `.hud-center` - in the 3D Joyce view the whole screen is just the virtual figure + voice + camera; ESC or press again to exit.
