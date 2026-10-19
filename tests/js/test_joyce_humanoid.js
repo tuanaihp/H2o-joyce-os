@@ -288,7 +288,7 @@ let inBand = true; for (let k = 0; k < smp.n; k++) { const u = smp.uv[k * 2]; if
 check('sampleImageData: chỉ lấy điểm sáng, đích nằm đúng vùng sáng của ảnh, giữ màu', smp.n > 0 && inBand && smp.col[1] > 0.8);
 check('sampleImageData: tôn trọng trần số hạt', Q.sampleImageData(img.data, 10, 10, 5).n === 5);
 check('intro dùng cùng phép đặt khung với renderer ảnh (figureRect)', QSRC.includes('Math.min(h * 1.01, w * 1.6)'));
-check('wrapper: rời lớp nhìn / huỷ thì dọn cảnh hạt', WRAP.includes('closeHands(); stopIntro();') && /stopIntro\(\);\s*if \(apex\) \{ try \{ apex\.dispose/.test(WRAP));
+check('wrapper: rời lớp nhìn / huỷ thì dọn cảnh hạt', WRAP.includes('closeHands(); stopIntro();') && /stopIntro\(\);[\s\S]{0,120}if \(apex\) \{ try \{ apex\.dispose/.test(WRAP));
 check('wrapper: có cảnh hạt thì hình gốc hiện nhanh (không lắp ráp lần hai)', WRAP.includes('assemblyDuration: introAvailable() ? 1.4'));
 check('wrapper: giảm chuyển động của hệ điều hành thì bỏ cảnh hạt', WRAP.includes('JoyceQuantumIntro && !reduced'));
 const sc = Q.buildScene(Q.BUDGET.safe);

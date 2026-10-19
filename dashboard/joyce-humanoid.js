@@ -695,15 +695,27 @@
       introTimers.push(setTimeout(function () { if (intro && intro.box) intro.box.style.opacity = "0"; }, INTRO_S * 1000));
       introTimers.push(setTimeout(stopIntro, (INTRO_S + FADE_S + 0.1) * 1000));
     }
-    function enterApex() { if (apex && apex.loaded && active) { try { apex.enter(); } catch (e) {} } }
+    function enterApex() { if (apex && apex.loaded && active) { try { apex.enter(); } catch (e) {} } ensureGestures(); }
+
+    // ---- Đôi tay hạt + bảng hologram (joyce-gestures.js, 1.3.24) ----
+    // Ảnh nhân vật không có tay: khi Joyce làm task/trả lời, hạt tụ thành tay bấm bảng.
+    var gestures = null;
+    function ensureGestures() {
+      if (gestures || !layer || !window.JoyceGestures || !apex || !apex.loaded) return;
+      try {
+        gestures = new window.JoyceGestures(layer, { getAspect: function () { return (apex && apex.aspect) || 0.926; } });
+        gestures.setState(state); gestures.setLevel(amp);
+        if (active) gestures.start();
+      } catch (e) { gestures = null; }
+    }
 
     // Bật/tắt hẳn phần hiển thị: lớp bọc .hum-layer giấu cả cây DOM của
     // renderer đang dùng (apex .jh hoặc canvas+hud-status procedural).
     function applyActive(on) {
-      if (!on) { closeHands(); stopIntro(); }   // rời lớp nhìn -> đóng panel + tắt camera (kit spec)
+      if (!on) { closeHands(); stopIntro(); if (gestures) gestures.stop(); }   // rời lớp nhìn -> đóng panel + tắt camera (kit spec)
       if (layer) layer.style.display = on ? "" : "none";
       if (apex && apex.loaded) {
-        if (on) startIntro(enterApex);
+        if (on) { startIntro(enterApex); if (gestures) gestures.start(); }
         else { try { apex.pause(); } catch (e) {} }
       }
       // "" = trả về display:block của stylesheet; "none" = giấu hẳn (xem lý do
@@ -735,11 +747,13 @@
       s = normState(s);
       if (s !== state) {
         state = s; stateAt = performance.now(); syncStatus();
+        if (gestures) gestures.setState(state);
         if (apex && apex.loaded) { try { apex.setState(mapState(state)); } catch (e) {} }
       }
     };
     R.setAudioAmplitude = function (v) {
       amp = clamp(+v || 0, 0, 1);
+      if (gestures) gestures.setLevel(amp);
       if (apex && apex.loaded) { try { apex.setLevel(amp); } catch (e) {} }
     };
     R.setInCall = function (v) { inCall = !!v; };
@@ -775,6 +789,7 @@
       if (destroyed) return; destroyed = true; stopLoop();
       disposeHands();
       stopIntro();
+      if (gestures) { try { gestures.dispose(); } catch (e) {} gestures = null; }
       if (apex) { try { apex.dispose(); } catch (e) {} apex = null; }
       listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) {} });
       listeners = []; if (ro) { try { ro.disconnect(); } catch (e) {} ro = null; }

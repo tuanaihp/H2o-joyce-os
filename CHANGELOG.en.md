@@ -5,6 +5,7 @@
 ## [1.3.23] - 2026-10-19
 ### Added
 - **3D Joyce now appears in quantum particles**: when you open 3D Joyce, particles shoot out of a point of light, swirl into a comet stream and assemble into a human figure; the familiar avatar then appears in exactly that spot. Everything after the intro stays as before.
+- **3D Joyce raises its hands to work**: when you give it a task, the avatar lifts two particle hands and taps holographic panels in front of it; the panel shows the actual task (for example "Web search: ...") and result rows appear one by one. While answering, the hands settle at chest height and move with the voice. With nothing to do, the hands fade away.
 
 ### Fixed
 - Fixed failing automated checks (long dashes in translations, mismatched page lists, stale camera checks).
