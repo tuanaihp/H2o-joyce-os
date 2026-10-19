@@ -13,7 +13,13 @@
 .jh-particles{z-index:2}
 .jh-top{position:absolute;left:18px;top:18px;display:flex;gap:10px;z-index:5}
 .jh-top button{min-height:44px;padding:0 14px;color:var(--cyan);border-radius:9px;letter-spacing:.04em}
-.jh-status{position:absolute;top:21%;left:66%;max-width:30%;font-size:clamp(8px,1vmin,12px);letter-spacing:.16em;color:var(--cyan);text-shadow:0 0 12px #19ddff88;z-index:4;pointer-events:none}
+.jh-status{position:absolute;top:21%;left:66%;max-width:30%;font-size:clamp(8px,1vmin,12px);letter-spacing:.16em;color:var(--cyan);text-shadow:0 0 12px #19ddff88;z-index:4;pointer-events:none;transition:color .3s,text-shadow .3s}
+.jh-status[data-state=listening]{color:#6ee7ff;text-shadow:0 0 12px #19ddffcc}
+.jh-status[data-state=thinking]{color:#c9a7ff;text-shadow:0 0 12px #9d6bffcc}
+.jh-status[data-state=speaking]{color:#ffce7e;text-shadow:0 0 14px #ffb54dcc}
+.jh-status[data-state=interrupting]{color:#ff9d5e;text-shadow:0 0 12px #ff7a2ecc}
+.jh-status[data-state=reconnecting]{color:#ffd166;text-shadow:0 0 12px #ffbf3fcc}
+.jh-status[data-state=error]{color:#ff7a6e;text-shadow:0 0 12px #ff4a3acc}
 .jh-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:5;white-space:nowrap}
 .jh-controls button{padding:5px 11px;min-height:28px}
 .jh-entry{position:absolute;inset:0;z-index:10;background:#000;display:grid;place-items:center;text-align:center}

@@ -274,7 +274,11 @@ async function main() {
   // ---- index.html ----
   const html = read("dashboard/index.html");
   check("index.html: không tải CSS panel (không khung camera trên UI)", !html.includes("hand-panel.css"));
-  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=5") && html.includes("joyce-humanoid.js?v=8"));
+  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=6") && html.includes("joyce-humanoid.js?v=8"));
+  check("apex: nhãn trạng thái VN + class màu theo chế độ", apex.includes("ĐANG NGHE") && apex.includes("ĐANG NÓI") && apex.includes("dataset.state"));
+  check("apex: trạng thái sự cố có level thở nhẹ", apex.includes("reconnecting") && apex.includes("Math.sin(t*1.6)"));
+  const hcss = read("dashboard/humanoid.css");
+  check("humanoid.css: màu riêng listening/speaking/error", hcss.includes("data-state=listening") && hcss.includes("data-state=speaking") && hcss.includes("data-state=error"));
 
   // ---- Bảng HUẤN LUYỆN cử chỉ (gesture-trainer + endpoint + khớp nối) ----
   check("có file gesture-trainer.mjs", fs.existsSync(path.join(ROOT, "dashboard", "joyce-hands", "gesture-trainer.mjs")));

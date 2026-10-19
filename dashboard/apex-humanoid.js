@@ -10,6 +10,10 @@
     assembly25:'apex-assembly-25-v1.webp',assembly60:'apex-assembly-60-v1.webp'
   };
   const STATES = ['idle','listening','thinking','speaking','interrupting','reconnecting','error'];
+  // Nhãn trạng thái ngắn theo tiếng Việt (bản gốc in "STATUS: EN") + class màu riêng
+  // từng chế độ để nhìn màu là biết Joyce đang nghe/nói/nghĩ hay gặp sự cố.
+  const STATE_LABEL = {idle:'SẴN SÀNG',listening:'ĐANG NGHE',thinking:'ĐANG NGHĨ',
+    speaking:'ĐANG NÓI',interrupting:'GIÁN ĐOẠN',reconnecting:'KẾT NỐI LẠI…',error:'LỖI'};
   const clamp = (n,a=0,b=1) => Math.max(a,Math.min(b,Number.isFinite(n)?n:0));
   const smooth = n => { n=clamp(n); return n*n*(3-2*n); };
   function seeded(seed) { return () => ((seed=(seed*16807)%2147483647)-1)/2147483646; }
@@ -165,6 +169,7 @@
       const t=now/1000,elapsed=(now-this.startedAt)/1000,p=this.reduced?1:clamp(elapsed/(this.options.assemblyDuration||6));
       let target=0;if(this.mic){const {analyser,data}=this.mic;analyser.getByteTimeDomainData(data);let sum=0;for(const x of data)sum+=((x-128)/128)**2;target=clamp(Math.sqrt(sum/data.length)*6);}else if(now-this.levelAt<1200)target=this.externalLevel;
       else if(this.options.demo!==false&&this.state==='speaking')target=.2+.52*Math.abs(Math.sin(t*4)*Math.sin(t*7.1));else if(this.state==='thinking')target=.12+.08*Math.sin(t*2);
+      else if(this.state==='interrupting'||this.state==='reconnecting'||this.state==='error')target=.08+.06*Math.sin(t*1.6);
       this.level+=(target-this.level)*.16;
       if(this.state==='speaking'){const next=this.level>.58?'strong':this.level<.39?'speaking':this.plate;this.selectPlate(next,now);}
       const r=figureRect(this.w,this.h,this.aspect||.926);const plateReveal=smooth((p-.5)/.5),backgroundReveal=smooth((p-.82)/.18);
@@ -178,7 +183,9 @@
       if(this.state==='speaking'&&this.level>.48&&now-(this._beatAt||0)>650){this._beatAt=now;this.pulse(.5,(r.y+r.h*.44)/this.h);}
       if(this.renderer&&!this.glCanvas.hidden)this.renderer.draw(this.previous,this.plate,mix,r,this.w,this.h,t,this.level,plateReveal,this.pointer,this.reduced,this.yaw);
       else{this.fallback.src=this.images[this.plate].src;this.fallback.style.opacity=String(plateReveal);}
-      const message=p<1?'ASSEMBLING... '+Math.round(p*100)+'%':'STATUS: '+this.state.toUpperCase();if(message!==this.status.textContent)this.status.textContent=message;
+      const message=p<1?'ĐANG LẮP RÁP... '+Math.round(p*100)+'%':(STATE_LABEL[this.state]||this.state.toUpperCase());
+      if(message!==this.status.textContent)this.status.textContent=message;
+      if(this.status.dataset.state!==this.state)this.status.dataset.state=this.state;
       if(p===1&&!this.ignited){this.ignited=true;this.pulse(.5,(r.y+r.h*.44)/this.h);}
       this.drawParticles(t,p,r,now);
     }
