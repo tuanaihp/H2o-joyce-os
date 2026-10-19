@@ -274,7 +274,7 @@ async function main() {
   // ---- index.html ----
   const html = read("dashboard/index.html");
   check("index.html: không tải CSS panel (không khung camera trên UI)", !html.includes("hand-panel.css"));
-  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=7") && html.includes("joyce-humanoid.js?v=10"));
+  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=7") && html.includes("joyce-humanoid.js?v=11"));
   check("apex: nhãn trạng thái VN + class màu theo chế độ", apex.includes("ĐANG NGHE") && apex.includes("ĐANG NÓI") && apex.includes("dataset.state"));
   check("apex: trạng thái sự cố có level thở nhẹ", apex.includes("reconnecting") && apex.includes("Math.sin(t*1.6)"));
   const hcss = read("dashboard/humanoid.css");

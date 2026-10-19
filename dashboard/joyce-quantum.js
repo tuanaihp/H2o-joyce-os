@@ -600,12 +600,150 @@ void main(){
     }
   }
 
+  // ---------------------------------------------------------------- cảnh mở đầu theo ẢNH
+  // Hạt đáp ĐÚNG vào hình cuối cùng: lấy mẫu điểm sáng của chính ảnh nhân vật (cùng ảnh mà
+  // giao diện sẽ vẽ), mỗi hạt mang màu của điểm đó, đích là vị trí điểm đó trên màn hình theo
+  // cùng phép đặt khung với renderer ảnh (figureRect: cao min(h*1.01, w*1.6), canh giữa, sát đáy).
+  // Ghép xong thì hạt trùng khít hình, chỉ cần hoà mờ là liền mạch.
+  const IVS = `#version 300 es
+precision highp float;
+in vec2 aUV; in vec3 aCol; in vec4 aSeed;
+uniform vec4 uRect; uniform vec2 uView; uniform float uAsm, uT, uPR;
+out vec3 vC;
+void main(){
+  float dly = aSeed.x * 0.62;
+  float p = uAsm >= 1.0 ? 1.0 : smoothstep(dly, dly + 0.32, uAsm);
+  vec2 px = uRect.xy + aUV * uRect.zw;
+  vec2 tgt = vec2(px.x / uView.x * 2.0 - 1.0, 1.0 - px.y / uView.y * 2.0);
+  vec2 P = tgt;
+  if (p < 1.0) {
+    float e = mix(p, p * p * (3.0 - 2.0 * p), 0.4);
+    float ph = dly * 3.2 + (aSeed.y - 0.5) * 0.25;
+    vec2 s0 = vec2((aSeed.z - 0.5) * 0.02, -0.86);
+    vec2 c1 = vec2(-0.75 * cos(ph), -0.70 + aSeed.w * 0.06);
+    vec2 c2 = vec2(0.65 * sin(ph + 0.6), tgt.y + 0.28);
+    float u = 1.0 - e;
+    P = u*u*u*s0 + 3.0*u*u*e*c1 + 3.0*u*e*e*c2 + e*e*e*tgt;
+  }
+  // Rung rất nhẹ khi đã đáp, để hình còn "sống" trước lúc hoà vào ảnh.
+  P += vec2(sin(uT * 2.3 + aSeed.x * 40.0), sin(uT * 2.9 + aSeed.y * 40.0)) * 0.0012 * p;
+  gl_Position = vec4(P, 0.0, 1.0);
+  float flight = (0.45 + 0.55 * p) * (1.0 + 2.6 * p * (1.0 - p));
+  vC = aCol * flight * (p > 0.002 ? 1.0 : 0.0);
+  gl_PointSize = max(1.0, (1.1 + aSeed.w * 1.2) * uPR * (1.0 + 1.2 * p * (1.0 - p)));
+}`;
+  const IFS = `#version 300 es
+precision highp float;
+in vec3 vC; out vec4 o;
+void main(){
+  float r = length(gl_PointCoord - vec2(0.5)) * 2.0;
+  if (r > 1.0) discard;
+  vec3 c = vC * (1.0 - r);
+  o = vec4(c, clamp(max(c.r, max(c.g, c.b)), 0.0, 1.0));
+}`;
+
+  /** Lấy mẫu điểm sáng của ảnh -> {uv, col, seed, n}. Hàm thuần, dùng được trong test. */
+  function sampleImageData(data, w, h, maxPoints, rand) {
+    rand = rand || mulberry(4242);
+    const pts = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, l = Math.max(data[i], data[i + 1], data[i + 2]);
+      if (l < 48) continue;
+      if (rand() > 0.25 + 0.75 * (l / 255)) continue;               // điểm sáng giữ nhiều hơn
+      pts.push(x, y, data[i], data[i + 1], data[i + 2]);
+    }
+    let n = pts.length / 5;
+    const keep = Math.min(n, maxPoints), step = n / keep;
+    const uv = new Float32Array(keep * 2), col = new Float32Array(keep * 3), seed = new Float32Array(keep * 4);
+    for (let k = 0; k < keep; k++) {
+      const j = Math.floor(k * step) * 5;
+      uv[k * 2] = (pts[j] + rand()) / w; uv[k * 2 + 1] = (pts[j + 1] + rand()) / h;
+      col[k * 3] = pts[j + 2] / 255; col[k * 3 + 1] = pts[j + 3] / 255; col[k * 3 + 2] = pts[j + 4] / 255;
+      seed[k * 4] = rand(); seed[k * 4 + 1] = rand(); seed[k * 4 + 2] = rand(); seed[k * 4 + 3] = rand();
+    }
+    return { uv, col, seed, n: keep };
+  }
+
+  class JoyceQuantumIntro {
+    /** opts: { image (HTMLImageElement đã nạp), aspect, duration (giây), maxDpr, maxPoints } */
+    constructor(host, opts = {}) {
+      this.host = host; this.opts = opts; this.disposed = false;
+      this.canvas = document.createElement('canvas');
+      this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
+      this.glow = document.createElement('div');                      // đốm sáng nơi hạt phóng ra
+      this.glow.style.cssText = 'position:absolute;left:50%;bottom:4%;width:110px;height:110px;margin-left:-55px;' +
+        'border-radius:50%;pointer-events:none;opacity:0;background:radial-gradient(circle,rgba(170,245,255,.95),rgba(0,190,255,0) 70%)';
+      host.appendChild(this.canvas); host.appendChild(this.glow);
+      this.ok = this.init();
+      if (this.ok) { this.t0 = performance.now(); this.raf = requestAnimationFrame(t => this.frame(t)); }
+    }
+    init() {
+      const img = this.opts.image;
+      if (!img || !img.naturalWidth) return false;
+      const gl = this.canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
+      if (!gl) return false;
+      this.gl = gl;
+      const sw = 300, sh = Math.round(300 / (img.naturalWidth / img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = sw; c.height = sh;
+      const cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, sw, sh);
+      let data;
+      try { data = cx.getImageData(0, 0, sw, sh).data; } catch (e) { return false; }
+      const s = sampleImageData(data, sw, sh, this.opts.maxPoints || 42000);
+      this.n = s.n;
+      const sh1 = (t, src) => { const x = gl.createShader(t); gl.shaderSource(x, src); gl.compileShader(x);
+        if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x) || 'shader'); return x; };
+      const p = gl.createProgram(); gl.attachShader(p, sh1(gl.VERTEX_SHADER, IVS)); gl.attachShader(p, sh1(gl.FRAGMENT_SHADER, IFS));
+      gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) return false;
+      this.prog = p; this.u = {};
+      ['uRect', 'uView', 'uAsm', 'uT', 'uPR'].forEach(k => { this.u[k] = gl.getUniformLocation(p, k); });
+      this.vao = gl.createVertexArray(); gl.bindVertexArray(this.vao); this.bufs = [];
+      [['aUV', s.uv, 2], ['aCol', s.col, 3], ['aSeed', s.seed, 4]].forEach(([name, arr, size]) => {
+        const loc = gl.getAttribLocation(p, name); if (loc < 0) return;
+        const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); this.bufs.push(b);
+      });
+      gl.bindVertexArray(null);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.clearColor(0, 0, 0, 0);
+      return true;
+    }
+    frame(now) {
+      if (this.disposed) return;
+      this.raf = requestAnimationFrame(t => this.frame(t));
+      const gl = this.gl, r = this.host.getBoundingClientRect();
+      const w = Math.max(1, r.width), h = Math.max(1, r.height);
+      const dpr = Math.min(global.devicePixelRatio || 1, this.opts.maxDpr || 1.5);
+      if (this.canvas.width !== Math.round(w * dpr) || this.canvas.height !== Math.round(h * dpr)) {
+        this.canvas.width = Math.round(w * dpr); this.canvas.height = Math.round(h * dpr);
+      }
+      const asm = clamp((now - this.t0) / 1000 / (this.opts.duration || 4.2));
+      // Cùng phép đặt khung với renderer ảnh (apex-humanoid.js figureRect).
+      const aspect = this.opts.aspect || 0.926;
+      const fh = Math.min(h * 1.01, w * 1.6), fw = fh * aspect;
+      gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(this.prog); gl.bindVertexArray(this.vao);
+      gl.uniform4f(this.u.uRect, (w - fw) / 2, h - fh, fw, fh); gl.uniform2f(this.u.uView, w, h);
+      gl.uniform1f(this.u.uAsm, asm); gl.uniform1f(this.u.uT, now / 1000); gl.uniform1f(this.u.uPR, dpr);
+      gl.drawArrays(gl.POINTS, 0, this.n);
+      gl.bindVertexArray(null);
+      this.glow.style.opacity = String(Math.sin(asm * Math.PI) * 0.9);
+    }
+    dispose() {
+      if (this.disposed) return;
+      this.disposed = true; cancelAnimationFrame(this.raf);
+      const gl = this.gl;
+      if (gl) { (this.bufs || []).forEach(b => gl.deleteBuffer(b)); if (this.prog) gl.deleteProgram(this.prog); }
+      this.canvas.remove(); this.glow.remove();
+    }
+  }
+
   JoyceHumanoidQuantum.STATES = STATES;
   JoyceHumanoidQuantum.LOOK = LOOK;
   JoyceHumanoidQuantum.BUDGET = BUDGET;
   JoyceHumanoidQuantum.buildScene = buildScene;
   global.JoyceHumanoidQuantum = JoyceHumanoidQuantum;
+  global.JoyceQuantumIntro = JoyceQuantumIntro;
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { JoyceHumanoidQuantum, buildScene, LOOK, BUDGET, STATES, STATE_LABEL, VS, FS, OVS, OFS };
+    module.exports = { JoyceHumanoidQuantum, JoyceQuantumIntro, sampleImageData, buildScene, LOOK, BUDGET, STATES, STATE_LABEL, VS, FS, OVS, OFS };
   }
 })(typeof window !== 'undefined' ? window : globalThis);

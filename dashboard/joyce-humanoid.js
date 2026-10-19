@@ -658,9 +658,9 @@
     // hạt phóng từ đốm sáng dưới chân, xoắn thành dòng sao chổi rồi ghép thành hình; gần
     // xong thì hình gốc (apex) mới bật lên, lớp hạt mờ dần rồi tự huỷ.
     var intro = null, introTimers = [];
-    var INTRO_S = 4.2, APEX_AT_S = 3.4, FADE_S = 0.9;
+    var INTRO_S = 4.2, APEX_AT_S = 3.0, FADE_S = 0.9;
     function introAvailable() {
-      try { return !!window.JoyceHumanoidQuantum && !reduced; } catch (e) { return false; }
+      try { return !!window.JoyceQuantumIntro && !reduced; } catch (e) { return false; }
     }
     function stopIntro() {
       introTimers.forEach(clearTimeout); introTimers = [];
@@ -679,13 +679,18 @@
       layer.appendChild(box);
       // Màn chào "ENTER" của hình gốc không được lộ ra sau dòng hạt (apex.enter() tự ẩn nó).
       try { var ent = apex && apex.root && apex.root.querySelector(".jh-entry"); if (ent) ent.hidden = true; } catch (e) {}
-      var q;
+      // Hạt lấy khuôn từ CHÍNH ảnh nhân vật (apex.images.idle) nên ghép xong là trùng khít
+      // hình cuối cùng - không còn lệch dáng như khi dùng hình người dựng bằng toán.
+      var q = null;
       try {
-        q = new window.JoyceHumanoidQuantum(box, { introOnly: true, autoStart: true, assemblyDuration: INTRO_S, shiftY: -0.30,
-          maxDpr: profile === "high" ? 1.5 : profile === "balanced" ? 1.25 : 1, fps: 50 });
-      } catch (e) { box.parentNode.removeChild(box); onApex(); return; }
+        q = new window.JoyceQuantumIntro(box, { image: apex && apex.images && apex.images.idle, aspect: apex && apex.aspect,
+          duration: INTRO_S, maxDpr: profile === "high" ? 1.5 : profile === "balanced" ? 1.25 : 1 });
+      } catch (e) { q = null; }
+      if (!q || !q.ok) {
+        if (q) { try { q.dispose(); } catch (e) {} }
+        box.parentNode.removeChild(box); onApex(); return;
+      }
       intro = { q: q, box: box };
-      Promise.resolve(q.ready).then(function (ok) { if (!ok && intro && intro.q === q) { stopIntro(); onApex(); } });
       introTimers.push(setTimeout(onApex, APEX_AT_S * 1000));
       introTimers.push(setTimeout(function () { if (intro && intro.box) intro.box.style.opacity = "0"; }, INTRO_S * 1000));
       introTimers.push(setTimeout(stopIntro, (INTRO_S + FADE_S + 0.1) * 1000));

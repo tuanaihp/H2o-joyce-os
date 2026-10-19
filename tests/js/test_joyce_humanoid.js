@@ -279,10 +279,18 @@ const WRAP = fs.readFileSync(path.join(__dirname, '../../dashboard/joyce-humanoi
 check('index.html: nạp joyce-quantum.js giữa apex-humanoid.js và joyce-humanoid.js', IDX.indexOf('/static/apex-humanoid.js') < IDX.indexOf('/static/joyce-quantum.js') && IDX.indexOf('/static/joyce-quantum.js') < IDX.indexOf('/static/joyce-humanoid.js'));
 check('quantum: có chế độ introOnly (nền trong suốt, không nút, bỏ núi)', QSRC.includes('options.introOnly === true') && QSRC.includes('this.intro ? 0.0 : 1.0') && QSRC.includes('scene.counts.land'));
 check('quantum: KHÔNG nạp file ảnh nào', !QSRC.includes('new Image('));
-check('wrapper: mở lớp nhìn chạy cảnh hạt rồi mới bật hình gốc', WRAP.includes('function startIntro(onApex)') && WRAP.includes('startIntro(enterApex)') && WRAP.includes('introOnly: true'));
+check('wrapper: mở lớp nhìn chạy cảnh hạt rồi mới bật hình gốc', WRAP.includes('function startIntro(onApex)') && WRAP.includes('startIntro(enterApex)') && WRAP.includes('new window.JoyceQuantumIntro('));
+check('wrapper: hạt lấy khuôn từ CHÍNH ảnh nhân vật (khớp hình cuối)', WRAP.includes('image: apex && apex.images && apex.images.idle') && WRAP.includes('aspect: apex && apex.aspect'));
+const img = { data: new Uint8ClampedArray(4 * 10 * 10) };
+for (let i = 0; i < 100; i++) { const on = (i % 10) >= 3 && (i % 10) < 7; img.data[i * 4] = on ? 30 : 0; img.data[i * 4 + 1] = on ? 220 : 0; img.data[i * 4 + 2] = on ? 255 : 0; img.data[i * 4 + 3] = 255; }
+const smp = Q.sampleImageData(img.data, 10, 10, 1000);
+let inBand = true; for (let k = 0; k < smp.n; k++) { const u = smp.uv[k * 2]; if (u < 0.3 || u > 0.7) inBand = false; }
+check('sampleImageData: chỉ lấy điểm sáng, đích nằm đúng vùng sáng của ảnh, giữ màu', smp.n > 0 && inBand && smp.col[1] > 0.8);
+check('sampleImageData: tôn trọng trần số hạt', Q.sampleImageData(img.data, 10, 10, 5).n === 5);
+check('intro dùng cùng phép đặt khung với renderer ảnh (figureRect)', QSRC.includes('Math.min(h * 1.01, w * 1.6)'));
 check('wrapper: rời lớp nhìn / huỷ thì dọn cảnh hạt', WRAP.includes('closeHands(); stopIntro();') && /stopIntro\(\);\s*if \(apex\) \{ try \{ apex\.dispose/.test(WRAP));
 check('wrapper: có cảnh hạt thì hình gốc hiện nhanh (không lắp ráp lần hai)', WRAP.includes('assemblyDuration: introAvailable() ? 1.4'));
-check('wrapper: giảm chuyển động của hệ điều hành thì bỏ cảnh hạt', /JoyceHumanoidQuantum && !reduced/.test(WRAP));
+check('wrapper: giảm chuyển động của hệ điều hành thì bỏ cảnh hạt', WRAP.includes('JoyceQuantumIntro && !reduced'));
 const sc = Q.buildScene(Q.BUDGET.safe);
 check('quantum: buildScene chạy được, đủ số hạt', sc.n === Object.values(Q.BUDGET.safe).reduce((a, c) => a + c, 0));
 
