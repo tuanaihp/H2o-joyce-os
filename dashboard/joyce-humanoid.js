@@ -697,13 +697,16 @@
     }
     function enterApex() { if (apex && apex.loaded && active) { try { apex.enter(); } catch (e) {} } ensureGestures(); }
 
-    // ---- Đôi tay hạt + bảng hologram (joyce-gestures.js, 1.3.24) ----
+    // ---- Hiệu ứng trích xuất dữ liệu: ánh sáng, chuyển động thân, số liệu thật bay ra (joyce-gestures.js) ----
     // Ảnh nhân vật không có tay: khi Joyce làm task/trả lời, hạt tụ thành tay bấm bảng.
     var gestures = null;
     function ensureGestures() {
       if (gestures || !layer || !window.JoyceGestures || !apex || !apex.loaded) return;
       try {
-        gestures = new window.JoyceGestures(layer, { getAspect: function () { return (apex && apex.aspect) || 0.926; } });
+        gestures = new window.JoyceGestures(layer, {
+          getAspect: function () { return (apex && apex.aspect) || 0.926; },
+          getBody: function () { return (apex && apex.glCanvas) || null; }   // thân người nghiêng/gật khi dò dữ liệu
+        });
         gestures.setState(state); gestures.setLevel(amp);
         if (active) gestures.start();
       } catch (e) { gestures = null; }

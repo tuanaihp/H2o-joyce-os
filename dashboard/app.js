@@ -1164,9 +1164,10 @@ function handleMessage(data) {
   // sendMessage nuốt lặng mọi tin sau đó, và vòng giữ mic không mở lại vì tưởng đang xử lý -
   // khung chat chết cứng ở "đang suy nghĩ" ngay sau khi một việc nền báo xong. Chủ dự án gặp
   // 15/09: "sau khi có đoạn chạy nền thì không nói nữa luôn, không nhắn tiếp vào khung chat".
-  // Sự kiện cho đôi tay hạt của 3D Joyce (joyce-gestures.js). Chỉ là tín hiệu giao diện, không tốn gì.
-  function avatarAct(kind, label) {
-    try { window.dispatchEvent(new CustomEvent("joyce:avatar-act", { detail: { kind: kind, label: label || "" } })); } catch (e) {}
+  // Sự kiện cho hiệu ứng trích xuất dữ liệu của 3D Joyce (joyce-gestures.js): tên tệp lệnh
+  // đang đọc + chữ kết quả thật, để số liệu bay ra màn hình là dữ liệu thật. Không tốn gì.
+  function avatarAct(kind, extra) {
+    try { window.dispatchEvent(new CustomEvent("joyce:avatar-act", { detail: Object.assign({ kind: kind }, extra || {}) })); } catch (e) {}
   }
   const KHUNG_LUOT = ["status", "tool_call", "tool_result", "stream", "response", "error", "turn_done"];
   // Tia tri thức (docs/dev/2026-10-tia-tri-thuc-khi-hoi.md): báo nhịp của lượt cho tinh cầu.
@@ -1304,10 +1305,10 @@ function handleMessage(data) {
       // ("Chay lenh: git status") thay cho "Dang goi: Bash" (0.64.44).
       const _nhan = window.JoyceSteps ? window.JoyceSteps.nhanDong(data) : (data.content || "");
       showActivity(escapeHtml(_nhan));
-      avatarAct("tool", _nhan);   // 3D Joyce: tay bấm bảng hologram, bảng hiện đúng việc này
+      avatarAct("tool", { label: _nhan, files: _tep });   // 3D Joyce: tên tệp đang dò bay ra màn hình
     }
   } else if (data.type === "tool_result") {
-    if (isActive) avatarAct("result");
+    if (isActive) avatarAct("result", { text: data.content || data.text || "" });
     if (t && window.JoyceSteps) t.buoc = window.JoyceSteps.nhan(t.buoc, data);
     if (isActive) { veKhoiBuoc(t, true); showActivity(Icons.msg("check", window.t("app.act_analyzing"), { cls: "ic-ok" })); }
   } else if (data.type === "stream") {

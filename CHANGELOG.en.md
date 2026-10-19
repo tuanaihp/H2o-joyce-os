@@ -5,7 +5,7 @@
 ## [1.3.23] - 2026-10-19
 ### Added
 - **3D Joyce now appears in quantum particles**: when you open 3D Joyce, particles shoot out of a point of light, swirl into a comet stream and assemble into a human figure; the familiar avatar then appears in exactly that spot. Everything after the intro stays as before.
-- **3D Joyce raises its hands to work**: when you give it a task, the avatar lifts two particle hands and taps holographic panels in front of it; the panel shows the actual task (for example "Web search: ...") and result rows appear one by one. While answering, the hands settle at chest height and move with the voice. With nothing to do, the hands fade away.
+- **3D Joyce extracts data while it works**: when you give it a task (for example "send me the sales guide"), the avatar sends light pulses from its chest, a scan line runs down its body, and it leans and nods each time it pulls data. Names of the brain documents being read and real numbers from the results fly out to both sides of the screen, while a "DATA SCANNED" counter runs up the total. While answering, the counter settles on the final total and the light pulses with the voice. No data means no made-up numbers.
 
 ### Fixed
 - Fixed failing automated checks (long dashes in translations, mismatched page lists, stale camera checks).
