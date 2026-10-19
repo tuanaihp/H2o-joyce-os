@@ -144,6 +144,8 @@
   "rt.free": "≈ $0",
   "rt.no_use": "noch keine Daten",
   "rt.reset_all": "Alle auf Standard zurücksetzen",
+  "rt.reset_ask": "HINTERGRUND-ROUTING ZURÜCKSETZEN\n\nJede Jobart mit eigener Gehirn-Zuweisung fällt auf das gemeinsame Hintergrundmodell auf der Models-Seite zurück. API-Key-Ringe und die Chat-Fallback-Kette bleiben UNBERÜHRT.\n\nZum Bestätigen RESET eingeben:",
+  "rt.reset_mismatch": "Eingabe stimmt nicht überein - nichts wurde zurückgesetzt.",
   "rt.ring_sum": "{so} Keys · {chay} verbrannt",
   "rt.no_keys": "keine Keys",
   "rt.keys_ph": "API-Keys hier einfügen, einer pro Zeile…",

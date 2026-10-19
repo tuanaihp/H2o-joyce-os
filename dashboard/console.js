@@ -5443,7 +5443,15 @@
       inp.onchange = save;
     });
     const rst = el.querySelector("#rtReset");
-    if (rst) rst.onclick = () => postJson("/task-engines/reset", {}, 8000).then(() => renderRouting(el));
+    // Xác nhận KỸ bằng cách gõ chữ - một cú click nhầm của nhân viên là toàn bộ bảng
+    // phân việc về mặc định (giống luật gõ-tên khi xoá brain). Vòng key + chuỗi chat
+    // không nằm trong lệnh reset này, nên lời nhắc nói đúng phạm vi.
+    if (rst) rst.onclick = async () => {
+      const typed = await JoyceDialog.prompt(t("rt.reset_ask"));
+      if (typed === null) return;
+      if (typed.trim().toUpperCase() !== "RESET") { toast(t("rt.reset_mismatch"), true); return; }
+      postJson("/task-engines/reset", {}, 8000).then(() => renderRouting(el));
+    };
     fbEvents();
     const fbAdd = el.querySelector("#rtFbAdd"), fbSave = el.querySelector("#rtFbSave");
     if (fbAdd) fbAdd.onclick = () => { readFb(); chatFbs.push({ provider: "", model: "" }); paintFb(); fbEvents(); };

@@ -6188,6 +6188,8 @@
   "rt.free": "≈ $0",
   "rt.no_use": "no data yet",
   "rt.reset_all": "Reset all to defaults",
+  "rt.reset_ask": "RESET BACKGROUND JOB ROUTING\n\nEvery job type with a custom brain assignment will fall back to the shared background model on the Models page. API key rings and the chat fallback chain are NOT touched.\n\nType RESET to confirm:",
+  "rt.reset_mismatch": "Typed text does not match - nothing was reset.",
   "rt.ring_sum": "{so} keys · {chay} burned",
   "rt.no_keys": "no keys",
   "rt.keys_ph": "Paste API keys here, one per line…",

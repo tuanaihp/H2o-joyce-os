@@ -6188,6 +6188,8 @@
   "rt.free": "≈ $0",
   "rt.no_use": "chưa có dữ liệu",
   "rt.reset_all": "Đặt lại tất cả về mặc định",
+  "rt.reset_ask": "ĐẶT LẠI PHÂN VIỆC VIỆC NỀN\n\nMọi loại việc nền đã gán não riêng sẽ quay về theo model việc nền chung trên trang Models. Vòng quay API key và chuỗi não dự phòng chat KHÔNG bị động vào.\n\nGõ RESET để xác nhận:",
+  "rt.reset_mismatch": "Chữ gõ vào không khớp - chưa đặt lại gì.",
   "rt.ring_sum": "{so} key · {chay} đang cháy",
   "rt.no_keys": "chưa có key",
   "rt.keys_ph": "Dán API key vào đây, mỗi dòng một key…",
