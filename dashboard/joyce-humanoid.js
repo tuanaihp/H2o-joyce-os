@@ -633,6 +633,9 @@
           // của OS (accessibility) mới được tắt; để undefined thì apex tự đọc
           // mediaQuery của chính nó + bắt được khi OS đổi giữa chừng.
           reducedMotion: reduced || undefined,
+          // Có cảnh mở đầu bằng hạt (joyce-quantum.js) thì hình gốc chỉ cần hiện nhanh
+          // lúc dòng hạt đã ghép xong, không lắp ráp lần hai.
+          assemblyDuration: introAvailable() ? 1.4 : undefined,
           onExit: function () { if (opts.onExit) opts.onExit(); },
           onError: function () {},
           onGestureRequest: function () { toggleHands(); },
@@ -646,16 +649,58 @@
         if (host && host.dataset) host.dataset.mode = "apex";
         try { apex.setState(mapState(state)); apex.setLevel(amp); } catch (e) {}
         wireHands();   // panel mở sẵn mà apex dựng lại -> nối bridge vào avatar mới
-        if (active) { try { apex.enter(); } catch (e) {} }
+        if (active) startIntro(enterApex);   // lần đầu nạp xong: cũng chạy cảnh hạt ghép hình
       }).catch(function () { if (!destroyed) dropApex(); });
     }
+
+    // ---- Cảnh mở đầu: hạt lượng tử ghép thành hình người (1.3.23) ----
+    // Lớp hạt trong suốt (joyce-quantum.js, chế độ introOnly) chồng LÊN giao diện hiện tại:
+    // hạt phóng từ đốm sáng dưới chân, xoắn thành dòng sao chổi rồi ghép thành hình; gần
+    // xong thì hình gốc (apex) mới bật lên, lớp hạt mờ dần rồi tự huỷ.
+    var intro = null, introTimers = [];
+    var INTRO_S = 4.2, APEX_AT_S = 3.4, FADE_S = 0.9;
+    function introAvailable() {
+      try { return !!window.JoyceHumanoidQuantum && !reduced; } catch (e) { return false; }
+    }
+    function stopIntro() {
+      introTimers.forEach(clearTimeout); introTimers = [];
+      if (intro) {
+        try { intro.q.dispose(); } catch (e) {}
+        if (intro.box && intro.box.parentNode) intro.box.parentNode.removeChild(intro.box);
+        intro = null;
+      }
+    }
+    function startIntro(onApex) {
+      stopIntro();
+      if (!introAvailable() || !layer) { onApex(); return; }
+      var box = document.createElement("div");
+      box.className = "hum-intro";
+      box.style.cssText = "position:absolute;inset:0;z-index:5;pointer-events:none;transition:opacity " + FADE_S + "s ease";
+      layer.appendChild(box);
+      // Màn chào "ENTER" của hình gốc không được lộ ra sau dòng hạt (apex.enter() tự ẩn nó).
+      try { var ent = apex && apex.root && apex.root.querySelector(".jh-entry"); if (ent) ent.hidden = true; } catch (e) {}
+      var q;
+      try {
+        q = new window.JoyceHumanoidQuantum(box, { introOnly: true, autoStart: true, assemblyDuration: INTRO_S, shiftY: -0.30,
+          maxDpr: profile === "high" ? 1.5 : profile === "balanced" ? 1.25 : 1, fps: 50 });
+      } catch (e) { box.parentNode.removeChild(box); onApex(); return; }
+      intro = { q: q, box: box };
+      Promise.resolve(q.ready).then(function (ok) { if (!ok && intro && intro.q === q) { stopIntro(); onApex(); } });
+      introTimers.push(setTimeout(onApex, APEX_AT_S * 1000));
+      introTimers.push(setTimeout(function () { if (intro && intro.box) intro.box.style.opacity = "0"; }, INTRO_S * 1000));
+      introTimers.push(setTimeout(stopIntro, (INTRO_S + FADE_S + 0.1) * 1000));
+    }
+    function enterApex() { if (apex && apex.loaded && active) { try { apex.enter(); } catch (e) {} } }
 
     // Bật/tắt hẳn phần hiển thị: lớp bọc .hum-layer giấu cả cây DOM của
     // renderer đang dùng (apex .jh hoặc canvas+hud-status procedural).
     function applyActive(on) {
-      if (!on) closeHands();   // rời lớp nhìn -> đóng panel + tắt camera (kit spec)
+      if (!on) { closeHands(); stopIntro(); }   // rời lớp nhìn -> đóng panel + tắt camera (kit spec)
       if (layer) layer.style.display = on ? "" : "none";
-      if (apex && apex.loaded) { try { on ? apex.enter() : apex.pause(); } catch (e) {} }
+      if (apex && apex.loaded) {
+        if (on) startIntro(enterApex);
+        else { try { apex.pause(); } catch (e) {} }
+      }
       // "" = trả về display:block của stylesheet; "none" = giấu hẳn (xem lý do
       // ở startProcedural - [hidden] thua specificity nên không dùng được).
       if (cv) cv.style.display = on ? "" : "none";
@@ -724,6 +769,7 @@
     R.destroy = function () {
       if (destroyed) return; destroyed = true; stopLoop();
       disposeHands();
+      stopIntro();
       if (apex) { try { apex.dispose(); } catch (e) {} apex = null; }
       listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) {} });
       listeners = []; if (ro) { try { ro.disconnect(); } catch (e) {} ro = null; }

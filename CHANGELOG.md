@@ -2,6 +2,13 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.23] - 2026-10-19
+### Thêm mới
+- **3D Joyce xuất hiện bằng hạt lượng tử**: mở tab 3D Joyce, các hạt phóng ra từ một đốm sáng dưới chân, xoắn thành dòng sao chổi rồi ghép thành hình người; ghép xong thì nhân vật quen thuộc hiện lên đúng chỗ đó. Giao diện sau đó giữ nguyên như cũ.
+
+### Sửa lỗi
+- Sửa các kiểm tra tự động đang đỏ (chữ gạch dài trong bản dịch, danh sách trang lệch, kiểm tra camera cũ).
+
 ## [1.3.22] - 2026-10-21
 ### Thêm mới
 - **Bảng HUẤN LUYỆN cử chỉ tay** (`gesture-trainer.mjs`, mở từ nút "🎓 DẠY" cạnh HAND CAM trong 3D Joyce hoặc thẻ "Cử chỉ tay" trong Cài đặt): dạy Joyce nhận diện theo đúng tay người dùng thay vì ngưỡng chung. Mỗi cử chỉ **quét 3 lần với nhịp khác nhau** - hệ thống lấy trung bình + độ lệch làm ngưỡng khoan dung riêng; 3 lần lệch nhau quá thì báo quét lại chứ không lưu bừa. Bảng này CÓ khung xem trước camera (luyện phải thấy tay), khác chế độ điều khiển vẫn chạy ẩn.

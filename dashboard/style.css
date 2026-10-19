@@ -3975,7 +3975,7 @@ body.ne-full-on .cview { z-index: 250; }
 .planet-hd canvas:first-child { filter: contrast(1.08) saturate(1.15); }
 .planet-hd { --planet-glow: drop-shadow(0 0 30px rgba(80,180,255,.25)); }
 /* 3D Joyce (joyce-humanoid.js): lớp bọc .hum-layer chứa renderer đang dùng -
-   QUANTUM (joyce-quantum.js, DOM .jh bên trong) hoặc fallback procedural
+   APEX (apex-humanoid.js, DOM .jh bên trong; cảnh mở đầu bằng hạt joyce-quantum.js) hoặc fallback procedural
    (canvas .humanoid-gl + .hum-status). Khi bật lớp humanoid-on thì tinh cầu
    hạ mờ để pho tượng nổi bật. Layer bắt pointer events để nút EXIT / cử chỉ
    / ripple của APEX dùng được; fallback giữ pointer-events:none như cũ. */
