@@ -244,10 +244,16 @@ async function main() {
   const album = read("dashboard/joyce-hands/album.mjs");
   check("album.mjs tồn tại", !!album);
   check("album: nguồn /album + ảnh qua /files/raw", album.includes("/album?brain=") && album.includes("/files/raw?brain="));
+  check("album: ưu tiên nguồn sale, fallback local khi trống/lỗi", album.includes("/album?source=sale") && album.includes("src: 'sale'") && album.includes("src: 'local'"));
+  check("album: ảnh sale tải thẳng URL R2 (không qua /files/raw)", album.includes("it.url") && album.includes("/^https?:/i"));
   check("album: brain mặc định Sales Hinh Anh", album.includes("Ban Hang - Sales Hinh Anh"));
   check("album: swipe phải/trái lật, xuống đóng", album.includes("'right'") && album.includes("this.close()"));
   check("album: zoom liên tục từ ratio 2 ngón, kẹp 1..4.5", album.includes("zoomFromRatio") && album.includes("ZOOM_MAX = 4.5"));
   check("album: pho tượng thu nhỏ qua class album-open", album.includes("album-open"));
+  const srvAlb = read("server/main.py");
+  check("server: /album nhánh source=sale đọc Supabase", srvAlb.includes('source == "sale"') && srvAlb.includes("_sale_album_images") && srvAlb.includes("/rest/v1"));
+  check("server: sale join styles+albums+photos, URL R2 tuyệt đối", srvAlb.includes('"id,title,style_id,order"') && srvAlb.includes('"id,image,alt,order,album_id,style_id"') && srvAlb.includes('u.startswith("http")'));
+  check("server: sale cache 5 phút + key env đổi được", srvAlb.includes("_SALE_CACHE") && srvAlb.includes("H2O_SALE_SUPABASE_URL") && srvAlb.includes("H2O_SALE_SUPABASE_KEY"));
   const css = read("dashboard/style.css");
   check("css: album overlay + hum-layer thu nhỏ khi album mở", css.includes(".joyce-album") && css.includes("album-open #planetStage .hum-layer"));
   check("css: hud-center fullscreen", css.includes(".hud-center:fullscreen"));
