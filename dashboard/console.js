@@ -5271,20 +5271,35 @@
       const selProv = tt.custom ? (spec.provider || "") : "";
       const pdef = provById[spec.provider] || {};
       const rec = (tt.goi_y || []).includes(spec.provider);
+      const u = tt.use || {}, dx = tt.dx || {};
+      const tok = (u["in"] || 0) + (u["out"] || 0);
+      const usd = u.cost || u.cost_est || 0;
+      const models = Object.keys(u.models || {}).join(" · ");
+      const dxCls = { ok: "ok", save: "save", switch: "warn", none: "" }[dx.state] || "";
+      const useHtml = u.turns
+        ? `<div class="rt-use-n">${u.turns} ${esc(t("rt.turns"))} · ${fmtTok(tok)}</div>` +
+          `<div class="rt-use-m" title="${esc(models)}">${esc(shortModels(models))}</div>` +
+          `<div class="rt-use-c">${usd > 0 ? "~$" + usd.toFixed(2) : esc(t("rt.free"))}</div>`
+        : `<div class="rt-use-e">${esc(t("rt.no_use"))}</div>`;
       return `<tr data-task="${esc(tt.id)}">
         <td class="rt-cell-name">
           <div class="rt-name">${esc(vi ? tt.vi : tt.en)}${rec ? ` <span class="rt-rec">${esc(t("rt.rec_badge"))}</span>` : ""}</div>
           <div class="rt-desc">${esc(vi ? tt.vi_mo_ta : tt.en_mo_ta)}</div>
           <div class="rt-hint">${esc(vi ? tt.vi_goi_y : tt.en_goi_y)}</div>
+          ${dx.vi ? `<div class="rt-dx ${dxCls}">${esc(vi ? dx.vi : dx.en)}</div>` : ""}
         </td>
         <td class="rt-cell-prov"><select class="rt-prov">${provOpts(selProv)}</select></td>
         <td class="rt-cell-model">
           <input class="rt-model" list="rtm-${esc(tt.id)}" value="${esc(spec.model || "")}" placeholder="${esc(t("rt.model_ph"))}">
           <datalist id="rtm-${esc(tt.id)}">${(pdef.models || []).map(mm => `<option value="${esc(mm)}">`).join("")}</datalist>
         </td>
+        <td class="rt-cell-use">${useHtml}</td>
         <td class="rt-cell-st"><span class="rt-st">${tt.custom ? esc(t("rt.custom")) : esc(t("rt.inherit"))}</span></td>
       </tr>`;
     };
+
+    const fmtTok = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n || 0);
+    const shortModels = (s) => s ? s.split(" · ").map(m => m.split("|")[1] || m.split("|")[0]).join(" · ") : "";
 
     // Chuỗi dự phòng CHAT: chỉ provider API (phiên gói CLI không xoay được). Render lại
     // vùng fb mỗi khi người dùng thêm/xoá/đổi thứ tự, giữ state trong chatFbs.

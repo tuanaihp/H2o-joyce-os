@@ -2,6 +2,14 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.19] - 2026-10-20
+### Thêm mới
+- **Sổ mức dùng theo LOẠI TÁC VỤ** (`STATE_DIR/task_usage.json`): mọi engine việc nền giờ chạy qua một lớp đếm chung trong `swap()`/`_FallbackChain` - mỗi lượt ghi loại việc (nhắc hẹn, loop, Kanban, tự học...) + provider/model THẬT SỰ đã chạy lượt đó (mắt dự phòng chạy thì tính cho mắt đó) + token vào/ra + tiền thật nếu provider trả về. Rollup theo ngày, giữ ~2 tháng, không ghi lượt 0-token rỗng. Đây là sổ riêng cạnh `usage.json` (sổ đó gộp theo provider|model cho trang Mức dùng), không đếm trùng.
+- **Bảng Phân việc não hiện 30 ngày qua thật**: mỗi loại việc có cột mức dùng - số lượt, tổng token (gộp vào/ra), não nào đã gánh, và con số $ ƯỚC TÍNH theo `usage_pricing.json` (model ':free' và model chưa có giá hiện $0, không bịa số). Tiền thật provider trả về (Claude Code CLI) được giữ riêng, không bị ước tính đè.
+- **Đề xuất não theo kết quả đã dùng**: mỗi loại việc có chip đề xuất - "đang theo gợi ý" khi provider hiện tại nằm trong danh sách curate; "nên đổi sang X" khi một nhà gợi ý đã nối sẵn key/endpoint mà việc chưa chạy trên nó; "đang tốn ~$X/30n" khi đang đốt tiền thật mà còn mắt miễn phí chạy được; "chưa nối nhà gợi ý nào" khi chưa cấu hình. Đề xuất chỉ chỉ vào provider chủ ĐÃ nối thật, không xúi nối thêm.
+- **Ghi sổ không rơi mất qua strip_tools**: lớp bóc tool cho lượt không-tin-cậy (phán xét trả lời nhóm) giờ giữ nguyên gắn loại việc khi dựng lại chuỗi engine.
+- **i18n**: tiếng Đức được dịch đủ toàn bộ trang Phân việc não (trước thiếu hẳn khối rt.*).
+
 ## [1.3.18] - 2026-10-20
 ### Thêm mới
 - **Chuỗi dự phòng cho CHAT trực tiếp** (card "Chat trực tiếp" trên trang Phân việc não): khung chat dashboard, Telegram và các kênh trực tiếp trước chỉ có thử lại tạm thời trên cùng provider - hết quota là lượt chết, không ra lệnh được từ Telegram. Giờ chủ xếp sẵn một chuỗi não dự phòng có thứ tự; khi não chính trả lỗi quota/key chết, Joyce duyệt từng mắt theo đúng vòng quay key của nó rồi mới nhảy mắt kế, trong cùng một lượt và giữ nguyên ngữ cảnh hội thoại + MCP tools.

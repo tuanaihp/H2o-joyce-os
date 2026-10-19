@@ -6285,3 +6285,14 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .rt-fb-row .gcard-btn { padding: 5px 10px; }
 .rt-fb-empty { font-size: 12px; color: var(--text3); font-style: italic; padding: 8px 2px; }
 .rt-card-act .rt-st { align-self: center; margin-right: auto; font-size: 11.5px; color: var(--text3); }
+.rt-cell-use { min-width: 130px; white-space: nowrap; padding-top: 11px; }
+.rt-use-n { font-size: 12px; font-weight: 600; }
+.rt-use-m { font-size: 10.5px; color: var(--text3); max-width: 180px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.rt-use-c { font-size: 11px; color: var(--text2); }
+.rt-use-e { font-size: 11px; color: var(--text3); font-style: italic; }
+.rt-dx { font-size: 11px; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--text3); display: inline-block; }
+.rt-dx.ok { border-color: var(--green, #2fbf71); color: var(--green, #2fbf71); }
+.rt-dx.save { border-color: var(--green, #2fbf71); color: var(--green, #2fbf71); }
+.rt-dx.warn { border-color: var(--amber, #e0a145); color: var(--amber, #e0a145); }

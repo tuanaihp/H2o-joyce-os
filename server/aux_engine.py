@@ -570,6 +570,19 @@ class _FallbackChain:
                                      + (ev.get("content") or "").strip()[:200])
                         break
                     yield ev
+                    if t == "usage":
+                        # Sổ theo loại tác vụ cho trang Phân việc não (1.3.19): quy lượt
+                        # này về tag việc + đúng provider/model của mắt ĐANG chạy (mắt dự
+                        # phòng chạy thì tính cho mắt đó, không phải mắt đầu chuỗi).
+                        try:
+                            task_router.task_use_note(
+                                getattr(self, "_task_tag", "") or getattr(e, "tag", "") or "aux",
+                                self._name(e), getattr(e, "model", "") or ev.get("model") or "",
+                                ev.get("input") or ev.get("input_tokens") or 0,
+                                ev.get("output") or ev.get("output_tokens") or 0,
+                                ev.get("cost") or ev.get("cost_usd") or ev.get("total_cost_usd") or 0)
+                        except Exception:
+                            pass
                     if t == "final":
                         got_final = True
                 if got_final:
@@ -840,8 +853,19 @@ def strip_tools(engine, base):
             continue
         print(f"[aux strip_tools] bỏ {type(e).__name__}: không tắt được công cụ cho riêng lượt này", file=sys.stderr)
     if not keep:
-        return base
-    return keep[0] if len(keep) == 1 else _FallbackChain(keep)
+        return _chain_tagged(base, getattr(engine, "_task_tag", ""))
+    return _chain_tagged(keep[0] if len(keep) == 1 else _FallbackChain(keep),
+                         getattr(engine, "_task_tag", ""))
+
+
+def _chain_tagged(engine, tag):
+    """Bọc mọi kết quả swap() vào _FallbackChain + gắn `_task_tag` để query ghi mức dùng
+    theo loại tác vụ (1.3.19). Chuỗi 1-mắt trong suốt y hệt engine trần: is_available/
+    query/attr đều uỷ quyền mắt duy nhất, chỉ khác là query đếm được token cho sổ loại
+    việc. `object.__setattr__` bắt buộc vì __setattr__ của chuỗi lan sang các mắt."""
+    ch = engine if isinstance(engine, _FallbackChain) else _FallbackChain([engine])
+    object.__setattr__(ch, "_task_tag", tag or "")
+    return ch
 
 
 def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
@@ -874,20 +898,20 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         if str(mode or "").strip().lower() == "full":
             if prov == CLAUDE:
                 cli.model = sp.get("model") or None
-                return cli
+                return _chain_tagged(cli, tag)
             ok, why = availability(sp, settings)
             if not ok:
                 print(f"[aux] {why} → việc full tạm dùng lại Claude.", file=sys.stderr)
-                return cli
+                return _chain_tagged(cli, tag)
             if prov == CODEX:
-                return _build_codex(sp, cli, mode, tag, codex_profile)
+                return _chain_tagged(_build_codex(sp, cli, mode, tag, codex_profile), tag)
             if prov == GROK_CLI:
-                return _build_grok(sp, cli, mode, tag)
+                return _chain_tagged(_build_grok(sp, cli, mode, tag), tag)
             if prov == ANTIGRAVITY:
-                return _build_antigravity(sp, cli, mode, tag)
+                return _chain_tagged(_build_antigravity(sp, cli, mode, tag), tag)
             if prov in API_PROVIDERS:
-                return _build_api(sp, cli, mode, tag)
-            return cli
+                return _chain_tagged(_build_api(sp, cli, mode, tag), tag)
+            return _chain_tagged(cli, tag)
         if prov == CLAUDE:
             cli.model = sp.get("model") or None
             # Máy có thể CHƯA đăng nhập Claude (người dùng chỉ chạy Gemini/OpenAI...):
@@ -899,11 +923,11 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             or_free = _openrouter_free_engine(cli, mode, tag, settings)
             if or_free and not _co_mat_orfree(chain):
                 chain.append(or_free)
-            return _FallbackChain(chain) if len(chain) > 1 else cli
+            return _chain_tagged(_FallbackChain(chain), tag)
         ok, why = availability(sp, settings)
         if not ok:
             print(f"[aux] {why} → việc nền tạm dùng lại Claude.", file=sys.stderr)
-            return cli
+            return _chain_tagged(cli, tag)
         if prov == CODEX:
             primary = _build_codex(sp, cli, mode, tag, codex_profile)
         elif prov == GROK_CLI:
@@ -913,7 +937,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         elif prov in API_PROVIDERS:
             primary = _build_api(sp, cli, mode, tag)
         else:
-            return cli
+            return _chain_tagged(cli, tag)
         chain = [primary, cli]
         mn = _main_fallback_engine(cli, mode, tag, settings, {CLAUDE, prov}, codex_profile)
         if mn:
@@ -922,7 +946,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         # Chuỗi đã có mắt openrouter model trống (tự chọn free) thì or_free trùng hệt → khỏi thêm.
         if or_free and not _co_mat_orfree(chain):
             chain.append(or_free)
-        return _FallbackChain(chain)
+        return _chain_tagged(_FallbackChain(chain), tag)
     except Exception as e:
         print(f"[aux swap] {e} → giữ engine Claude.", file=sys.stderr)
     return cli

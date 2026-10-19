@@ -2,6 +2,14 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.19] - 2026-10-20
+### Added
+- **Per-task-type usage ledger** (`STATE_DIR/task_usage.json`): every background engine now runs through one counting layer inside `swap()`/`_FallbackChain` - each call records the job type (reminder, loop, Kanban, self-improvement...), the provider/model that ACTUALLY ran that turn (a fallback link is credited, not the chain head), in/out tokens, and real cost when the provider reports it. Rolled up daily, kept ~2 months, empty 0-token events are not written. Separate from `usage.json` (which groups by provider|model for the Usage page) - no double counting.
+- **Task routing table shows real 30-day usage**: every job type gets a usage column - call count, total tokens, which brains carried the load, and an ESTIMATED $ figure from `usage_pricing.json` (':free' and unpriced models show $0, nothing is made up). Provider-reported cost (Claude Code CLI) stays separate and is never overwritten by the estimate.
+- **Recommendations from observed usage**: each job type gets a suggestion chip - "on suggestion" when the current provider is already in the curated list; "switch to X" when a suggested provider is connected but unused; "costing ~$X/30d" when real money is being spent while a free link exists; "no suggested provider connected" otherwise. Recommendations only point at providers actually connected - never push new setup.
+- **Ledger survives strip_tools**: the tool-stripping layer for untrusted turns (group reply judge) now keeps the job-type tag when rebuilding the engine chain.
+- **i18n**: the whole Task routing page is now translated to German (the rt.* block was missing entirely).
+
 ## [1.3.18] - 2026-10-20
 ### Added
 - **Fallback chain for direct chat** (new "Direct chat" card on the Task routing page): the dashboard chat box, Telegram and other direct channels previously only retried transient errors on the same provider - running out of quota killed the turn and made Telegram commands impossible. The owner now configures an ordered chain of fallback brains; when the main brain returns a quota/dead-key error, Joyce walks each link through its own key ring before jumping to the next, inside the same turn, keeping the conversation context and MCP tools.

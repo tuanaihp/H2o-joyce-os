@@ -172,13 +172,19 @@ def task_list(settings: dict = None) -> list:
     """Danh sách loại tác vụ + spec hiệu lực + cờ `custom` (có gán riêng không)."""
     s = settings if settings is not None else cfgmod.read_settings()
     tm = ((s.get("model") or {}).get("task_models") or {})
+    use30 = task_use_summary(30)
     out = []
     for tt in TASK_TYPES:
         own = (tm.get(tt["id"]) or {})
+        spec_eff = spec_for_tag(tt.get("tag") or tt["id"], s)
+        use = use30.get(tt["id"]) or {"in": 0, "out": 0, "turns": 0, "cost": 0.0,
+                                      "cost_est": 0.0, "models": {}}
         out.append({**{k: tt[k] for k in ("id", "vi", "en", "vi_mo_ta", "en_mo_ta",
                                           "goi_y", "vi_goi_y", "en_goi_y")},
-                    "spec": spec_for_tag(tt.get("tag") or tt["id"], s),
-                    "custom": bool((own.get("provider") or "").strip())})
+                    "spec": spec_eff,
+                    "custom": bool((own.get("provider") or "").strip()),
+                    "use": use,
+                    "dx": _de_xuat(tt, spec_eff, use, s)})
     return out
 
 
@@ -203,6 +209,134 @@ def clear_task_specs() -> None:
     s = cfgmod.read_settings()
     ((s.get("model") or {}).pop("task_models", None))
     cfgmod.write_settings(s)
+
+
+# ── Sổ mức dùng theo LOẠI TÁC VỤ (STATE_DIR/task_usage.json) ────────────────────────────
+# Khác usage_store: sổ đó gộp theo provider|model cho trang Mức dùng; sổ này gộp theo loại
+# việc (reminder/loop/kanban...) để trang Phân việc não trả lời "loại này đang đốt bao
+# nhiêu token tiền, chạy trên não nào". Rollup theo ngày, giữ ~2 tháng.
+_TASK_USE_PATH = cfgmod.STATE_DIR / "task_usage.json"
+_TASK_USE_GIU = 62
+
+
+def _load_task_use() -> dict:
+    try:
+        if _TASK_USE_PATH.exists():
+            d = json.loads(_TASK_USE_PATH.read_text(encoding="utf-8"))
+            return d if isinstance(d, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+
+def task_use_note(tag: str, provider: str, model: str, tin: int = 0, tout: int = 0,
+                  cost: float = 0.0) -> None:
+    """Cộng một lượt gọi API vào sổ theo loại tác vụ. `cost` = chi phí provider trả về
+    thật (Claude Code CLI...); còn lại là 0 và trang sẽ ước tính theo bảng giá."""
+    tid = task_key_for_tag(tag)
+    tin, tout = int(tin or 0), int(tout or 0)
+    if tin <= 0 and tout <= 0 and not cost:
+        return
+    try:
+        day = time.strftime("%Y-%m-%d")
+        with _LOCK:
+            d = _load_task_use()
+            ent = d.setdefault(day, {}).setdefault(
+                tid, {"in": 0, "out": 0, "turns": 0, "cost": 0.0, "models": {}})
+            ent["in"] += tin
+            ent["out"] += tout
+            ent["turns"] += 1
+            ent["cost"] += float(cost or 0.0)
+            mk = f"{provider or '?'}|{model or ''}"
+            mm = ent["models"].setdefault(mk, {"in": 0, "out": 0, "cost": 0.0})
+            mm["in"] += tin
+            mm["out"] += tout
+            mm["cost"] += float(cost or 0.0)
+            for old in sorted(d)[:-_TASK_USE_GIU]:
+                d.pop(old, None)
+            _TASK_USE_PATH.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:      # noqa: BLE001 - cái sổ phụ không được chặn việc nền
+        print(f"[task_use] {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def task_use_summary(days: int = 30) -> dict:
+    """{task_id: {in,out,turns,cost,cost_est,models}} của `days` ngày gần nhất.
+
+    `cost` = tiền provider trả về thật; `cost_est` = ước tính bổ sung theo bảng giá
+    (usage_pricing.json) cho phần không có cost thật. Hai con số này phải trình bày là
+    '≈ ước tính' - bảng giá tay cập nhật, model lạ không khớp thì tính 0.
+    """
+    try:
+        import usage_parsers
+        prices = usage_parsers.load_prices()
+    except Exception:
+        prices = {}
+    d = _load_task_use()
+    out: dict = {}
+    for day in sorted(d)[-days:]:
+        for tid, ent in (d.get(day) or {}).items():
+            e = out.setdefault(tid, {"in": 0, "out": 0, "turns": 0, "cost": 0.0,
+                                     "cost_est": 0.0, "models": {}})
+            e["in"] += ent.get("in", 0)
+            e["out"] += ent.get("out", 0)
+            e["turns"] += ent.get("turns", 0)
+            e["cost"] += float(ent.get("cost") or 0.0)
+            for mk, mm in (ent.get("models") or {}).items():
+                _p, _sep, mdl = mk.partition("|")
+                me = e["models"].setdefault(mk, {"in": 0, "out": 0, "cost": 0.0,
+                                                 "cost_est": 0.0})
+                me["in"] += mm.get("in", 0)
+                me["out"] += mm.get("out", 0)
+                real = float(mm.get("cost") or 0.0)
+                me["cost"] += real
+                est = real or usage_parsers.estimate_cost(
+                    {"model": mdl, "input": mm.get("in", 0),
+                     "output": mm.get("out", 0)}, prices)
+                me["cost_est"] += est
+                e["cost_est"] += est
+    return out
+
+
+def _provider_runnable(prov: str, s: dict) -> bool:
+    """Provider trong danh sách gợi ý có chạy được NGAY không: có key trong vòng quay
+    (ollama-local/openai-compat thì chỉ cần endpoint)."""
+    m = (s or {}).get("model", {}) or {}
+    if prov == "ollama-local":
+        return bool((m.get("ollama_local_endpoint") or "").strip())
+    if prov == "openai-compat":
+        return bool((m.get("openai_compat_base") or "").strip())
+    return bool(keys_for(prov, s))
+
+
+def _de_xuat(tt: dict, spec_eff: dict, use: dict, s: dict) -> dict:
+    """Đề xuất não cho một loại tác vụ, dựa trên: danh sách gợi ý đã curate (goi_y),
+    provider nào chủ ĐÃ nối thật (không đề xuất thứ chưa nối), và mức dùng thật.
+
+    state: ok = đang theo gợi ý · switch = nên đổi · save = đúng gợi ý nhưng đang đốt
+    tiền thật mà còn mắt rẻ hơn chạy được · none = chưa nối nhà gợi ý nào.
+    """
+    running = (spec_eff.get("provider") or "").strip()
+    goi = list(tt.get("goi_y") or [])
+    runnable = [p for p in goi if _provider_runnable(p, s)]
+    cost_est = float((use or {}).get("cost_est") or 0.0)
+    if running in goi:
+        # Đúng gợi ý rồi - nhưng nếu đang tốn tiền thật còn mắt free/rẻ hơn nối được
+        # thì nói nhẹ (Ollama local = $0; model ':free' và nhà chưa thấy tốn = ~0).
+        cheaper = [p for p in runnable if p != running and p in ("ollama-local",)]
+        if cost_est > 0.5 and cheaper:
+            return {"provider": cheaper[0], "state": "save",
+                    "vi": f"đang tốn ~${cost_est:.2f}/30n - {cheaper[0]} chạy được và miễn phí",
+                    "en": f"costing ~${cost_est:.2f}/30d - {cheaper[0]} is connected and free"}
+        return {"provider": running, "state": "ok",
+                "vi": "đang theo gợi ý", "en": "on suggestion"}
+    if runnable:
+        p = runnable[0]
+        return {"provider": p, "state": "switch",
+                "vi": f"nên đổi sang {p}" + (f" (đang tốn ~${cost_est:.2f}/30n)" if cost_est > 0.5 else ""),
+                "en": f"switch to {p}" + (f" (costing ~${cost_est:.2f}/30d)" if cost_est > 0.5 else "")}
+    return {"provider": "", "state": "none",
+            "vi": "chưa nối nhà gợi ý nào (vd " + ", ".join(goi[:2]) + ")",
+            "en": "no suggested provider connected (e.g. " + ", ".join(goi[:2]) + ")"}
 
 
 # ── Vòng quay API key ────────────────────────────────────────────────────────────────────

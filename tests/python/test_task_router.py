@@ -260,6 +260,58 @@ check("hết key đều quota: thử đúng mỗi key một lần rồi dừng (
 sys.modules.pop("engine", None)
 sys.modules.pop("mcp_hub", None)
 
+# ============================================================
+# 3. Sổ mức dùng theo loại tác vụ + quy $ + đề xuất (1.3.19)
+# ============================================================
+tr._TASK_USE_PATH.unlink(missing_ok=True)
+
+# Không ghi lượt 0-token-0-cost (sự kiện usage rỗng không được bẩn sổ)
+tr.task_use_note("reminder", "gemini", "gemini-2.5-flash", 0, 0, 0)
+check("lượt trống (0 token, 0 cost) không ghi sổ",
+      not tr._TASK_USE_PATH.exists() or not tr._load_task_use())
+
+tr.task_use_note("reminder", "gemini", "gemini-2.5-flash", 1000, 200)
+tr.task_use_note("reminder", "gemini", "gemini-2.5-flash", 500, 100)
+tr.task_use_note("dispatch:abc:run", "groq", "openai/gpt-oss-20b", 800, 400)
+tr.task_use_note("dispatch:x:y", "ollama-local", "qwen3-vl:8b", 2000, 500)
+tr.task_use_note("tag-la-khong-ro", "deepseek", "deepseek-r1", 100, 50)
+
+s30 = tr.task_use_summary(30)
+check("reminder gộp 2 lượt cùng model",
+      s30["reminder"]["turns"] == 2 and s30["reminder"]["in"] == 1500
+      and s30["reminder"]["out"] == 300)
+check("dispatch:* quy về kanban + gộp 2 provider",
+      s30["kanban"]["turns"] == 2 and s30["kanban"]["in"] == 2800
+      and set(s30["kanban"]["models"]) ==
+      {"groq|openai/gpt-oss-20b", "ollama-local|qwen3-vl:8b"})
+check("tag lạ quy sổ vào khac", s30["khac"]["turns"] == 1)
+
+# Quy $: model có giá trong usage_pricing.json thì cost_est > 0 (gemini-2.5-flash có giá);
+# model ':free' hoặc nhà free thì vẫn 0 dù có token.
+check("gemini-2.5-flash quy được tiền ước tính > 0",
+      s30["reminder"]["cost_est"] > 0)
+tr.task_use_note("learn", "openrouter", "x/y:free", 999999, 999999)
+s30b = tr.task_use_summary(30)
+check("model ':free' token lớn vẫn ước $0",
+      any(mm["cost_est"] == 0 for mk, mm in s30b["learn"]["models"].items()
+          if mk.endswith(":free")))
+
+# cost thật (provider trả về, vd Claude Code CLI) được giữ riêng, không bị ước tính đè
+tr.task_use_note("loop", "ClaudeCLI", "sonnet", 100, 50, cost=0.05)
+s30c = tr.task_use_summary(30)
+check("cost thật của provider cộng vào cost (không pha ước tính)",
+      s30c["loop"]["cost"] == 0.05 and
+      s30c["loop"]["models"]["ClaudeCLI|sonnet"]["cost_est"] == 0.05)
+
+# task_list: mọi hàng đều có use + dx; dx không lộ key
+tl = tr.task_list()
+rmd = next(t for t in tl if t["id"] == "reminder")
+check("task_list hàng reminder mang use 2 lượt", rmd["use"]["turns"] == 2)
+check("task_list mọi hàng đều có dx.state", all(t["dx"]["state"]
+      in ("ok", "switch", "save", "none") for t in tl))
+check("dx + use không chứa chuỗi key nào",
+      all("kAAA" not in json.dumps(t) and "kBBB" not in json.dumps(t) for t in tl))
+
 print("\nOK - test_task_router: tất cả pass" if not _fails
       else f"\nFAIL {len(_fails)}: {_fails}")
 sys.exit(1 if _fails else 0)
