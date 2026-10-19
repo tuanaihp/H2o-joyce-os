@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.16] - 2026-10-19
+### Fixed
+- **Tunnel and link delivery mistook another app's cloudflared**: `tunnel_notify` and the watchdog previously matched any `cloudflared.exe` process, so while H2O Video Studio's own tunnel (port 5170) ran they believed the Joyce tunnel (:7777) was alive - a freshly booted server would open no tunnel and send no Telegram link, and refresh would even kill the other app's tunnel. Detection and kill now match the command line pointing at :7777, keeping both apps' tunnels fully independent.
+- **Joyce did not auto-start after boot**: the autostart registration (Run key `JoyceOS` plus two scheduled tasks) had vanished between 18/10 and the 19/10 morning boot, so the server never started and no link was sent - re-registered. If it recurs, suspect a cleanup tool or AV removed the startup entries; check the AV allowlist or flip "auto-start" off/on again in Settings.
+
 ## [1.3.15] - 2026-10-19
 ### Added
 - **Head now turns left/right like the reference**: the shader compresses the plate horizontally with yaw (foreshortening) and lets the inner face region slide further than the silhouette edge, reading as roughly a 20-degree head turn instead of a mild tilt. The head follows the pointer or fingertip (with HAND CAM on) and sways gently at rest; the dust-particle layer rotates by the same angle so it never betrays the illusion.

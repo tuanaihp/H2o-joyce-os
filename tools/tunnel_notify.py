@@ -34,35 +34,61 @@ def tunnel_bi_tat() -> bool:
     return TAT.exists()
 
 
-def cloudflared_dang_chay() -> bool:
-    """Có tiến trình cloudflared nào đang chạy không.
+def _pids_cloudflared_joyce() -> list[int]:
+    """PID các cloudflared CỦA JOYCE - nhận diện qua command line trỏ tunnel về :7777.
 
-    Phải tách theo HĐH: bản cũ chỉ gọi `tasklist` (Windows), nên trên Linux/macOS lệnh ném
-    FileNotFoundError -> except -> trả False -> mỗi lần refresh lại đẻ thêm một cloudflared."""
-    try:
-        if sys.platform == "win32":
+    Không được lọc theo tên ảnh `cloudflared.exe`: trên máy này H2O Video Studio
+    chạy một cloudflared khác (tunnel :5170). Nhận lầm nó là "tunnel của Joyce đang
+    sống" thì start-joyce/watchdog sẽ KHÔNG mở tunnel mới - server chết vẫn không có
+    link; còn giet_cloudflared theo tên ảnh sẽ giết luôn tunnel của app kia."""
+    if sys.platform == "win32":
+        try:
             out = subprocess.run(
-                ["tasklist", "/FI", "IMAGENAME eq cloudflared.exe", "/NH"],
-                capture_output=True, text=True, timeout=15,
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" "
+                 "| ForEach-Object { $_.ProcessId.ToString() + ' ' + $_.CommandLine }"],
+                capture_output=True, text=True, timeout=30,
             ).stdout
-            return "cloudflared.exe" in out
-        return subprocess.run(["pgrep", "-f", "cloudflared"], capture_output=True,
-                              timeout=15).returncode == 0
+        except Exception:
+            return []
+        pids = []
+        for line in out.splitlines():
+            line = line.strip()
+            if not line or "7777" not in line:
+                continue
+            try:
+                pids.append(int(line.split(None, 1)[0]))
+            except ValueError:
+                pass
+        return pids
+    try:
+        out = subprocess.run(["pgrep", "-af", "cloudflared"], capture_output=True,
+                             text=True, timeout=15).stdout
+        return [int(l.split(None, 1)[0]) for l in out.splitlines()
+                if "cloudflared" in l and "7777" in l]
     except Exception:
-        return False
+        return []
+
+
+def cloudflared_dang_chay() -> bool:
+    """Có tiến trình cloudflared CỦA JOYCE (tunnel :7777) đang chạy không."""
+    return bool(_pids_cloudflared_joyce())
 
 
 def giet_cloudflared() -> bool:
-    """Giết mọi tiến trình cloudflared đang chạy. Trả True nếu sau đó không còn cái nào.
+    """Giết cloudflared CỦA JOYCE theo PID. Trả True nếu sau đó không còn cái nào.
 
     Cần cho op=refresh: ca dùng thật của nó là "tiến trình còn sống nhưng tunnel đã chết",
-    mà mo_cloudflared() chỉ spawn chứ không thay thế - không giết trước thì link cũ vẫn đó."""
+    mà mo_cloudflared() chỉ spawn chứ không thay thế - không giết trước thì link cũ vẫn đó.
+    Chỉ đụng PID có cmdline chứa :7777 - tunnel cloudflared của app khác được tha."""
     try:
         if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/IM", "cloudflared.exe"],
-                           capture_output=True, timeout=20)
+            for pid in _pids_cloudflared_joyce():
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                               capture_output=True, timeout=20)
         else:
-            subprocess.run(["pkill", "-f", "cloudflared"], capture_output=True, timeout=20)
+            subprocess.run(["pkill", "-f", "cloudflared.*7777"],
+                           capture_output=True, timeout=20)
     except Exception:
         return False
     for _ in range(10):          # chờ HĐH thu hồi tiến trình trước khi mở cái mới

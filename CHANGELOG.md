@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.16] - 2026-10-19
+### Sửa lỗi
+- **Tunnel + gửi link nhận lầm cloudflared của app khác**: `tunnel_notify` và watchdog trước chỉ lọc theo tên tiến trình `cloudflared.exe`, nên khi H2O Video Studio chạy tunnel riêng (port 5170) chúng tưởng tunnel của Joyce (:7777) vẫn sống - server mới boot xong sẽ không mở tunnel mới và không gửi link về Telegram; thao tác refresh còn giết nhầm tunnel của app kia. Giờ nhận diện/giết theo command line trỏ về :7777, tunnel hai app song song hoàn toàn độc lập.
+- **Joyce không tự khởi động sau khi mở máy**: đăng ký tự chạy (Run key `JoyceOS` + 2 scheduled task) đã biến mất sau đêm 18/10 nên sáng 19/10 server không lên và không gửi link - đã tái đăng ký. Nếu lặp lại, nghi phần mềm dọn máy/AV gỡ mục khởi động - kiểm tra danh sách cho phép của AV hoặc mở trang Cài đặt bấm "Bật lại" tự khởi động.
+
 ## [1.3.15] - 2026-10-19
 ### Thêm mới
 - **Đầu pho tượng quay trái/phải như bản tham chiếu**: shader giờ nén ngang theo góc yaw (foreshorten) và cho vùng mặt trong trượt nhiều hơn viền silhouette, tạo cảm giác quay đầu khoảng 20 độ thay vì chỉ nghiêng nhẹ. Đầu bám con trỏ hoặc đầu ngón trỏ (khi bật HAND CAM), tự đung đưa nhẹ khi thả trôi; lớp hạt bụi xoay cùng góc nên không phản bội ảo giác.

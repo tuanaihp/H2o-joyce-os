@@ -49,8 +49,14 @@ If alive Then
   ' chu ky sau, kem mot link public moi gui thang qua Telegram.
   If Not fso0.FileExists(root & "\tools\tunnel-off.flag") Then
     Set sh0 = CreateObject("WScript.Shell")
-    Dim out : out = sh0.Exec("cmd /c tasklist /FI ""IMAGENAME eq cloudflared.exe"" /NH").StdOut.ReadAll
-    If InStr(out, "cloudflared.exe") = 0 Then
+    ' Loc theo CommandLine chua :7777 - cloudflared cua app khac (H2O Video Studio
+    ' tunnel :5170) chay song song se bi tasklist/IMAGENAME nhan lam la tunnel Joyce,
+    ' khien tunnel_notify khong bao gio duoc goi de mo tunnel moi.
+    Dim cfJoyce : cfJoyce = False
+    For Each cf In wmi.ExecQuery("Select CommandLine from Win32_Process where Name='cloudflared.exe'")
+      If InStr(cf.CommandLine, "7777") > 0 Then cfJoyce = True
+    Next
+    If Not cfJoyce Then
       sh0.Run """" & root & "\.venv\Scripts\python.exe"" """ & root & "\tools\tunnel_notify.py""", 0, False
     End If
   End If
