@@ -133,6 +133,79 @@ async function main() {
   }
   check("vuốt xuống -> swipe down (đóng album)", swipes.length === 1 && swipes[0].dir === "down", JSON.stringify(swipes));
 
+  // ---- Cử chỉ TỰ LUYỆN (bảng huấn luyện): fingerVector + setProfile + dwell/cooldown ----
+  const { fingerVector } = await import(
+    pathToFileURL(path.join(ROOT, "dashboard", "joyce-hands", "gesture-engine.mjs")).href);
+  // Tay "2 ngón" (trỏ+giữa duỗi, nhẫn+út gập, cái dang): biến thể của fakeHand.
+  const peaceHand = () => {
+    const lm = fakeHand("fist");
+    for (const [tip, pip, xs] of [[8, 6, 0.3], [12, 10, 0.42]]) {
+      lm[pip] = { x: xs, y: 0.45 }; lm[tip] = { x: xs, y: 0.18 };
+    }
+    return lm;
+  };
+  const vecOpen = fingerVector(fakeHand("open"), 4 / 3);
+  const vecPeace = fingerVector(peaceHand(), 4 / 3);
+  const vecFist = fingerVector(fakeHand("fist"), 4 / 3);
+  check("fingerVector: xòe đủ -> 4 ngón ~duỗi", vecOpen.slice(1).every((v) => v > 0.5), JSON.stringify(vecOpen));
+  check("fingerVector: nắm tay -> ngón ~gập", vecFist.slice(1).every((v) => v < 0.45), JSON.stringify(vecFist));
+  check("fingerVector: 2 ngón -> chỉ trỏ+giữa duỗi", vecPeace[1] > 0.55 && vecPeace[2] > 0.45 && vecPeace[3] < 0.45 && vecPeace[4] < 0.45, JSON.stringify(vecPeace));
+
+  const profile2 = { custom: [{ id: "g_peace", label: "2 ngón", action: "album.next", vec: vecPeace, tol: [0.3, 0.3, 0.3, 0.3, 0.3] }], calib: {} };
+  g = new GestureEngine();
+  g.setProfile(profile2);
+  let customs = [];
+  for (let t = 0; t <= 400; t += 50) customs = customs.concat(g.update(peaceHand(), t).gestures);
+  check("cử chỉ luyện: <450ms dwell chưa bắn", customs.length === 0, customs.length);
+  customs = customs.concat(g.update(peaceHand(), 500).gestures, g.update(peaceHand(), 550).gestures);
+  check("cử chỉ luyện: đủ dwell bắn custom + action", customs.length === 1 && customs[0].type === "custom" && customs[0].action === "album.next", JSON.stringify(customs));
+  for (let t = 600; t <= 1200; t += 50) customs = customs.concat(g.update(peaceHand(), t).gestures);
+  check("cử chỉ luyện: giữ không bắn dồn", customs.length === 1, customs.length);
+  // nhả tay (nắm) rồi giơ lại: release 200ms + cooldown 1500ms
+  g.update(fakeHand("fist"), 1250); g.update(fakeHand("fist"), 1500);
+  let c2 = g.update(peaceHand(), 1700).gestures.length;
+  check("cử chỉ luyện: giơ lại sớm (<cooldown) không bắn", c2 === 0, c2);
+  c2 = 0;
+  for (let t = 3200; t <= 3800; t += 50) { c2 += g.update(peaceHand(), t).gestures.length; if (c2) break; }
+  check("cử chỉ luyện: hết cooldown bắn lại", c2 === 1, c2);
+  // dáng KHÁC mẫu không khớp
+  g = new GestureEngine(); g.setProfile(profile2);
+  c2 = 0;
+  for (let t = 0; t <= 800; t += 50) c2 += g.update(fakeHand("fist"), t).gestures.length;
+  check("cử chỉ luyện: dáng sai không kích hoạt", c2 === 0, c2);
+  // tay lắc -> reset dwell
+  g = new GestureEngine(); g.setProfile(profile2);
+  const jig = peaceHand(); c2 = 0;
+  for (let t = 0; t <= 800; t += 50) {
+    jig[0] = { x: 0.5 + (t % 200 === 0 ? 0.12 : -0.06), y: 0.85 };
+    c2 += g.update(jig, t).gestures.length;
+  }
+  check("cử chỉ luyện: tay lắc không tích dwell", c2 === 0, c2);
+
+  // Dáng luyện "5 ngón" THAY lệnh palm mặc định: palm gốc tắt, chỉ custom bắn.
+  g = new GestureEngine();
+  g.setProfile({ custom: [{ id: "g_palm", label: "5 ngón", action: "stop", vec: vecOpen, tol: [0.3, 0.3, 0.3, 0.3, 0.3] }], calib: {} });
+  let palms = 0, cust = 0;
+  for (let t = 0; t <= 900; t += 50) for (const ge of g.update(fakeHand("open"), t).gestures) {
+    if (ge.type === "palm") palms++; if (ge.type === "custom") cust++;
+  }
+  check("5 ngón tự luyện thay palm: custom bắn, palm gốc tắt", cust === 1 && palms === 0, `custom=${cust} palm=${palms}`);
+  // Không có dáng palm-like -> palm gốc vẫn sống
+  g = new GestureEngine(); g.setProfile(profile2);
+  let p2 = 0;
+  for (let t = 0; t <= 900; t += 50) p2 += g.update(fakeHand("open"), t).gestures.filter((x) => x.type === "palm").length;
+  check("không luyện 5 ngón -> palm mặc định vẫn bắn", p2 === 1, p2);
+
+  // Hiệu chuẩn: calib.pinchOn ghi đè ngưỡng mặc định.
+  const softPinch = fakeHand("pinch"); softPinch[4] = { x: 0.4, y: 0.15 }; softPinch[8] = { x: 0.4, y: 0.2 };
+  g = new GestureEngine(); g.setProfile({ custom: [], calib: { pinchOn: 0.05 } });
+  let p3 = 0;
+  for (let t = 0; t <= 800; t += 50) p3 += g.update(softPinch, t).gestures.filter((x) => x.type === "pinch").length;
+  check("calib pinchOn=0.05: khoảng cách 0.125 không còn tính là chụm", p3 === 0, p3);
+  g = new GestureEngine();
+  for (let t = 0; t <= 800; t += 50) p3 += g.update(softPinch, t).gestures.filter((x) => x.type === "pinch").length;
+  check("mặc định pinchOn=0.32: cùng khoảng đó vẫn là chụm", p3 === 1, p3);
+
   // ---- Tài nguyên tĩnh ----
   for (const f of ["gesture-engine.mjs", "hand-controller.mjs", "hand-worker.js",
                    "joyce-bridge.mjs", "voice-quiet-gate.mjs", "hand-panel.mjs", "hand-panel.css"])
@@ -201,7 +274,34 @@ async function main() {
   // ---- index.html ----
   const html = read("dashboard/index.html");
   check("index.html: không tải CSS panel (không khung camera trên UI)", !html.includes("hand-panel.css"));
-  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=4") && html.includes("joyce-humanoid.js?v=7"));
+  check("index.html: bump ?v= apex-humanoid + joyce-humanoid", html.includes("apex-humanoid.js?v=5") && html.includes("joyce-humanoid.js?v=8"));
+
+  // ---- Bảng HUẤN LUYỆN cử chỉ (gesture-trainer + endpoint + khớp nối) ----
+  check("có file gesture-trainer.mjs", fs.existsSync(path.join(ROOT, "dashboard", "joyce-hands", "gesture-trainer.mjs")));
+  const trn = read("dashboard/joyce-hands/gesture-trainer.mjs");
+  check("trainer: dùng JoyceHandController riêng + có preview (overlay)", trn.includes("JoyceHandController") && trn.includes("overlay"));
+  check("trainer: quét 3 lần mới chốt", trn.includes("reps.length >= 3") || trn.includes("reps.length>=3"));
+  check("trainer: giữ dáng qua nhiều khung (HOLD_FRAMES)", trn.includes("HOLD_FRAMES"));
+  check("trainer: 3 lần lệch quá -> báo quét lại", trn.includes("> .5") || trn.includes("unstable"));
+  check("trainer: lưu/đọc /hands/profile", trn.includes("/hands/profile") && trn.includes("method: 'PUT'"));
+  check("trainer: gắn hành động cho cử chỉ (HAND_ACTIONS)", trn.includes("album.open") && trn.includes("fullscreen"));
+  check("trainer: hiệu chuẩn pinch/palm/swipe", trn.includes("pinchOn") && trn.includes("palmExtMin") && trn.includes("swipeMinDelta"));
+  check("trainer: phát sự kiện joyce-hands:profile sau lưu", trn.includes("joyce-hands:profile"));
+  check("engine: export fingerVector + setProfile", eng.includes("export function fingerVector") && eng.includes("setProfile"));
+  check("engine: custom pose dwell/cooldown/release riêng", eng.includes("poseHoldMs") && eng.includes("poseCooldownMs"));
+  check("engine: palmSuppressed khi luyện dáng xòe", eng.includes("palmSuppressed"));
+  check("controller: tracking kèm landmarks thô", ctl.includes("landmarks:data.landmarks"));
+  check("server: GET/PUT /hands/profile + whitelist action", srv.includes('"/hands/profile"') && srv.includes("_HAND_ACTIONS") && srv.includes("hand_gestures.json"));
+  check("apex: nút DẠY -> onTrainRequest", apex.includes('data-action="train"') && apex.includes("onTrainRequest"));
+  check("wrapper: mở trainer + tạm tắt cam điều khiển", wrap.includes("openHandTrainer") && wrap.includes("trainerWasActive"));
+  check("wrapper: custom action -> runHandAction (album/fullscreen)", wrap.includes('d.type === "custom"') && wrap.includes("runHandAction") && wrap.includes('"album.open"'));
+  check("wrapper: nạp profile khi start + nghe sự kiện lưu", wrap.includes("fetchHandProfile") && wrap.includes("joyce-hands:profile"));
+  const cj = read("dashboard/console.js");
+  check("settings: thẻ Cử chỉ tay + nút mở trainer", cj.includes("setHandTrain") && cj.includes("gesture-trainer.mjs"));
+  for (const lang of ["vi", "en", "de"]) {
+    const ij = read("dashboard/i18n/" + lang + ".json");
+    check(`i18n ${lang}: settings.hands + htr.*`, ij.includes('"settings.hands"') && ij.includes('"htr.title"') && ij.includes('"settings.hands_meta_done"'));
+  }
 
   console.log(fails ? fails + " FAIL" : "ALL PASS");
   process.exit(fails ? 1 : 0);

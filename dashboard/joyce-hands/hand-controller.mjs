@@ -74,10 +74,10 @@ export class JoyceHandController extends EventTarget {
         if(data.type==='error'){this.fail(new Error(data.message));return;}
         if(data.type!=='result')return;
         this.busy=false;
-        if(performance.now()-data.time>500){this.engine.reset();this.draw(null);this.emit('tracking',{tracked:false,pointer:null,pose:'slow',gestures:[]});return;}
+        if(performance.now()-data.time>500){this.engine.reset();this.draw(null);this.emit('tracking',{tracked:false,pointer:null,pose:'slow',gestures:[],landmarks:null});return;}
         const result=this.engine.update(data.landmarks,data.time,this.canvas.width/this.canvas.height);
         this.draw(data.landmarks);
-        this.emit('tracking',{...result,handCount:data.count});
+        this.emit('tracking',{...result,handCount:data.count,landmarks:data.landmarks});
         for(const gesture of result.gestures)this.emit('gesture',{...gesture,source:'camera',timestamp:data.time});
       };
       this.busy=false;this.lastFrame=-Infinity;this.lastVideo=-1;

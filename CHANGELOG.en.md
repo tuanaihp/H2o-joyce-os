@@ -2,6 +2,15 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.22] - 2026-10-21
+### Added
+- **Hand-gesture TRAINER panel** (`gesture-trainer.mjs`, opened from the "🎓 DẠY" button next to HAND CAM in 3D Joyce or the "Hand gestures" card in Settings): teaches Joyce YOUR hand instead of shared thresholds. Each gesture is **scanned 3 times at different tempos** - the mean and deviation become the personal tolerance band; reps that disagree too much are rejected with a rescan hint instead of being saved. Unlike the headless control mode, this panel shows a camera preview on purpose - you must see your hand to train it.
+- **Trained gestures bind to actions**: hold up 2/3/4/5 fingers or any pose (✌️🤟🖐✊👌 + presets) → pick one of 7 actions: energy pulse, hush Joyce, album open/next/prev/close, fullscreen. Recognition matches a 5-finger `fingerVector` (palm-scale normalised) against the locked template; the pose must hold still for 450ms so a moving/swiping hand never fires it.
+- **Built-in gesture calibration**: retrain pinch, open palm and swipe to retune the engine to your real hand (pinchOn/Off, palmExtMin, swipe distance+speed). A ↺ button restores defaults.
+- **A trained 5-finger pose replaces the default palm**: when the profile contains a ≥4-finger-extended gesture it supersedes the stock hush command (palmSuppressed) so detection fits the owner's actual hand.
+- **Profile persisted server-side**: `GET/PUT /hands/profile` → `STATE_DIR/hand_gestures.json` with strict validation (≤16 gestures, action whitelist, 5-float vec/tol, bounded calib keys). Saving fires `joyce-hands:profile` so a running control camera picks up new thresholds instantly without a restart.
+- **Opening the trainer pauses the control camera** (two workers don't race the CPU); closing it resumes hand control if it was on.
+
 ## [1.3.21] - 2026-10-21
 ### Added
 - **Fullscreen brain chamber button** (⤢ next to the eye icon in stage-tools): requestFullscreen on `.hud-center` - in the 3D Joyce view the whole screen is just the virtual figure + voice + camera; ESC or press again to exit.

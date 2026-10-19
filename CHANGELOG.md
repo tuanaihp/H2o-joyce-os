@@ -2,6 +2,15 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.22] - 2026-10-21
+### Thêm mới
+- **Bảng HUẤN LUYỆN cử chỉ tay** (`gesture-trainer.mjs`, mở từ nút "🎓 DẠY" cạnh HAND CAM trong 3D Joyce hoặc thẻ "Cử chỉ tay" trong Cài đặt): dạy Joyce nhận diện theo đúng tay người dùng thay vì ngưỡng chung. Mỗi cử chỉ **quét 3 lần với nhịp khác nhau** - hệ thống lấy trung bình + độ lệch làm ngưỡng khoan dung riêng; 3 lần lệch nhau quá thì báo quét lại chứ không lưu bừa. Bảng này CÓ khung xem trước camera (luyện phải thấy tay), khác chế độ điều khiển vẫn chạy ẩn.
+- **Cử chỉ tự luyện gắn hành động**: giơ 2/3/4/5 ngón hay dáng tay bất kỳ (✌️🤟🖐✊👌 + preset) → chọn hành động trong 7 loại: sóng năng lượng, bảo Joyce ngừng nói, mở/lật-tới/lật-lùi/đóng album, toàn màn hình. Nhận diện bằng đặc trưng 5 ngón (`fingerVector` chuẩn hoá theo lòng bàn tay) khớp mẫu đã chốt; phải giữ dáng yên 450ms mới bắn nên tay đang di chuyển/vuốt không kích hoạt nhầm.
+- **Hiệu chuẩn cử chỉ có sẵn**: luyện lại chụm ngón (pinch), xòe tay (palm), vuốt ngang (swipe) → engine đổi ngưỡng theo đo từ tay thật (pinchOn/Off, palmExtMin, quãng đường+tốc độ vuốt). Nút ↺ đưa về mặc định.
+- **Dáng 5 ngón tự luyện thay palm mặc định**: nếu trong hồ sơ có cử chỉ ≥4 ngón duỗi, nó thay hẳn lệnh ngừng-nói gốc (palmSuppressed) - khớp đúng dáng tay chủ.
+- **Hồ sơ lưu trên server**: `GET/PUT /hands/profile` → `STATE_DIR/hand_gestures.json`, validate chặt (tối đa 16 cử chỉ, action whitelist, vec/tol 5 float, calib trong biên an toàn). Bảng lưu xong phát sự kiện `joyce-hands:profile` → cam điều khiển đang chạy áp ngưỡng mới ngay không cần tắt mở.
+- **Mở bảng luyện tạm ngừng cam điều khiển** (khỏi 2 worker đua CPU), đóng bảng thì mở lại nếu trước đó đang bật.
+
 ## [1.3.21] - 2026-10-21
 ### Thêm mới
 - **Nút bung khoang não toàn màn hình** (⤢ cạnh icon mắt trong stage-tools): requestFullscreen trên `.hud-center` - ở lớp nhìn 3D Joyce thì toàn màn hình chỉ còn người ảo + giọng nói + camera, ESC hoặc bấm lại để thu về.

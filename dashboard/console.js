@@ -9676,6 +9676,14 @@
               ? t("settings.c2pa_meta_strip")
               : t("settings.c2pa_meta_keep"))}</div>
           </div>
+          <div class="settings-card">
+            <div class="settings-card-head"><b>${esc(t("settings.hands"))}</b><span class="gcard-tag">${esc(t("settings.tag_cam"))}</span></div>
+            <p>${esc(t("settings.hands_desc"))}</p>
+            <div class="js-actions">
+              <button class="gcard-btn" id="setHandTrain">${esc(t("settings.hands_btn"))}</button>
+            </div>
+            <div class="gcard-meta" id="setHandMeta">${esc(t("settings.hands_meta"))}</div>
+          </div>
         </div>
       </details>
 
@@ -9767,6 +9775,19 @@
     const c2paStrip = document.getElementById("setC2paStrip");
     if (c2paKeep) c2paKeep.onclick = () => setC2pa(false);
     if (c2paStrip) c2paStrip.onclick = () => setC2pa(true);
+
+    const handTrain = document.getElementById("setHandTrain");
+    if (handTrain) handTrain.onclick = () => {
+      import("/static/joyce-hands/gesture-trainer.mjs")
+        .then(m => m.openHandTrainer())
+        .catch(() => {});
+    };
+    fetch("/hands/profile", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(p => {
+      const meta = document.getElementById("setHandMeta");
+      if (!meta || !p) return;
+      const n = (p.custom || []).length, c = Object.keys(p.calib || {}).length;
+      if (n || c) meta.textContent = window.t("settings.hands_meta_done", { n, c }) || `${n} cử chỉ · ${c} hiệu chuẩn`;
+    }).catch(() => {});
 
     const migrate = document.getElementById("setBrainMigrate");
     if (migrate) migrate.onclick = async () => {

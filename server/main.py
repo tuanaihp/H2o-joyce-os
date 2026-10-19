@@ -8782,6 +8782,85 @@ async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh")):
     return {"brain": brain, "images": imgs}
 
 
+# ---- HỒ SƠ CỬ CHỈ TAY (bảng huấn luyện camera, STATE_DIR/hand_gestures.json) ----
+_HAND_PROFILE_PATH = cfgmod.STATE_DIR / "hand_gestures.json"
+_HAND_ACTIONS = {"pulse", "stop", "album.open", "album.next", "album.prev",
+                 "album.close", "fullscreen"}
+_HAND_CALIB_RANGES = {"pinchOn": (.05, .6), "pinchOff": (.1, .8),
+                      "swipeMinDelta": (.1, .5), "swipeMaxSpanMs": (200, 900),
+                      "palmExtMin": (1.0, 1.3), "poseHoldMs": (200, 1500)}
+
+
+def _hand_profile_read():
+    try:
+        d = json.loads(_HAND_PROFILE_PATH.read_text(encoding="utf-8"))
+        if isinstance(d, dict):
+            return {"custom": d.get("custom") or [], "calib": d.get("calib") or {}}
+    except Exception:
+        pass
+    return {"custom": [], "calib": {}}
+
+
+def _f5(v, lo, hi):
+    """Vec/tol 5 chiều float trong [lo,hi]; sai hình dạng trả None."""
+    if not isinstance(v, list) or len(v) != 5:
+        return None
+    try:
+        out = [float(x) for x in v]
+    except (TypeError, ValueError):
+        return None
+    return [min(hi, max(lo, x)) for x in out]
+
+
+@app.get("/hands/profile")
+async def hands_profile_get():
+    """Hồ sơ cử chỉ đã luyện: custom[] (dáng tay gắn hành động) + calib{} (ngưỡng
+    hiệu chuẩn pinch/palm/swipe theo tay người dùng). Không có file -> profile rỗng."""
+    return _hand_profile_read()
+
+
+@app.put("/hands/profile")
+async def hands_profile_put(request: Request):
+    """Lưu hồ sơ sau khi bảng huấn luyện "chốt thao tác". Chỉ nhận schema chặt:
+    tối đa 16 cử chỉ, action nằm trong whitelist, vec/tol đúng 5 float, calib chỉ
+    các khoá đã khai trong biên an toàn."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "body không hợp lệ"}, status_code=400)
+    custom, seen = [], set()
+    for g in (body.get("custom") or [])[:16]:
+        if not isinstance(g, dict):
+            continue
+        vec = _f5(g.get("vec"), 0.0, 1.0)
+        tol = _f5(g.get("tol"), .04, .6)
+        action = str(g.get("action") or "")
+        label = str(g.get("label") or "")[:48].strip()
+        gid = str(g.get("id") or "")[:40].strip()
+        if vec is None or tol is None or not label or not gid or gid in seen:
+            continue
+        if action not in _HAND_ACTIONS:
+            return JSONResponse({"error": f"action không hỗ trợ: {action}"}, status_code=400)
+        seen.add(gid)
+        custom.append({"id": gid, "label": label, "action": action, "vec": vec, "tol": tol})
+    calib = {}
+    for k, (lo, hi) in _HAND_CALIB_RANGES.items():
+        v = (body.get("calib") or {}).get(k)
+        if isinstance(v, (int, float)) and lo <= float(v) <= hi:
+            calib[k] = float(v)
+    if calib.get("pinchOn") is not None and calib.get("pinchOff") is not None \
+            and calib["pinchOff"] <= calib["pinchOn"]:
+        calib["pinchOff"] = min(.8, calib["pinchOn"] + .1)
+    data = {"version": 1, "custom": custom, "calib": calib}
+    try:
+        _HAND_PROFILE_PATH.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError as e:
+        return JSONResponse({"error": f"không ghi được hồ sơ: {e}"}, status_code=500)
+    return {"ok": True, "custom": len(custom), "calib": len(calib)}
+
+
 # ---- CHIA SẺ CÔNG KHAI một file (nút Chia sẻ trong trình sửa) ----
 # Người cầm link KHÔNG đăng nhập, nên đây là mặt tiền công khai duy nhất chạm vào file trong
 # brain. Ba điều giữ nó lành:

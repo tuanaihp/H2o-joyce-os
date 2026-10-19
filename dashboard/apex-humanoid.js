@@ -90,7 +90,7 @@
       this.mediaQuery=global.matchMedia('(prefers-reduced-motion: reduce)');this.reduced=options.reducedMotion??this.mediaQuery.matches;
       this.root=document.createElement('section');this.root.className='jh';this.root.setAttribute('aria-label','Animated cyan and gold humanoid');
       this.root.innerHTML=`<img class="jh-backdrop" alt="" draggable="false"><canvas class="jh-gl" aria-hidden="true"></canvas><img class="jh-fallback" alt="Cyan and gold humanoid" hidden><canvas class="jh-particles" aria-hidden="true"></canvas>
-        <div class="jh-top" hidden><button data-action="exit" aria-label="Exit humanoid view">EXIT</button><button data-action="gesture" aria-pressed="false" aria-label="Toggle hand tracking camera">✋ HAND CAM</button></div>
+        <div class="jh-top" hidden><button data-action="exit" aria-label="Exit humanoid view">EXIT</button><button data-action="train" aria-label="Train hand gestures">🎓 DẠY</button><button data-action="gesture" aria-pressed="false" aria-label="Toggle hand tracking camera">✋ HAND CAM</button></div>
         <div class="jh-status" role="status" aria-live="polite"></div>
         <nav class="jh-controls" aria-label="Avatar demo controls" hidden>${['idle','listening','thinking','speaking'].map(s=>`<button data-state="${s}" aria-pressed="${s==='idle'}">${s}</button>`).join('')}<button data-action="mic" aria-pressed="false">♩ MIC OFF</button><button data-action="replay">↻ REPLAY</button><button data-action="sound" aria-pressed="false">♪ SOUND OFF</button></nav>
         <aside class="jh-panel" aria-label="Gesture controls" hidden><strong>GESTURE · CAMERA</strong><p>Nút HAND CAM bật/tắt điều khiển tay - camera chạy ẩn, không hiện khung hình: đầu ngón trỏ lái sự chú ý của pho tượng, chụm ngón cái + trỏ tạo sóng năng lượng, xòe lòng bàn tay giữ yên yêu cầu Joyce ngừng nói.</p><p>Nhận diện chạy tại máy trong một Worker riêng (MediaPipe), camera chỉ bật khi anh bấm nút, không gửi hình ảnh đi đâu.</p><button data-action="close-gesture">Đã hiểu</button></aside>
@@ -132,6 +132,7 @@
     useFallback(){this.glCanvas.hidden=true;this.fallback.hidden=false;}
     action(a){if(a==='enter')this.enter();if(a==='exit')this.exit();if(a==='replay')this.replay();if(a==='mic')this.toggleMic();if(a==='sound')this.setSound(!this.sound);
       if(a==='gesture'){this.options.onGestureRequest?.();return;}
+      if(a==='train'){this.options.onTrainRequest?.();return;}
       if(a==='close-gesture'){this.$('.jh-panel').hidden=true;this.$('[data-action=gesture]').focus();}}
     enter(){if(!this.loaded||this.disposed)return;this.running=true;this.paused=false;this.$('.jh-entry').hidden=true;this.$('.jh-top').hidden=false;this.$('.jh-controls').hidden=this.options.controls===false;this.$('[data-action=exit]').focus();this.replay();}
     exit(){this.running=false;cancelAnimationFrame(this.raf);this.stopMic();this.setSound(false);this.$('.jh-entry').hidden=false;this.$('.jh-top').hidden=true;this.$('.jh-controls').hidden=true;this.$('.jh-panel').hidden=true;this.status.textContent='';this.$('[data-action=enter]').focus();this.options.onExit?.();this.root.dispatchEvent(new CustomEvent('joyce-avatar:exit'));}

@@ -496,6 +496,56 @@
       if (!hc) return;
       album = new handsMods.album.JoyceAlbum({ host: hc, brain: "Ban Hang - Sales Hinh Anh" });
     }
+    // Hồ sơ cử chỉ đã luyện (server STATE_DIR/hand_gestures.json): nạp vào engine khi
+    // mở cam, và áp lại ngay khi bảng huấn luyện lưu (event joyce-hands:profile).
+    function applyHandProfile(p) {
+      if (handCtl && handCtl.engine && p && typeof p === "object") {
+        try { handCtl.engine.setProfile(p); } catch (e) {}
+      }
+    }
+    function fetchHandProfile() {
+      fetch("/hands/profile", { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(applyHandProfile).catch(function () {});
+    }
+    var onProfileSaved = function (e) { applyHandProfile(e.detail); };
+    window.addEventListener("joyce-hands:profile", onProfileSaved);
+    // Cử chỉ TỰ LUYỆN -> hành động thật trong khoang não.
+    function runHandAction(act) {
+      var hc = document.querySelector(".hud-center");
+      switch (act) {
+        case "album.open":  ensureAlbum(); if (album) album.open(); break;
+        case "album.next":  if (album) album.next(); break;
+        case "album.prev":  if (album) album.prev(); break;
+        case "album.close": if (album) album.close(); break;
+        case "fullscreen":
+          if (!hc) break;
+          if (document.fullscreenElement) document.exitFullscreen();
+          else if (hc.requestFullscreen) hc.requestFullscreen();
+          break;
+        case "stop": if (handsGate) handsGate.request({ reason: "trained-pose", source: "camera" }); break;
+        default: if (apex && apex.pulse) apex.pulse(0.5, 0.45); break;   // "pulse"
+      }
+    }
+    // Bảng huấn luyện có camera riêng; tạm ngừng cam điều khiển để khỏi 2 worker đua nhau,
+    // đóng bảng xong thì mở lại nếu trước đó đang bật.
+    var trainerOpen = false, trainerWasActive = false;
+    function openHandTrainer() {
+      if (trainerOpen) return;
+      trainerOpen = true;
+      trainerWasActive = !!(handCtl && (handCtl.state === "active" || handCtl.state === "starting"));
+      if (trainerWasActive) { try { handCtl.stop(); } catch (e) {} }
+      import("/static/joyce-hands/gesture-trainer.mjs").then(function (m) {
+        var p = m.openHandTrainer();
+        var waitClose = setInterval(function () {
+          var box = document.querySelector(".jht");
+          if (box) return;
+          clearInterval(waitClose); trainerOpen = false;
+          fetchHandProfile();
+          if (trainerWasActive && handCtl && !destroyed) { try { handCtl.start(); } catch (e) {} }
+        }, 400);
+      }).catch(function () { trainerOpen = false; if (trainerWasActive && handCtl) handCtl.start(); });
+    }
     function wireHands() {
       if (!handCtl || !handsMods || !apex || !apex.root || apex.disposed) return;
       if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
@@ -505,6 +555,8 @@
         onGesture: function (d) {
           // Vuốt tay qua camera -> mở/lật/đóng album trình chiếu trên sân khấu não.
           if (d && d.type === "swipe" && album) album.swipe(d.dir);
+          // Cử chỉ tự luyện -> hành động anh đã gán (album/fullscreen/pulse/stop...).
+          if (d && d.type === "custom" && d.action) runHandAction(d.action);
         },
         onTracking: function (d) {
           // Album đang mở: khoảng cách 2 đầu ngón (cái-trỏ) = zoom liên tục.
@@ -551,11 +603,13 @@
           },
         });
         wireHands();
+        fetchHandProfile();          // nạp cử chỉ đã luyện vào engine trước khi chạy
         handCtl.start();
       }).catch(function () {}).finally(function () { handsLoading = null; });
     }
     function closeHands() { if (handCtl) { try { handCtl.stop(); } catch (e) {} } if (album) { try { album.close(); } catch (e) {} } }
     function disposeHands() {
+      window.removeEventListener("joyce-hands:profile", onProfileSaved);
       if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
       if (handsGate) { try { handsGate.dispose(); } catch (e) {} handsGate = null; }
       if (album) { try { album.dispose(); } catch (e) {} album = null; }
@@ -578,6 +632,7 @@
           onExit: function () { if (opts.onExit) opts.onExit(); },
           onError: function () {},
           onGestureRequest: function () { toggleHands(); },
+          onTrainRequest: function () { openHandTrainer(); },
         });
       } catch (e) { apex = null; return; }
       Promise.resolve(apex.ready).then(function () {
