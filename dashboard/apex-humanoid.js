@@ -84,17 +84,16 @@
       this.host=host;this.options=options;this.state='idle';this.level=0;this.externalLevel=0;this.levelAt=-Infinity;
       this.running=false;this.disposed=false;this.paused=false;this.mic=null;this.micPending=false;this.micEpoch=0;this.sound=false;
       this.pointer={x:0,y:0};this.ripples=[];this.listeners=[];this.plate='idle';this.previous='idle';this.transitionAt=0;
-      // Nhận diện bàn tay qua camera (MediaPipe HandLandmarker, xử lý tại máy):
-      // hands={stream,video,raf,quiet,lastPulse}, landmarker nạp lười khi bấm nút.
-      this.hands=null;this.handsWanted=false;this.handsBusy=false;this.landmarker=null;
+      // Điều khiển tay qua camera sống ở joyce-hands/ (Worker MediaPipe, xử lý tại máy):
+      // nút HAND CAM mở panel của kit qua options.onGestureRequest; kit gọi lại
+      // setAttention()/pulse() ở đây qua connectJoyceHands(). Avatar không tự chạy detector.
       this.mediaQuery=global.matchMedia('(prefers-reduced-motion: reduce)');this.reduced=options.reducedMotion??this.mediaQuery.matches;
       this.root=document.createElement('section');this.root.className='jh';this.root.setAttribute('aria-label','Animated cyan and gold humanoid');
       this.root.innerHTML=`<img class="jh-backdrop" alt="" draggable="false"><canvas class="jh-gl" aria-hidden="true"></canvas><img class="jh-fallback" alt="Cyan and gold humanoid" hidden><canvas class="jh-particles" aria-hidden="true"></canvas>
         <div class="jh-top" hidden><button data-action="exit" aria-label="Exit humanoid view">EXIT</button><button data-action="gesture" aria-pressed="false" aria-label="Toggle hand tracking camera">✋ HAND CAM</button></div>
-        <video class="jh-cam" hidden muted playsinline aria-label="Camera xem trước cho nhận diện bàn tay"></video>
         <div class="jh-status" role="status" aria-live="polite"></div>
         <nav class="jh-controls" aria-label="Avatar demo controls" hidden>${['idle','listening','thinking','speaking'].map(s=>`<button data-state="${s}" aria-pressed="${s==='idle'}">${s}</button>`).join('')}<button data-action="mic" aria-pressed="false">♩ MIC OFF</button><button data-action="replay">↻ REPLAY</button><button data-action="sound" aria-pressed="false">♪ SOUND OFF</button></nav>
-        <aside class="jh-panel" aria-label="Gesture controls" hidden><strong>GESTURE · CAMERA</strong><p>Đưa tay lên camera: đầu ngón trỏ lái sự chú ý của pho tượng, chụm ngón cái + trỏ tạo sóng năng lượng, mở lòng bàn tay làm pho tượng dịu lại.</p><p>Xử lý nhận diện chạy tại máy (MediaPipe), không gửi hình ảnh đi đâu. Bấm lại nút HAND CAM hoặc thoát lớp nhìn để tắt camera.</p><button data-action="close-gesture">Đã hiểu</button></aside>
+        <aside class="jh-panel" aria-label="Gesture controls" hidden><strong>GESTURE · CAMERA</strong><p>Nút HAND CAM mở bảng điều khiển tay: đầu ngón trỏ lái sự chú ý của pho tượng, chụm ngón cái + trỏ tạo sóng năng lượng, xòe lòng bàn tay giữ yên yêu cầu Joyce ngừng nói.</p><p>Nhận diện chạy tại máy trong một Worker riêng (MediaPipe), camera chỉ bật khi anh bấm "Bật camera", không gửi hình ảnh đi đâu.</p><button data-action="close-gesture">Đã hiểu</button></aside>
         <div class="jh-notice" role="status" hidden></div>
         <div class="jh-entry"><div><h1>JOYCE</h1><p>a figure of light that assembles itself</p><button data-action="enter" disabled>LOADING</button><small class="jh-load-text">Đang nạp tài nguyên nhân vật…</small></div></div>`;
       host.appendChild(this.root);this.$=s=>this.root.querySelector(s);this.bg=this.$('.jh-backdrop');this.glCanvas=this.$('.jh-gl');this.particleCanvas=this.$('.jh-particles');this.ctx=this.particleCanvas.getContext('2d');this.status=this.$('.jh-status');this.fallback=this.$('.jh-fallback');
@@ -132,10 +131,10 @@
     }
     useFallback(){this.glCanvas.hidden=true;this.fallback.hidden=false;}
     action(a){if(a==='enter')this.enter();if(a==='exit')this.exit();if(a==='replay')this.replay();if(a==='mic')this.toggleMic();if(a==='sound')this.setSound(!this.sound);
-      if(a==='gesture'){this.toggleHands();return;}
+      if(a==='gesture'){this.options.onGestureRequest?.();return;}
       if(a==='close-gesture'){this.$('.jh-panel').hidden=true;this.$('[data-action=gesture]').focus();}}
-    enter(){if(!this.loaded||this.disposed)return;this.running=true;this.paused=false;this.$('.jh-entry').hidden=true;this.$('.jh-top').hidden=false;this.$('.jh-controls').hidden=this.options.controls===false;this.$('[data-action=exit]').focus();this.replay();if(this.handsWanted&&!this.hands&&!this.handsBusy)this.toggleHands();}
-    exit(){this.running=false;cancelAnimationFrame(this.raf);this.stopMic();this.stopHands();this.setSound(false);this.$('.jh-entry').hidden=false;this.$('.jh-top').hidden=true;this.$('.jh-controls').hidden=true;this.$('.jh-panel').hidden=true;this.status.textContent='';this.$('[data-action=enter]').focus();this.options.onExit?.();this.root.dispatchEvent(new CustomEvent('joyce-avatar:exit'));}
+    enter(){if(!this.loaded||this.disposed)return;this.running=true;this.paused=false;this.$('.jh-entry').hidden=true;this.$('.jh-top').hidden=false;this.$('.jh-controls').hidden=this.options.controls===false;this.$('[data-action=exit]').focus();this.replay();}
+    exit(){this.running=false;cancelAnimationFrame(this.raf);this.stopMic();this.setSound(false);this.$('.jh-entry').hidden=false;this.$('.jh-top').hidden=true;this.$('.jh-controls').hidden=true;this.$('.jh-panel').hidden=true;this.status.textContent='';this.$('[data-action=enter]').focus();this.options.onExit?.();this.root.dispatchEvent(new CustomEvent('joyce-avatar:exit'));}
     replay(){if(!this.running||this.disposed)return;cancelAnimationFrame(this.raf);this.startedAt=performance.now();this.lastFrame=0;this.ripples=[];this.ignited=false;this.raf=requestAnimationFrame(t=>this.frame(t));if(this.sound)this.tone(48,1.4);}
     setState(state){if(!STATES.includes(state))throw new RangeError('Unknown avatar state: '+state);if(this.disposed)return;this.state=state;
       for(const b of this.root.querySelectorAll('[data-state]'))b.setAttribute('aria-pressed',String(b.dataset.state===state));
@@ -143,6 +142,9 @@
       this.options.onStateChange?.(state);this.root.dispatchEvent(new CustomEvent('joyce-avatar:state',{detail:{state}}));}
     selectPlate(plate,now){if(plate===this.plate)return;this.previous=this.plate;this.plate=plate;this.transitionAt=now;}
     setLevel(level){this.externalLevel=clamp(Number(level));this.levelAt=performance.now();}
+    // Kit joyce-hands gọi: lái sự chú ý (đầu quay, parallax hạt) theo đầu ngón trỏ.
+    // Cùng kênh pointer với chuột: nguồn nào emit sau thắng, -1..1 -> giữa là trung tâm.
+    setAttention(x=0,y=0){this.pointer={x:clamp(x,-1,1),y:clamp(y,-1,1)};}
     pulse(x=.5,y=.45){this.ripples.push({x:clamp(x),y:clamp(y),at:performance.now()});if(this.ripples.length>5)this.ripples.shift();if(this.sound)this.tone(180,.24);}
     setSound(enabled){this.sound=!!enabled&&!this.disposed;const b=this.$('[data-action=sound]');b.textContent=this.sound?'♪ SOUND ON':'♪ SOUND OFF';b.setAttribute('aria-pressed',String(this.sound));if(this.sound){this.tone(100,.5);}else{this.audio?.suspend();}}
     tone(freq,duration){try{const AC=global.AudioContext||global.webkitAudioContext;if(!AC)return;this.audio=this.audio||new AC();this.audio.resume();const now=this.audio.currentTime,o=this.audio.createOscillator(),g=this.audio.createGain();o.type='sine';o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(freq*.55,now+duration);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.045,now+.03);g.gain.exponentialRampToValueAtTime(.0001,now+duration);o.connect(g);g.connect(this.audio.destination);o.start();o.stop(now+duration+.02);o.onended=()=>{o.disconnect();g.disconnect();};}catch(err){this.report(err);}}
@@ -155,58 +157,13 @@
       }catch(err){stream?.getTracks().forEach(t=>t.stop());context?.close();this.notice('Không bật được mic: '+err.message);this.report(err);}finally{this.micPending=false;if(!this.disposed)b.disabled=false;}}
     stopMic(){this.micEpoch++;if(this.mic){this.mic.stream.getTracks().forEach(t=>t.stop());this.mic.source.disconnect();this.mic.context.close();this.mic=null;}if(!this.disposed){const b=this.$('[data-action=mic]');b.textContent='♩ MIC OFF';b.setAttribute('aria-pressed','false');}}
     notice(message){if(this.disposed)return;const n=this.$('.jh-notice');n.textContent=message;n.hidden=false;clearTimeout(this.noticeTimer);this.noticeTimer=setTimeout(()=>n.hidden=true,6000);}
-    // ---------- Nhận diện bàn tay (camera, tại máy - không gửi hình ảnh) ----------
-    handsBase(){return this.options.mediapipeBase||((this.options.assetsBase||'./assets/')+'mediapipe/');}
-    async toggleHands(){
-      if(this.hands){this.handsWanted=false;this.stopHands();return;}
-      if(this.handsBusy)return;
-      this.handsWanted=true;this.handsBusy=true;
-      const b=this.$('[data-action=gesture]');if(b)b.disabled=true;
-      try{
-        if(!navigator.mediaDevices?.getUserMedia){this.notice('Camera cần HTTPS hoặc localhost.');this.handsWanted=false;return;}
-        if(!this.landmarker){
-          this.notice('Đang nạp mô hình nhận diện bàn tay (~28MB, lần đầu hơi lâu)…');
-          const base=this.handsBase(),vision=await import(base+'vision_bundle.mjs');
-          const files=await vision.FilesetResolver.forVisionTasks(base+'wasm');
-          this.landmarker=await vision.HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:(this.options.assetsBase||'./assets/')+'hand_landmarker.task'},runningMode:'VIDEO',numHands:1});
-        }
-        if(this.disposed||!this.handsWanted)return;
-        const stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
-        if(this.disposed||!this.handsWanted){stream.getTracks().forEach(t=>t.stop());return;}
-        const v=this.$('.jh-cam');v.srcObject=stream;v.hidden=false;try{await v.play();}catch(e){}
-        this.hands={stream,video:v,raf:0,lastVideoTime:-1,quiet:false,lastPulse:0};
-        if(b){b.setAttribute('aria-pressed','true');b.textContent='✋ CAM ON';}
-        this.notice('Camera bàn tay bật - xử lý tại máy, không gửi hình ảnh. Ngón trỏ: sự chú ý · chụm ngón: sóng · mở bàn tay: dịu.');
-        this.detectHands();
-      }catch(err){this.handsWanted=false;this.notice('Không bật được nhận diện bàn tay: '+err.message);this.report(err);}
-      finally{this.handsBusy=false;if(b&&!this.disposed)b.disabled=false;}
-    }
-    detectHands(){const h=this.hands;if(!h||this.disposed)return;
-      h.raf=requestAnimationFrame(()=>this.detectHands());
-      const v=h.video;if(v.readyState<2||v.currentTime===h.lastVideoTime)return;h.lastVideoTime=v.currentTime;
-      let res;try{res=this.landmarker.detectForVideo(v,performance.now());}catch(e){return;}
-      const lm=res&&res.landmarks&&res.landmarks[0];
-      if(!lm){h.quiet=false;return;}
-      const tip=lm[8],thumb=lm[4];
-      this.pointer={x:clamp((1-tip.x)*2-1),y:clamp(tip.y*2-1)};
-      const now=performance.now();
-      const pinch=Math.hypot(tip.x-thumb.x,tip.y-thumb.y)<0.06;
-      if(pinch&&now-h.lastPulse>900){h.lastPulse=now;this.pulse(1-tip.x,tip.y);}
-      // Mở lòng bàn tay (>=3 ngón duỗi: đầu ngón cao hơn khớp pip) -> làm dịu.
-      const ext=[[8,6],[12,10],[16,14],[20,18]].filter(([t,p])=>lm[t].y<lm[p].y-0.02).length;
-      h.quiet=ext>=3&&!pinch;
-    }
-    stopHands(){const h=this.hands;this.hands=null;
-      if(h){cancelAnimationFrame(h.raf);if(h.stream)h.stream.getTracks().forEach(t=>t.stop());}
-      const v=this.$('.jh-cam');if(v){v.hidden=true;try{v.srcObject=null;}catch(e){}}
-      const b=this.$('[data-action=gesture]');if(b&&!this.disposed){b.setAttribute('aria-pressed','false');b.textContent='✋ HAND CAM';}
-    }
+    // ---------- Camera tay: do /static/joyce-hands/ điều phối (Worker + GestureEngine).
+    // Avatar chỉ giữ nút mở panel + hook setAttention/pulse ở trên; không detect ở đây.
     frame(now){if(this.disposed||!this.running||this.paused||document.hidden)return;this.raf=requestAnimationFrame(t=>this.frame(t));
       if(this.lastFrame&&now-this.lastFrame<1000/(this.options.fps||40))return;this.lastFrame=now;
       const t=now/1000,elapsed=(now-this.startedAt)/1000,p=this.reduced?1:clamp(elapsed/(this.options.assemblyDuration||6));
       let target=0;if(this.mic){const {analyser,data}=this.mic;analyser.getByteTimeDomainData(data);let sum=0;for(const x of data)sum+=((x-128)/128)**2;target=clamp(Math.sqrt(sum/data.length)*6);}else if(now-this.levelAt<1200)target=this.externalLevel;
       else if(this.options.demo!==false&&this.state==='speaking')target=.2+.52*Math.abs(Math.sin(t*4)*Math.sin(t*7.1));else if(this.state==='thinking')target=.12+.08*Math.sin(t*2);
-      if(this.hands&&this.hands.quiet)target*=.3;
       this.level+=(target-this.level)*.16;
       if(this.state==='speaking'){const next=this.level>.58?'strong':this.level<.39?'speaking':this.plate;this.selectPlate(next,now);}
       const r=figureRect(this.w,this.h,this.aspect||.926);const plateReveal=smooth((p-.5)/.5),backgroundReveal=smooth((p-.82)/.18);
@@ -246,9 +203,9 @@
       if(p<1){const gx=r.x+r.w*.5,gy=r.y+r.h*.94,g=c.createRadialGradient(gx,gy,0,gx,gy,55);g.addColorStop(0,'rgba(160,245,255,'+(Math.sin(p*Math.PI)*.7)+')');g.addColorStop(1,'rgba(0,190,255,0)');c.fillStyle=g;c.fillRect(gx-55,gy-55,110,110);}
       c.globalCompositeOperation='source-over';
     }
-    pause(){this.paused=true;cancelAnimationFrame(this.raf);this.audio?.suspend();this.stopHands();}
-    resume(){if(this.disposed||!this.running||!this.paused)return;this.paused=false;this.lastFrame=0;if(this.sound)this.audio?.resume();this.raf=requestAnimationFrame(t=>this.frame(t));if(this.handsWanted&&!this.hands&&!this.handsBusy)this.toggleHands();}
-    dispose(){if(this.disposed)return;this.handsWanted=false;this.stopHands();this.stopMic();this.disposed=true;this.running=false;cancelAnimationFrame(this.raf);clearTimeout(this.noticeTimer);this.observer.disconnect();this.listeners.forEach(off=>off());try{this.landmarker?.close();}catch(e){}this.landmarker=null;this.renderer?.dispose();this.audio?.close();this.root.remove();}
+    pause(){this.paused=true;cancelAnimationFrame(this.raf);this.audio?.suspend();}
+    resume(){if(this.disposed||!this.running||!this.paused)return;this.paused=false;this.lastFrame=0;if(this.sound)this.audio?.resume();this.raf=requestAnimationFrame(t=>this.frame(t));}
+    dispose(){if(this.disposed)return;this.stopMic();this.disposed=true;this.running=false;cancelAnimationFrame(this.raf);clearTimeout(this.noticeTimer);this.observer.disconnect();this.listeners.forEach(off=>off());this.root.dispatchEvent(new CustomEvent('joyce-avatar:dispose'));this.renderer?.dispose();this.audio?.close();this.root.remove();}
   }
   global.JoyceHumanoidApex=JoyceHumanoid;
   if(typeof module!=='undefined'&&module.exports)module.exports={JoyceHumanoid,clamp,smooth,seeded,figureRect,STATES,FILES,VERT,FRAG};

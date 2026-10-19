@@ -469,6 +469,64 @@
       startProcedural();
       if (active) applyActive(true);
     }
+
+    // ---- Điều khiển tay qua camera (kit /static/joyce-hands/) ----
+    // Panel + controller sống trên document.body, nạp lười khi bấm HAND CAM.
+    // Bridge: tracking -> apex.setAttention, pinch -> apex.pulse, palm -> VoiceQuietGate.
+    // Quiet đi vào đường ngắt thoại THẬT của app.js: stopCurrent() (= nút "Dừng",
+    // cắt TTS đang phát + huỷ lượt đúng phiên; cuộc gọi/mic không bị tắt).
+    var handsPanel = null, handsDetach = null, handsGate = null, handsMods = null, handsLoading = null;
+    function handAssets() {
+      return { workerURL: "/static/joyce-hands/hand-worker.js",
+               moduleURL: "/static/humanoid/mediapipe/vision_bundle.mjs",
+               wasmURL: "/static/humanoid/mediapipe/wasm",
+               modelURL: "/static/humanoid/hand_landmarker.task" };
+    }
+    function voiceSnapshot() {
+      var os = document.getElementById("orbState"), sid = "";
+      try { sid = (typeof savedSessionId !== "undefined" && savedSessionId) ? String(savedSessionId) : ""; } catch (e) {}
+      var speaking = !!(os && (" " + os.className + " ").indexOf(" speaking ") >= 0);
+      return { state: speaking ? "speaking" : "idle", responseId: sid || (speaking ? "live" : ""), sessionId: sid };
+    }
+    function wireHands() {
+      if (!handsPanel || !handsMods || !apex || !apex.root || apex.disposed) return;
+      if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
+      handsDetach = handsMods.bridge.connectJoyceHands(handsPanel.controller, apex, {
+        onQuietRequest: function (meta) { if (handsGate) handsGate.request(meta); },
+      });
+    }
+    function openHandsPanel() {
+      if (handsPanel) { try { handsPanel.open(); } catch (e) {} return; }
+      if (handsLoading) return;
+      handsLoading = Promise.all([
+        import("/static/joyce-hands/hand-panel.mjs"),
+        import("/static/joyce-hands/joyce-bridge.mjs"),
+        import("/static/joyce-hands/voice-quiet-gate.mjs"),
+      ]).then(function (mods) {
+        if (destroyed) return;
+        handsMods = { panel: mods[0], bridge: mods[1], gate: mods[2] };
+        handsPanel = handsMods.panel.mountHandPanel(document.body, handAssets());
+        handsGate = new handsMods.gate.VoiceQuietGate({
+          getSnapshot: voiceSnapshot,
+          interruptSpeech: function () { try { if (window.stopCurrent) window.stopCurrent(); } catch (e) {} },
+          onResult: function (r) {
+            // Không nói -> pulse nhẹ thay cho im lặng (kit: idle = no-op có phản hồi UI).
+            if (r && r.status === "ignored" && apex && apex.pulse) { try { apex.pulse(0.5, 0.45); } catch (e) {} }
+          },
+        });
+        wireHands();
+        handsPanel.open();
+      }).catch(function () {}).finally(function () { handsLoading = null; });
+    }
+    function closeHands() {
+      if (handsPanel) { try { handsPanel.close(); } catch (e) {} }
+    }
+    function disposeHands() {
+      if (handsDetach) { try { handsDetach(); } catch (e) {} handsDetach = null; }
+      if (handsGate) { try { handsGate.dispose(); } catch (e) {} handsGate = null; }
+      if (handsPanel) { try { handsPanel.dispose(); } catch (e) {} handsPanel = null; }
+      handsMods = null;
+    }
     function startApex() {
       var Ctor = null;
       try { Ctor = window.JoyceHumanoidApex; } catch (e) {}
@@ -484,6 +542,7 @@
           reducedMotion: profile === "reduced" || reduced,
           onExit: function () { if (opts.onExit) opts.onExit(); },
           onError: function () {},
+          onGestureRequest: function () { openHandsPanel(); },
         });
       } catch (e) { apex = null; return; }
       Promise.resolve(apex.ready).then(function () {
@@ -492,6 +551,7 @@
         mode = "apex";
         if (host && host.dataset) host.dataset.mode = "apex";
         try { apex.setState(mapState(state)); apex.setLevel(amp); } catch (e) {}
+        wireHands();   // panel mở sẵn mà apex dựng lại -> nối bridge vào avatar mới
         if (active) { try { apex.enter(); } catch (e) {} }
       }).catch(function () { if (!destroyed) dropApex(); });
     }
@@ -499,6 +559,7 @@
     // Bật/tắt hẳn phần hiển thị: lớp bọc .hum-layer giấu cả cây DOM của
     // renderer đang dùng (apex .jh hoặc canvas+hud-status procedural).
     function applyActive(on) {
+      if (!on) closeHands();   // rời lớp nhìn -> đóng panel + tắt camera (kit spec)
       if (layer) layer.style.display = on ? "" : "none";
       if (apex && apex.loaded) { try { on ? apex.enter() : apex.pause(); } catch (e) {} }
       // "" = trả về display:block của stylesheet; "none" = giấu hẳn (xem lý do
@@ -540,6 +601,7 @@
     R.setInCall = function (v) { inCall = !!v; };
     R.pause = function () {
       paused = true; stopLoop();
+      closeHands();
       if (apex && apex.loaded) { try { apex.pause(); } catch (e) {} }
     };
     R.resume = function () {
@@ -567,6 +629,7 @@
     };
     R.destroy = function () {
       if (destroyed) return; destroyed = true; stopLoop();
+      disposeHands();
       if (apex) { try { apex.dispose(); } catch (e) {} apex = null; }
       listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) {} });
       listeners = []; if (ro) { try { ro.disconnect(); } catch (e) {} ro = null; }

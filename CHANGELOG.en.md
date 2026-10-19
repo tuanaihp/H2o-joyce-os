@@ -2,6 +2,16 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.20] - 2026-10-21
+### Added
+- **Camera hand control for the avatar - full Worker edition** (`dashboard/joyce-hands/`): integrates JOYCE_HAND_GESTURE_KIT into the 3D Joyce view. The figure's "✋ HAND CAM" button now opens a dedicated control panel (camera preview, status, Start/Stop); the camera only turns on when the user presses Start, never requests a microphone, and everything is processed on-device - no frames or landmarks leave the browser.
+- **Detection runs in a dedicated Worker**, `detectForVideo` is gone from the main thread: ~15 inferences/sec, one pending frame, results older than 500ms discarded, 4s worker watchdog, 30s model-load timeout, camera stops on hidden tab/pagehide/view exit/avatar dispose/dead stream. A crashed worker reports a clear error instead of silently re-running on the main thread. Previously detection ran inside the render loop, dropping frames, with no watchdog.
+- **Gestures follow the kit's GestureEngine** (dwell + hysteresis + cooldown), replacing raw distance thresholds: a pinch held ≥160ms fires exactly ONE pulse until released plus a 650ms cooldown; an open palm held still ≥650ms sends a quiet request (hand wobble resets the dwell, a ≥200ms release is required before retriggering, 1800ms cooldown); two hands in frame are ignored rather than stealing control; losing the hand recenters attention.
+- **Attention steers the figure's head** via a new `setAttention(x,y)` hook (head yaw + particle parallax, same channel as the mouse); pinch calls `pulse()` at the finger position; the avatar emits `joyce-avatar:exit`/`dispose` so the bridge stops the camera automatically.
+- **Open palm = ask Joyce to stop speaking** through `VoiceQuietGate`: it only interrupts when the avatar is really in "speaking" state (read from `#orbState`) and calls the real `stopCurrent()` (= the Stop button in app.js - cuts playing TTS + cancels the current session's turn, mic/call untouched). When not speaking it just pulses lightly as acknowledgment.
+- **Reuses the existing MediaPipe model + runtime** under `/static/humanoid/` - no ~28MB duplication, no CDN. Panel supports light/dark themes, Escape closes and returns focus, mobile responsive.
+- New `tests/js/test_joyce_hands.js`: 47 checks - full gesture semantics (dwell/hysteresis/cooldown/release), lost hand, small hand, mirroring, and every static wiring point.
+
 ## [1.3.19] - 2026-10-20
 ### Added
 - **Per-task-type usage ledger** (`STATE_DIR/task_usage.json`): every background engine now runs through one counting layer inside `swap()`/`_FallbackChain` - each call records the job type (reminder, loop, Kanban, self-improvement...), the provider/model that ACTUALLY ran that turn (a fallback link is credited, not the chain head), in/out tokens, and real cost when the provider reports it. Rolled up daily, kept ~2 months, empty 0-token events are not written. Separate from `usage.json` (which groups by provider|model for the Usage page) - no double counting.

@@ -2,6 +2,16 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.20] - 2026-10-21
+### Thêm mới
+- **Điều khiển avatar bằng tay qua camera - bản Worker hoàn chỉnh** (`dashboard/joyce-hands/`): tích hợp JOYCE_HAND_GESTURE_KIT vào lớp nhìn 3D Joyce. Nút "✋ HAND CAM" trên pho tượng giờ mở bảng điều khiển riêng (xem trước camera, trạng thái, Bật/Tắt); camera CHỈ bật khi anh bấm "Bật camera", không bao giờ xin micro, xử lý toàn bộ tại máy - không khung hình/landmark nào rời trình duyệt.
+- **Nhận diện chạy trong Worker riêng**, không còn `detectForVideo` trên main thread: ~15 suy diễn/giây, một khung đang chờ, kết quả cũ hơn 500ms bị bỏ, watchdog 4 giây, timeout nạp model 30 giây, tắt camera khi ẩn tab/pagehide/thoát lớp nhìn/huỷ avatar/stream chết. Worker chết thì báo lỗi rõ chứ không lén chạy lại trên main thread. Trước đây detect chạy ngay trong vòng lặp vẽ làm giật khung và không có watchdog.
+- **Cử chỉ theo GestureEngine của kit** (dwell + hysteresis + cooldown), thay ngưỡng khoảng cách thô: chụm ngón giữ ≥160ms bắn ĐÚNG 1 sóng năng lượng cho tới khi nhả + 650ms; xòe lòng bàn tay giữ yên ≥650ms mới gửi yêu cầu ngừng nói (lắc tay reset thời gian giữ, nhả ≥200ms mới cho bắn lại, cooldown 1800ms); hai bàn tay vào khung thì phớt lờ chứ không nhảy quyền điều khiển; mất tay thì attention về giữa.
+- **Attention lái đầu pho tượng** qua hook `setAttention(x,y)` mới (đầu quay + parallax hạt, cùng kênh với chuột); chụm ngón gọi `pulse()` đúng vị trí ngón; avatar phát `joyce-avatar:exit`/`dispose` để bridge tự tắt camera.
+- **Lòng bàn tay = yêu cầu Joyce ngừng nói** qua `VoiceQuietGate`: chỉ ngắt khi avatar đang ở trạng thái "speaking" thật (đọc từ `#orbState`), gọi đúng đường `stopCurrent()` (= nút Dừng trong app.js - cắt TTS đang phát + huỷ lượt của đúng phiên, mic/cuộc gọi không bị tắt). Không nói thì chỉ pulse nhẹ báo nhận, không làm gì.
+- **Dùng lại toàn bộ model + runtime MediaPipe sẵn có** ở `/static/humanoid/` - không nhân bản ~28MB, không CDN. Panel hỗ trợ sáng/tối, phím Escape đóng + trả focus, responsive mobile.
+- Test `tests/js/test_joyce_hands.js`: 47 kiểm tra - đủ ngữ nghĩa cử chỉ (dwell/hysteresis/cooldown/release), mất tay, tay nhỏ, mirror, và toàn bộ khớp nối tĩnh.
+
 ## [1.3.19] - 2026-10-20
 ### Thêm mới
 - **Sổ mức dùng theo LOẠI TÁC VỤ** (`STATE_DIR/task_usage.json`): mọi engine việc nền giờ chạy qua một lớp đếm chung trong `swap()`/`_FallbackChain` - mỗi lượt ghi loại việc (nhắc hẹn, loop, Kanban, tự học...) + provider/model THẬT SỰ đã chạy lượt đó (mắt dự phòng chạy thì tính cho mắt đó) + token vào/ra + tiền thật nếu provider trả về. Rollup theo ngày, giữ ~2 tháng, không ghi lượt 0-token rỗng. Đây là sổ riêng cạnh `usage.json` (sổ đó gộp theo provider|model cho trang Mức dùng), không đếm trùng.
