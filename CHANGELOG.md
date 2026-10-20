@@ -8,6 +8,10 @@
 - **Nhánh sáng theo việc thật**: Joyce đọc file trong `wiki` thì nhánh WIKI sáng, gọi Zalo thì nút Zalo sáng, hạt chạy từ lõi ra; Joyce nghĩ / nói thì cả mạng chạy nhanh hơn.
 - **Bấm một nhánh** mở thẻ tổng quan: số note, % vault, các note mới nhất (bấm là mở). Nút **Mạng note** ở góc phải chuyển về đồ thị từng note như cũ (có timelapse).
 
+## [1.3.25] - 2026-10-21
+### Sửa lỗi
+- **Joyce tự bật lại sau khi khởi động máy** (đang làm).
+
 ## [1.3.23] - 2026-10-19
 ### Thêm mới
 - **3D Joyce xuất hiện bằng hạt lượng tử**: mở tab 3D Joyce, các hạt phóng ra từ một đốm sáng dưới chân, xoắn thành dòng sao chổi rồi ghép thành hình người; ghép xong thì nhân vật quen thuộc hiện lên đúng chỗ đó. Giao diện sau đó giữ nguyên như cũ.

@@ -8,6 +8,10 @@
 - **Branches light up on real work**: when Joyce reads a file in `wiki` the WIKI branch lights, calling Zalo lights the Zalo node, with particles flowing from the core; thinking or speaking speeds the whole web up.
 - **Click a branch** for an overview card: note count, vault share, latest notes (click to open). The **Note network** button top-right switches back to the per-note graph (with timelapse).
 
+## [1.3.25] - 2026-10-21
+### Fixed
+- **Joyce starts again after a reboot** (in progress).
+
 ## [1.3.23] - 2026-10-19
 ### Added
 - **3D Joyce now appears in quantum particles**: when you open 3D Joyce, particles shoot out of a point of light, swirl into a comet stream and assemble into a human figure; the familiar avatar then appears in exactly that spot. Everything after the intro stays as before.
