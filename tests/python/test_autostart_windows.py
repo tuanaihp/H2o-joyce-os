@@ -69,15 +69,45 @@ check("cờ hỏng thì không nổ", main._autostart_bi_chan("linh tinh") is Fa
 # ============================================================
 _tmp = Path(tempfile.mkdtemp(prefix="joyce-goc-"))
 check("thư mục trống -> thiếu cả hai mảnh",
-      set(main._autostart_thieu_gi(_tmp)) == {"start-joyce.vbs", r".venv\Scripts\python.exe"})
+      set(main._autostart_thieu_gi(_tmp)) == {r"tools\joyce_boot.py", r".venv\Scripts\pythonw.exe"})
 
-(_tmp / "start-joyce.vbs").write_text("' bo mo phong", encoding="utf-8")
-check("có .vbs rồi -> chỉ còn thiếu python của venv",
-      main._autostart_thieu_gi(_tmp) == [r".venv\Scripts\python.exe"])
+(_tmp / "tools").mkdir()
+(_tmp / "tools" / "joyce_boot.py").write_text("# bo mo phong", encoding="utf-8")
+check("có joyce_boot.py rồi -> chỉ còn thiếu pythonw của venv",
+      main._autostart_thieu_gi(_tmp) == [r".venv\Scripts\pythonw.exe"])
 
 (_tmp / ".venv" / "Scripts").mkdir(parents=True)
-(_tmp / ".venv" / "Scripts" / "python.exe").write_text("x", encoding="utf-8")
+(_tmp / ".venv" / "Scripts" / "pythonw.exe").write_text("x", encoding="utf-8")
 check("đủ cả hai -> không thiếu gì", main._autostart_thieu_gi(_tmp) == [])
+check("lệnh task: pythonw chạy thẳng joyce_boot.py, không .vbs",
+      main._autostart_command(_tmp) == f'"{_tmp / ".venv" / "Scripts" / "pythonw.exe"}" "{_tmp / "tools" / "joyce_boot.py"}"'
+      and ".vbs" not in main._autostart_command(_tmp))
+
+
+# ============================================================
+# 2b. Đọc trạng thái task (schtasks /v /fo list) - 1.3.25
+# ============================================================
+_OUT = """Folder: \
+HostName:                             MAY
+TaskName:                             \JoyceOS-AutoStart
+Next Run Time:                        21/10/2026 7:05:00 AM
+Status:                               Ready
+Last Run Time:                        21/10/2026 7:00:01 AM
+Last Result:                          0
+Task To Run:                          "E:\J\.venv\Scripts\pythonw.exe" "E:\J\tools\joyce_boot.py"
+Scheduled Task State:                 Enabled
+"""
+_t = main._autostart_doc_task(_OUT)
+check("đọc được Last Run / Last Result / Next Run", _t["last_result"] == "0" and _t["last_run"].startswith("21/10/2026 7:00")
+      and _t["next_run"].startswith("21/10/2026 7:05"))
+check("đọc được lệnh task + trạng thái bật", "joyce_boot.py" in _t["task_to_run"] and _t["state"] == "Enabled")
+check("task bị Disable -> tính là bị chặn", main._autostart_task_tat("Disabled") and not main._autostart_task_tat("Enabled"))
+_ly = main._autostart_ly_do({"enabled": True, "legacy": True})
+check("còn đường .vbs cũ -> nói rõ 360 tắt và khuyên bật lại", "360" in _ly and "bật lại" in _ly)
+_ly = main._autostart_ly_do({"enabled": True, "task": {"exists": True, "last_run": "x", "last_result": "0x80070005"}})
+check("task chạy xịt (Access Denied) -> báo mã lỗi", "0x80070005" in _ly)
+check("task chưa chạy lần nào (0x41303) không bị coi là lỗi",
+      main._autostart_ly_do({"enabled": True, "task": {"exists": True, "last_run": "x", "last_result": "0x41303"}}) == "")
 
 
 # ============================================================
@@ -118,10 +148,13 @@ for _st in ({"enabled": True, "blocked": True}, {"enabled": True, "stale": True}
 # Ghi lại Run key không đụng gì tới cờ StartupApproved. Thiếu bước gỡ cờ thì nút "Bật tự khởi
 # động" trở thành một cái nút không làm gì: bấm xong thẻ vẫn báo bật, mở máy vẫn không có gì.
 _MAIN_SRC = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
-check("CANARY: bật lại có gỡ cờ chặn của Task Manager",
-      "StartupApproved" in _MAIN_SRC and "_AUTOSTART_APPROVED_ON" in _MAIN_SRC)
-check("chỉ lật cờ ĐÃ CÓ, không tự tạo mới (không có cờ vốn đã là bật)",
-      "if _autostart_bi_chan(raw):" in _MAIN_SRC)
+check("CANARY 1.3.25: bật lại dọn Run key + 2 task .vbs cũ rồi mới cài task mới",
+      "winreg.DeleteValue(k, _AUTOSTART_NAME)" in _MAIN_SRC and "_autostart_task_uninstall()" in _MAIN_SRC
+      and "_autostart_task_install()" in _MAIN_SRC)
+check("task mới cài theo /sc minute /mo 5, không dùng ONLOGON",
+      '"/sc", "minute", "/mo", "5"' in _MAIN_SRC and "onlogon" not in _MAIN_SRC.split("def _autostart_task_install", 1)[1][:600].lower())
+check("bật mà không tạo được task thì báo lỗi, không im lặng báo Bật",
+      "Không tạo được task tự khởi động" in _MAIN_SRC)
 check("trạng thái trả về kèm đường dẫn log để còn chỗ mà soi",
       '"log": str(PROJECT_ROOT / "server" / "joyce.log")' in _MAIN_SRC)
 

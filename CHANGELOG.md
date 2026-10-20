@@ -4,7 +4,8 @@
 
 ## [1.3.25] - 2026-10-21
 ### Sửa lỗi
-- **Joyce tự bật lại sau khi khởi động máy** (đang làm).
+- **Joyce tự bật lại sau khi khởi động máy**: 360 Total Security mỗi lần mở máy tắt mọi mục tự chạy qua file `.vbs`, nên Joyce không lên, không gửi link, gõ "Link" trên Telegram cũng không ai trả lời. Giờ tự khởi động là một lịch Windows chạy thẳng Python (không qua `.vbs`), 360 để yên.
+- **Tự sống lại**: lịch chạy 5 phút một lần, server chết giữa chừng là tự bật lại và gửi link mới. Bấm **bật lại** ở thẻ Tự khởi động để chuyển từ cách cũ sang cách mới.
 
 ## [1.3.24] - 2026-10-20
 ### Thêm mới

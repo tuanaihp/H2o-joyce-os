@@ -4,7 +4,8 @@
 
 ## [1.3.25] - 2026-10-21
 ### Fixed
-- **Joyce starts again after a reboot** (in progress).
+- **Joyce starts again after a reboot**: 360 Total Security disabled every autorun entry that pointed at a `.vbs` file on each boot, so Joyce never came up, never sent its link, and "Link" on Telegram got no reply. Autostart is now a Windows scheduled task that runs Python directly (no `.vbs`), which 360 leaves alone.
+- **Self-healing**: the task runs every 5 minutes, so a server that dies mid-day comes back and sends a fresh link. Press **turn on again** on the Autostart card to move from the old method to the new one.
 
 ## [1.3.24] - 2026-10-20
 ### Added

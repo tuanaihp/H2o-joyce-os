@@ -15133,41 +15133,41 @@ async def do_update():
 # ============================================================
 # Tự khởi động cùng máy (autostart) - Windows.
 #
-# BẢN MỚI (2026-10-09): Run key -> joyce-boot.vbs CHẠY TỨC THÌ -> tạo one-shot task
-# "JoyceOS-Boot" đúng 5 phút nữa -> start-joyce.vbs. Hồ sơ ca thật trên máy này:
-# (a) wscript ẩn ngủ 300s (start-joyce-delayed.vbs) đúng dáng dropper nên bị giết
-#     câm giữa chừng - Run key còn nguyên, dashboard báo Bật, mà không có gì chạy;
-# (b) trigger ONLOGON của schtasks/Register-ScheduledTask đều bị Access Denied
-#     (360/Malwarebytes hardening persistence), còn ONCE/MINUTE thì qua.
-# Nên delay 5 phút giờ do Task Scheduler giữ, không còn process ngủ để ai giết.
-#   "JoyceOS-Watchdog": mỗi 5 phút chạy joyce-watchdog.vbs - uptime >= 5' mà server
-#                       chết không phải do stop-joyce thì tự sống lại. Đây cũng là
-#                       dự phòng nếu cả đường Run key bị giết.
-# Task Scheduler còn cho Last Run/Last Result - Run key xưa nay chết câm không vệt.
+# BẢN 1.3.25 (2026-10-21): MỘT Scheduled Task "JoyceOS-AutoStart", mỗi 5 phút chạy THẲNG
+# `.venv\Scripts\pythonw.exe tools\joyce_boot.py` (không cửa sổ, không .vbs). joyce_boot.py làm
+# trọn việc của bộ đôi cũ: máy lên >= 90 giây mà cổng 7777 không ai nghe (và người dùng không
+# bấm stop-joyce) thì bật server + tunnel (gửi link mới qua Telegram) + Ollama; server đang sống
+# thì chỉ canh tunnel và Ollama.
+#
+# Vì sao bỏ Run key -> joyce-boot.vbs -> JoyceOS-Boot + JoyceOS-Watchdog (.vbs): 360 Total
+# Security mỗi lần mở máy quét "chương trình tự chạy" và TẮT mọi mục trỏ tới script .vbs. Log
+# 360ScanLog ngày 20 và 21/10/2026 ghi rõ joyce-boot.vbs, start-joyce.vbs, joyce-watchdog.vbs đều
+# "禁止自启动 处理成功": Run key mất, hai task mất, Joyce không lên, không có link, lệnh "Link"
+# trên Telegram cũng không ai trả lời. Task chạy thẳng một file .exe thì 360 để yên (task H2O Video
+# Studio chạy node.exe sống qua mọi lần quét). Trigger /sc minute vẫn tránh được ONLOGON - thứ máy
+# này trả Access Denied (360/Malwarebytes hardening persistence).
+# Run key + 2 task cũ chỉ còn được DỌN khi bật lại (migrate), không tạo mới nữa.
 # ============================================================
-_AUTOSTART_NAME = "JoyceOS"
-_AUTOSTART_BOOT = "JoyceOS-Boot"
-_AUTOSTART_DOG = "JoyceOS-Watchdog"
+_AUTOSTART_NAME = "JoyceOS"                 # Run key cũ - chỉ còn để dọn
+_AUTOSTART_TASK = "JoyceOS-AutoStart"
+_AUTOSTART_BOOT = "JoyceOS-Boot"            # task relay .vbs cũ - dọn
+_AUTOSTART_DOG = "JoyceOS-Watchdog"         # task watchdog .vbs cũ - dọn
 _AUTOSTART_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 # Task Manager tab "Startup" KHÔNG xoá mục trong Run key khi người dùng bấm Disable. Nó ghi
-# một cờ 12 byte vào khoá riêng dưới đây, rồi Explorer bỏ qua mục đó lúc đăng nhập.
-#
-# Đây là kiểu hỏng tệ nhất của cả tính năng: Run key còn nguyên nên `/autostart` báo "Bật",
-# người dùng nhìn dashboard thấy đúng, mà mở máy lên thì không có gì chạy và không có một
-# dòng lỗi nào ở đâu cả. Mấy phần mềm "dọn máy, tăng tốc khởi động" cũng tắt bằng đúng cờ này.
+# một cờ 12 byte vào khoá riêng dưới đây, rồi Explorer bỏ qua mục đó lúc đăng nhập. Bản 1.3.25
+# không còn dùng Run key, nhưng hàm đọc cờ vẫn giữ: máy nào còn Run key cũ bị chặn thì vẫn nói
+# được vì sao nó đã không chạy trước khi người dùng bấm bật lại để chuyển sang task.
 _AUTOSTART_APPROVED_KEY = (
     r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run")
-# Byte đầu: 2 hoặc 6 = đang bật, 3 = đã tắt. Xét theo BIT 0 chứ không so bằng, vì các byte còn
-# lại là dấu thời gian và Windows có dùng vài giá trị khác nhau cho trạng thái bật.
-_AUTOSTART_APPROVED_ON = bytes([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
-def _autostart_command() -> str:
-    """Lệnh Run key: wscript chạy joyce-boot.vbs - relay TỨC THÌ (không ngủ), chỉ tạo
-    one-shot task JoyceOS-Boot +5 phút rồi thoát. Lệnh cũ trỏ start-joyce-delayed.vbs
-    sẽ đọc ra là `stale` -> dashboard khuyên bấm bật lại để migrate."""
-    vbs = str(PROJECT_ROOT / "joyce-boot.vbs")
-    return f'wscript.exe //nologo "{vbs}"'
+def _autostart_command(root=None) -> str:
+    """Lệnh của task: pythonw (không cửa sổ) chạy tools/joyce_boot.py. So với "Task To Run" của
+    task đang cài để biết thư mục cài đặt có đổi chỗ không (`stale`)."""
+    goc = Path(root) if root else PROJECT_ROOT
+    pyw = goc / ".venv" / "Scripts" / "pythonw.exe"
+    boot = goc / "tools" / "joyce_boot.py"
+    return f'"{pyw}" "{boot}"'
 
 
 def _schtasks(args: list, timeout: int = 15) -> tuple:
@@ -15182,62 +15182,72 @@ def _schtasks(args: list, timeout: int = 15) -> tuple:
         return False, ""
 
 
+def _autostart_doc_task(out: str) -> dict:
+    """Đọc output `schtasks /query /v /fo list` -> các trường cần. Hàm thuần (có test)."""
+    st = {"last_run": "", "last_result": "", "next_run": "", "task_to_run": "", "state": ""}
+    for ln in (out or "").splitlines():
+        key, _, val = ln.partition(":")
+        low, val = key.strip().lower(), val.strip()
+        if low == "last result":
+            st["last_result"] = val
+        elif low == "last run time":
+            st["last_run"] = val
+        elif low == "next run time":
+            st["next_run"] = val
+        elif low == "task to run":
+            st["task_to_run"] = val
+        elif low == "scheduled task state":
+            st["state"] = val
+    return st
+
+
 def _autostart_task_status() -> dict:
-    """Sổ nhật ký của one-shot task 'JoyceOS-Boot' (relay 5 phút) + cờ watchdog.
-    Đây là thứ Run key không bao giờ có: biết được relay chạy lúc nào, xịt mã nào."""
-    ok, out = _schtasks(["/query", "/tn", _AUTOSTART_BOOT, "/v", "/fo", "list"])
-    st = {"exists": bool(ok), "last_run": "", "last_result": "", "next_run": ""}
-    if ok:
-        for ln in out.splitlines():
-            low = ln.lower()
-            if "last result" in low:
-                st["last_result"] = ln.split(":", 1)[-1].strip()
-            elif "last run time" in low:
-                st["last_run"] = ln.split(":", 1)[-1].strip()
-            elif "next run time" in low:
-                st["next_run"] = ln.split(":", 1)[-1].strip()
-    d_ok, _ = _schtasks(["/query", "/tn", _AUTOSTART_DOG])
-    st["watchdog"] = bool(d_ok)
+    """Sổ nhật ký của task JoyceOS-AutoStart: chạy lúc nào, xịt mã nào, đang bật hay bị tắt.
+    Đây là thứ Run key không bao giờ có. Kèm cờ còn sót task .vbs cũ hay không."""
+    ok, out = _schtasks(["/query", "/tn", _AUTOSTART_TASK, "/v", "/fo", "list"])
+    st = {"exists": bool(ok), **_autostart_doc_task(out if ok else "")}
+    st["legacy_tasks"] = [t for t in (_AUTOSTART_BOOT, _AUTOSTART_DOG) if _schtasks(["/query", "/tn", t])[0]]
     return st
 
 
 def _autostart_task_install() -> tuple:
-    """Cài task watchdog 5 phút/lần (relay JoyceOS-Boot do joyce-boot.vbs tự tạo mỗi
-    lần logon nên không cần cài sẵn). Trả (ok, detail). Idempotent nhờ /f."""
-    dog_vbs = str(PROJECT_ROOT / "joyce-watchdog.vbs")
-    if not Path(dog_vbs).exists():
-        return False, "missing joyce-watchdog.vbs"
-    return _schtasks(["/create", "/tn", _AUTOSTART_DOG, "/sc", "minute",
-                      "/mo", "5", "/rl", "limited", "/f",
-                      "/tr", f'wscript.exe //nologo "{dog_vbs}"'])
+    """Cài (ghi đè) task 5 phút/lần, theo user, không cần admin. Trả (ok, detail)."""
+    if not (PROJECT_ROOT / "tools" / "joyce_boot.py").is_file():
+        return False, "missing tools/joyce_boot.py"
+    return _schtasks(["/create", "/tn", _AUTOSTART_TASK, "/sc", "minute", "/mo", "5",
+                      "/rl", "limited", "/f", "/tr", _autostart_command()])
 
 
 def _autostart_task_uninstall() -> None:
-    _schtasks(["/delete", "/tn", _AUTOSTART_BOOT, "/f"])
-    _schtasks(["/delete", "/tn", _AUTOSTART_DOG, "/f"])
+    for t in (_AUTOSTART_TASK, _AUTOSTART_BOOT, _AUTOSTART_DOG):
+        _schtasks(["/delete", "/tn", t, "/f"])
 
 
 def _autostart_bi_chan(raw) -> bool:
-    """Cờ StartupApproved nói mục này đã bị tắt trong Task Manager?"""
+    """Cờ StartupApproved nói mục Run key (cũ) đã bị tắt trong Task Manager?"""
     try:
         return bool(raw) and bool(raw[0] & 1)
     except (TypeError, IndexError):
         return False
 
 
+def _autostart_task_tat(state: str) -> bool:
+    """Task còn đó nhưng bị TẮT (Task Scheduler / phần mềm dọn máy bấm Disable)."""
+    return (state or "").strip().lower() == "disabled"
+
+
 def _autostart_thieu_gi(root=None) -> list:
     """Mảnh nào của dây chuyền khởi động không còn trên đĩa.
 
-    Thiếu một trong hai là lúc đăng nhập chắc chắn không có gì chạy, mà cũng chẳng có lỗi nào
-    hiện ra: `wscript` im lặng khi không thấy file .vbs, còn `cmd` thì ghi lỗi vào joyce.log,
-    một file không ai mở ra xem bao giờ. Kiểm ngay lúc đọc trạng thái thì rẻ hơn nhiều.
+    Thiếu một mảnh là lúc mở máy chắc chắn không có gì chạy, mà cũng chẳng có lỗi nào hiện ra:
+    task chạy một lệnh trỏ vào file không có thì Task Scheduler chỉ ghi một mã lỗi, không ai xem.
     """
     goc = Path(root) if root else PROJECT_ROOT
     thieu = []
-    if not (goc / "start-joyce.vbs").is_file():
-        thieu.append("start-joyce.vbs")
-    if not (goc / ".venv" / "Scripts" / "python.exe").is_file():
-        thieu.append(r".venv\Scripts\python.exe")
+    if not (goc / "tools" / "joyce_boot.py").is_file():
+        thieu.append(r"tools\joyce_boot.py")
+    if not (goc / ".venv" / "Scripts" / "pythonw.exe").is_file():
+        thieu.append(r".venv\Scripts\pythonw.exe")
     return thieu
 
 
@@ -15252,22 +15262,24 @@ def _autostart_ly_do(st: dict) -> str:
     if st.get("blocked"):
         return ("Windows đang chặn mục khởi động này (ai đó tắt nó trong Task Manager, thẻ "
                 "Startup, hoặc disable task trong Task Scheduler, hoặc một phần mềm dọn máy "
-                "đã tắt hộ). Bấm bật lại để gỡ chặn.")
+                "như 360 đã tắt hộ). Bấm bật lại để gỡ chặn.")
+    if st.get("legacy"):
+        return ("Đang dùng cách tự khởi động CŨ qua file .vbs, thứ mà 360 Total Security tắt mỗi "
+                "lần mở máy. Bấm bật lại để chuyển sang cách mới không qua .vbs.")
     if st.get("stale"):
         return ("Thư mục cài đặt đã đổi chỗ nên lệnh khởi động đang trỏ vào đường dẫn cũ. "
                 "Bấm bật lại để cập nhật.")
     if st.get("missing"):
-        return ("Thiếu " + ", ".join(st["missing"]) + " trong thư mục cài đặt nên lúc đăng nhập "
+        return ("Thiếu " + ", ".join(st["missing"]) + " trong thư mục cài đặt nên lúc mở máy "
                 "sẽ không có gì chạy. Chạy lại setup.bat để dựng lại phần thiếu.")
-    # Relay boot đã chạy mà xịt: chẩn đoán mà Run key xưa nay không bao giờ cho được.
     task = st.get("task") or {}
     lr = (task.get("last_result") or "").strip()
     if task.get("exists") and task.get("last_run") and lr:
         try:
             code = int(lr, 16) if lr.lower().startswith("0x") else int(lr)
-            if code not in (0, 0x41301):    # 0 = xong tốt, 0x41301 = đang chạy
+            if code not in (0, 0x41301, 0x41303):   # xong tốt / đang chạy / chưa chạy lần nào
                 return (f"Lần tự chạy cuối ({task['last_run']}) task báo lỗi mã {lr}. "
-                        "Mở server\\joyce.log hoặc bấm bật lại để cài lại task.")
+                        "Mở server\\watchdog.log hoặc bấm bật lại để cài lại task.")
         except ValueError:
             pass
     return ""
@@ -15276,38 +15288,37 @@ def _autostart_ly_do(st: dict) -> str:
 def _autostart_status() -> dict:
     """Trạng thái ĐẦY ĐỦ của autostart, đủ để nói vì sao nó không chạy.
 
-    `enabled` một mình không trả lời được câu hỏi thật của người dùng ("sao mở máy lên không
-    thấy Joyce"): Run key còn nguyên vẫn có ba đường chết lặng khác nhau, và cả ba đều được
-    kiểm ở đây - Windows chặn, đường dẫn cũ, hoặc file đã mất.
+    Bật = có task JoyceOS-AutoStart. Run key / task .vbs cũ còn sót thì vẫn tính là bật nhưng
+    kèm `legacy` để dashboard khuyên bấm bật lại (chuyển sang cách mới).
     """
     if os.name != "nt":
         return {"supported": False, "enabled": False}
     expected = _autostart_command()
     st = {"supported": True, "enabled": False, "expected": expected,
           "log": str(PROJECT_ROOT / "server" / "joyce.log")}
-    # Nhật ký relay one-shot (lần boot gần nhất chạy tới đâu) + cờ watchdog.
-    st["task"] = _autostart_task_status()
+    task = st["task"] = _autostart_task_status()
+    if task["exists"]:
+        st["enabled"] = True
+        st["command"] = task.get("task_to_run", "")
+        st["blocked"] = _autostart_task_tat(task.get("state", ""))
+        cmd = (task.get("task_to_run") or "").strip().strip('"').lower().replace('"', "")
+        st["stale"] = bool(cmd) and cmd != expected.lower().replace('"', "")
     try:
         import winreg
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_RUN_KEY) as k:
                 val, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
-            st["enabled"] = bool(val)
-            st["command"] = val
-            # Lệnh cũ trỏ start-joyce-delayed.vbs cũng đọc là stale -> khuyên migrate.
-            st["stale"] = bool(val) and val.strip() != expected
+            if val:
+                st["legacy_run_key"] = val
         except FileNotFoundError:
             pass
-        if st["enabled"]:
-            try:
-                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_APPROVED_KEY) as k:
-                    raw, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
-                st["blocked"] = _autostart_bi_chan(raw)
-            except FileNotFoundError:
-                st["blocked"] = False     # không có cờ nghĩa là chưa ai tắt
-            st["missing"] = _autostart_thieu_gi()
     except Exception as e:
         st["error"] = str(e)
+    if not task["exists"] and (st.get("legacy_run_key") or task.get("legacy_tasks")):
+        st["enabled"] = True
+        st["legacy"] = True
+    if st["enabled"]:
+        st["missing"] = _autostart_thieu_gi()
     st["ly_do"] = _autostart_ly_do(st)
     st["healthy"] = bool(st["enabled"]) and not st["ly_do"]
     return st
@@ -15318,35 +15329,22 @@ def _autostart_set(enabled: bool) -> dict:
         return {"ok": False, "error": "Chỉ hỗ trợ trên Windows"}
     try:
         import winreg
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_RUN_KEY) as k:
-            if enabled:
-                winreg.SetValueEx(k, _AUTOSTART_NAME, 0, winreg.REG_SZ, _autostart_command())
-            else:
-                try:
-                    winreg.DeleteValue(k, _AUTOSTART_NAME)
-                except FileNotFoundError:
-                    pass
+        # Bật hay tắt đều dọn Run key + task .vbs cũ: bật thì để chuyển hẳn sang task mới,
+        # tắt thì để không còn đường nào tự chạy.
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_RUN_KEY, 0,
+                                winreg.KEY_SET_VALUE) as k:
+                winreg.DeleteValue(k, _AUTOSTART_NAME)
+        except FileNotFoundError:
+            pass
+        _autostart_task_uninstall()
         if enabled:
-            # Watchdog 5'/lần: dự phòng cho cả đường Run key lẫn tự sống lại khi server
-            # chết giữa ngày. Nonfatal: thiếu nó autostart vẫn đi qua relay JoyceOS-Boot.
-            _autostart_task_install()
-            # Ghi lại Run key KHÔNG gỡ được cờ chặn của Task Manager, nên bật xong vẫn không
-            # chạy và nút bấm thành ra vô nghĩa. Chỉ lật cờ đã có sẵn của CHÍNH mục này, không
-            # tự tạo mới: không có cờ đã là đang bật rồi.
-            try:
-                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_APPROVED_KEY,
-                                    0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
-                    try:
-                        raw, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
-                    except FileNotFoundError:
-                        raw = None
-                    if _autostart_bi_chan(raw):
-                        winreg.SetValueEx(k, _AUTOSTART_NAME, 0, winreg.REG_BINARY,
-                                          _AUTOSTART_APPROVED_ON)
-            except FileNotFoundError:
-                pass
-        else:
-            _autostart_task_uninstall()
+            ok, detail = _autostart_task_install()
+            if not ok:
+                return {"ok": False, "error": "Không tạo được task tự khởi động: " + (detail or "").strip()[:300]}
+            # Task tạo bằng /sc minute có thể bị Task Scheduler tắt nếu trước đó ai Disable
+            # task cùng tên; /create /f ghi đè nên đã bật lại, nhưng bật hẳn cho chắc.
+            _schtasks(["/change", "/tn", _AUTOSTART_TASK, "/enable"])
         return {"ok": True, "enabled": enabled, **_autostart_status()}
     except Exception as e:
         return {"ok": False, "error": str(e)}

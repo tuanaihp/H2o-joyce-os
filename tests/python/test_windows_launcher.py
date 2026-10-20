@@ -50,10 +50,14 @@ check("cd /d về thư mục script trước (không tin working directory kế 
 # ---- autostart ----
 check("autostart đặt tác vụ theo USER (/rl limited, không cần admin)",
       "schtasks /create" in ps1 and "/rl limited" in ps1)
-check("shortcut trỏ wscript + start-joyce.vbs (chạy NEN khi đăng nhập, không bật trình duyệt)",
-      "wscript.exe" in ps1 and "start-joyce.vbs" in ps1)
+check("task chạy THẲNG pythonw + tools/joyce_boot.py, không qua .vbs (360 tắt mọi mục tự chạy trỏ .vbs)",
+      "pythonw.exe" in ps1 and "joyce_boot.py" in ps1 and "wscript" not in ps1.lower())
+check("task 5 phút/lần (/sc minute /mo 5), không dùng ONLOGON (máy này Access Denied)",
+      "/sc minute /mo 5" in ps1 and "onlogon" not in ps1.lower())
 check("có đủ ba việc install/uninstall/status", all(k in ps1 for k in ("install", "uninstall", "status")))
-check("uninstall xoá đúng các tác vụ đã tạo", 'schtasks /delete /tn "JoyceOS-Boot"' in ps1 and 'schtasks /delete /tn "JoyceOS-Watchdog"' in ps1)
+check("uninstall xoá task mới và dọn cả đường .vbs cũ (Run key + 2 task)",
+      "schtasks /delete /tn $Task" in ps1 and 'schtasks /delete /tn "JoyceOS-Boot"' in ps1
+      and 'schtasks /delete /tn "JoyceOS-Watchdog"' in ps1 and "Remove-ItemProperty" in ps1)
 check("wrapper .bat gọi ps1 với ExecutionPolicy Bypass (máy user mặc định chặn ps1)",
       "ExecutionPolicy Bypass" in as_bat)
 
