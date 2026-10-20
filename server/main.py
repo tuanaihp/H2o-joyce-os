@@ -434,6 +434,13 @@ async def _static_cache_headers(request: Request, call_next):
         resp.headers["Cache-Control"] = "no-cache"
     elif duong.startswith("/static/") and request.query_params.get("v"):
         resp.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+    elif duong.startswith("/static/") and duong.endswith((".js", ".mjs", ".css")):
+        # Module nạp LƯỜI qua import()/link động không kèm ?v= (joyce-hands/*.mjs,
+        # gesture-trainer...): để trống header là trình duyệt cache theo heuristic
+        # và giữ bản CŨ qua cả lần Ctrl+F5 nhẹ - album.mjs mới không lên sau khi
+        # sửa (chủ báo 2026-10-20). no-cache = vẫn cache, nhưng PHẢI hỏi lại mỗi
+        # lần; ETag/304 của StaticFiles lo phần rẻ.
+        resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 
