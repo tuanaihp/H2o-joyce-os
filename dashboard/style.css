@@ -4732,7 +4732,7 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 }
 .hud-center.album-open .joyce-album { opacity: 1; pointer-events: auto; }
 .joyce-album figure { margin: 0; max-width: 92%; max-height: 86%; display: grid; place-items: center; overflow: hidden; }
-.joyce-album img {
+.joyce-album figure img {
   max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 10px;
   box-shadow: 0 24px 90px #000c, 0 0 0 1px #19ddff22;
   transform: scale(var(--ja-zoom,1)) translate(var(--ja-x,0px), var(--ja-y,0px));
@@ -4750,6 +4750,67 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
   text-transform: uppercase; white-space: nowrap;
 }
 .joyce-album .ja-empty { color: #9fd8e8; font: 13px var(--font, sans-serif); text-align: center; line-height: 1.7; }
+/* --- Trình duyệt album 3 tầng (concept -> album -> ảnh, giống webapp CRM) --- */
+.joyce-album .ja-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+}
+.joyce-album .ja-bar button {
+  background: #041117cc; color: #9fd8e8; border: 1px solid #164d5b; border-radius: 8px;
+  font: 10px 'Courier New', monospace; letter-spacing: .14em; padding: 6px 12px;
+  cursor: pointer; transition: border-color .15s, color .15s;
+}
+.joyce-album .ja-bar button:hover { border-color: #19ddff88; color: #dff6ff; }
+.joyce-album .ja-title {
+  flex: 1; text-align: center; color: #9fd8e8;
+  font: 11px 'Courier New', monospace; letter-spacing: .18em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.joyce-album .ja-hint { top: 46px; }
+.joyce-album .ja-body { position: absolute; inset: 74px 0 52px; overflow-y: auto; scrollbar-width: thin; }
+.joyce-album .ja-body figure { margin: 0; height: 100%; display: grid; place-items: center; overflow: hidden; }
+.joyce-album .ja-body img {
+  max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px;
+  box-shadow: 0 24px 90px #000c, 0 0 0 1px #19ddff22;
+  transform: scale(var(--ja-zoom,1)) translate(var(--ja-x,0px), var(--ja-y,0px));
+  transition: transform .12s ease-out; will-change: transform;
+}
+.joyce-album .ja-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px; padding: 2px 14px 10px;
+}
+.joyce-album .ja-card {
+  position: relative; border: 1px solid #164d5b; border-radius: 10px; overflow: hidden;
+  background: #041117; cursor: pointer; padding: 0; text-align: left;
+  transition: transform .18s, border-color .18s;
+}
+.joyce-album .ja-card:hover { transform: translateY(-3px); border-color: #19ddff88; }
+.joyce-album .ja-card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
+.joyce-album .ja-nocover { display: block; width: 100%; aspect-ratio: 3/4; background: #0a2129; }
+.joyce-album .ja-badge {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  background: linear-gradient(90deg, #ff2d78, #ff8a3c); color: #fff;
+  font: 9px 'Courier New', monospace; font-weight: 700; letter-spacing: .08em;
+  padding: 3px 8px; border-radius: 20px; text-transform: uppercase;
+}
+.joyce-album .ja-info { display: block; padding: 8px 10px 9px; }
+.joyce-album .ja-info b {
+  display: block; color: #dff6ff; font: 12px var(--font, sans-serif); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.joyce-album .ja-info i {
+  display: block; margin-top: 2px; color: #5e8a96; font: 10px 'Courier New', monospace;
+  font-style: normal; letter-spacing: .08em;
+}
+.joyce-album .ja-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 3;
+  width: 42px; height: 42px; border-radius: 50%;
+  background: #041117cc; color: #9fd8e8; border: 1px solid #164d5b;
+  font-size: 15px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.joyce-album .ja-nav:hover { border-color: #19ddff88; color: #dff6ff; }
+.joyce-album .ja-prev { left: 12px; }
+.joyce-album .ja-next { right: 12px; }
 
 /* ============================================
    Tinh vân kiểu CHÒM SAO (brain-constellation.js, 1.3.24 - docs/dev/2026-10-tinh-van-apex-design.md)
