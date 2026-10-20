@@ -2,15 +2,15 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.25] - 2026-10-21
+### Sửa lỗi
+- **Joyce tự bật lại sau khi khởi động máy** (đang làm).
+
 ## [1.3.24] - 2026-10-20
 ### Thêm mới
 - **Tinh vân kiểu chòm sao**: tab Tinh vân giờ có quả cầu của brain đang mở ở giữa (Trái Đất cho Brain Default, tinh cầu đúng phòng ban, ngôi sao cho brain thương hiệu) trong vòng vàng, quanh đó là các nhánh: xanh = tri thức, cam = vận hành, xám = kết nối MCP (nét đứt khi chưa bật).
 - **Nhánh sáng theo việc thật**: Joyce đọc file trong `wiki` thì nhánh WIKI sáng, gọi Zalo thì nút Zalo sáng, hạt chạy từ lõi ra; Joyce nghĩ / nói thì cả mạng chạy nhanh hơn.
 - **Bấm một nhánh** mở thẻ tổng quan: số note, % vault, các note mới nhất (bấm là mở). Nút **Mạng note** ở góc phải chuyển về đồ thị từng note như cũ (có timelapse).
-
-## [1.3.25] - 2026-10-21
-### Sửa lỗi
-- **Joyce tự bật lại sau khi khởi động máy** (đang làm).
 
 ## [1.3.23] - 2026-10-19
 ### Thêm mới

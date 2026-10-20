@@ -2,15 +2,15 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.25] - 2026-10-21
+### Fixed
+- **Joyce starts again after a reboot** (in progress).
+
 ## [1.3.24] - 2026-10-20
 ### Added
 - **Constellation-style Nebula view**: the Nebula tab now shows the open brain's sphere in the centre (Earth for Brain Default, the department's own planet, a star for brand brains) inside a gold ring, surrounded by branches: cyan = knowledge, amber = operations, grey = MCP connections (dashed when off).
 - **Branches light up on real work**: when Joyce reads a file in `wiki` the WIKI branch lights, calling Zalo lights the Zalo node, with particles flowing from the core; thinking or speaking speeds the whole web up.
 - **Click a branch** for an overview card: note count, vault share, latest notes (click to open). The **Note network** button top-right switches back to the per-note graph (with timelapse).
-
-## [1.3.25] - 2026-10-21
-### Fixed
-- **Joyce starts again after a reboot** (in progress).
 
 ## [1.3.23] - 2026-10-19
 ### Added
