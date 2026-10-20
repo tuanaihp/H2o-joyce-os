@@ -36,10 +36,7 @@ export class JoyceAlbum {
         '<button class="ja-x" data-x="close" aria-label="Đóng album">✕</button>' +
       '</div>' +
       '<div class="ja-hint"></div>' +
-      '<div class="ja-body"></div>' +
-      '<button class="ja-nav ja-prev" data-x="prev" aria-label="Ảnh trước">◀</button>' +
-      '<button class="ja-nav ja-next" data-x="next" aria-label="Ảnh tiếp">▶</button>' +
-      '<div class="ja-cap"></div>';
+      '<div class="ja-body"></div>';
     el.addEventListener('click', e => {
       const card = e.target.closest('[data-pick]');
       if (card) { this._pick(+card.dataset.pick); return; }
@@ -55,13 +52,10 @@ export class JoyceAlbum {
     this.host.appendChild(el);
     this.el = el;
     this.body = el.querySelector('.ja-body');
-    this.cap = el.querySelector('.ja-cap');
     this.hint = el.querySelector('.ja-hint');
     this.title = el.querySelector('.ja-title');
     this.backBtn = el.querySelector('.ja-back');
     this.webBtn = el.querySelector('.ja-web');
-    this.prevBtn = el.querySelector('.ja-prev');
-    this.nextBtn = el.querySelector('.ja-next');
     return el;
   }
   async _load() {
@@ -120,10 +114,6 @@ export class JoyceAlbum {
     const L = this.level, sale = !!this.tree;
     this.backBtn.style.display = L > 0 ? '' : 'none';
     this.webBtn.style.display = sale ? '' : 'none';
-    const nav = L === 2;
-    this.prevBtn.style.display = nav ? '' : 'none';
-    this.nextBtn.style.display = nav ? '' : 'none';
-    this.cap.style.display = nav ? '' : 'none';
     if (L === 0) {
       this.title.textContent = 'H2O STUDIO · CHỌN CONCEPT';
       this.hint.textContent = 'click chọn concept · vuốt xuống: đóng';
@@ -151,17 +141,26 @@ export class JoyceAlbum {
       this.body.innerHTML = '<div class="ja-empty">Album này chưa có ảnh<br>' +
         '<b>H2O Sale Album · ' + esc(this.brain) + '</b><br>' +
         '<span style="font-size:11px;opacity:.7">kiểm tra mạng/Supabase hoặc thả ảnh vào attachments/ của brain</span></div>';
-      this.cap.textContent = 'Album trống';
       return;
     }
     const it = list[this.i];
     const src = /^https?:/i.test(it.url || '')
       ? it.url
       : '/files/raw?brain=' + encodeURIComponent(this.brain) + '&path=' + encodeURIComponent(it.path || '');
-    this.body.innerHTML = '<figure><img alt="" draggable="false"></figure>';
-    const img = this.body.querySelector('img');
-    img.src = src; img.alt = it.alt || it.name || '';
-    this.cap.textContent = (this.i + 1) + ' / ' + list.length + ' · ' + (it.name || 'photo');
+    // Khung hình DỌC 3:4 kiểu lookbook: nền là chính ảnh đó loang mờ phủ kín
+    // khung (ảnh ngang/dọc nào cũng đầy đẹp), ảnh thật sắc nét contain ở giữa,
+    // mũi tên + caption bám trong khung. Zoom chỉ tác động lớp ảnh nét (.ja-fg).
+    this.body.innerHTML =
+      '<div class="ja-view"><div class="ja-frame">' +
+        '<img class="ja-bg" alt="" draggable="false">' +
+        '<img class="ja-fg" alt="" draggable="false">' +
+        '<button class="ja-nav ja-prev" data-x="prev" aria-label="Ảnh trước">◀</button>' +
+        '<button class="ja-nav ja-next" data-x="next" aria-label="Ảnh tiếp">▶</button>' +
+        '<div class="ja-capline"><b>' + (this.i + 1) + ' / ' + list.length + '</b>' +
+        '<span>' + esc(it.name || 'photo') + '</span></div>' +
+      '</div></div>';
+    const bg = this.body.querySelector('.ja-bg'), fg = this.body.querySelector('.ja-fg');
+    bg.src = src; fg.src = src; fg.alt = it.alt || it.name || '';
     this.setZoom(1);
   }
   async open() {
