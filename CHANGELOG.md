@@ -2,10 +2,16 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.24] - 2026-10-20
+### Thêm mới
+- **Tinh vân kiểu chòm sao**: tab Tinh vân giờ có quả cầu của brain đang mở ở giữa (Trái Đất cho Brain Default, tinh cầu đúng phòng ban, ngôi sao cho brain thương hiệu) trong vòng vàng, quanh đó là các nhánh: xanh = tri thức, cam = vận hành, xám = kết nối MCP (nét đứt khi chưa bật).
+- **Nhánh sáng theo việc thật**: Joyce đọc file trong `wiki` thì nhánh WIKI sáng, gọi Zalo thì nút Zalo sáng, hạt chạy từ lõi ra; Joyce nghĩ / nói thì cả mạng chạy nhanh hơn.
+- **Bấm một nhánh** mở thẻ tổng quan: số note, % vault, các note mới nhất (bấm là mở). Nút **Mạng note** ở góc phải chuyển về đồ thị từng note như cũ (có timelapse).
+
 ## [1.3.23] - 2026-10-19
 ### Thêm mới
 - **3D Joyce xuất hiện bằng hạt lượng tử**: mở tab 3D Joyce, các hạt phóng ra từ một đốm sáng dưới chân, xoắn thành dòng sao chổi rồi ghép thành hình người; ghép xong thì nhân vật quen thuộc hiện lên đúng chỗ đó. Giao diện sau đó giữ nguyên như cũ.
-- **3D Joyce giơ tay làm việc**: khi bạn giao một việc, nhân vật đưa hai tay hạt lên chạm vào các bảng hologram trước mặt, bảng hiện đúng tên việc đang làm (ví dụ "Tìm kiếm web: ...") và các dòng kết quả lần lượt hiện ra; lúc trả lời, tay hạ về trước ngực và nhịp theo giọng nói. Không có việc gì thì tay tan đi.
+- **3D Joyce trích xuất dữ liệu khi làm việc**: khi bạn giao một việc (ví dụ "gửi anh bản hướng dẫn sale"), nhân vật phát sóng ánh sáng từ ngực, tia quét chạy dọc thân, người nghiêng và gật nhẹ mỗi lần lấy được dữ liệu. Tên tài liệu trong brain đang được đọc và các con số thật trong kết quả bay ra hai bên màn hình, bộ đếm "ĐANG DÒ DỮ LIỆU" chạy tổng số mục đã dò. Lúc trả lời, bộ đếm chốt "ĐÃ DÒ XONG" và ánh sáng nhịp theo giọng. Không có dữ liệu thì không hiện số bịa.
 
 ### Sửa lỗi
 - Sửa các kiểm tra tự động đang đỏ (chữ gạch dài trong bản dịch, danh sách trang lệch, kiểm tra camera cũ).

@@ -1,61 +1,167 @@
-// Album trình chiếu trong khoang não (.hud-center), mở bằng cử chỉ vuốt tay.
+// Album trình chiếu trong khoang não (.hud-center), mở bằng cử chỉ vuốt tay
+// hoặc nút 🖼 ALBUM trên thanh điều khiển avatar.
 // Nguồn ảnh ưu tiên: GET /album?source=sale -> kho H2O Sale Album trên Supabase
-// (trả URL R2 tuyệt đối, trình duyệt tải thẳng từ Cloudflare). Lỗi/trống -> về
-// nguồn local GET /album?brain=<tên> (attachments/ + sources/ của brain, qua /files/raw).
-// Zoom: khoảng cách ngón cái-ngón trỏ (pinchRatio 0..1.5) map tuyến tính 1x..4.5x
-// khi album đang mở và chỉ có MỘT tay trong khung.
+// (trả cây styles -> albums -> photos với URL R2 tuyệt đối, trình duyệt tải
+// thẳng từ Cloudflare). Lỗi/trống -> về nguồn local GET /album?brain=<tên>
+// (attachments/ + sources/ của brain, qua /files/raw) — nguồn này phẳng nên
+// nhảy thẳng vào viewer, bỏ qua lưới chọn.
+// Duyệt 3 tầng giống webapp CRM: lưới concept -> lưới album -> viewer ảnh
+// (mũi tên ◀ ▶ + vuốt). Vuốt xuống = lùi 1 tầng / đóng. Zoom: khoảng cách
+// ngón cái-ngón trỏ (pinchRatio 0..1.5) map tuyến tính 1x..4.5x, chỉ ở tầng
+// xem ảnh và chỉ có MỘT tay trong khung.
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ZOOM_MIN = 1, ZOOM_MAX = 4.5, RATIO_LO = 0.28, RATIO_HI = 0.78;
+const SALE_WEB_URL = 'https://h2ostudio-sale-crm-phi.vercel.app/';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class JoyceAlbum {
   constructor({ host, brain = 'Ban Hang - Sales Hinh Anh', onState = () => {} } = {}) {
     if (!host) throw new TypeError('JoyceAlbum cần host (.hud-center).');
     this.host = host; this.brain = brain; this.onState = onState;
-    this.el = null; this.images = null; this.i = 0; this.zoom = 1;
-    this.src = 'local';
+    this.el = null; this.images = null; this.tree = null;
+    this.i = 0; this.zoom = 1; this.src = 'local';
+    this.level = 0; this.sIdx = 0; this.aIdx = 0;
     this.loading = null; this.opened = false; this.disposed = false;
   }
   isOpen() { return this.opened; }
   _build() {
     const el = document.createElement('div');
     el.className = 'joyce-album';
-    el.innerHTML = '<div class="ja-hint">vuốt tay: lật ảnh · vuốt xuống: đóng · xòe/chụm 2 ngón: phóng to · thu nhỏ</div>' +
-      '<figure><img alt=""></figure><div class="ja-cap"></div>';
+    el.innerHTML =
+      '<div class="ja-bar">' +
+        '<button class="ja-back" data-x="back" aria-label="Quay lại">‹ QUAY</button>' +
+        '<span class="ja-title"></span>' +
+        '<button class="ja-web" data-x="web" aria-label="Mở trang webapp đầy đủ">↗ WEBAPP</button>' +
+        '<button class="ja-x" data-x="close" aria-label="Đóng album">✕</button>' +
+      '</div>' +
+      '<div class="ja-hint"></div>' +
+      '<div class="ja-body"></div>' +
+      '<button class="ja-nav ja-prev" data-x="prev" aria-label="Ảnh trước">◀</button>' +
+      '<button class="ja-nav ja-next" data-x="next" aria-label="Ảnh tiếp">▶</button>' +
+      '<div class="ja-cap"></div>';
+    el.addEventListener('click', e => {
+      const card = e.target.closest('[data-pick]');
+      if (card) { this._pick(+card.dataset.pick); return; }
+      const act = e.target.closest('[data-x]');
+      if (!act) return;
+      const a = act.dataset.x;
+      if (a === 'close') this.close();
+      else if (a === 'back') this.back();
+      else if (a === 'prev') this.prev();
+      else if (a === 'next') this.next();
+      else if (a === 'web') window.open(SALE_WEB_URL, '_blank', 'noopener');
+    });
     this.host.appendChild(el);
-    this.el = el; this.img = el.querySelector('img'); this.cap = el.querySelector('.ja-cap');
+    this.el = el;
+    this.body = el.querySelector('.ja-body');
+    this.cap = el.querySelector('.ja-cap');
+    this.hint = el.querySelector('.ja-hint');
+    this.title = el.querySelector('.ja-title');
+    this.backBtn = el.querySelector('.ja-back');
+    this.webBtn = el.querySelector('.ja-web');
+    this.prevBtn = el.querySelector('.ja-prev');
+    this.nextBtn = el.querySelector('.ja-next');
     return el;
   }
   async _load() {
-    if (this.images) return this.images;
+    if (this.images || this.tree) return;
     if (!this.loading) {
       const b = encodeURIComponent(this.brain);
       const get = u => fetch(u, { credentials: 'same-origin' })
         .then(r => (r.ok ? r.json() : null)).catch(() => null);
       this.loading = get('/album?source=sale')
-        .then(d => (d && d.images && d.images.length ? { list: d.images, src: 'sale' } : null))
-        .then(hit => hit || get('/album?brain=' + b)
-          .then(d => ({ list: (d && d.images) || [], src: 'local' })))
-        .then(res => { this.images = res.list; this.src = res.src; return this.images; })
-        .catch(() => { this.images = []; this.src = 'local'; return this.images; });
+        .then(d => {
+          if (d && d.tree && d.tree.length) {
+            // Cây 3 tầng của app sale; cũng giữ list phẳng làm dự phòng.
+            this.tree = d.tree; this.images = d.images || []; this.src = 'sale';
+            return;
+          }
+          if (d && d.images && d.images.length) {
+            this.images = d.images; this.src = 'sale'; return;
+          }
+          return get('/album?brain=' + b).then(d2 => {
+            this.images = (d2 && d2.images) || []; this.src = 'local';
+          });
+        })
+        .catch(() => { this.images = []; this.src = 'local'; });
     }
     return this.loading;
   }
-  _show() {
-    if (!this.images.length) {
-      this.img.removeAttribute('src');
-      this.cap.textContent = 'Album trống';
-      this.el.querySelector('.ja-hint').textContent = 'kiểm tra kết nối Sale Album hoặc thả ảnh vào brain "' + this.brain + '"';
-      const fig = this.el.querySelector('figure');
-      fig.innerHTML = '<div class="ja-empty">Chưa lấy được ảnh nào<br><b>H2O Sale Album · ' + this.brain + '</b><br><span style="font-size:11px;opacity:.7">kiểm tra mạng/Supabase hoặc thả ảnh vào attachments/ của brain rồi vuốt lại</span></div>';
+  // --- điều hướng 3 tầng -------------------------------------------------
+  _pick(idx) {                       // click chọn card ở tầng lưới
+    if (this.level === 0) { this.sIdx = idx; this.level = 1; }
+    else if (this.level === 1) { this.aIdx = idx; this.i = 0; this.level = 2; }
+    else return;
+    this._render();
+  }
+  back() {
+    if (this.level === 2 && this.tree) { this.level = 1; this._render(); return; }
+    if (this.level === 1) { this.level = 0; this._render(); return; }
+    this.close();
+  }
+  _cards(items, sub) {
+    return '<div class="ja-grid">' + items.map((it, n) =>
+      '<button class="ja-card" data-pick="' + n + '">' +
+        (it.cover
+          ? '<img src="' + esc(it.cover) + '" alt="" loading="lazy" draggable="false">'
+          : '<span class="ja-nocover"></span>') +
+        (it.badge ? '<span class="ja-badge">' + esc(it.badge) + '</span>' : '') +
+        '<span class="ja-info"><b>' + esc(it.title) + '</b><i>' + esc(sub(it)) + '</i></span>' +
+      '</button>').join('') + '</div>';
+  }
+  _photos() {                        // danh sách ảnh của tầng viewer hiện tại
+    if (!this.tree) return this.images || [];
+    const al = this.tree[this.sIdx] && this.tree[this.sIdx].albums[this.aIdx];
+    return al ? al.photos : [];
+  }
+  _render() {
+    if (!this.el) return;
+    const L = this.level, sale = !!this.tree;
+    this.backBtn.style.display = L > 0 ? '' : 'none';
+    this.webBtn.style.display = sale ? '' : 'none';
+    const nav = L === 2;
+    this.prevBtn.style.display = nav ? '' : 'none';
+    this.nextBtn.style.display = nav ? '' : 'none';
+    this.cap.style.display = nav ? '' : 'none';
+    if (L === 0) {
+      this.title.textContent = 'H2O STUDIO · CHỌN CONCEPT';
+      this.hint.textContent = 'click chọn concept · vuốt xuống: đóng';
+      this.body.innerHTML = this._cards(this.tree,
+        s => s.albums.length + ' album');
       return;
     }
-    const it = this.images[this.i];
-    // Ảnh sale có url tuyệt đối (R2) -> tải thẳng; ảnh local có path -> qua /files/raw.
-    this.img.src = /^https?:/i.test(it.url || '')
+    if (L === 1) {
+      const st = this.tree[this.sIdx];
+      this.title.textContent = (st.title || 'CONCEPT').toUpperCase();
+      this.hint.textContent = 'click chọn album · vuốt xuống: quay lại';
+      this.body.innerHTML = this._cards(st.albums,
+        a => a.photos.length + ' ảnh');
+      return;
+    }
+    const al = this.tree ? this.tree[this.sIdx].albums[this.aIdx] : null;
+    this.title.textContent = (al ? al.title : 'ALBUM').toUpperCase();
+    this.hint.textContent = 'vuốt/◀ ▶: lật ảnh · vuốt xuống: ' +
+      (sale ? 'về album' : 'đóng') + ' · xòe/chụm 2 ngón: zoom';
+    this._show();
+  }
+  _show() {
+    const list = this._photos();
+    if (!list.length) {
+      this.body.innerHTML = '<div class="ja-empty">Album này chưa có ảnh<br>' +
+        '<b>H2O Sale Album · ' + esc(this.brain) + '</b><br>' +
+        '<span style="font-size:11px;opacity:.7">kiểm tra mạng/Supabase hoặc thả ảnh vào attachments/ của brain</span></div>';
+      this.cap.textContent = 'Album trống';
+      return;
+    }
+    const it = list[this.i];
+    const src = /^https?:/i.test(it.url || '')
       ? it.url
-      : '/files/raw?brain=' + encodeURIComponent(this.brain) + '&path=' + encodeURIComponent(it.path);
-    this.img.alt = it.alt || it.name;
-    this.cap.textContent = (this.i + 1) + ' / ' + this.images.length + ' · ' + it.name;
+      : '/files/raw?brain=' + encodeURIComponent(this.brain) + '&path=' + encodeURIComponent(it.path || '');
+    this.body.innerHTML = '<figure><img alt="" draggable="false"></figure>';
+    const img = this.body.querySelector('img');
+    img.src = src; img.alt = it.alt || it.name || '';
+    this.cap.textContent = (this.i + 1) + ' / ' + list.length + ' · ' + (it.name || 'photo');
     this.setZoom(1);
   }
   async open() {
@@ -66,8 +172,9 @@ export class JoyceAlbum {
     this.onState(true);
     await this._load();
     if (!this.opened) return;               // đóng trong lúc chờ fetch
-    this.i = 0;
-    this._show();
+    this.i = 0; this.sIdx = 0; this.aIdx = 0;
+    this.level = this.tree ? 0 : 2;         // sale: lưới concept; local: xem phẳng luôn
+    this._render();
   }
   close() {
     if (!this.opened) return;
@@ -75,19 +182,20 @@ export class JoyceAlbum {
     this.host.classList.remove('album-open');
     this.onState(false);
   }
-  next() { if (!this.opened || !this.images || !this.images.length) return;
-    this.i = (this.i + 1) % this.images.length; this._show(); }
-  prev() { if (!this.opened || !this.images || !this.images.length) return;
-    this.i = (this.i - 1 + this.images.length) % this.images.length; this._show(); }
+  next() { if (!this.opened || this.level !== 2) return;
+    const n = this._photos().length; if (!n) return;
+    this.i = (this.i + 1) % n; this._show(); }
+  prev() { if (!this.opened || this.level !== 2) return;
+    const n = this._photos().length; if (!n) return;
+    this.i = (this.i - 1 + n) % n; this._show(); }
   swipe(dir) {
     if (!this.opened) { if (dir === 'right' || dir === 'left') this.open(); return; }
-    if (dir === 'right') this.next();
-    else if (dir === 'left') this.prev();
-    else if (dir === 'down') this.close();
+    if (dir === 'down') { this.back(); return; }
+    if (this.level === 2) { if (dir === 'right') this.next(); else if (dir === 'left') this.prev(); }
   }
   // Zoom liên tục từ khoảng cách 2 đầu ngón (pinchRatio trong kết quả tracking).
   zoomFromRatio(ratio) {
-    if (!this.opened || !Number.isFinite(ratio)) return;
+    if (!this.opened || this.level !== 2 || !Number.isFinite(ratio)) return;
     const z = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * clamp((ratio - RATIO_LO) / (RATIO_HI - RATIO_LO), 0, 1);
     this.setZoom(z);
   }

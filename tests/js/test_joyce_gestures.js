@@ -1,8 +1,8 @@
-/* Đôi tay hạt + bảng hologram của 3D Joyce (dashboard/joyce-gestures.js).
+/* Hiệu ứng trích xuất dữ liệu của 3D Joyce (dashboard/joyce-gestures.js).
 
      node tests/js/test_joyce_gestures.js
 
-   Canh: hàm thuần (khung ảnh, chế độ tay), nối dây (index.html, app.js phát sự kiện,
+   Canh: hàm thuần (khung ảnh, chế độ, rút số liệu thật), nối dây (index.html, app.js phát sự kiện,
    joyce-humanoid.js tạo/huỷ), không nạp ảnh, không em dash. */
 const fs = require("fs");
 const path = require("path");
@@ -24,20 +24,27 @@ check("figureRect khớp apex: cao min(h*1.01, w*1.6), canh giữa, sát đáy",
 check("modeOf: đang nghĩ -> làm việc", G.modeOf("THINKING", 1e9, 1e9) === "work");
 check("modeOf: vừa có tool_call (dưới 4s) -> làm việc dù trạng thái READY", G.modeOf("READY", 1000, 1e9) === "work");
 check("modeOf: đang nói hoặc chữ đang chảy -> trả lời", G.modeOf("SPEAKING", 1e9, 1e9) === "answer" && G.modeOf("READY", 1e9, 500) === "answer");
-check("modeOf: không có gì -> rảnh (tay tan)", G.modeOf("READY", 9000, 9000) === "idle");
-check("có 3 bảng hologram", G.PANELS.length === 3);
+check("modeOf: không có gì -> rảnh", G.modeOf("READY", 9000, 9000) === "idle");
+const X = G.extractData("wiki/sale/huong-dan-sale.md:12: Gói 15.900.000đ, cọc 30%\nwiki/sale/khach-vip.md: 128 khách");
+check("extractData: rút tên tệp gọn (bỏ thư mục, bỏ .md)", X.names.join() === "huong-dan-sale,khach-vip");
+check("extractData: rút số liệu thật, bỏ số dòng grep và số trong tên tệp", X.numbers.join() === "15.900.000,30%,128");
+check("extractData: đếm dòng kết quả", X.lines === 2);
+check("extractData: chữ rỗng không bịa số", G.extractData("").numbers.length === 0 && G.extractData(null).names.length === 0);
+check("đã bỏ đôi tay + bảng hologram", !SRC.includes("drawPanel") && !SRC.includes("hand(") && !G.PANELS);
 
 // 2) Nối dây
 check("index.html: nạp joyce-gestures.js trước joyce-humanoid.js",
   IDX.indexOf("/static/joyce-gestures.js") > 0 && IDX.indexOf("/static/joyce-gestures.js") < IDX.indexOf("/static/joyce-humanoid.js"));
-check("app.js: có hàm avatarAct phát joyce:avatar-act", /function avatarAct\(kind, label\)/.test(APP) && APP.includes('"joyce:avatar-act"'));
-check("app.js: tool_call -> avatarAct(\"tool\", nhãn việc thật)", APP.includes('avatarAct("tool", _nhan)'));
+check("app.js: có hàm avatarAct phát joyce:avatar-act", /function avatarAct\(kind, extra\)/.test(APP) && APP.includes('"joyce:avatar-act"'));
+check("app.js: tool_call gửi nhãn việc + tên tệp đang dò", APP.includes('avatarAct("tool", { label: _nhan, files: _tep })'));
 check("app.js: tool_result / stream / turn_done đều báo cho nhân vật",
-  APP.includes('avatarAct("result")') && APP.includes('avatarAct("answer")') && APP.includes('avatarAct("done")'));
+  APP.includes('avatarAct("result", { text: data.content || data.text || "" })') && APP.includes('avatarAct("answer")') && APP.includes('avatarAct("done")'));
 check("wrapper: tạo JoyceGestures khi hình gốc sẵn sàng, chuyển state/level, huỷ khi destroy",
   WRAP.includes("new window.JoyceGestures(layer") && WRAP.includes("gestures.setState(state)") &&
   WRAP.includes("gestures.setLevel(amp)") && WRAP.includes("gestures.dispose()"));
-check("wrapper: rời lớp nhìn thì dừng vẽ tay", WRAP.includes("if (gestures) gestures.stop();"));
+check("wrapper: thân người nghiêng/gật qua getBody (canvas hình)", WRAP.includes("getBody: function () { return (apex && apex.glCanvas) || null; }"));
+check("dừng thì trả thân người về nguyên trạng", SRC.includes("this.body('')"));
+check("wrapper: rời lớp nhìn thì dừng hiệu ứng", WRAP.includes("if (gestures) gestures.stop();"));
 
 // 3) An toàn
 check("module lắng nghe joyce:avatar-act và gỡ khi huỷ", SRC.includes("addEventListener('joyce:avatar-act'") && SRC.includes("removeEventListener('joyce:avatar-act'"));

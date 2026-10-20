@@ -2432,11 +2432,16 @@ def _spec_keys(prov: str, key: str, model: str, mcfg: dict = None) -> list:
         d = _provider_def(prov) or {}
         k = key or (_provider_key(mcfg or {}, d) if mcfg is not None else "")
         return [(prov, k, model)] if k else []
-    ks = task_router.usable_keys(prov, {"model": mcfg} if mcfg else None)
-    if not ks:
+    settings = {"model": mcfg} if mcfg else None
+    all_keys = task_router.keys_for(prov, settings)
+    ks = task_router.usable_keys(prov, settings)
+    if not all_keys:
         ks = [key] if key else []
     elif key and key not in ks:
-        ks = [key] + ks     # key caller đưa (ví dụ do pin) được thử trước rồi tới vòng
+        # Key caller nằm ngoài vòng (ví dụ pin riêng) được thử trước. Nếu nó chính là một
+        # key trong vòng nhưng đang cháy thì KHÔNG thêm lại, nếu không trạng thái burn vô nghĩa.
+        if key not in all_keys:
+            ks = [key] + ks
     return [(prov, k, model) for k in ks]
 
 
@@ -2451,10 +2456,25 @@ async def _stream_chain(specs, make_stream):
         emitted, err = False, None
         try:
             async for ev in make_stream(prov, key, model):
+                # Gắn route THỰC lên event. Một stream có thể đã nhảy từ key/provider đầu
+                # sang mắt dự phòng, nên caller không được tiếp tục quy token cho biến
+                # `prov/model` ban đầu. Không đưa raw key ra event (event có thể tới browser).
+                if isinstance(ev, dict):
+                    ev.setdefault("provider", prov)
+                    ev.setdefault("model", model or "")
                 t = ev.get("type")
                 if t == "error":
                     err = ev.get("content") or "lỗi không rõ"
                     break
+                if t == "usage" and key:
+                    try:
+                        task_router.note_use(
+                            prov, key,
+                            ev.get("input") or ev.get("input_tokens") or 0,
+                            ev.get("output") or ev.get("output_tokens") or 0,
+                        )
+                    except Exception:
+                        pass
                 if t in ("text", "tool_call", "final", "usage"):
                     emitted = True
                 yield ev
@@ -2475,6 +2495,21 @@ async def _stream_chain(specs, make_stream):
             continue
         break
     yield {"type": "error", "content": last_err or "Mọi não dự phòng đều không gọi được."}
+
+
+def _subscription_fallback_specs(provider: str, errors, emitted: bool = False) -> list:
+    """Chuỗi API dùng khi não gói đăng nhập chết quota trước khi tạo tác động.
+
+    Dashboard chạy ChatGPT/Claude/Grok bằng CLI riêng nên không đi qua `_api_stream`, trong khi
+    vòng Gemini/Groq nằm ở `_stream_chain`. Hàm nhỏ này là chiếc cầu giữa hai đường: chỉ cho
+    fallback khi lỗi thật sự là quota/auth và chưa có chữ/tool nào được phát, tránh chạy lại
+    một hành động đã làm ngoài đời.
+    """
+    if emitted:
+        return []
+    if not any(task_router.quota_error(str(err or "")) for err in (errors or [])):
+        return []
+    return _chat_fallback_specs(skip_prov=provider)
 
 
 def _chat_provider(mcfg):
@@ -8759,9 +8794,10 @@ _SALE_CACHE = {"ts": 0.0, "key": "", "data": None}   # cache join 5 phút
 
 
 async def _sale_album_images(style: str = ""):
-    """Đọc styles+albums+photos từ Supabase REST, join thành danh sách ảnh phẳng
-    (caption "Style · Album"). Ảnh trả URL R2 tuyệt đối — trình duyệt tải trực tiếp
-    từ Cloudflare, không qua Joyce server lẫn Vercel serverless."""
+    """Đọc styles+albums+photos từ Supabase REST -> {images: list phẳng (caption
+    "Style · Album"), tree: cây 3 tầng styles->albums->photos cho lưới chọn
+    album giống webapp CRM}. Ảnh trả URL R2 tuyệt đối — trình duyệt tải trực
+    tiếp từ Cloudflare, không qua Joyce server lẫn Vercel serverless."""
     now = time.time()
     ck = style or "*"
     if (_SALE_CACHE["data"] is not None and _SALE_CACHE["key"] == ck
@@ -8774,9 +8810,11 @@ async def _sale_album_images(style: str = ""):
         async with httpx.AsyncClient(timeout=12) as c:
             st, al, ph = await asyncio.gather(
                 c.get(base + "/styles", headers=h, params={
-                    "select": "id,title,order", "deleted": "eq.false", "order": "order"}),
+                    "select": "id,title,description,cover_image,order",
+                    "deleted": "eq.false", "order": "order"}),
                 c.get(base + "/albums", headers=h, params={
-                    "select": "id,title,style_id,order", "deleted": "eq.false", "order": "order"}),
+                    "select": "id,title,style_id,cover_image,description,order",
+                    "deleted": "eq.false", "order": "order"}),
                 c.get(base + "/photos", headers=h, params={
                     "select": "id,image,alt,order,album_id,style_id", "deleted": "eq.false",
                     "order": "order", "limit": "400",
@@ -8804,8 +8842,39 @@ async def _sale_album_images(style: str = ""):
         imgs.sort(key=lambda x: (x["_so"], x["_ao"], x["_po"], x["name"]))
         for x in imgs:
             del x["_so"], x["_ao"], x["_po"]
-        _SALE_CACHE.update(ts=now, key=ck, data=imgs)
-        return imgs, None
+        # Cây 3 tầng giống webapp CRM: concept -> album -> ảnh, để màn hình album
+        # của Joyce duyệt được từng album riêng (click chọn) thay vì list phẳng.
+        photos_by_album = {}
+        for x in imgs:
+            photos_by_album.setdefault(x["album"], []).append(
+                {"name": x["name"], "url": x["url"], "alt": x["alt"]})
+        tree = []
+        for s in sorted(st.json() or [], key=lambda r: r.get("order", 9999)):
+            if style and s["id"] != style:
+                continue
+            node = {"id": s["id"], "title": styles_by_id.get(s["id"], s["id"]),
+                    "description": str(s.get("description") or ""),
+                    "cover": str(s.get("cover_image") or ""), "albums": []}
+            ai = 0
+            for a in sorted(al.json() or [], key=lambda r: r.get("order", 9999)):
+                if a.get("style_id") != s["id"]:
+                    continue
+                phs = photos_by_album.get(a["id"]) or []
+                if not phs:
+                    continue
+                node["albums"].append({
+                    "id": a["id"], "title": str(a.get("title") or "Album"),
+                    "cover": str(a.get("cover_image") or ""),
+                    # webapp tự gán HOT TRENDING cho album đầu theo order
+                    # (không phải cột DB) — bắt chước: 2 album đầu mỗi concept.
+                    "badge": "HOT TRENDING" if ai < 2 else "",
+                    "description": str(a.get("description") or ""),
+                    "photos": phs})
+                ai += 1
+            if node["albums"]:
+                tree.append(node)
+        _SALE_CACHE.update(ts=now, key=ck, data={"images": imgs, "tree": tree})
+        return _SALE_CACHE["data"], None
     except Exception as e:
         return None, str(e).split("\n")[0][:160]
 
@@ -8818,10 +8887,11 @@ async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh"),
     path tương đối gốc brain để mở qua /files/raw. Trần 400 ảnh, mới trước cũ sau.
     source=sale: kho ảnh H2O Sale Album trên Supabase (tùy chọn lọc style=<id>)."""
     if source == "sale":
-        imgs, err = await _sale_album_images(style.strip())
+        data, err = await _sale_album_images(style.strip())
         if err:
-            return {"source": "sale", "images": [], "error": "sale_unreachable", "detail": err}
-        return {"source": "sale", "images": imgs[:400]}
+            return {"source": "sale", "images": [], "tree": [],
+                    "error": "sale_unreachable", "detail": err}
+        return {"source": "sale", "images": data["images"][:400], "tree": data["tree"]}
     # rglob + stat() đồng bộ trên cả cây ảnh: chạy ở luồng phụ để không chặn event loop.
     return await asyncio.to_thread(_album_local_scan, brain)
 
@@ -17622,6 +17692,8 @@ async def websocket_endpoint(ws: WebSocket):
                                      compaction.bootstrap_prompt(
                                          _codex_raw, _codex_current,
                                          summary=_row0.get("compact_summary") or ""))
+                    _codex_errors = []
+                    _codex_emitted = False
                     async def _consume_codex(prompt, suppress_resume_error=False):
                         # _ctx_in PHẢI khai nonlocal: nó bị `+=` ngay dưới, mà thiếu dòng này
                         # thì Python coi nó là biến CỤC BỘ của hàm con - đọc trước khi gán là
@@ -17630,7 +17702,7 @@ async def websocket_endpoint(ws: WebSocket):
                         # được lưu, người dùng chỉ thấy "Lỗi xử lý". Đây là hàm con DUY NHẤT
                         # đụng vào _ctx_in; hai nhánh engine kia cộng thẳng trong _do_turn nên
                         # không dính.
-                        nonlocal final_text, _ctx_in
+                        nonlocal final_text, _ctx_in, _codex_emitted
                         resume_failed = False
                         # Đo theo từng invocation thật: nhánh khôi phục thread có thể gọi lần hai.
                         _CONTEXT_RUNTIME.observe_payload(
@@ -17646,6 +17718,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
                             elif et == "progress":
+                                _codex_emitted = True
                                 # Bước BẮT ĐẦU: hiện ngay thành bước đang chạy, như Claude.
                                 # Trước bản port này bước chỉ hiện lúc đã xong, lệnh dài trông
                                 # như treo.
@@ -17653,17 +17726,21 @@ async def websocket_endpoint(ws: WebSocket):
                                     dang_chay.add(ev["id"])
                                 await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "files": tool_label.tep(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "tool_call" and ev.get("id") and ev["id"] in dang_chay:
+                                _codex_emitted = True
                                 # Bước đã hiện lúc bắt đầu: giờ chỉ đánh dấu xong, không thêm bước đôi.
                                 dang_chay.discard(ev["id"])
                                 out = str((ev.get("item") or {}).get("aggregated_output") or "")
                                 await ws.send_text(json.dumps({"type": "tool_result", "content": out[:200]}))
                             elif et == "tool_call":
+                                _codex_emitted = True
                                 await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "files": tool_label.tep(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "text":
+                                _codex_emitted = True
                                 final_text += ev["content"]
                                 await ws.send_text(json.dumps({"type": "stream", "content": ev["content"], "tts": False}))
                             elif et == "final":
                                 final_text = ev.get("content") or final_text
+                                _codex_emitted = _codex_emitted or bool(final_text)
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
                                 _ctx_in += int(ev.get("tokens_in", 0) or 0)
@@ -17680,8 +17757,10 @@ async def websocket_endpoint(ws: WebSocket):
                                     resume_failed = True
                                     if suppress_resume_error:
                                         continue
-                                await ws.send_text(_limit_frame(
-                                    ev.get("content") or "", "codex", actual_model))
+                                # Giữ lỗi lại tới khi biết có thể chuyển sang vòng API hay không.
+                                # Phát ngay một frame lỗi rồi mới trả lời bằng Gemini khiến UI vừa
+                                # báo đỏ vừa hiện câu trả lời thành công trong cùng lượt.
+                                _codex_errors.append(str(ev.get("content") or "Codex lỗi"))
                         return resume_failed
 
                     _resume_failed = await _consume_codex(
@@ -17698,6 +17777,83 @@ async def websocket_endpoint(ws: WebSocket):
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
                         await _consume_codex(_fallback)
+                    response_engine = "codex"
+                    response_model = actual_model
+
+                    # Não chính ChatGPT/Luna chạy bằng Codex CLI, nên trước đây nó đứng ngoài
+                    # `_stream_chain`: hết quota là trả bong bóng rỗng dù chủ đã xếp Gemini ở
+                    # hàng dự phòng. Chỉ nối sang API khi Codex chưa phát chữ/tool nào; mỗi event
+                    # từ `_stream_chain` mang provider/model THỰC để usage không bị ghi nhầm cho
+                    # mắt đầu tiên.
+                    _fb_specs = _subscription_fallback_specs(
+                        "openai-oauth", _codex_errors, _codex_emitted)
+                    _fb_errors = []
+                    if not final_text and _fb_specs:
+                        _fp, _fkey, _fmodel = _fb_specs[0]
+                        await ws.send_text(json.dumps({
+                            "type": "status",
+                            "content": (f"{_api_label('openai-oauth')} hết hạn mức - "
+                                        f"đang chuyển sang {_api_label(_fp)}…"),
+                        }, ensure_ascii=False))
+                        _fb_messages = ([{"role": "system", "content": sysprompt}] +
+                                        list(_codex_raw) +
+                                        [{"role": "user", "content": user_message}])
+                        _fb_gen = await _api_stream_mcp(
+                            _fp, _fkey, _fmodel, _fb_messages, reasoning,
+                            brain=brain, force_lazy=True,
+                            mode=_muc_quyen_luot_chat(_row0, user_message),
+                        )
+                        async for _fev in _fb_gen:
+                            _ft = _fev.get("type")
+                            _fprov = _fev.get("provider") or _fp
+                            _factual = _fev.get("model") or _fmodel or response_model
+                            if _ft == "meta":
+                                response_engine = _fprov
+                                response_model = _factual
+                                _CONTEXT_RUNTIME.set_route(runtime_trace, _fprov, _factual)
+                            elif _ft == "usage":
+                                response_engine = _fprov
+                                response_model = _factual
+                                _ctx_in += int(_fev.get("input", 0) or 0)
+                                usage_store.record(
+                                    _fprov, _factual,
+                                    _fev.get("input", 0), _fev.get("output", 0))
+                                _CONTEXT_RUNTIME.record_usage(
+                                    runtime_trace,
+                                    _fev.get("input", 0), _fev.get("output", 0))
+                            elif _ft == "tool_call":
+                                response_engine = _fprov
+                                response_model = _factual
+                                await ws.send_text(json.dumps({
+                                    "type": "tool_call", "tool": _fev.get("name", ""),
+                                    "detail": tool_label.chi_tiet(_fev),
+                                    "files": tool_label.tep(_fev),
+                                    "content": f"⚙ MCP: {_fev.get('name', '')}",
+                                }, ensure_ascii=False))
+                            elif _ft == "text":
+                                response_engine = _fprov
+                                response_model = _factual
+                                final_text += _fev.get("content") or ""
+                                await ws.send_text(json.dumps({
+                                    "type": "stream", "content": _fev.get("content") or "",
+                                    "tts": False,
+                                }, ensure_ascii=False))
+                            elif _ft == "final" and not final_text:
+                                response_engine = _fprov
+                                response_model = _factual
+                                final_text = _fev.get("content") or ""
+                            elif _ft == "error":
+                                _fb_errors.append(str(_fev.get("content") or "lỗi dự phòng"))
+
+                    # Không có mắt dự phòng chạy được thì mới phát lỗi gốc; nếu fallback thành
+                    # công, lỗi quota của Luna chỉ là lý do chuyển mạch chứ không phải lỗi lượt.
+                    if not final_text and _codex_errors:
+                        await ws.send_text(_limit_frame(
+                            _codex_errors[-1], "codex", actual_model or ""))
+                    if not final_text and _fb_errors:
+                        await ws.send_text(json.dumps({
+                            "type": "error", "content": _fb_errors[-1],
+                        }, ensure_ascii=False))
                     # Cùng lưới với nhánh Claude ở dưới: Codex in câu hết lượt như một
                     # agent_message thường chứ không phải turn.failed.
                     if final_text and _het_luot_ap_dao(final_text) \
@@ -17706,8 +17862,8 @@ async def websocket_endpoint(ws: WebSocket):
                         final_text = ""
                     final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
-                        "type": "response", "content": final_text, "engine": "codex",
-                        "model": actual_model, "session_id": conv_sid,
+                        "type": "response", "content": final_text, "engine": response_engine,
+                        "model": response_model, "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
             elif (kind == "api" and api_key) or kind == "oauth":
                 orchestrator_plan = None
@@ -17925,6 +18081,7 @@ async def websocket_endpoint(ws: WebSocket):
                                      if _phase8_plan.action == "use" and not _persona
                                      else _legacy_system_prompt())
                         label = _api_label(prov)
+                        actual_provider = prov
                         actual_model = api_model or "?"
                         _ident = (
                             f"\n\n[Sự thật hệ thống - TUÂN THỦ tuyệt đối: Bạn đang chạy qua {label}, "
@@ -17955,13 +18112,19 @@ async def websocket_endpoint(ws: WebSocket):
                                 force_lazy=(_phase8_plan.action == "use" or _attempt > 1),
                             )
                             async for ev in gen:
+                                event_provider = ev.get("provider") or actual_provider
                                 if ev["type"] == "meta":
+                                    actual_provider = event_provider
                                     actual_model = ev.get("model") or actual_model
-                                    _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
+                                    _CONTEXT_RUNTIME.set_route(
+                                        runtime_trace, actual_provider, actual_model)
                                 elif ev["type"] == "usage":
+                                    actual_provider = event_provider
+                                    actual_model = ev.get("model") or actual_model
                                     _ctx_in += int(ev.get("input", 0) or 0)
                                     usage_store.record(
-                                        prov, actual_model, ev.get("input", 0), ev.get("output", 0)
+                                        actual_provider, actual_model,
+                                        ev.get("input", 0), ev.get("output", 0)
                                     )
                                     _CONTEXT_RUNTIME.record_usage(
                                         runtime_trace, ev.get("input", 0), ev.get("output", 0)
@@ -17969,12 +18132,16 @@ async def websocket_endpoint(ws: WebSocket):
                                 elif ev["type"] == "limit_exceeded":
                                     _limit_hit = ev
                                 elif ev["type"] == "tool_call":
+                                    actual_provider = event_provider
+                                    actual_model = ev.get("model") or actual_model
                                     await ws.send_text(json.dumps({
                                         "type": "tool_call", "tool": ev.get("name", ""),
                                         "detail": tool_label.chi_tiet(ev), "files": tool_label.tep(ev),
                                         "content": f"⚙ MCP: {ev.get('name', '')}",
                                     }))
                                 elif ev["type"] == "text":
+                                    actual_provider = event_provider
+                                    actual_model = ev.get("model") or actual_model
                                     final_text += ev["content"]
                                     await ws.send_text(json.dumps({
                                         "type": "stream", "content": ev["content"], "tts": False,
@@ -18025,7 +18192,7 @@ async def websocket_endpoint(ws: WebSocket):
                             }))
                         final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                         await ws.send_text(json.dumps({
-                            "type": "response", "content": final_text, "engine": prov,
+                            "type": "response", "content": final_text, "engine": actual_provider,
                             "model": actual_model, "session_id": conv_sid,
                             **_ctx_frame(runtime_trace, _ctx_in),
                         }))

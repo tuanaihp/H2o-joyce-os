@@ -490,11 +490,37 @@
       var speaking = !!(os && (" " + os.className + " ").indexOf(" speaking ") >= 0);
       return { state: speaking ? "speaking" : "idle", responseId: sid || (speaking ? "live" : ""), sessionId: sid };
     }
+    // album.mjs nạp lười độc lập: nút 🖼 ALBUM phải mở được kể cả khi anh chưa
+    // bao giờ bật HAND CAM (cụm module tay chỉ nạp khi toggleHands chạy).
+    var albumMod = null, albumLoading = null;
+    function loadAlbumMod() {
+      if (albumMod) return Promise.resolve(albumMod);
+      if (!albumLoading) {
+        albumLoading = import("/static/joyce-hands/album.mjs")
+          .then(function (m) { albumMod = m; return m; })
+          .catch(function () { albumLoading = null; return null; });
+      }
+      return albumLoading;
+    }
     function ensureAlbum() {
-      if (album || !handsMods || !handsMods.album) return;
+      var M = (handsMods && handsMods.album) || albumMod;
+      if (album || !M) return;
       var hc = document.querySelector(".hud-center");
       if (!hc) return;
-      album = new handsMods.album.JoyceAlbum({ host: hc, brain: "Ban Hang - Sales Hinh Anh" });
+      album = new M.JoyceAlbum({ host: hc, brain: "Ban Hang - Sales Hinh Anh",
+        onState: function (open) { syncAlbumButton(open); } });
+    }
+    function syncAlbumButton(open) {
+      var b = apex && apex.root && apex.root.querySelector("[data-action=album]");
+      if (!b) return;
+      b.setAttribute("aria-pressed", String(!!open));
+      b.textContent = open ? "🖼 ĐÓNG" : "🖼 ALBUM";
+    }
+    function openAlbum() {
+      if (album && album.isOpen()) { album.close(); return; }   // bấm lần nữa = đóng
+      ensureAlbum();
+      if (album) { album.open(); return; }
+      loadAlbumMod().then(function () { ensureAlbum(); if (album) album.open(); });
     }
     // Hồ sơ cử chỉ đã luyện (server STATE_DIR/hand_gestures.json): nạp vào engine khi
     // mở cam, và áp lại ngay khi bảng huấn luyện lưu (event joyce-hands:profile).
@@ -640,6 +666,7 @@
           onError: function () {},
           onGestureRequest: function () { toggleHands(); },
           onTrainRequest: function () { openHandTrainer(); },
+          onAlbumRequest: function () { openAlbum(); },
         });
       } catch (e) { apex = null; return; }
       Promise.resolve(apex.ready).then(function () {
@@ -649,6 +676,7 @@
         if (host && host.dataset) host.dataset.mode = "apex";
         try { apex.setState(mapState(state)); apex.setLevel(amp); } catch (e) {}
         wireHands();   // panel mở sẵn mà apex dựng lại -> nối bridge vào avatar mới
+        syncAlbumButton(album && album.isOpen());   // apex dựng lại -> nút album vẽ lại đúng trạng thái
         if (active) startIntro(enterApex);   // lần đầu nạp xong: cũng chạy cảnh hạt ghép hình
       }).catch(function () { if (!destroyed) dropApex(); });
     }
@@ -697,13 +725,16 @@
     }
     function enterApex() { if (apex && apex.loaded && active) { try { apex.enter(); } catch (e) {} } ensureGestures(); }
 
-    // ---- Đôi tay hạt + bảng hologram (joyce-gestures.js, 1.3.24) ----
+    // ---- Hiệu ứng trích xuất dữ liệu: ánh sáng, chuyển động thân, số liệu thật bay ra (joyce-gestures.js) ----
     // Ảnh nhân vật không có tay: khi Joyce làm task/trả lời, hạt tụ thành tay bấm bảng.
     var gestures = null;
     function ensureGestures() {
       if (gestures || !layer || !window.JoyceGestures || !apex || !apex.loaded) return;
       try {
-        gestures = new window.JoyceGestures(layer, { getAspect: function () { return (apex && apex.aspect) || 0.926; } });
+        gestures = new window.JoyceGestures(layer, {
+          getAspect: function () { return (apex && apex.aspect) || 0.926; },
+          getBody: function () { return (apex && apex.glCanvas) || null; }   // thân người nghiêng/gật khi dò dữ liệu
+        });
         gestures.setState(state); gestures.setLevel(amp);
         if (active) gestures.start();
       } catch (e) { gestures = null; }
