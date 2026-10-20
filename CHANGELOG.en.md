@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.24] - 2026-10-20
+### Added
+- **Constellation-style Nebula view** (in progress).
+
 ## [1.3.23] - 2026-10-19
 ### Added
 - **3D Joyce now appears in quantum particles**: when you open 3D Joyce, particles shoot out of a point of light, swirl into a comet stream and assemble into a human figure; the familiar avatar then appears in exactly that spot. Everything after the intro stays as before.
