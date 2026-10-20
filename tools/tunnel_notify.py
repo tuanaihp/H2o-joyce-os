@@ -162,6 +162,24 @@ def gui_telegram(text: str) -> bool:
         return False
 
 
+def gui_inbox_joyce(link: str) -> bool:
+    """Bỏ thư link tunnel vào hòm thư Joyce (chuông trên dashboard) - để mở app ra
+    là thấy link mới nhất kể cả khi không đọc Telegram. dedup theo link nên chạy
+    lại nhiều lần vẫn chỉ MỘT thư cho mỗi link."""
+    try:
+        sys.path.insert(0, str(ROOT / "server"))
+        import inbox
+        inbox.add(
+            "Link Joyce từ máy tính:\n\n" + link +
+            "\n\nMở trên điện thoại để vào dashboard.",
+            kind="system", title="Link tunnel Joyce mới", label="tunnel",
+            dedup="tunnel:" + link)
+        return True
+    except Exception as e:
+        print("bo hom thu joyce loi:", type(e).__name__, e, flush=True)
+        return False
+
+
 def main() -> int:
     if tunnel_bi_tat():
         print("co", TAT.name, "- chu da tat tunnel, khong mo lai", flush=True)
@@ -205,6 +223,10 @@ def main() -> int:
         LAST.write_text(json.dumps(state), encoding="utf-8")
     except Exception:
         pass
+
+    # Thu vào hòm Joyce chạy trước điểm return sớm: link cũ đã gửi tele rồi nhưng
+    # lần đầu sau khi nâng cấp vẫn cần rơi một mẩu vào chuông (dedup gánh lặp).
+    gui_inbox_joyce(link)
 
     if link == cu and da_gui_cu:
         print("link cu da gui roi, khong gui lai:", link, flush=True)
