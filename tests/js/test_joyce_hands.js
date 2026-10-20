@@ -246,6 +246,9 @@ async function main() {
   check("album: nguồn /album + ảnh qua /files/raw", album.includes("/album?brain=") && album.includes("/files/raw?brain="));
   check("album: ưu tiên nguồn sale, fallback local khi trống/lỗi", album.includes("/album?source=sale") && album.includes("src: 'sale'") && album.includes("src: 'local'"));
   check("album: ảnh sale tải thẳng URL R2 (không qua /files/raw)", album.includes("it.url") && album.includes("/^https?:/i"));
+  check("apex: nút ALBUM trên .jh-top + routing onAlbumRequest", apex.includes('data-action="album"') && apex.includes("onAlbumRequest"));
+  check("wrapper: nút album -> openAlbum() (không cần bật HAND CAM)", wrap.includes("onAlbumRequest") && wrap.includes("openAlbum") && wrap.includes("loadAlbumMod"));
+  check("wrapper: nút album toggle + đồng bộ nhãn theo onState", wrap.includes("syncAlbumButton") && wrap.includes("album.isOpen()"));
   check("album: brain mặc định Sales Hinh Anh", album.includes("Ban Hang - Sales Hinh Anh"));
   check("album: swipe phải/trái lật, xuống đóng", album.includes("'right'") && album.includes("this.close()"));
   check("album: zoom liên tục từ ratio 2 ngón, kẹp 1..4.5", album.includes("zoomFromRatio") && album.includes("ZOOM_MAX = 4.5"));
