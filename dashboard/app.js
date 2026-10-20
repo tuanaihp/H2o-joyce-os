@@ -154,6 +154,8 @@ function setOrbState(state, label, petState) {
   const thinking = state === "thinking";
   _thinkingActive = thinking;
   if (joyceGraph) joyceGraph.setThinking(thinking);
+  // Tinh vân kiểu chòm sao (brain-constellation.js) diễn theo cùng trạng thái này.
+  try { if (window.JoyceTinhVan) window.JoyceTinhVan.setState(state); } catch (e) {}
   // Linh vật ở mép màn hình diễn theo ĐÚNG trạng thái này, không có nguồn riêng: nếu chữ
   // trên orb nói "đang nghĩ" mà pet vẫn ngồi chớp mắt thì một trong hai đang nói dối.
   // Lớp rỗng "" của orb là trạng thái nghỉ.
@@ -3092,6 +3094,8 @@ async function reloadGraph() {
     const stats = data.stats || {};
     veGraphStats(stats.total_notes, stats.total_links);
     renderConceptLabels(data.categories || [], stats.total_notes || 0);
+    // Chòm sao Tinh vân gom lại theo thư mục từ chính dữ liệu này, khỏi gọi /graph lần hai.
+    try { window.dispatchEvent(new CustomEvent("joyce:graph-data", { detail: { nodes: data.nodes || [], stats: stats } })); } catch (e2) {}
   } catch (e) { _graphStatsCuoi = null; graphStats.textContent = window.t("models.err") + " " + e.message; }
 }
 // ---- Việc CHỈ THẤY ĐƯỢC ở màn chính: hoãn khi đang đứng ở trang quản lý ----
@@ -3177,6 +3181,7 @@ function connectGraphWatch() {
     if (m.type !== "graph_add" || !joyceGraph) return;
     const r = joyceGraph.addOrUpdate(m.node, m.linkTargets, m.isNew);
     if (r && r.created) {
+      try { window.dispatchEvent(new Event("joyce:graph-add")); } catch (e2) {}
       const s = joyceGraph.nodeStats();
       veGraphStats(s.nodes, s.links);
       // Nháy nhẹ nhãn để báo có note mới sinh ra
@@ -3424,6 +3429,7 @@ window.addEventListener("resize", () => { if (joyceGraph) joyceGraph.resize(); }
 let _stopBtnTick = 0;
 function pumpAudioLevel() {
   if (joyceGraph) joyceGraph.setLevel(voice.getLevel());
+  if (window.JoyceTinhVan) window.JoyceTinhVan.setLevel(voice.getLevel());
   // Cập nhật hiển thị nút stop ~6 lần/giây (theo dõi cả lúc Joyce đang đọc)
   if (_theoLoi && (_stopBtnTick % 3) === 0) nhipTheoLoi();   // V3: chữ theo lời ~20 lần/giây
   if ((_stopBtnTick++ % 10) === 0) {

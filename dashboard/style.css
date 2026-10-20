@@ -4750,3 +4750,60 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
   text-transform: uppercase; white-space: nowrap;
 }
 .joyce-album .ja-empty { color: #9fd8e8; font: 13px var(--font, sans-serif); text-align: center; line-height: 1.7; }
+
+/* ============================================
+   Tinh vân kiểu CHÒM SAO (brain-constellation.js, 1.3.24 - docs/dev/2026-10-tinh-van-apex-design.md)
+   Quả cầu brain đang mở ở giữa + các nhánh thư mục / vận hành / MCP. Nút #tvModeBtn chuyển
+   qua lại với đồ thị note cũ (graph.js). Lớp .tv-chom trên .hud-center che đồ thị note.
+   ============================================ */
+.bc-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.bc-layer[hidden] { display: none; }
+.bc-sphere { position: absolute; pointer-events: none; }
+.bc-web { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; font-family: var(--font); }
+.bc-web .bc-hit { pointer-events: all; cursor: pointer; }
+@keyframes bcTwinkle { 0%, 100% { opacity: .14; } 50% { opacity: .42; } }
+.bc-twinkle { animation: bcTwinkle 4s ease-in-out infinite; }
+.hud-center.brain-overlays-hidden .bc-label { display: none; }
+.hud-center.tv-chom #graph2d,
+.hud-center.tv-chom .concept-labels { opacity: 0; visibility: hidden; pointer-events: none; }
+.hud-center.hud-on .bc-layer,
+.hud-center.hud-on .tv-mode-btn { display: none; }
+.tv-mode-btn .tvm-chom { display: none; }
+.tv-mode-btn[aria-pressed="true"] .tvm-note { display: none; }
+.tv-mode-btn[aria-pressed="true"] .tvm-chom { display: block; }
+.bc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bc-card {
+  position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 2;
+  width: min(330px, 92%); max-height: calc(100% - 140px); display: flex; flex-direction: column;
+  pointer-events: auto; overflow: hidden; color: var(--text);
+  background: var(--panel-solid); border: 1px solid color-mix(in srgb, var(--bc-c) 40%, transparent);
+  border-radius: 14px; box-shadow: 0 0 36px color-mix(in srgb, var(--bc-c) 16%, transparent), var(--brain-glass-shadow);
+}
+.bc-card[hidden] { display: none; }
+.bc-card-head {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: grab; user-select: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--bc-c) 22%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bc-c) 10%, transparent), transparent);
+}
+.bc-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--bc-c); box-shadow: 0 0 10px var(--bc-c); }
+.bc-card-ttl { font-size: 13px; font-weight: 600; letter-spacing: .08em; color: var(--bc-c); }
+.bc-card-sub { font-size: 11px; color: var(--text3); letter-spacing: .04em; }
+.bc-x { margin-left: auto; border: 0; background: none; color: var(--text3); font-size: 18px; line-height: 1; padding: 4px 8px; cursor: pointer; }
+.bc-x:hover { color: var(--text); }
+.bc-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.bc-cap { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--text3); }
+.bc-list { display: flex; flex-direction: column; gap: 2px; }
+.bc-note {
+  text-align: left; border: 0; border-radius: 8px; padding: 6px 8px; cursor: pointer;
+  background: transparent; color: var(--text2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bc-note:hover, .bc-note:focus-visible { background: var(--wash); color: var(--text); }
+.bc-empty { font-size: 12px; color: var(--text3); }
+.bc-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.bc-btn {
+  border: 1px solid color-mix(in srgb, var(--bc-c) 35%, transparent); border-radius: 20px; padding: 5px 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--bc-c) 8%, transparent); color: var(--text); font-size: 12px;
+}
+.bc-btn:hover { border-color: var(--bc-c); }
+.bc-status { font-size: 12px; color: var(--warn-ink); }
+.bc-status.on { color: var(--ok-ink); }
