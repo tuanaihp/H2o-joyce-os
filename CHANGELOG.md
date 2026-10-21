@@ -8,6 +8,11 @@
 - **Làm xong bấm "Đã xong"**: Joyce tự hỏi khi việc chạy xong, bấm là việc vào cột Xong ở Việc → Công việc của phòng. Bấm "Ghi nhớ cách làm này" để Joyce ghi cách làm thực tế vào wiki; đủ 3 lần làm một việc thì tự ghi nhớ.
 - Có sẵn việc mẫu cho Bán hàng, CSKH và hai brain cá nhân (Thủy, Tuấn). Chọn "Toàn khối" thì nhân viên chỉ thấy việc của phòng chính.
 
+## [1.3.25] - 2026-10-21
+### Thêm mới
+- **Tầng tự cải tiến (PPC) theo mô hình Harness²**: Joyce học cách tối ưu harness (prompt, skill, agent) từ bằng chứng kết quả thật thay vì sửa theo cảm tính. Gồm 3 năng lực mới trong Brain Default - skill `cham-diem-tuong-phan` (chấm A/B ẩn danh, chống nịnh người chấm và chống lệnh nhúng trong bằng chứng), workflow `tu-cai-tien-agent` (Kỹ sư Cải tiến đề xuất -> Giám định Tương phản chấm ẩn danh -> phiếu chờ chủ duyệt, không bao giờ tự áp), loop `dinh-duong-bai-hoc` (mỗi ngày chưng cất bài học có bằng chứng từ việc đã chạy, tự mở đề xuất khi thấy agent lặp lỗi). Workflow và loop tạo ở trạng thái TẮT - bật ở trang Việc khi muốn dùng.
+- **Thẻ "Tự cải tiến (PPC)" trong tab Tổng quan**: đếm đề xuất chờ duyệt trong `Joyce/proposals/`, số bài học và ngày nhật ký trong `Joyce/learn-log/`, lượt học gần nhất - đọc trực tiếp từ file vault nên không cần thêm cơ sở dữ liệu.
+
 ## [1.3.24] - 2026-10-20
 ### Thêm mới
 - **Tinh vân kiểu chòm sao**: tab Tinh vân giờ có quả cầu của brain đang mở ở giữa (Trái Đất cho Brain Default, tinh cầu đúng phòng ban, ngôi sao cho brain thương hiệu) trong vòng vàng, quanh đó là các nhánh: xanh = tri thức, cam = vận hành, xám = kết nối MCP (nét đứt khi chưa bật).

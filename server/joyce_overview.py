@@ -23,6 +23,7 @@ Endpoint:
 from __future__ import annotations
 
 import datetime as _dt
+import json
 import os
 import re
 import threading
@@ -1085,6 +1086,55 @@ def _today_bounds() -> tuple:
     return s, s + _DAY
 
 
+def _harness(deps: OverviewDeps, brain: str) -> dict:
+    """Tầng tự cải tiến (Harness² -> Joyce): đề xuất chờ duyệt trong Joyce/proposals/,
+    trạng thái vòng học trong Joyce/ppc-state.json, nhật ký bài học Joyce/learn-log/.
+    Chỉ đọc file - lỗi/mục thiếu trả về số 0, không làm hỏng cả trang tổng quan."""
+    out = {"pending": [], "pending_n": 0, "applied_n": 0,
+           "lessons_total": 0, "learn_log_days": 0, "last_run": "", "last_items": []}
+    try:
+        root = str(deps.brain_root(brain) or "")
+        if not root or not os.path.isdir(root):
+            return out
+        jdir = os.path.join(root, "Joyce")
+        pdir = os.path.join(jdir, "proposals")
+        if os.path.isdir(pdir):
+            for fn in sorted(os.listdir(pdir)):
+                if not fn.endswith(".md"):
+                    continue
+                try:
+                    head = open(os.path.join(pdir, fn), encoding="utf-8", errors="ignore").read(1500)
+                except OSError:
+                    continue
+                if not re.search(r"^type:\s*proposal\b", head, re.M):
+                    continue  # README.md, file ghi chú - không phải đề xuất
+                m = re.search(r"^status:\s*([a-z]+)", head, re.M)
+                st = m.group(1) if m else "pending"
+                if st == "applied":
+                    out["applied_n"] += 1
+                elif st == "pending":
+                    t = re.search(r"^target:\s*(\S+)", head, re.M)
+                    v = re.search(r"^verdict:\s*\"?([a-z]*)", head, re.M)
+                    out["pending"].append({"file": fn,
+                                           "target": t.group(1) if t else "",
+                                           "verdict": (v.group(1) if v else "") or ""})
+            out["pending_n"] = len(out["pending"])
+            out["pending"] = out["pending"][:6]
+        try:
+            state = json.load(open(os.path.join(jdir, "ppc-state.json"), encoding="utf-8"))
+            out["lessons_total"] = int(state.get("lessons_total") or 0)
+            out["last_run"] = str(state.get("last_run") or "")
+            out["last_items"] = [str(x)[:80] for x in (state.get("last_items") or [])][:5]
+        except (OSError, ValueError, TypeError):
+            pass
+        ldir = os.path.join(jdir, "learn-log")
+        if os.path.isdir(ldir):
+            out["learn_log_days"] = sum(1 for f in os.listdir(ldir) if f.endswith(".md"))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def register(app, deps: OverviewDeps):
     router = APIRouter()
 
@@ -1232,6 +1282,7 @@ def register(app, deps: OverviewDeps):
             "brief": brief, "attention": attention, "kpis": kpis, "priority": prio,
             "domains": domains, "business_sources": BUSINESS_SOURCES,
             "units": units, "schedule": rems_today[:8], "system": system, "memory": memory,
+            "harness": run("harness", lambda: _harness(deps, brain), {}),
             "activity": activity[:8], "orchestration": view.get("orchestration") or "off",
             "partial": bool(down), "sections_down": sorted(set(down)),
         }

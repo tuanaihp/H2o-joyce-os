@@ -208,6 +208,17 @@
     const m = d.memory || {};
     const mem = `<div class="ov-mem">${[["facts", m.facts], ["wiki", m.wiki], ["sources", m.sources], ["skills", m.skills], ["phong", m.phong], ["brands", m.brands]]
       .map(([k, v]) => `<div><strong>${so(v || 0)}</strong><span>${esc(t(MEM_KEY[k]))}</span></div>`).join("")}</div>`;
+    const hz = d.harness || {};
+    const hzVerdictKey = { win: "ov.hz_verdict_win", keep: "ov.hz_verdict_keep", inconclusive: "ov.hz_verdict_inconclusive" };
+    const hzPend = (hz.pending || []).map((p) =>
+      `<div class="ov-act"><span class="ov-act-i">${ic("git-pull-request")}</span><div><strong>${esc(p.target || p.file)}</strong><span>${esc(t(hzVerdictKey[p.verdict] || "ov.hz_verdict_none"))}</span></div></div>`).join("");
+    const hzBody = (hz.pending_n || hz.lessons_total || hz.learn_log_days) ? `
+      ${hz.pending_n ? `<div class="ov-hz-pend">${ic("flask-conical")} ${esc(t("ov.hz_pending", { n: hz.pending_n }))}</div>` : ""}
+      ${hzPend ? `<div class="ov-acts">${hzPend}</div>` : ""}
+      <div class="ov-mem">${[["ov.hz_lessons", hz.lessons_total], ["ov.hz_log", hz.learn_log_days], ["ov.hz_applied", hz.applied_n]]
+        .map(([k, v]) => `<div><strong>${so(v || 0)}</strong><span>${esc(t(k))}</span></div>`).join("")}</div>
+      ${hz.last_run ? `<div class="ov-hz-last">${esc(t("ov.hz_last", { d: hz.last_run }))}</div>` : ""}`
+      : `<div class="ov-empty">${esc(t("ov.hz_empty"))}</div>`;
     const act = (d.activity || []).length ? `<div class="ov-acts">${d.activity.map((a) =>
       `<div class="ov-act"><span class="ov-act-i">${ic(a.kind === "task_done" ? "circle-check" : a.kind === "reminder" ? "alarm-clock" : "inbox")}</span><div><strong>${esc(a.title)}</strong><span>${esc(a.label || t(a.kind === "task_done" ? "ov.act_task" : "ov.act_inbox"))}</span></div><time>${esc(a.age)}</time></div>`).join("")}</div>`
       : `<div class="ov-empty">${esc(t("ov.act_empty"))}</div>`;
@@ -228,6 +239,7 @@
         ${panel(t("ov.p_sched"), t("ov.p_sched_d", { so: (d.schedule || []).length }), sched, linkBtn("calendar", t("ov.go_cal")))}
         ${panel(t("ov.p_sys"), t("ov.p_sys_d"), `<div class="ov-hlist">${(d.system || []).map(sysRow).join("")}</div>`)}
         ${panel(t("ov.p_mem"), t("ov.p_mem_d"), mem, linkBtn("home", t("ov.go_brain")))}
+        ${panel(t("ov.p_hz"), t("ov.p_hz_d"), hzBody, linkBtn("kanban", t("ov.hz_go")))}
         ${panel(t("ov.p_act"), t("ov.p_act_d"), act)}
       </aside></div></div>`;
     ganDieuHuong(el);

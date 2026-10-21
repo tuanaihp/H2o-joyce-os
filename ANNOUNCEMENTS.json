@@ -2,6 +2,19 @@
   "format_version": 1,
   "announcements": [
     {
+      "id": "harness2-ppc-self-improve",
+      "kind": "community",
+      "title": "Joyce học được cơ chế tự cải tiến (PPC)",
+      "summary": "Tích hợp ý tưởng Harness²: đề xuất sửa agent từ bằng chứng, giám định ẩn danh công bằng, bài học tích luỹ theo ngày.",
+      "body": "Ba năng lực mới trong Brain Default: skill 'Chấm điểm tương phản' (chấm A/B công bằng, chống nịnh và chống lệnh nhúng trong bằng chứng), workflow 'Tự cải tiến agent/skill' (đề xuất -> giám định -> chờ chủ duyệt), loop 'Định dưỡng bài học' (mỗi ngày chưng cất bài học có bằng chứng từ việc đã chạy). Theo dõi tại thẻ 'Tự cải tiến (PPC)' trong tab Tổng quan. Workflow và loop đang TẮT - bật ở trang Việc khi muốn dùng.",
+      "published_at": "2026-10-21",
+      "priority": "high",
+      "cta": {
+        "label": "Xem nhật ký cập nhật →",
+        "action": "changelog"
+      }
+    },
+    {
       "id": "community-notification-inbox-launch",
       "kind": "community",
       "title": "Hộp thư Thông báo đã sẵn sàng",
