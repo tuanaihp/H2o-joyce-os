@@ -8791,7 +8791,7 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
 _ALBUM_IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"}
 
 # Nguồn "sale": Supabase của app H2O STUDIO Sale Album (styles -> albums -> photos,
-# ảnh trỏ thẳng R2). Key publishable nằm sẵn trong bundle public của trang đó —
+# ảnh trỏ thẳng R2). Key publishable nằm sẵn trong bundle public của trang đó;
 # RLS quyết định quyền đọc; env cho phép đổi khi chủ app xoay project mà không sửa code.
 _SALE_SUPA_URL = os.environ.get(
     "H2O_SALE_SUPABASE_URL", "https://rlqrittjugurokbvtxlt.supabase.co").rstrip("/")
@@ -8803,7 +8803,7 @@ _SALE_CACHE = {"ts": 0.0, "key": "", "data": None}   # cache join 5 phút
 async def _sale_album_images(style: str = ""):
     """Đọc styles+albums+photos từ Supabase REST -> {images: list phẳng (caption
     "Style · Album"), tree: cây 3 tầng styles->albums->photos cho lưới chọn
-    album giống webapp CRM}. Ảnh trả URL R2 tuyệt đối — trình duyệt tải trực
+    album giống webapp CRM}. Ảnh trả URL R2 tuyệt đối: trình duyệt tải trực
     tiếp từ Cloudflare, không qua Joyce server lẫn Vercel serverless."""
     now = time.time()
     ck = style or "*"
@@ -8873,7 +8873,7 @@ async def _sale_album_images(style: str = ""):
                     "id": a["id"], "title": str(a.get("title") or "Album"),
                     "cover": str(a.get("cover_image") or ""),
                     # webapp tự gán HOT TRENDING cho album đầu theo order
-                    # (không phải cột DB) — bắt chước: 2 album đầu mỗi concept.
+                    # (không phải cột DB), bắt chước: 2 album đầu mỗi concept.
                     "badge": "HOT TRENDING" if ai < 2 else "",
                     "description": str(a.get("description") or ""),
                     "photos": phs})

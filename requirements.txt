@@ -80,4 +80,4 @@ yt-dlp>=2026.8.19
 tzdata==2026.5
 
 # pypdf: boc chu PDF cho tool joyce_read_file (server/doc_text.py), de engine API va Ollama doc duoc PDF
-pypdf==6.19.0
+pypdf==6.21.2

@@ -511,7 +511,7 @@
         onState: function (open) { syncAlbumButton(open); } });
     }
     function syncAlbumButton(open) {
-      var b = apex && apex.root && apex.root.querySelector("[data-action=album]");
+      var b = apex && apex.root && apex.root.querySelector && apex.root.querySelector("[data-action=album]");
       if (!b) return;
       b.setAttribute("aria-pressed", String(!!open));
       b.textContent = open ? "🖼 ĐÓNG" : "🖼 ALBUM";
@@ -592,7 +592,7 @@
       });
     }
     function syncHandButton(state) {
-      var b = apex && apex.root && apex.root.querySelector("[data-action=gesture]");
+      var b = apex && apex.root && apex.root.querySelector && apex.root.querySelector("[data-action=gesture]");
       if (!b) return;
       b.disabled = state === "starting";
       b.setAttribute("aria-pressed", String(state === "active"));

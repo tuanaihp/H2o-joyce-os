@@ -18,7 +18,7 @@
 
 ## [1.3.22] - 2026-10-21
 ### Added
-- **Hand-gesture TRAINER panel** (`gesture-trainer.mjs`, opened from the "🎓 DẠY" button next to HAND CAM in 3D Joyce or the "Hand gestures" card in Settings): teaches Joyce YOUR hand instead of shared thresholds. Each gesture is **scanned 3 times at different tempos** - the mean and deviation become the personal tolerance band; reps that disagree too much are rejected with a rescan hint instead of being saved. Unlike the headless control mode, this panel shows a camera preview on purpose - you must see your hand to train it.
+- **Hand-gesture TRAINER panel** (`gesture-trainer.mjs`, opened from the 🎓 trainer button next to HAND CAM in 3D Joyce or the "Hand gestures" card in Settings): teaches Joyce YOUR hand instead of shared thresholds. Each gesture is **scanned 3 times at different tempos** - the mean and deviation become the personal tolerance band; reps that disagree too much are rejected with a rescan hint instead of being saved. Unlike the headless control mode, this panel shows a camera preview on purpose - you must see your hand to train it.
 - **Trained gestures bind to actions**: hold up 2/3/4/5 fingers or any pose (✌️🤟🖐✊👌 + presets) → pick one of 7 actions: energy pulse, hush Joyce, album open/next/prev/close, fullscreen. Recognition matches a 5-finger `fingerVector` (palm-scale normalised) against the locked template; the pose must hold still for 450ms so a moving/swiping hand never fires it.
 - **Built-in gesture calibration**: retrain pinch, open palm and swipe to retune the engine to your real hand (pinchOn/Off, palmExtMin, swipe distance+speed). A ↺ button restores defaults.
 - **A trained 5-finger pose replaces the default palm**: when the profile contains a ≥4-finger-extended gesture it supersedes the stock hush command (palmSuppressed) so detection fits the owner's actual hand.
@@ -28,9 +28,10 @@
 ### Fixed
 - The German text on the Brain routing page and the gesture trainer uses a plain hyphen, matching the UI convention.
 - Docker image: the container start script is marked executable, avoiding a "permission denied" error on start.
+- 3D Joyce: a small glitch while updating the ALBUM / HAND CAM buttons no longer drops the avatar to the fallback particle mode.
 
 ### Security
-- Upgraded the PDF reader library (fixes 3 malicious-PDF hang/memory issues) and the Claude Agent SDK (fixes flag injection through the session id).
+- Upgraded the PDF reader library (fixes 8 more malicious-PDF hang/memory issues, including newly published ones) and the Claude Agent SDK (fixes flag injection through the session id).
 - The slideshow album no longer stalls the whole server on folders with many images; saving a gesture profile with wrongly typed data now fails cleanly instead of a 500 error.
 
 ## [1.3.21] - 2026-10-21

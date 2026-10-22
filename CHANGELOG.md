@@ -28,9 +28,10 @@
 ### Sửa lỗi
 - Bản tiếng Đức của trang Phân việc não và bảng huấn luyện cử chỉ dùng dấu gạch nối thường, đúng quy ước giao diện.
 - Ảnh Docker: script khởi động container được đánh dấu chạy được, tránh lỗi "permission denied" khi bật container.
+- 3D Joyce: lỗi nhỏ khi cập nhật nút ALBUM / HAND CAM không còn làm người ảo rơi về chế độ hạt dự phòng.
 
 ### Bảo mật
-- Nâng thư viện đọc PDF (vá 3 lỗi PDF độc làm treo/ngốn RAM) và thư viện Claude Agent SDK (vá lỗi chèn cờ qua mã phiên).
+- Nâng thư viện đọc PDF (vá thêm 8 lỗi PDF độc làm treo/ngốn RAM, cả các lỗi mới công bố) và thư viện Claude Agent SDK (vá lỗi chèn cờ qua mã phiên).
 - Album trình chiếu không còn làm khựng cả server khi thư mục có nhiều ảnh; lưu hồ sơ cử chỉ với dữ liệu sai kiểu trả lỗi gọn thay vì lỗi 500.
 
 ## [1.3.21] - 2026-10-21
