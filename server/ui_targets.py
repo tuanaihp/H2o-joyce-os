@@ -20,7 +20,7 @@ import unicodedata
 PAGES = (
     "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
     "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files", "terminal", "coding", "projects",
-    "selfimprove", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
+    "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
     "staff", "usage", "pet", "share",
 )
 
@@ -53,6 +53,7 @@ ALIASES = {
     "chia se": "share", "share": "share", "link chia se": "share", "duong link": "share",
     "shared links": "share", "quan ly chia se": "share",
     "tu hoc": "selfimprove", "self improve": "selfimprove", "hoc": "learn",
+    "so do": "sodo", "so do he thong": "sodo", "system map": "sodo",
     "viec dinh ky": "selfimprove", "nhac hen": "selfimprove",
     "webhook": "webhooks", "webhooks": "webhooks", "suc khoe viec nen": "selfimprove",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",

@@ -48,6 +48,8 @@
     webhooks: "webhook",
     learn: "brain",
     kanban: "square-kanban",
+    // Sơ đồ hệ thống: bản đồ 8 tầng Joyce (model->não->tools->agent->harness->ops), trang sodo.js.
+    sodo: "workflow",
     terminal: "terminal",
     // </> chứ không phải "một file mã": trang này là chỗ SAI VIỆC cho engine trên một thư
     // mục, không phải chỗ mở một file. Ký hiệu </> ai nhìn cũng hiểu ngay là lập trình.
@@ -124,7 +126,7 @@
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
     "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "projects", "selfimprove", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
+    "terminal", "coding", "projects", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
@@ -173,7 +175,7 @@
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "conversations", "skills", "plugins"] },
-    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "webhooks"] },
+    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "sodo", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
   ];
@@ -706,6 +708,12 @@
     if (id === "projects") return renderProjects(el);
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
+    // Trang Sơ đồ hệ thống do sodo.js dựng (uỷ quyền y như packs.js/camnang.js).
+    if (id === "sodo") {
+      if (window.JoyceSoDo) return window.JoyceSoDo.render(el);
+      el.innerHTML = placeholder("sodo", window.t("cs.mod_not_ready", { ten: "sodo.js" }));
+      return;
+    }
     if (id === "webhooks") return renderWebhooks(el);
     if (id === "chatbots") return renderChatbots(el);
     if (id === "teams") {
