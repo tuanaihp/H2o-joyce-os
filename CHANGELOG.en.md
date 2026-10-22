@@ -8,6 +8,10 @@
 - **Done? Tap "Done"**: Joyce asks when the job finishes, and tapping moves it to the Done column of your team's Work board. "Remember how this was done" writes the real way of working into the wiki; after 3 runs of the same job it does so by itself.
 - Ready-made jobs for Sales, Customer care and the two personal brains (Thủy, Tuấn). With "All divisions" selected, staff only see their main team's jobs.
 
+## [1.3.26] - 2026-10-23
+### Added
+- **System map redesigned** (in progress).
+
 ## [1.3.24] - 2026-10-20
 ### Added
 - **Constellation-style Nebula view**: the Nebula tab now shows the open brain's sphere in the centre (Earth for Brain Default, the department's own planet, a star for brand brains) inside a gold ring, surrounded by branches: cyan = knowledge, amber = operations, grey = MCP connections (dashed when off).

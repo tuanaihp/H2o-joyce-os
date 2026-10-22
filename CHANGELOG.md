@@ -13,6 +13,10 @@
 - **Tầng tự cải tiến (PPC) theo mô hình Harness²**: Joyce học cách tối ưu harness (prompt, skill, agent) từ bằng chứng kết quả thật thay vì sửa theo cảm tính. Gồm 3 năng lực mới trong Brain Default - skill `cham-diem-tuong-phan` (chấm A/B ẩn danh, chống nịnh người chấm và chống lệnh nhúng trong bằng chứng), workflow `tu-cai-tien-agent` (Kỹ sư Cải tiến đề xuất -> Giám định Tương phản chấm ẩn danh -> phiếu chờ chủ duyệt, không bao giờ tự áp), loop `dinh-duong-bai-hoc` (mỗi ngày chưng cất bài học có bằng chứng từ việc đã chạy, tự mở đề xuất khi thấy agent lặp lỗi). Workflow và loop tạo ở trạng thái TẮT - bật ở trang Việc khi muốn dùng.
 - **Thẻ "Tự cải tiến (PPC)" trong tab Tổng quan**: đếm đề xuất chờ duyệt trong `Joyce/proposals/`, số bài học và ngày nhật ký trong `Joyce/learn-log/`, lượt học gần nhất - đọc trực tiếp từ file vault nên không cần thêm cơ sở dữ liệu.
 
+## [1.3.26] - 2026-10-23
+### Thêm mới
+- **Sơ đồ hệ thống nâng cấp giao diện** (đang làm).
+
 ## [1.3.24] - 2026-10-20
 ### Thêm mới
 - **Tinh vân kiểu chòm sao**: tab Tinh vân giờ có quả cầu của brain đang mở ở giữa (Trái Đất cho Brain Default, tinh cầu đúng phòng ban, ngôi sao cho brain thương hiệu) trong vòng vàng, quanh đó là các nhánh: xanh = tri thức, cam = vận hành, xám = kết nối MCP (nét đứt khi chưa bật).
