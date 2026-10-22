@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.26] - 2026-10-23
+### Thêm mới
+- **Sơ đồ hệ thống nâng cấp giao diện** (đang làm).
+
 ## [1.3.24] - 2026-10-20
 ### Thêm mới
 - **Tinh vân kiểu chòm sao**: tab Tinh vân giờ có quả cầu của brain đang mở ở giữa (Trái Đất cho Brain Default, tinh cầu đúng phòng ban, ngôi sao cho brain thương hiệu) trong vòng vàng, quanh đó là các nhánh: xanh = tri thức, cam = vận hành, xám = kết nối MCP (nét đứt khi chưa bật).

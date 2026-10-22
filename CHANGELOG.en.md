@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.26] - 2026-10-23
+### Added
+- **System map redesigned** (in progress).
+
 ## [1.3.24] - 2026-10-20
 ### Added
 - **Constellation-style Nebula view**: the Nebula tab now shows the open brain's sphere in the centre (Earth for Brain Default, the department's own planet, a star for brand brains) inside a gold ring, surrounded by branches: cyan = knowledge, amber = operations, grey = MCP connections (dashed when off).
