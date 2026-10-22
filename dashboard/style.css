@@ -4731,19 +4731,34 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
   opacity: 0; pointer-events: none; transition: opacity .35s ease;
 }
 .hud-center.album-open .joyce-album { opacity: 1; pointer-events: auto; }
-.joyce-album figure { margin: 0; max-width: 92%; max-height: 86%; display: grid; place-items: center; overflow: hidden; }
-.joyce-album figure img {
-  max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 10px;
-  box-shadow: 0 24px 90px #000c, 0 0 0 1px #19ddff22;
+/* Viewer tầng 3: khung hình DỌC 3:4 kiểu lookbook — nền loang mờ từ chính ảnh
+   (ảnh ngang/dọc nào cũng lấp đầy khung đẹp), ảnh nét contain ở giữa, mũi tên
+   và caption bám trong khung. */
+.joyce-album .ja-view { height: 100%; display: grid; place-items: center; }
+.joyce-album .ja-frame {
+  position: relative; height: 100%; aspect-ratio: 3/4; max-width: 92%;
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid #19ddff33; box-shadow: 0 26px 90px #000d;
+}
+.joyce-album .ja-bg {
+  position: absolute; inset: -6%; width: 112%; height: 112%;
+  object-fit: cover; filter: blur(26px) saturate(1.15) brightness(.5);
+}
+.joyce-album .ja-fg {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
   transform: scale(var(--ja-zoom,1)) translate(var(--ja-x,0px), var(--ja-y,0px));
   transition: transform .12s ease-out; will-change: transform;
 }
-.joyce-album .ja-cap {
-  position: absolute; left: 50%; bottom: 4.5%; transform: translateX(-50%);
-  color: #9fd8e8; font: 11px 'Courier New', monospace; letter-spacing: .14em;
-  background: #041117cc; border: 1px solid #164d5b; border-radius: 8px; padding: 7px 14px;
-  text-transform: uppercase; white-space: nowrap;
+.joyce-album .ja-capline {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 26px 14px 10px;
+  background: linear-gradient(transparent, rgba(2,8,12,.88));
+  color: #9fd8e8; font: 10px 'Courier New', monospace; letter-spacing: .14em;
+  text-transform: uppercase;
 }
+.joyce-album .ja-capline b { color: #dff6ff; font-weight: 600; }
+.joyce-album .ja-capline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .joyce-album .ja-hint {
   position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
   color: #5e8a96; font: 10px 'Courier New', monospace; letter-spacing: .18em;
@@ -4768,13 +4783,7 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 }
 .joyce-album .ja-hint { top: 46px; }
 .joyce-album .ja-body { position: absolute; inset: 74px 0 52px; overflow-y: auto; scrollbar-width: thin; }
-.joyce-album .ja-body figure { margin: 0; height: 100%; display: grid; place-items: center; overflow: hidden; }
-.joyce-album .ja-body img {
-  max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px;
-  box-shadow: 0 24px 90px #000c, 0 0 0 1px #19ddff22;
-  transform: scale(var(--ja-zoom,1)) translate(var(--ja-x,0px), var(--ja-y,0px));
-  transition: transform .12s ease-out; will-change: transform;
-}
+.joyce-album .ja-body:has(.ja-view) { overflow: hidden; }
 .joyce-album .ja-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 14px; padding: 2px 14px 10px;
