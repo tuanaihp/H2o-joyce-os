@@ -1,0 +1,16 @@
+name: Lái trình duyệt Web
+name_en: "Web Pilot"
+slug: web-pilot
+version: 1.0.0
+description: Lái Chrome thật qua CDP — biến trang web thành bảng phần tử đánh số rồi chọn hành động (bấm, gõ chữ, chọn option, cuộn) kèm kiểm tra trang đổi trước khi mutate. Dùng cho web không có API: dashboard, CRM, form, đăng nhập một lần rồi dùng lại.
+description_en: "Drives a real Chrome over CDP — turns a page into a numbered element table, then executes chosen actions (click, type, select, scroll) with staleness guards before mutating. For websites without APIs: dashboards, CRMs, forms; one manual login then reused."
+author: Joyce (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - web_pilot_status
+  - web_pilot_open
+  - web_pilot_snapshot
+  - web_pilot_act
+  - web_pilot_close
+hooks: []
