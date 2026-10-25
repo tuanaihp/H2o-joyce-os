@@ -5847,7 +5847,7 @@
     olNoiNutTai(host, () => { olVeGoiY(el); olVeDaCai(el); });
   }
 
-  async function olVeDaCai(el, vuaDat) {
+  async function olVeDaCai(el, vuaDat, loi) {
     const host = el.querySelector("#olInst");
     if (!host) return;
     let d = {};
@@ -5865,14 +5865,18 @@
     const chatDuoc = (m) => (m && typeof m.chat_duoc === "boolean")
       ? m.chat_duoc : !/embed/i.test((m && m.name) || "");
     host.innerHTML = '<h3 class="ol-h">' + ic("database") + " " + esc(t("ol.inst_title")) +
-      '<span class="ol-h-sub">' + ds.length + "</span></h3>" +
+      '<span class="ol-h-sub">' + ds.length +
+        (d.dang_nap ? " · " + esc(t("ol.loaded_total", { n: d.dang_nap, gb: olGb(d.vram_tong_gb) })) : "") +
+      "</span></h3>" +
       (vuaDat ? '<div class="ol-hint ol-ok">' + esc(t("ol.set_main_ok", { ten: vuaDat })) + "</div>" : "") +
+      (loi ? '<div class="ol-hint ol-err">' + esc(t("ol.op_fail")) + ": " + esc(loi) + "</div>" : "") +
       (ds.length ? '<div class="ol-list">' + ds.map(m =>
           '<div class="ol-row-item">' +
             '<span class="ol-row-ico">' + ic("cpu") + "</span>" +
             '<span class="grow"><span class="ol-row-name">' + esc(m.name) +
               (laChinh(m.name) ? '<span class="ol-badge ol-badge-main">' + esc(t("ol.is_main")) + "</span>" : "") +
-              (m.loaded ? '<span class="ol-badge">' + esc(t("ol.loaded")) + "</span>" : "") + "</span>" +
+              (m.loaded ? '<span class="ol-badge">' + esc(t("ol.loaded")) +
+                (m.vram_gb ? " · " + olGb(m.vram_gb) : "") + "</span>" : "") + "</span>" +
               '<span class="ol-row-meta">' + olGb(m.size_gb) + "</span>" +
               (m.desc ? '<span class="ol-row-desc">' + esc(m.desc) + "</span>" : "") + "</span>" +
             // 02/09: chủ repo hỏi "sao có 2 model mà chỉ 1 dùng được". Bản cũ chỉ LẶNG LẼ
@@ -5882,6 +5886,13 @@
               : (laChinh(m.name) ? ""
                  : '<button class="gcard-btn primary ol-main" type="button" data-model="' + esc(m.name) + '">' +
                      ic("star") + " " + esc(t("ol.use_main")) + "</button>")) +
+            // Nạp sẵn = đưa model vào VRAM/RAM trước (keep_alive=-1) để lượt chat đầu tiên
+            // không phải đợi nạp lại; Dỡ = trả tài nguyên. Model lớn nạp mất vài chục giây.
+            (m.loaded
+              ? '<button class="gcard-btn ol-do" type="button" data-model="' + esc(m.name) + '">' +
+                  ic("circle-stop") + " " + esc(t("ol.unload")) + "</button>"
+              : '<button class="gcard-btn ol-nap" type="button" data-model="' + esc(m.name) + '">' +
+                  ic("zap") + " " + esc(t("ol.load")) + "</button>") +
             '<button class="gcard-btn ol-go" type="button" data-model="' + esc(m.name) + '">' +
               ic("trash-2") + " " + esc(t("ol.remove")) + "</button>" +
           "</div>").join("") + "</div>"
@@ -5890,8 +5901,26 @@
       b.onclick = async () => {
         b.disabled = true;
         await saveSetting("model", { main: { provider: "ollama-local", model: b.dataset.model } });
+        // Đặt xong là nạp sẵn luôn (bắn rồi thôi, không chờ): model chính thì lượt chat
+        // đầu tiên phải đi ngay chứ không chờ đọc vài chục GB từ đĩa.
+        const fd = new FormData(); fd.append("model", b.dataset.model);
+        fetch("/ollama-local/load", { method: "POST", body: fd }).catch(() => {});
         olVeDaCai(el, b.dataset.model);
       };
+    });
+    const thaoTacNap = async (b, url) => {
+      b.disabled = true;
+      b.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + esc(t("ol.working"));
+      const fd = new FormData(); fd.append("model", b.dataset.model);
+      let r = null;
+      try { r = await (await fetch(url, { method: "POST", body: fd })).json(); } catch (e) {}
+      olVeDaCai(el, null, (r && r.ok) ? null : ((r && r.error) || ""));
+    };
+    host.querySelectorAll(".ol-nap").forEach((b) => {
+      b.onclick = () => thaoTacNap(b, "/ollama-local/load");
+    });
+    host.querySelectorAll(".ol-do").forEach((b) => {
+      b.onclick = () => thaoTacNap(b, "/ollama-local/unload");
     });
     host.querySelectorAll(".ol-go").forEach((b) => {
       b.onclick = async () => {
