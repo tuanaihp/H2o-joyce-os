@@ -33,6 +33,7 @@
 ### Security
 - Upgraded the PDF reader library (fixes 8 more malicious-PDF hang/memory issues, including newly published ones) and the Claude Agent SDK (fixes flag injection through the session id).
 - The slideshow album no longer stalls the whole server on folders with many images; saving a gesture profile with wrongly typed data now fails cleanly instead of a 500 error.
+- MCP OAuth sign-in: when the provider refuses (Deny pressed, scope not allowed), Joyce shows the real error and reopens the sign-in page with valid scopes instead of a confusing "invalid_grant"; the error text is HTML-escaped before display.
 
 ## [1.3.21] - 2026-10-21
 ### Added

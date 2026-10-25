@@ -33,6 +33,7 @@
 ### Bảo mật
 - Nâng thư viện đọc PDF (vá thêm 8 lỗi PDF độc làm treo/ngốn RAM, cả các lỗi mới công bố) và thư viện Claude Agent SDK (vá lỗi chèn cờ qua mã phiên).
 - Album trình chiếu không còn làm khựng cả server khi thư mục có nhiều ảnh; lưu hồ sơ cử chỉ với dữ liệu sai kiểu trả lỗi gọn thay vì lỗi 500.
+- Đăng nhập OAuth cho kết nối MCP: khi nhà cung cấp từ chối (bấm Không cho phép, phạm vi không được cấp), Joyce báo đúng lỗi thật và tự mở lại trang đăng nhập với phạm vi hợp lệ, thay vì báo "invalid_grant" khó hiểu; lời báo lỗi được lọc ký tự HTML trước khi hiện.
 
 ## [1.3.21] - 2026-10-21
 ### Thêm mới
