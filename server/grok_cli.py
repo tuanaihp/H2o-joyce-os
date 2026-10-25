@@ -1211,7 +1211,7 @@ class GrokCLI:
                                 # để con python phía trong sống tiếp và giữ pipe stdout mở -
                                 # vòng readline dưới kia treo hết lượt. /T giết cả cây.
                                 subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                                               capture_output=True,
+                                               capture_output=True, stdin=subprocess.DEVNULL,
                                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                             else:
                                 proc.kill()

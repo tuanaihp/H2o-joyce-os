@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import threading
 import time
+import html as _html_mod   # escape lời báo lỗi OAuth trước khi nhúng vào trang HTML
 import types as _types   # object tạm cho _apply_antigravity_hub ở endpoint kiểm tra
 import yaml
 import fastyaml
@@ -5329,9 +5330,12 @@ async def connect_oauth_start(request: Request):
 
 
 @app.get("/connect/oauth/callback")
-async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
-    res = await oauth_mcp.handle_callback(state, code)
+async def connect_oauth_callback(state: str = Query(""), code: str = Query(""),
+                                 error: str = Query(""), error_description: str = Query("")):
+    res = await oauth_mcp.handle_callback(state, code, error, error_description)
     mcp_hub.invalidate_cache()
+    if res.get("retry_url"):
+        return RedirectResponse(url=res["retry_url"], status_code=302)
     if res.get("ok"):
         _write_codex_profile()
         # Vừa có token: kiểm lại đèn ngay, không thì chip vẫn báo "Kết nối lại" tới vòng quét
@@ -5361,7 +5365,7 @@ async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
                 "<h2>✓ Đã kết nối thành công</h2><p>Đóng tab này và quay lại Joyce, bấm Làm mới ở trang Kết nối.</p></body></html>")
     else:
         html = (f"<html><body style='font-family:sans-serif;background:#111;color:#eee;text-align:center;padding-top:80px'>"
-                f"<h2>⚠ Kết nối thất bại</h2><p>{res.get('error', '')}</p></body></html>")
+                f"<h2>⚠ Kết nối thất bại</h2><p>{_html_mod.escape(str(res.get('error', '')))}</p></body></html>")
     return HTMLResponse(html)
 
 
@@ -8791,7 +8795,7 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
 _ALBUM_IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"}
 
 # Nguồn "sale": Supabase của app H2O STUDIO Sale Album (styles -> albums -> photos,
-# ảnh trỏ thẳng R2). Key publishable nằm sẵn trong bundle public của trang đó —
+# ảnh trỏ thẳng R2). Key publishable nằm sẵn trong bundle public của trang đó;
 # RLS quyết định quyền đọc; env cho phép đổi khi chủ app xoay project mà không sửa code.
 _SALE_SUPA_URL = os.environ.get(
     "H2O_SALE_SUPABASE_URL", "https://rlqrittjugurokbvtxlt.supabase.co").rstrip("/")
@@ -8803,7 +8807,7 @@ _SALE_CACHE = {"ts": 0.0, "key": "", "data": None}   # cache join 5 phút
 async def _sale_album_images(style: str = ""):
     """Đọc styles+albums+photos từ Supabase REST -> {images: list phẳng (caption
     "Style · Album"), tree: cây 3 tầng styles->albums->photos cho lưới chọn
-    album giống webapp CRM}. Ảnh trả URL R2 tuyệt đối — trình duyệt tải trực
+    album giống webapp CRM}. Ảnh trả URL R2 tuyệt đối: trình duyệt tải trực
     tiếp từ Cloudflare, không qua Joyce server lẫn Vercel serverless."""
     now = time.time()
     ck = style or "*"
@@ -8873,7 +8877,7 @@ async def _sale_album_images(style: str = ""):
                     "id": a["id"], "title": str(a.get("title") or "Album"),
                     "cover": str(a.get("cover_image") or ""),
                     # webapp tự gán HOT TRENDING cho album đầu theo order
-                    # (không phải cột DB) — bắt chước: 2 album đầu mỗi concept.
+                    # (không phải cột DB), bắt chước: 2 album đầu mỗi concept.
                     "badge": "HOT TRENDING" if ai < 2 else "",
                     "description": str(a.get("description") or ""),
                     "photos": phs})
@@ -8899,6 +8903,11 @@ async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh"),
             return {"source": "sale", "images": [], "tree": [],
                     "error": "sale_unreachable", "detail": err}
         return {"source": "sale", "images": data["images"][:400], "tree": data["tree"]}
+    # rglob + stat() đồng bộ trên cả cây ảnh: chạy ở luồng phụ để không chặn event loop.
+    return await asyncio.to_thread(_album_local_scan, brain)
+
+
+def _album_local_scan(brain: str):
     try:
         broot = Path(_brain_root(brain)).resolve()
     except Exception:
@@ -8975,8 +8984,14 @@ async def hands_profile_put(request: Request):
         body = {}
     if not isinstance(body, dict):
         return JSONResponse({"error": "body không hợp lệ"}, status_code=400)
+    raw_custom = body.get("custom")
+    raw_calib = body.get("calib")
+    if not isinstance(raw_custom, list):
+        raw_custom = []
+    if not isinstance(raw_calib, dict):
+        raw_calib = {}
     custom, seen = [], set()
-    for g in (body.get("custom") or [])[:16]:
+    for g in raw_custom[:16]:
         if not isinstance(g, dict):
             continue
         vec = _f5(g.get("vec"), 0.0, 1.0)
@@ -8992,7 +9007,7 @@ async def hands_profile_put(request: Request):
         custom.append({"id": gid, "label": label, "action": action, "vec": vec, "tol": tol})
     calib = {}
     for k, (lo, hi) in _HAND_CALIB_RANGES.items():
-        v = (body.get("calib") or {}).get(k)
+        v = raw_calib.get(k)
         if isinstance(v, (int, float)) and lo <= float(v) <= hi:
             calib[k] = float(v)
     if calib.get("pinchOn") is not None and calib.get("pinchOff") is not None \
