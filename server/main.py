@@ -20524,7 +20524,7 @@ async def ollama_local_installed():
     p = await ollama_local.probe(ep, key)
     if not p["reachable"]:
         return {"ok": False, "models": [], "error": p["error"]}
-    dang_nap = {(m.get("name") or "") for m in await ollama_local.running_models(ep, key)}
+    dang_nap = {(m.get("name") or ""): m for m in await ollama_local.running_models(ep, key)}
     ten_ds = [(m.get("name") or m.get("model") or "") for m in p["models"]]
     # Hỏi SONG SONG: `/api/show` là một lượt gọi cho mỗi model, xếp hàng thì màn hình đứng
     # bằng đúng số model nhân thời gian mạng. Hỏng thì trả [] và chat_duoc lui về đoán tên.
@@ -20547,9 +20547,14 @@ async def ollama_local_installed():
                    "desc": mo_ta.get(ten) or mo_ta.get(ten.replace(":latest", "")) or "",
                    # Chốt Ở SERVER: nơi này biết Ollama trả lời gì, giao diện thì không.
                    "chat_duoc": ollama_local.chat_duoc(ten, kn),
-                   "loaded": ten in dang_nap})
+                   "loaded": ten in dang_nap,
+                   # /api/ps trả `size_vram` cho model đang nạp - hiện lên badge để người
+                   # dùng biết cái nào đang chiếm GPU và chiếm bao nhiêu.
+                   "vram_gb": round(float((dang_nap.get(ten) or {}).get("size_vram") or 0) / (1024 ** 3), 1)})
     ra.sort(key=lambda x: x["name"])
-    return {"ok": True, "models": ra}
+    return {"ok": True, "models": ra,
+            "dang_nap": sum(1 for x in ra if x["loaded"]),
+            "vram_tong_gb": round(sum(x["vram_gb"] for x in ra), 1)}
 
 
 @app.get("/ollama-local/recommended")
@@ -21732,6 +21737,27 @@ async def ollama_local_pull(model: str = Form(...)):
 
     return StreamingResponse(phat(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.post("/ollama-local/load")
+async def ollama_local_load(model: str = Form(...)):
+    """Nạp sẵn model vào VRAM/RAM (keep_alive=-1) để câu hỏi đầu tiên không phải chờ
+    nạp lại - vài chục giây cho model lớn, xong thì mọi lượt chat sau đi ngay."""
+    ep, key = _ol_cfg()
+    if not ep:
+        return JSONResponse({"error": "Chưa đặt địa chỉ Ollama"}, status_code=400)
+    r = await ollama_local.nap_do(ep, (model or "").strip(), -1, key)
+    return r if r.get("ok") else JSONResponse(r, status_code=502)
+
+
+@app.post("/ollama-local/unload")
+async def ollama_local_unload(model: str = Form(...)):
+    """Dỡ model khỏi VRAM/RAM (keep_alive=0), trả chỗ cho model khác."""
+    ep, key = _ol_cfg()
+    if not ep:
+        return JSONResponse({"error": "Chưa đặt địa chỉ Ollama"}, status_code=400)
+    r = await ollama_local.nap_do(ep, (model or "").strip(), 0, key)
+    return r if r.get("ok") else JSONResponse(r, status_code=502)
 
 
 @app.post("/ollama-local/delete")

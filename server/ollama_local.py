@@ -258,6 +258,27 @@ async def delete_model(endpoint: str, model: str, key: str | None = None) -> dic
         return {"ok": False, "error": str(e)[:200]}
 
 
+async def nap_do(endpoint: str, model: str, keep_alive, key: str | None = None) -> dict:
+    """Nạp model vào VRAM/RAM (hoặc dỡ nó ra) - `POST /api/generate` không prompt.
+
+    Ollama nạp model ở MỌI lệnh generate; không gửi prompt thì nó chỉ nạp rồi trả `done`
+    ngay chứ không sinh gì. keep_alive -1 = nạp rồi giữ luôn (đúng ý "nạp sẵn"),
+    keep_alive 0 = dỡ ngay. Trần 300s: nạp một model vài chục GB là đọc hết từ đĩa, vài
+    chục giây là thường.
+    """
+    ep = chuan_hoa_endpoint(endpoint)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as cli:
+            r = await cli.post(ep + "/api/generate", headers=_headers(key),
+                               json={"model": model, "keep_alive": keep_alive, "stream": False})
+        if r.status_code == 200:
+            return {"ok": True}
+        return {"ok": False, "error": localefmt.chu(f"Ollama trả lỗi {r.status_code}: ",
+                                                    f"Ollama returned error {r.status_code}: ") + r.text[:200]}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:200]}
+
+
 async def pull_stream(endpoint: str, model: str, key: str | None = None):
     """Tải model, yield từng mốc tiến độ Ollama đẩy về.
 
