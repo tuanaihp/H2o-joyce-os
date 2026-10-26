@@ -27,6 +27,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from urllib.parse import urlparse
 
 import httpx
@@ -205,6 +206,74 @@ async def running_models(endpoint: str, key: str | None = None) -> list:
         return (r.json() or {}).get("models") or [] if r.status_code == 200 else []
     except Exception:
         return []
+
+
+async def test_model(endpoint: str, model: str, key: str | None = None,
+                     num_ctx: int = 2048) -> dict:
+    """Nạp và chạy một câu cực ngắn bằng API native của Ollama.
+
+    Không đi qua ``/v1/chat/completions``: API native cho phép đặt ``options.num_ctx`` và
+    ``keep_alive`` theo từng request. Đây là hai thứ quyết định model lớn có vừa máy hay
+    không, và giữ model vừa nạp trong bộ nhớ để lượt chat thử ngay sau đó không phải nạp lại.
+    Caller bọc hàm này bằng SSE heartbeat, nên cold-start vài phút không bị proxy web cắt.
+    """
+    try:
+        ep = chuan_hoa_endpoint(endpoint)
+    except LoiEndpoint as e:
+        return {"ok": False, "error": str(e)}
+    ten = str(model or "").strip()
+    if not ten:
+        return {"ok": False, "error": localefmt.chu("Chưa chọn model", "No model selected")}
+    # 2K là mức an toàn cho model 18 GB trên GPU 16 GB; vẫn cho caller chọn tới 16K để đo
+    # máy mạnh hơn, nhưng không nhận số vô hạn làm Ollama ăn sạch RAM vì một ô form.
+    ctx = max(512, min(int(num_ctx or 2048), 16384))
+    payload = {
+        "model": ten,
+        "prompt": "Reply with exactly JOYCE_OK and nothing else.",
+        "stream": False,
+        "think": False,
+        "keep_alive": "30m",
+        "options": {"num_ctx": ctx, "num_predict": 16, "temperature": 0},
+    }
+    bat_dau = time.monotonic()
+    try:
+        timeout = httpx.Timeout(420.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as cli:
+            r = await cli.post(ep + "/api/generate", headers=_headers(key), json=payload)
+        elapsed = round(time.monotonic() - bat_dau, 2)
+        if r.status_code != 200:
+            try:
+                loi = (r.json() or {}).get("error") or r.text
+            except ValueError:
+                loi = r.text
+            return {"ok": False, "error": str(loi or f"HTTP {r.status_code}")[:300],
+                    "elapsed_s": elapsed, "num_ctx": ctx}
+        data = r.json() or {}
+        if not data.get("done"):
+            return {"ok": False,
+                    "error": localefmt.chu("Ollama dừng trước khi trả lời xong",
+                                            "Ollama stopped before completing the answer"),
+                    "elapsed_s": elapsed, "num_ctx": ctx}
+        eval_count = int(data.get("eval_count") or 0)
+        eval_s = float(data.get("eval_duration") or 0) / 1_000_000_000
+        return {
+            "ok": True,
+            "response": str(data.get("response") or "").strip()[:200],
+            "elapsed_s": elapsed,
+            "load_s": round(float(data.get("load_duration") or 0) / 1_000_000_000, 2),
+            "tokens_per_s": round(eval_count / eval_s, 2) if eval_s > 0 else 0,
+            "eval_count": eval_count,
+            "num_ctx": ctx,
+            "keep_alive": "30m",
+        }
+    except httpx.TimeoutException:
+        return {"ok": False,
+                "error": localefmt.chu("Hết 7 phút mà model vẫn chưa trả lời",
+                                        "The model still had not answered after 7 minutes"),
+                "elapsed_s": round(time.monotonic() - bat_dau, 2), "num_ctx": ctx}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:300],
+                "elapsed_s": round(time.monotonic() - bat_dau, 2), "num_ctx": ctx}
 
 
 # Model không chat được thì không được mời đặt làm Main Model. Đoán qua TÊN bắt được

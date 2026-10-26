@@ -114,8 +114,18 @@ def parse_decision(text: str) -> tuple:
     return act, str(d.get("message") or "").strip()[:400]
 
 
+_INSTANCE: Optional["IncidentDesk"] = None
+
+
+def current() -> Optional["IncidentDesk"]:
+    """Bàn sự cố đang chạy (None khi module được nạp lẻ, ví dụ trong test)."""
+    return _INSTANCE
+
+
 class IncidentDesk:
     def __init__(self, deps: IncidentDeps):
+        global _INSTANCE
+        _INSTANCE = self
         self.deps = deps
         self._io = asyncio.Lock()
         self._triages: deque = deque()

@@ -759,6 +759,38 @@ class TaskStore:
                 break
         return self._task_from_row(row) if row else None
 
+    def next_idea_candidate(self, brain_root: str) -> Optional[dict]:
+        """Ứng viên CHỈ LÀ task ý tưởng (tiêu đề '[Ý tưởng] ...'). Board tắt auto thì
+        dispatcher gọi hàm này thay `next_candidate`: ý tưởng do chủ chủ động nạp qua
+        chat được tự chạy kể cả khi orchestration off, còn việc thường vẫn nằm chờ.
+        Thiếu hàm này từng khiến dispatcher AttributeError mỗi tick - hàng đợi chết."""
+        with self._lock:
+            busy = {
+                agent_prefix(r["idempotency_key"])
+                for r in self._db.execute(
+                    """SELECT idempotency_key FROM tasks
+                       WHERE brain_root=? AND status='running' AND idempotency_key LIKE 'agent:%'""",
+                    (brain_root,),
+                ).fetchall()
+            }
+            busy.discard("")
+            cur = self._db.execute(
+                """SELECT * FROM tasks
+                   WHERE brain_root=? AND status IN ('triage','ready')
+                     AND not_before <= ?
+                     AND (title LIKE '[Ý tưởng]%' OR title LIKE '[Y tuong]%')
+                   ORDER BY CASE status WHEN 'triage' THEN 0 ELSE 1 END,
+                            priority, created_at""",
+                (brain_root, now()),
+            )
+            row = None
+            for r in cur:
+                if busy and agent_prefix(r["idempotency_key"]) in busy:
+                    continue
+                row = r
+                break
+        return self._task_from_row(row) if row else None
+
     def claim(
         self,
         task_id: str,
@@ -960,13 +992,14 @@ class TaskStore:
         capability: str,
         execution_mode: str,
         metadata: Optional[dict] = None,
+        needs_approval: Optional[bool] = None,
     ) -> Optional[dict]:
         ts = now()
         with self._lock:
             self._tx()
             try:
                 row = self._db.execute(
-                    """SELECT current_run_id FROM tasks
+                    """SELECT current_run_id, metadata_json FROM tasks
                        WHERE id=? AND status='running' AND claimed_by=?""",
                     (task_id, worker_id),
                 ).fetchone()
@@ -974,16 +1007,25 @@ class TaskStore:
                     self._db.rollback()
                     return None
                 run_id = str(row["current_run_id"] or "")
+                # GỘP metadata thay vì ghi đè: lane (đặt lúc enqueue) và các cờ khác phải
+                # sống sót qua vòng specifier, không thì thẻ mất nhãn đường xử lý.
+                merged = _loads(row["metadata_json"], {})
+                merged.update(metadata or {})
+                appr_sql = ""
+                if needs_approval:
+                    # Specifier vừa nâng việc thành nhạy cảm (external-write...) -> cờ duyệt
+                    # phải bật NGAY tại đây, không thì việc chạm ngoài đi thẳng 'done'.
+                    appr_sql = ", needs_approval=1"
                 self._db.execute(
                     """UPDATE tasks
                        SET status='ready', attempts=CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,
                            intent=?, capability=?, execution_mode=?,
                            metadata_json=?, claimed_by='', claim_expires_at=0,
-                           current_run_id='', updated_at=?
+                           current_run_id='', updated_at=?""" + appr_sql + """
                        WHERE id=?""",
                     (
                         intent, capability or "files", execution_mode or "auto",
-                        _json(metadata or {}), ts, task_id,
+                        _json(merged), ts, task_id,
                     ),
                 )
                 if run_id:

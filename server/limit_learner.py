@@ -282,7 +282,7 @@ class SubscriptionLimit:
 
 
 # Claude Code in ra dạng máy đọc được: "Claude AI usage limit reached|1730000000"
-_CLAUDE_EPOCH_RE = re.compile(r"usage\s+limit\s+reached\s*\|\s*(\d{9,})", re.I)
+_CLAUDE_EPOCH_RE = re.compile(r"usage[\s_]?limit[\s_]?reached\s*\|\s*(\d{9,})", re.I)
 # Và các dạng chữ. Mỗi mẫu kèm cửa sổ mà nó nói tới (nếu câu đó có nói).
 _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
     ("claude_weekly", "claude-code", "tuần",
@@ -296,7 +296,7 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
     ("codex_hit", "codex", "",
      re.compile(r"(you'?ve\s+)?(hit|reached)\s+your\s+(usage|plan|weekly)\s+limit", re.I)),
     ("codex_quota", "codex", "",
-     re.compile(r"usage\s+limit\s+reached|quota\s+exceeded\s+for\s+your\s+plan", re.I)),
+     re.compile(r"usage[\s_]?limit[\s_]?reached|quota\s+exceeded\s+for\s+your\s+plan", re.I)),
     # "You've hit your session limit · resets 12pm (UTC)". Câu này KHÔNG tự nói nhà nào, nên
     # engine để rỗng: gọi nó là "gói ChatGPT" khi thật ra là gói Claude thì người dùng đi sửa
     # nhầm chỗ. Rỗng thì `engine_hint` của chỗ gọi quyết, không có hint thì hiện nhãn chung
@@ -322,7 +322,7 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
 # có NGAY một mốc thời gian đằng sau (số, midnight, noon, tomorrow).
 _RESET_TEXT_RE = re.compile(
     r"(resets?\s+(?:at|in|on)\s+[^.\n|]{1,60}"
-    r"|resets?\s+(?=\d|midnight|noon|tomorrow)[^.\n|]{1,60}"
+    r"|resets?\s+(?=\d|midnight|noon|tomorrow|[A-Z][a-z]{2,8}\s+\d{1,2}\b)[^.\n|]{1,60}"
     r"|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
 _RESET_IN_RE = re.compile(
     r"\b(?:resets?|try\s+again)\s+in\s+"

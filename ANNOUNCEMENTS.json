@@ -2,6 +2,32 @@
   "format_version": 1,
   "announcements": [
     {
+      "id": "semantic-capability-match",
+      "kind": "community",
+      "title": "Gọi tool theo ý nghĩa, không cần đúng từ khoá",
+      "summary": "Joyce dịch câu hỏi của bạn sang tiếng Anh rồi so khớp ngữ nghĩa với tên tool - hỏi 'chốt đơn cho khách' vẫn tìm đúng create_invoice.",
+      "body": "Bộ gợi ý năng lực giờ hiểu ý định: câu tiếng Việt được dịch sang tiếng Anh bằng model rẻ đã cấu hình, rồi so khớp ngữ nghĩa với tên và mô tả tool. Kết quả hoà trộn có kiểm soát (trần ảnh hưởng 15%) và vẫn qua lớp lọc cứng - không bao giờ gợi ý tool ngoài quyền của bạn. Kèm theo là đợt vá sạch các chuỗi dịch còn sót lỗi ký tự.",
+      "published_at": "2026-10-24",
+      "priority": "normal",
+      "cta": {
+        "label": "Xem nhật ký cập nhật →",
+        "action": "changelog"
+      }
+    },
+    {
+      "id": "music-duck-howler",
+      "kind": "community",
+      "title": "Nhạc tự nhỏ khi Joyce nói",
+      "summary": "Joyce trả lời bằng giọng thì nhạc nền tự tụt xuống rồi êm trở lại khi Joyce im - câu trả lời không còn bị đấu tiếng.",
+      "body": "Trình phát nhạc vừa chuyển sang lõi Howler.js: phát stream nhanh hơn, âm lượng chuyển mượt bằng fade. Khi Joyce nói (TTS thường hoặc gọi Live), nhạc tự hạ còn khoảng 16% và trả lại sau khoảng một giây rưỡi im lặng. Khe hở giữa các câu nói được giữ mức nhỏ nên nhạc không giật bật/tắt theo từng câu.",
+      "published_at": "2026-10-24",
+      "priority": "normal",
+      "cta": {
+        "label": "Xem nhật ký cập nhật →",
+        "action": "changelog"
+      }
+    },
+    {
       "id": "harness2-ppc-self-improve",
       "kind": "community",
       "title": "Joyce học được cơ chế tự cải tiến (PPC)",

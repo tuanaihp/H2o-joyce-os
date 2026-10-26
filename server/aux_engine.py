@@ -43,7 +43,7 @@ CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
 GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
-API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "deepseek", "anthropic-api", "ollama",
+API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "deepseek", "zai", "anthropic-api", "ollama",
                  "ollama-local", "openai-compat")
 
 # provider -> tên trường chứa API key trong settings["model"]. Bản chuẩn nằm ở
@@ -77,6 +77,25 @@ def final_loi_dang_nhap(text: str) -> bool:
         return False
     low = t.lower()
     return any(p in low for p in _AUTH_FINAL_PATTERNS)
+
+
+def _final_het_luot(engine, content) -> bool:
+    """Final này có phải câu báo HẾT LƯỢT gói thuê bao (Claude/Codex...) không.
+
+    Hai rào: câu báo phải CHIẾM TRỌN output (subscription_dominates - bài viết thật trích
+    câu đó không tính) VÀ bộ phân tích nhận đúng dạng hạn mức (parse_subscription_limit).
+    engine_hint lấy theo provider của mắt để nhận đúng tên gói. Lỗi/thiếu module -> False:
+    khi không chắc thì coi là nội dung thật, không nuốt kết quả của người dùng."""
+    try:
+        import limit_learner
+        raw = str(content or "")
+        if not limit_learner.subscription_dominates(raw):
+            return False
+        hint = limit_learner.ENGINE_HINT_BY_PROVIDER.get(
+            getattr(engine, "provider", "") or "", "")
+        return limit_learner.parse_subscription_limit(raw, engine_hint=hint) is not None
+    except Exception:   # noqa: BLE001
+        return False
 
 # ── Trần wall-clock cho fork NỀN (nhắc hẹn/cron, việc Kanban, bước workflow) ──────────────
 # Mặc định 3600s (1 giờ). Trước đây mỗi nơi ghim một số cứng (nhắc hẹn 300, workflow 300,
@@ -416,6 +435,7 @@ class _ApiAuxEngine:
                       "openai": eng.openai_chat_with_mcp,
                       "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
                       "deepseek": eng.deepseek_chat_with_mcp,
+                      "zai": eng.zai_chat_with_mcp,
                       "anthropic-api": eng.anthropic_chat_with_mcp,
                       "ollama": eng.ollama_chat_with_mcp,
                       "ollama-local": eng.ollama_local_chat_with_mcp,
@@ -425,6 +445,7 @@ class _ApiAuxEngine:
                 fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
                       "gemini": eng.gemini_stream, "groq": eng.groq_stream,
                       "deepseek": eng.deepseek_stream,
+                      "zai": eng.zai_stream,
                       "anthropic-api": eng.anthropic_stream,
                       "ollama": eng.ollama_stream,
                       "ollama-local": eng.ollama_local_stream,
@@ -493,8 +514,14 @@ class _FallbackChain:
     Trong suốt với nơi gọi: đọc attr → mắt đầu; GÁN attr (max_wall_s...) → đặt cho MỌI mắt
     để engine dự phòng cũng nhận giới hạn/cấu hình mà caller đặt sau swap()."""
 
-    def __init__(self, engines):
+    def __init__(self, engines, safe_retry=False):
         object.__setattr__(self, "_engines", [e for e in (engines or []) if e is not None])
+        # safe_retry (việc mức full): chỉ được nhảy sang mắt kế tiếp khi mắt trước chết mà
+        # CHƯA gọi tool nào - tức nó chưa hề làm gì, đổi engine không thể nhân đôi hành
+        # động ra ngoài. Mắt đã gọi tool rồi mới gãy (đăng 1/3 bài xong chết) thì DỪNG và
+        # báo đúng lỗi gốc, vì chạy lại nguyên prompt bằng engine khác có thể làm việc đó
+        # một lần nữa. Đây là điều kiện duy nhất khiến full được có chuỗi dự phòng.
+        object.__setattr__(self, "_safe_retry", bool(safe_retry))
 
     def _all(self):
         return object.__getattribute__(self, "_engines")
@@ -532,7 +559,9 @@ class _FallbackChain:
     async def query(self, prompt: str):
         fail = "chuỗi engine việc nền rỗng"
         dau = ""      # lỗi của mắt xích ĐẦU TIÊN thật sự chạy - thường là lỗi có nghĩa nhất
+        safe_retry = bool(object.__getattribute__(self, "_safe_retry"))
         for e in self._all():
+            saw_tool = False
             try:
                 if not e.is_available():
                     fail = f"{self._name(e)} không sẵn sàng"
@@ -569,6 +598,17 @@ class _FallbackChain:
                         got_error = (f"{self._name(e)} mất đăng nhập: "
                                      + (ev.get("content") or "").strip()[:200])
                         break
+                    # HẾT LƯỢT GÓI THUÊ BAO CŨNG LÀ MỘT FINAL GIẢ: Claude/Codex in nguyên câu
+                    # "resets Oct 26, 10am" vào đúng chỗ câu trả lời chứ không báo error.
+                    # Không nuốt nó như final thường thì chuỗi tưởng mắt này THÀNH CÔNG và
+                    # dừng - câu hết lượt trở thành "kết quả" của bước (ca thật workflow
+                    # tham-muu-tong-hop 24/10). Coi mắt đó là chết, nhảy sang mắt sau.
+                    if t == "final" and _final_het_luot(e, ev.get("content")):
+                        got_error = (str(ev.get("content") or "").strip()[:400]
+                                     or f"{self._name(e)} hết lượt gói thuê bao")
+                        break
+                    if t == "tool_call":
+                        saw_tool = True
                     yield ev
                     if t == "usage":
                         # Sổ theo loại tác vụ cho trang Phân việc não (1.3.19): quy lượt
@@ -590,6 +630,14 @@ class _FallbackChain:
                 fail = got_error or f"{self._name(e)} kết thúc mà không có final"
             except Exception as exc:
                 fail = f"{self._name(e)}: {type(exc).__name__}: {exc}"
+            if safe_retry and saw_tool:
+                # full: mắt đã gọi tool rồi mới gãy - có thể đã làm MỘT PHẦN việc ra ngoài.
+                # Chạy lại bằng engine khác rủi ro nhân đôi (đăng bài 2 lần, gửi tin 2 lần).
+                print(f"[aux router] {self._name(e)} gãy SAU khi đã gọi tool - dừng chuỗi "
+                      f"(không chạy lại việc có thể đã làm một phần). Lý do: {str(fail)[:300]}",
+                      file=sys.stderr)
+                dau = dau or str(fail)
+                break
             print(f"[aux router] {self._name(e)} lỗi → thử mắt xích kế tiếp. Lý do: {str(fail)[:300]}",
                   file=sys.stderr)
             dau = dau or str(fail)
@@ -933,61 +981,29 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     try:
         sp = spec if spec is not None else read_spec(settings, tag=tag)
         prov = sp.get("provider", CLAUDE)
-        # MỨC FULL KHÔNG CÓ CHUỖI DỰ PHÒNG. Đây là quyết định có chủ ý, không phải bỏ sót.
-        #
-        # Việc ở mức full thường là hành động RA NGOÀI: đăng bài, gửi tin, tạo đơn, đặt lịch.
-        # Ba lý do khiến rơi engine ở đây tệ hơn là chết hẳn:
-        #   1. Engine dự phòng (API) không có tool NATIVE, nên không gọi được connector ambient
-        #      của tài khoản Claude. Việc cần Google Drive/Gmail sẽ dừng giữa chừng.
-        #   2. Model không biết mình vừa bị đổi engine, nên nó suy ra một lý do nghe hợp lý mà
-        #      sai - ca thật: nhắc hẹn đăng Fanpage báo "phiên này bị chặn quyền" trong khi
-        #      user đã bật Toàn quyền, làm người ta đi tìm nhầm chỗ.
-        #   3. Mắt trước có thể đã làm xong MỘT PHẦN việc (đăng được 1 trong 3 bài) rồi mới
-        #      gãy. Chạy lại nguyên prompt bằng engine khác là đăng lại từ đầu.
-        # Thà dừng và nói đúng "Claude gãy vì X" để chủ xử lý, hơn là làm nửa vời trong im lặng.
-        if str(mode or "").strip().lower() == "full":
-            if prov == CLAUDE:
-                cli.model = sp.get("model") or None
-                return _chain_tagged(cli, tag)
-            ok, why = availability(sp, settings)
-            if not ok:
-                print(f"[aux] {why} → việc full tạm dùng lại Claude.", file=sys.stderr)
-                return _chain_tagged(cli, tag)
-            if prov == CODEX:
-                return _chain_tagged(_build_codex(sp, cli, mode, tag, codex_profile), tag)
-            if prov == GROK_CLI:
-                return _chain_tagged(_build_grok(sp, cli, mode, tag), tag)
-            if prov == ANTIGRAVITY:
-                return _chain_tagged(_build_antigravity(sp, cli, mode, tag), tag)
-            if prov in API_PROVIDERS:
-                return _chain_tagged(_build_api(sp, cli, mode, tag), tag)
-            return _chain_tagged(cli, tag)
+        # MỨC FULL CÓ CHUỖI NHƯNG BỊ THẮT CHẶT (safe_retry): chỉ nhảy sang mắt kế tiếp khi
+        # mắt trước chết mà CHƯA gọi tool nào - tức provider sập/hết lượt NGAY TỪ ĐẦU, chưa
+        # làm gì nên đổi engine không thể nhân đôi hành động. Mắt đã gọi tool rồi mới gãy
+        # (đăng được 1/3 bài xong chết) thì chuỗi DỪNG và báo đúng lỗi gốc - đúng lý do
+        # trước đây full không có chuỗi: engine khác không có tool NATIVE của Claude, model
+        # không biết mình vừa bị đổi engine, và việc làm dở có thể bị làm lại từ đầu.
+        safe_retry = str(mode or "").strip().lower() == "full"
+        primary = None
         if prov == CLAUDE:
             cli.model = sp.get("model") or None
-            # Máy có thể CHƯA đăng nhập Claude (người dùng chỉ chạy Gemini/OpenAI...):
-            # thêm bộ não CHÍNH làm mắt kế để việc nền đi theo đúng bộ não đang sống.
-            chain = [cli]
-            chain += _aux_fb_links(cli, mode, tag, settings, sp, codex_profile)
-            mn = _main_fallback_engine(cli, mode, tag, settings, {CLAUDE}, codex_profile)
-            if mn:
-                chain.append(mn)
-            or_free = _openrouter_free_engine(cli, mode, tag, settings)
-            if or_free and not _co_mat_orfree(chain):
-                chain.append(or_free)
-            return _chain_tagged(_FallbackChain(chain), tag)
-        ok, why = availability(sp, settings)
-        if not ok:
-            print(f"[aux] {why} → việc nền tạm dùng lại Claude.", file=sys.stderr)
-            return _chain_tagged(cli, tag)
-        primary = _engine_for_spec(sp, cli, mode, tag, codex_profile)
-        if primary is None:
-            return _chain_tagged(cli, tag)
-        # Chuỗi chủ tự xếp (aux_fallbacks) đứng SAU mắt chính và TRƯỚC các mắt máy đoán:
-        # ý chí chủ (gemini -> groq -> codex-gmail...) ưu tiên hơn heuristic sẵn có.
-        chain = [primary]
+        else:
+            ok, why = availability(sp, settings)
+            if ok:
+                primary = _engine_for_spec(sp, cli, mode, tag, codex_profile)
+            else:
+                # Provider đã chọn không dùng được NGAY TỪ ĐẦU (thiếu key/CLI): chưa hề có
+                # hành động nào nên đổi engine an toàn kể cả full - đi đường chuỗi Claude.
+                print(f"[aux] {why} → việc nền đi theo chuỗi.", file=sys.stderr)
+        chain = [primary] if primary is not None else [cli]
         _fbs = _aux_fb_links(cli, mode, tag, settings, sp, codex_profile)
         chain += _fbs
-        chain.append(cli)
+        if primary is not None:
+            chain.append(cli)
         _fb_provs = {getattr(e, "provider", "") for e in _fbs}
         mn = _main_fallback_engine(cli, mode, tag, settings,
                                    {CLAUDE, prov} | _fb_provs, codex_profile)
@@ -997,7 +1013,7 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         # Chuỗi đã có mắt openrouter model trống (tự chọn free) thì or_free trùng hệt → khỏi thêm.
         if or_free and not _co_mat_orfree(chain):
             chain.append(or_free)
-        return _chain_tagged(_FallbackChain(chain), tag)
+        return _chain_tagged(_FallbackChain(chain, safe_retry=safe_retry), tag)
     except Exception as e:
         print(f"[aux swap] {e} → giữ engine Claude.", file=sys.stderr)
     return cli

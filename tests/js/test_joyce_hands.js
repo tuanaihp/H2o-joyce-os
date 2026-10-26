@@ -237,8 +237,8 @@ async function main() {
   check("wrapper: tắt cam khi rời lớp nhìn", wrap.includes("closeHands()"));
   check("wrapper: disposeHands trong destroy", wrap.includes("disposeHands()"));
   check("wrapper: album.mjs nạp lười cùng kit", wrap.includes("album.mjs"));
-  check("wrapper: swipe -> album.swipe(dir)", wrap.includes('d.type === "swipe"') && wrap.includes("album.swipe"));
-  check("wrapper: pinchRatio -> zoom album (1 tay, không palm)", wrap.includes("zoomFromRatio") && wrap.includes('d.pose !== "palm"'));
+  check("wrapper: swipe -> JoyceScreen.swipe(dir) (tới surface đang mở)", wrap.includes('d.type === "swipe"') && wrap.includes("JoyceScreen.swipe"));
+  check("wrapper: pinchRatio -> zoom qua JoyceScreen (1 tay, không palm)", wrap.includes("JoyceScreen.zoomFromRatio") && wrap.includes('d.pose !== "palm"'));
 
   // ---- Album trình chiếu + fullscreen ----
   const album = read("dashboard/joyce-hands/album.mjs");
@@ -270,6 +270,20 @@ async function main() {
   check("brain-view: requestFullscreen trên .hud-center", bview.includes("requestFullscreen") && bview.includes("hud-center"));
   const srv = read("server/main.py");
   check("server: endpoint GET /album quét attachments+sources", srv.includes('@app.get("/album")') && srv.includes("_ALBUM_IMG_EXTS"));
+
+  // ---- Surface students (H2O Book) qua registry JoyceScreen ----
+  const students = read("dashboard/joyce-hands/students.mjs");
+  check("students.mjs tồn tại", !!students);
+  check("students: đọc connector /ext/h2obook/students (key nằm ở server, không lọt vào bundle)", students.includes("/ext/h2obook/students?q=") && !students.includes("Authorization") && !students.includes("Bearer"));
+  check("students: lưới thẻ + ô tìm tên/SĐT + thẻ chi tiết", students.includes("js-q") && students.includes("data-pick") && students.includes("_detail"));
+  check("students: cùng contract surface (open/close/back/swipe)", students.includes("open()") && students.includes("close()") && students.includes("back()") && students.includes("swipe(dir)"));
+  check("wrapper: JoyceScreen registry album+students, một surface mở tại một thời điểm",
+    wrap.includes("window.JoyceScreen") && wrap.includes("closeOtherSurfaces") && wrap.includes("loadStudentsMod"));
+  check("server: connector /ext/h2obook/students gọi public API bằng key h2o_*",
+    srv.includes("/ext/h2obook/students") && srv.includes("/api/public/v1/students") && srv.includes("H2OBOOK_API_KEY"));
+  check("server: h2obook key đọc env rồi settings, không hardcode trong JS",
+    srv.includes("H2OBOOK_URL") && srv.includes('cfgmod.read_settings().get("h2obook")'));
+  check("css: students surface dùng chung khung + thẻ riêng", css.includes(".js-students") && css.includes(".js-detail"));
   const eng = read("dashboard/joyce-hands/gesture-engine.mjs");
   check("engine: swipe trail + dir right/left/down/up", eng.includes("swipeTrail") && eng.includes("dir = 'down'"));
 

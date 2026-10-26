@@ -120,6 +120,17 @@ check("danh sách đã cài có nút đặt làm model chính",
   && !!VI["ol.use_main"] && !!EN["ol.use_main"]);
 check("model embedding không có nút đó (không chat được)", /\/embed\/i\.test/.test(OL));
 check("và đánh dấu model nào đang là chính", /ol\.is_main/.test(OL) && /laChinh\(/.test(OL));
+check("model chat có nút test ngay tại danh sách đã cài",
+  /class="gcard-btn ol-test"/.test(OL) && /olThuModel/.test(OL) && !!VI["ol.test"] && !!EN["ol.test"]);
+check("test model đọc SSE heartbeat để cold-start vài phút không bị proxy cắt",
+  /\/ollama-local\/test/.test(OL) && /getReader\(\)/.test(OL) && /ol\.test_loading/.test(OL));
+check("test cho chọn context an toàn và nhớ lựa chọn trên máy này",
+  /ol-test-ctx/.test(OL) && /2048, 4096, 8192, 16384/.test(OL)
+  && /joyce-ollama-test-ctx/.test(OL));
+check("phân biệt rõ model local với Z.ai cloud",
+  /Local · Ollama/.test(OL));
+check("model lớn chưa nạp có cảnh báo cold-start",
+  /m\.size_gb >= 12/.test(OL) && /ol\.cold_note/.test(OL));
 check("tab gọi là Local Model, không còn 'máy nhà' / 'chạy trên máy'",
   VI["models.tab_local"] === "Local Model" && EN["models.tab_local"] === "Local Model");
 // VPS phổ thông không GPU, ít RAM. Không nói trước là để người ta tải 5GB rồi mới thất vọng.
@@ -144,7 +155,8 @@ check("CANARY: vẫn còn lưới đỡ theo tên cho server cũ", /\/embed\/i\.
 // ============================================================
 for (const ep of ["/ollama-local/status", "/ollama-local/endpoint", "/ollama-local/specs",
                   "/ollama-local/installed", "/ollama-local/recommended",
-                  "/ollama-local/search", "/ollama-local/pull", "/ollama-local/delete"]) {
+                  "/ollama-local/search", "/ollama-local/pull", "/ollama-local/test",
+                  "/ollama-local/delete"]) {
   check("gọi " + ep, OL.includes(ep));
 }
 // Ollama không có API huỷ; huỷ = đóng luồng, và lần tải sau tự tiếp tục từ chỗ dở.

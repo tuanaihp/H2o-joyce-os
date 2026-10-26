@@ -70,5 +70,27 @@ check("app.js xử lý frame ui_action", /data\.type === "ui_action"/.test(app) 
 check("console.js xuất window.JoyceKanbanShow", /window\.JoyceKanbanShow = showTask/.test(consoleJs));
 check("main.py có nhánh ui_result", /action == "ui_result"/.test(main));
 
+// ---- Surface màn hình 3D (open_surface): lớp trình chiếu trên khoang não ----
+const humanoid = fs.readFileSync(path.join(root, "dashboard", "joyce-humanoid.js"), "utf8");
+check("open_surface album: ok", A.validate({ action: "open_surface", target: "album" }).ok);
+check("open_surface students: ok", A.validate({ action: "open_surface", target: "students" }).ok);
+check("open_surface surface lạ: chặn", !A.validate({ action: "open_surface", target: "radar" }).ok);
+check("open_surface rỗng: chặn", !A.validate({ action: "open_surface", target: "" }).ok);
+// Hai đầu phải cùng danh sách surface như PAGES/GROUPS.
+const spm = plugin.match(/SURFACES = \(([\s\S]*?)\)/);
+const psurf = spm ? spm[1].match(/"([a-z]+)"/g).map(x => x.replace(/"/g, "")) : [];
+check("SURFACES của ui_targets.py == SURFACES của ui-actions.js", JSON.stringify(A.SURFACES) === JSON.stringify(psurf));
+// Registry thật: JoyceScreen.open điều phối, plugin schema nhận action.
+check("joyce-humanoid có JoyceScreen.open registry", /window\.JoyceScreen = \{/.test(humanoid)
+  && /open: function \(name\)/.test(humanoid) && /"students"/.test(humanoid) && /"album"/.test(humanoid));
+check("cử chỉ đi qua JoyceScreen (swipe/zoom)", /JoyceScreen\.swipe\(d\.dir\)/.test(humanoid)
+  && /JoyceScreen\.zoomFromRatio/.test(humanoid));
+check("plugin joyce_ui nhận open_surface", /"open_surface"/.test(plugin)
+  && /def resolve_surface/.test(plugin));
+const voice = fs.readFileSync(path.join(root, "server", "voice_brain.py"), "utf8");
+check("voice_brain UI_ACTIONS có open_surface", /"open_surface"/.test(voice));
+check("main.py fast-path kiểm open_surface", /"open_surface"/.test(main));
+check("main.py có connector h2obook", /\/ext\/h2obook\/students/.test(main));
+
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - ui-actions");

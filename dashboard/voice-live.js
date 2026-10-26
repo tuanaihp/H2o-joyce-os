@@ -58,8 +58,15 @@
     return out;
   }
 
+  // Lệnh xử lý tại máy (vd "fake giọng anh" của JoyceVoiceCloneCmd): câu đã tới
+  // nhà cung cấp nên nó vẫn trả lời - khi lệnh đã xong nội bộ, vứt trọn audio +
+  // chữ của lượt trả lời thừa đó thay vì để hai hệ thống nói chồng nhau.
+  var skipReply = false;
+  function _applySkip() { try { if (remoteAudio) remoteAudio.muted = skipReply; } catch (e) {} }
+  function skipCurrentReply() { skipReply = true; _applySkip(); flushPlayback(); }
+
   function playChunk(buf) {
-    if (!outCtx) return;
+    if (!outCtx || skipReply) return;
     var i16 = new Int16Array(buf);
     if (!i16.length) return;
     var f32 = new Float32Array(i16.length);
@@ -129,6 +136,7 @@
       remoteAudio = new Audio();
       remoteAudio.autoplay = true;
       remoteAudio.srcObject = remote;
+      _applySkip();
       var p = remoteAudio.play();
       // iOS có thể chặn phát vì không còn trong cử chỉ bấm: phát qua outCtx đã mở khoá lúc bấm mic.
       if (p && p.catch) p.catch(function () { try { if (remoteSrc && outCtx) remoteSrc.connect(outCtx.destination); } catch (e) {} });
@@ -261,13 +269,14 @@
       else if (d.type === "tool_result") emit("onToolResult", d.name || "", d.text || "");
       else if (d.type === "interrupted") {
         var ms = playedMs();          // đo TRƯỚC khi xả, xả xong là mất mốc
+        skipReply = false; _applySkip();
         flushPlayback();
         sendJson({ type: "played", ms: ms });
         emit("onInterrupted", ms);
       }
       else if (d.type === "transcript") emit("onTranscript", d.role, d.text || "", !!d.final);
       else if (d.type === "tool") emit("onTool", d.name, d.status);
-      else if (d.type === "turn_done") { nextUtterance = true; emit("onTurnDone"); }
+      else if (d.type === "turn_done") { nextUtterance = true; skipReply = false; _applySkip(); emit("onTurnDone"); }
       else if (d.type === "reconnected") emit("onReconnected");
       else if (d.type === "error") {
         // Lỗi trong lúc chờ answer (Codex cũ, gói không cho realtime...): báo một lần, dừng chờ.
@@ -420,6 +429,8 @@
 
   window.JoyceVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext, attachMic: attachMic,
                             hasMic: function () { return !!stream; },
+                            micStream: function () { return stream; },
+                            skipCurrentReply: skipCurrentReply,
                             playedMs: playedMs, progress: progress, resetProgress: resetProgress,
                             setMuted: setMuted, isMuted: function () { return muted; },
                             isOn: function () { return on; },

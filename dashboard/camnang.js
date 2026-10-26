@@ -930,8 +930,65 @@
     return h + '</div>';
   }
 
+  // Panel "Tri thức trong brain": đọc wiki/index.md của brain đang chọn rồi vẽ
+  // thành các nhóm (## heading) + chip hỏi (mỗi [[link]]). Generic - brain nào có
+  // index theo format wiki schema đều hiện; brain chưa có wiki hiện gợi ý rỗng.
+  // Chip chỉ ĐIỀN SẴN câu hỏi vào ô chat (dienCau), không tự gửi.
+  function triThucPanel(md) {
+    const cats = [];
+    let cur = null, sub = null;
+    const root = { name: "", chips: [] };   // link phẳng không thuộc nhóm ## nào (index kiểu phẳng của brain phòng)
+    (md || "").split(/\r?\n/).forEach(line => {
+      const mH = line.match(/^##\s+(.+)/);
+      if (mH) { cur = { name: mH[1].trim(), chips: [] }; cats.push(cur); sub = null; return; }
+      const mS = line.match(/^###\s+(.+)/);
+      if (mS) { if (cur) sub = mS[1].trim(); return; }
+      const ms = line.match(/\[\[([^\]]+)\]\]/g);
+      const dst = cur || root;
+      if (ms) ms.forEach(x => {
+        const rel = x.slice(2, -2).split("|")[0].trim();
+        const base = rel.split("/").pop();
+        if (!rel || rel === "index" || rel === "log" || rel[0] === "_"
+            || rel.startsWith("sources/") || rel.endsWith("/")) return;
+        if (!dst.chips.some(c => c.rel === rel)) dst.chips.push({ rel, base, sub });
+      });
+    });
+    const live = (root.chips.length ? [root] : []).concat(cats.filter(c => c.chips.length));
+    if (!live.length) {
+      return panel("book-open", tw("camnang.kb_t"), "",
+        '<div class="cn-kb-empty">' + esc(tw("camnang.kb_empty")) + '</div>');
+    }
+    let html = "";
+    live.forEach(c => {
+      const subs = [];
+      c.chips.forEach(ch => {
+        const g = subs.find(s => s.sub === ch.sub);
+        if (g) g.items.push(ch); else subs.push({ sub: ch.sub, items: [ch] });
+      });
+      html += '<div class="cn-kb">'
+        + (c.name ? '<div class="cn-kb-cat"><b>' + esc(c.name) + '</b>'
+        + '<span class="cn-kb-n">' + c.chips.length + '</span>'
+        + '<button type="button" class="cn-kb-sum" data-ask="'
+        + esc(tw("camnang.kb_sum_ask", { ten: c.name })) + '">'
+        + esc(tw("camnang.kb_sum")) + '</button></div>' : "");
+      subs.forEach(g => {
+        if (g.sub) html += '<div class="cn-kb-sub">' + esc(g.sub) + '</div>';
+        html += '<div class="cn-kb-items">' + g.items.map(ch =>
+          '<span class="cn-kb-item"><button type="button" class="cn-chip" data-ask="'
+          + esc(tw("camnang.kb_ask", { ten: ch.base })) + '" title="' + esc(tw("camnang.kb_ask_tip")) + '">'
+          + esc(ch.base) + '</button>'
+          + '<button type="button" class="cn-kb-eye" data-file="wiki/' + esc(ch.rel) + '.md"'
+          + ' title="' + esc(tw("camnang.kb_view")) + '">' + ic("eye") + '</button></span>'
+        ).join("") + '</div>';
+      });
+      html += '</div>';
+    });
+    return panel("book-open", tw("camnang.kb_t"), tw("camnang.kb_d"),
+      '<div class="cn-kb-grid">' + html + '</div>');
+  }
+
   function renderTongQuan(el, ctx) {
-    const { cat, byCon, health, agents, workflows, skills, brains, specCat } = ctx;
+    const { cat, byCon, health, agents, workflows, skills, brains, specCat, kbMd } = ctx;
     const connected = cat.filter(c => (byCon[c.id] || []).length);
     const chuaNoi = cat.filter(c => !(byCon[c.id] || []).length);
     const depts = (specCat && specCat.departments) || [];
@@ -1018,7 +1075,9 @@
       + panel("chart-column", tw("camnang.brand_t"), tw("camnang.brand_d"),
           brand("studio", "camnang.brand_st_d") + brand("academy", "camnang.brand_ac_d")
           + brand("shared", "camnang.brand_sh_d"))
-      + '</aside></div>';
+      + '</aside></div>'
+      // Mục lục tri thức của brain đang chọn (đọc từ wiki/index.md).
+      + triThucPanel(kbMd);
 
     if (!connected.length && !agents.length) {
       h += '<div class="cn-empty">' + ic("book-open", { cls: "ic-xl" })
@@ -1053,13 +1112,14 @@
       + ic("loader", { cls: "ic-xl ic-spin" }) + '</div><div>' + esc(tw("common.loading")) + '</div></div>';
     const b = encodeURIComponent(brain());
     let cat = [], conns = [], health = {}, agents = [], workflows = [], skills = [],
-        brains = [], specCat = null;
+        brains = [], specCat = null, kbMd = "";
     try {
       const rs = await Promise.all([
         api("/connect/catalog"), api("/connect/health"),
         api("/agents?brain=" + b + "&prompt=0"), api("/workflows?brain=" + b),
         api("/skills?brain=" + b), api("/brains"),
         api("/static/data/h2o-skill-catalog.json"),
+        api("/files/read?brain=" + b + "&path=" + encodeURIComponent("wiki/index.md")),
       ]);
       cat = (rs[0].data && rs[0].data.catalog) || [];
       conns = (rs[0].data && rs[0].data.connections) || [];
@@ -1069,6 +1129,7 @@
       skills = (rs[4].data && rs[4].data.skills) || [];
       brains = (rs[5].data && (rs[5].data.brains || rs[5].data.list)) || [];
       specCat = rs[6].data || null;
+      kbMd = (rs[7].data && rs[7].data.content) || "";
     } catch (e) {
       el.innerHTML = '<div class="cview-placeholder"><div class="ph-ico">'
         + ic("triangle-alert", { cls: "ic-xl" }) + '</div><div>' + esc(tw("cs.cn_load_err")) + '</div></div>';
@@ -1098,7 +1159,7 @@
       + esc(tw(tabDang.labelKey)) + '</b></div><div id="cnBody"></div>';
 
     const body = el.querySelector("#cnBody");
-    const ctx = { cat, conns, byCon, health, agents, workflows, skills, brains, specCat };
+    const ctx = { cat, conns, byCon, health, agents, workflows, skills, brains, specCat, kbMd };
     if (CN_STATE.tab === "tongquan") {
       renderTongQuan(body, ctx);
       return;

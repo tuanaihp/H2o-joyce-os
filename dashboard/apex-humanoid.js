@@ -88,6 +88,10 @@
       this.host=host;this.options=options;this.state='idle';this.level=0;this.externalLevel=0;this.levelAt=-Infinity;
       this.running=false;this.disposed=false;this.paused=false;this.mic=null;this.micPending=false;this.micEpoch=0;this.sound=false;
       this.pointer={x:0,y:0};this.ripples=[];this.listeners=[];this.plate='idle';this.previous='idle';this.transitionAt=0;
+      // Cảnh nền hiện tại (JoyceBackdrops). 'mountain' = ảnh gốc backdrop-v1.webp;
+      // cảnh khác vẽ thủ tục ra canvas rồi gán qua dataURL. Nhớ trong localStorage
+      // để lựa chọn sống qua refresh và áp lại khi avatar được dựng muộn.
+      this.scene='mountain';
       // Điều khiển tay qua camera sống ở joyce-hands/ (Worker MediaPipe, xử lý tại máy):
       // nút HAND CAM mở panel của kit qua options.onGestureRequest; kit gọi lại
       // setAttention()/pulse() ở đây qua connectJoyceHands(). Avatar không tự chạy detector.
@@ -117,6 +121,8 @@
     async load(){try{
       const pairs=await Promise.all(Object.entries(FILES).map(([key,file])=>new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>resolve([key,img]);img.onerror=()=>reject(new Error('Không tải được '+file));img.src=this.options.assets?.[key]||(this.options.assetsBase||'./assets/')+file;})));
       if(this.disposed)return;this.images=Object.fromEntries(pairs);this.bg.src=this.images.backdrop.src;this.fallback.src=this.images.idle.src;
+      // Áp lại cảnh nền đã chọn (lệnh giọng có thể đến trước khi assets nạp xong).
+      try{const sv=localStorage.getItem('joyce.avatar.scene');if(sv&&sv!=='mountain')this.setScene(sv);}catch(e){}
       this.aspect=this.images.idle.naturalWidth/this.images.idle.naturalHeight;
       try{this.renderer=new PlateRenderer(this.glCanvas);this.renderer.load(this.images);}catch(err){this.report(err);this.useFallback();}
       this.sampleParticles();this.loaded=true;this.$('[data-action=enter]').disabled=false;this.$('[data-action=enter]').textContent='ENTER';
@@ -148,7 +154,19 @@
       this.options.onStateChange?.(state);this.root.dispatchEvent(new CustomEvent('joyce-avatar:state',{detail:{state}}));}
     selectPlate(plate,now){if(plate===this.plate)return;this.previous=this.plate;this.plate=plate;this.transitionAt=now;}
     setLevel(level){this.externalLevel=clamp(Number(level));this.levelAt=performance.now();}
-    // Kit joyce-hands gọi: lái sự chú ý (đầu quay, parallax hạt) theo đầu ngón trỏ.
+    /** Đổi cảnh nền (JoyceBackdrops). 'mountain' trả về ảnh gốc; cảnh khác vẽ
+     * thủ tục ra canvas theo kích thước host rồi gán dataURL cho <img>. Lệnh
+     * giọng gọi vào đây qua JoyceHumanoid.setScene. Trả false khi id lạ. */
+    setScene(id){const B=global.JoyceBackdrops,d=B&&B.get(id);if(!d||this.disposed)return false;
+      this.scene=d.id;try{localStorage.setItem('joyce.avatar.scene',d.id);}catch(e){}
+      if(d.asset){this.bg.src=this.images.backdrop.src;return true;}
+      const r=this.host.getBoundingClientRect(),dpr=Math.min(global.devicePixelRatio||1,this.options.maxDpr||1.5);
+      const w=Math.max(640,Math.round((r.width||1280)*dpr)),h=Math.max(400,Math.round((r.height||720)*dpr));
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      try{B.render(cv.getContext('2d'),d.id,w,h);this.bg.src=cv.toDataURL('image/png');}
+      catch(e){this.bg.src=this.images.backdrop.src;this.scene='mountain';this.report(e);}
+      return true;}
+    /** Kit joyce-hands gọi: lái sự chú ý (đầu quay, parallax hạt) theo đầu ngón trỏ. */
     // Cùng kênh pointer với chuột: nguồn nào emit sau thắng, -1..1 -> giữa là trung tâm.
     setAttention(x=0,y=0){this.pointer={x:clamp(x,-1,1),y:clamp(y,-1,1)};}
     pulse(x=.5,y=.45){this.ripples.push({x:clamp(x),y:clamp(y),at:performance.now()});if(this.ripples.length>5)this.ripples.shift();if(this.sound)this.tone(180,.24);}

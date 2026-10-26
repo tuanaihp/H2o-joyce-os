@@ -224,7 +224,7 @@
     var key = wxKey();
     if (planet && key) planet.setWeather(key);
     if (!el) return;
-    if (!key) { el.innerHTML = '<div class="hp-empty">' + t("hud.none") + "</div>"; return; }
+    if (!key) { el.innerHTML = '<div class="hp-empty">' + t("hud.none_wx") + "</div>"; return; }
     var w = D.wx || {};
     var ico = window.ic ? window.ic(WX_ICON[key] || "sun") : "";
     var html = '<button class="hp-wx-now wx-' + key + '" type="button" id="hpWxBtn" title="' + esc(t("hud.wx_preview_hint")) + '">' +
@@ -667,7 +667,7 @@
               esc(s.title || s.preview || t("sess.untitled")) + '</span><span class="hp-when">' +
               fmtAgo(s.updated_at) + "</span></div>";
           }).join("")
-        : '<div class="hp-empty">' + t("hud.none") + "</div>";
+        : '<div class="hp-empty">' + t("hud.none_chats") + "</div>";
       el.innerHTML += khoTriThucHtml();
     }
     // Phải 2: lịch hẹn - nhãn + ĐẾM NGƯỢC (tickClock cập nhật mỗi giây)
@@ -678,7 +678,7 @@
           row(t("hud.rem_next"), D.nextRem.label || D.nextRem.text || "-") +
           row(t("hud.rem_due"), D.nextRem.due_human || "-", "ok") +
           row(t("hud.rem_count"), D.remCount)
-        : '<div class="hp-empty">' + t("hud.none") + "</div>";
+        : '<div class="hp-empty">' + t("hud.none_sched") + "</div>";
       tickCount();
     }
     // Phải 3: ma trận hệ sinh thái - mỗi app một hàng chấm+tên, bấm mở app
@@ -692,7 +692,7 @@
               '<span class="hp-pdot ' + (p.ok ? "on" : "off") + '"></span>' +
               '<span class="hp-mname">' + esc(p.ten || p.url || "-") + "</span></a>";
           }).join("") + "</div>"
-        : '<div class="hp-empty">' + t("hud.none") + "</div>";
+        : '<div class="hp-empty">' + t("hud.none_proj") + "</div>";
     }
   }
 

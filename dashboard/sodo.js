@@ -59,7 +59,7 @@
   ];
 
   // Trạng thái giao diện giữ qua các lần làm mới tự động (bộ lọc phòng ban).
-  const ui = { filter: "all" };
+  const ui = { filter: "all", facNote: "" };
   let timer = null;
 
   let _css = false;
@@ -187,6 +187,52 @@
   .sd-prow{grid-template-columns:10px 1fr auto}
   .sd-prow .sd-pagent,.sd-prow .sd-pstats{grid-column:2/-1}
 }
+/* Tầng nhà máy (factory pipeline) - vòng đời SAU KHI việc xong, lớp OpenAI factory */
+.sd-fac{display:flex;flex-direction:column;gap:10px;padding:13px 14px;border-radius:14px;
+  background:var(--card);border:1px solid var(--line)}
+.sd-fac-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sd-fac-h .sd-t{font-size:14px}
+.sd-fac-au{margin-left:auto;display:flex;align-items:baseline;gap:7px}
+.sd-fac-au b{font-size:24px;font-weight:750;letter-spacing:-.5px;color:var(--accent-ink)}
+.sd-fac-au span{font-size:11.5px;color:var(--text2);max-width:200px;line-height:1.3}
+.sd-pipe{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sd-stage{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:10px;
+  border:1px solid var(--line);background:var(--wash);position:relative;min-width:0;cursor:pointer}
+.sd-stage.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--wash))}
+.sd-stage .sd-dot{position:absolute;top:8px;right:8px}
+.sd-fac-note{border:1px dashed var(--line);border-radius:10px;padding:8px 11px;font-size:11.5px;
+  color:var(--text2);line-height:1.45;background:var(--wash)}
+.sd-fac-note b{color:var(--text);font-weight:650}
+.sd-stage-ic{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:none;
+  color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.sd-stage-in{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sd-stage-in b{font-size:11.5px;font-weight:650;line-height:1.2}
+.sd-stage-in span{font-size:10.5px;color:var(--text2);line-height:1.3;overflow-wrap:anywhere}
+.sd-fac-cap{display:flex;flex-wrap:wrap;gap:5px}
+/* Bảng agent hiệu quả */
+.sd-ag{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:12px;
+  overflow:hidden;background:var(--card)}
+.sd-ag-h{display:grid;grid-template-columns:10px minmax(0,1.4fr) minmax(0,1.6fr) 110px 60px;
+  gap:10px;padding:7px 12px;background:var(--wash);font-size:10.5px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--text3)}
+.sd-ag-r{display:grid;grid-template-columns:10px minmax(0,1.4fr) minmax(0,1.6fr) 110px 60px;
+  gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font-size:12px}
+.sd-ag-r .sd-dot{background:var(--s)}
+.sd-ag-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-ag-role{color:var(--text2);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-ag-stats{color:var(--text2);font-size:11.5px}
+.sd-ag-stats b{color:var(--text);font-weight:600}
+.sd-ag-bar{height:4px;border-radius:3px;background:var(--line);overflow:hidden}
+.sd-ag-bar i{display:block;height:100%;background:var(--s);border-radius:3px}
+.sd-ag-score{font-size:11.5px;font-weight:650;color:var(--s);text-align:right}
+.sd-ag-r.good{--s:var(--ok-ink)}.sd-ag-r.wait{--s:var(--warn-ink)}.sd-ag-r.risk{--s:var(--danger-ink)}
+.sd-ag-r.idle{--s:var(--text3)}
+@container sd (max-width:819px){
+  .sd-ag-h{display:none}
+  .sd-ag-r{grid-template-columns:10px 1fr auto}
+  .sd-ag-role,.sd-ag-stats{grid-column:2/-1}
+  .sd-fac-au{margin-left:0}
+}
 @media (prefers-reduced-motion:reduce){.sd-arr::after,.sd-refresh.spin svg,.sd-card.sd-flash{animation:none}.sd-node:hover{transform:none}}
 `;
     document.head.appendChild(st);
@@ -209,6 +255,100 @@
       <div class="sd-rows">${rowsHtml || `<div class="sd-empty">${esc(t("sodo.empty"))}</div>`}</div>
       <div class="sd-foot"><button type="button" class="sd-go" data-go="${esc(b.go)}">${esc(t(OPEN_GO[b.go] || "sodo.open.kanban"))} ${ic("chevron-right")}</button></div>
     </section>`;
+  }
+
+  // Tầng nhà máy Joyce (OpenAI agentic factory): vòng đời SAU KHI việc xong -
+  // CI babysit, risk gate, watcher handhold, Perf/Sevbot, PPC proposal, eval,
+  // canary, tự áp, pacing. Mỗi ô là số thật từ /work/factory; ô nào có vấn đề
+  // (CI đỏ, eval rớt, canary rollback) chuyển đèn vàng để chủ thấy ngay.
+  function facSection(fc) {
+    if (!fc) return "";
+    const sg = fc.stages || {}, au = fc.autonomy || {};
+    const w = sg.watch || {}, cn = sg.canary || {}, pp = sg.proposals || {};
+    const vd = sg.verdicts || {};
+    const cp = sg.capacity || {};
+    const ratio = au.ratio;
+    const auTxt = ratio == null ? t("sodo.fac.nodata") : Math.round(ratio * 100) + "%";
+    const cnTxt = Object.keys(cn).length
+      ? Object.entries(cn).map(([k2, v]) => `${v} ${k2}`).join(" · ")
+      : t("sodo.fac.none");
+    const ST = [
+      { ic: "hammer", k: "sodo.fac.ci", m: `${so(sg.ci_open || 0)} ${t("sodo.fac.pending")}`,
+        s: (sg.ci_open || 0) ? "warn" : "ok" },
+      { ic: "shield-check", k: "sodo.fac.risk",
+        m: `${t("sodo.fac.auto")} ${so(sg.auto_approved || 0)} · ${t("sodo.fac.high")} ${so(sg.escalated || 0)}`, s: "ok" },
+      { ic: "eye", k: "sodo.fac.watch",
+        m: `${so(w.watching || 0)} ${t("sodo.fac.watching")} · ${so(w.failed || 0)} ${t("sodo.fac.failed")}`,
+        s: (w.failed || 0) ? "warn" : "ok" },
+      { ic: "activity", k: "sodo.fac.perf",
+        m: `${so(sg.perf_cooldowns || 0)} pattern · sev ${so(sg.sev_sent || 0)}`, s: "ok" },
+      { ic: "file-diff", k: "sodo.fac.ppc",
+        m: `${so(pp.pending || 0)} ${t("sodo.fac.pending")} · ${so(pp.eval_failed || 0)} ${t("sodo.fac.evalfail")} · WIN ${so(vd.win || 0)}/KEEP ${so(vd.keep || 0)}`,
+        s: (pp.eval_failed || 0) ? "warn" : "ok" },
+      { ic: "flask-conical", k: "sodo.fac.eval",
+        m: `${so(sg.evals || 0)} ${t("sodo.fac.evalset")}`, s: (sg.evals || 0) ? "ok" : "off" },
+      { ic: "bird", k: "sodo.fac.canary", m: cnTxt,
+        s: (cn.reverted || 0) ? "warn" : "ok" },
+      { ic: "wand-2", k: "sodo.fac.self",
+        m: `${so(pp.applied || 0)} ${t("sodo.fac.applied")}`, s: "ok" },
+      { ic: "timer", k: "sodo.fac.pace",
+        m: `${so(sg.pacing_deferred || 0)} ${t("sodo.fac.deferred")} · ckpt ${so(sg.checkpoints || 0)}`, s: "ok" },
+    ];
+    const cells = ST.map(x => `<div class="sd-stage${x.k === ui.facNote ? " on" : ""}" data-note="${esc(x.k)}" title="${esc(t(x.k + ".d"))}"><span class="sd-stage-ic">${ic(x.ic)}</span>
+      <span class="sd-stage-in"><b>${esc(t(x.k))}</b><span>${esc(x.m)}</span></span>
+      <span class="sd-dot sd-st-${x.s}"></span></div>`).join("");
+    const noteHtml = `<div class="sd-fac-note">${ui.facNote
+      ? `<b>${esc(t(ui.facNote))}</b>: ${esc(t(ui.facNote + ".d"))}`
+      : esc(t("sodo.fac.hint"))}</div>`;
+    const caps = [
+      chip(t("sodo.fac.cap_done", { n: so(cp.done_24h || 0) }), "on"),
+      chip(t("sodo.fac.cap_blocked", { n: so(cp.blocked || 0), p: cp.blocked_pct || 0 }),
+           (cp.blocked_pct || 0) >= 30 ? "warn" : ""),
+      chip(t("sodo.fac.cap_active", { n: so(cp.active || 0) })),
+      chip(t("sodo.fac.cap_art", { n: so(sg.artifacts || 0) })),
+    ].join("");
+    return `<section class="sd-fac">
+      <div class="sd-fac-h"><span class="sd-t">${esc(t("sodo.fac.title"))}</span>
+        <span class="sd-sub">${esc(t("sodo.fac.sub"))}</span>
+        <div class="sd-fac-au"${ratio == null ? ` title="${esc(t("sodo.fac.nodata_d"))}"` : ""}><b>${esc(auTxt)}</b><span>${esc(t("sodo.fac.autonomy", { d: au.days || 30 }))}</span></div></div>
+      <div class="sd-pipe">${cells}</div>
+      ${noteHtml}
+      <div class="sd-fac-cap">${caps}</div>
+    </section>`;
+  }
+
+  // Bảng agent hiệu quả: agent nào được giao việc và xong tốt, ai chỉ đứng ngoài,
+  // ai có proposal WIN (PPC chứng minh nó tốt hơn sau cải tiến). Đây là chỗ chủ nhìn
+  // "agent nào đang hiệu quả / cần cải tiến" mà không phải mở từng brain.
+  function agentBoard(fc) {
+    if (!fc) return "";
+    const rows = (fc.agents || []);
+    if (!rows.length) return `<div class="sd-empty">${esc(t("sodo.ag.none"))}</div>`;
+    const show = rows.slice(0, 8);
+    const more = rows.length - show.length;
+    const trs = show.map(r => {
+      const cls = (r.blocked || 0) > 0 ? "risk" : (r.running || 0) > 0 ? "good"
+        : (r.done || 0) > 0 ? "good" : "idle";
+      const stat = `<b>${so(r.done || 0)}</b> ${esc(t("sodo.ag.done"))} · <b>${so(r.blocked || 0)}</b> ${esc(t("sodo.ag.blocked"))}` +
+        (r.running ? ` · <b>${so(r.running)}</b> ${esc(t("sodo.ag.running"))}` : "") +
+        (r.wins ? ` · <b>${so(r.wins)}</b> PPC` : "");
+      const pct = r.score == null ? 0 : r.score;
+      const scoreTxt = r.score == null ? "—" : pct + "%";
+      return `<div class="sd-ag-r ${cls}"><span class="sd-dot"></span>
+        <span class="sd-ag-name" title="${esc(r.slug)}">${esc(r.name || r.slug)}</span>
+        <span class="sd-ag-role" title="${esc(r.role)}">${esc(r.role || "-")}</span>
+        <span class="sd-ag-stats">${stat}</span>
+        <span class="sd-ag-score">${esc(scoreTxt)}<span class="sd-ag-bar"><i style="width:${pct}%"></i></span></span></div>`;
+    }).join("");
+    const moreRow = more > 0 ? `<div class="sd-ag-r idle"><span></span><span class="sd-ag-name">+${more}</span><span></span><span></span><span></span></div>` : "";
+    // Bảng toàn số 0 = chưa ai được giao việc riêng: kèm đề xuất hành động thay vì
+    // chỉ trưng một bảng trống (đúng tinh thần "chưa có dữ liệu thì phải nói làm gì tiếp").
+    const allIdle = rows.every(r => !(r.done || r.blocked || r.running || r.open || r.wins));
+    const hint = allIdle ? `<div class="sd-fac-note">${esc(t("sodo.ag.hint"))}</div>` : "";
+    return `<div class="sd-dept"><div class="sd-dept-h"><div class="sd-sect">${esc(t("sodo.ag.title"))}</div></div>
+      <div class="sd-ag"><div class="sd-ag-h"><span></span><span>${esc(t("sodo.ag.col_name"))}</span>
+        <span>${esc(t("sodo.ag.col_role"))}</span><span>${esc(t("sodo.ag.col_stats"))}</span>
+        <span>${esc(t("sodo.ag.col_score"))}</span></div>${trs}${moreRow}</div>${hint}</div>`;
   }
 
   // Tầng hiệu suất: mỗi phòng = một brain có board kanban riêng; trạng thái suy từ việc
@@ -283,12 +423,13 @@
     const b = encodeURIComponent(brain());
     const down = [];
     const J = (name, p) => p.catch(() => { down.push(name); return null; });   // một nguồn chết không làm sập cả trang
-    const [st, ag, sk, wf, lp, kb, mcp, pl, tr, mem, ov, dp] = await Promise.all([
+    const [st, ag, sk, wf, lp, kb, mcp, pl, tr, mem, ov, dp, fc] = await Promise.all([
       J("settings", api("/settings")), J("agents", api(`/agents?brain=${b}&prompt=0`)), J("skills", api(`/skills?brain=${b}`)),
       J("workflows", api(`/workflows?brain=${b}`)), J("loops", api(`/loops?brain=${b}`)), J("kanban", api(`/kanban?brain=${b}`)),
       J("mcp", api("/mcp/list")), J("plugins", api(`/plugins?brain=${b}`)), J("tools", api(`/tools/registry?brain=${b}`)),
       J("memory", api(`/memory/stats?brain=${b}`)), J("overview", api(`/api/joyce/v1/overview?brain=${b}`)),
       api("/api/joyce/v1/overview/departments").catch(() => null),   // nhân viên thường bị 403: không phải lỗi, chỉ ẩn tầng này
+      J("factory", api(`/work/factory?brain=${b}`)),                 // lớp nhà máy: pipeline + agent hiệu quả
     ]);
     const isDown = (...names) => names.some(n => down.includes(n));
 
@@ -415,6 +556,12 @@
     if (down.length) A("warn", "sodo.att.down", { n: down.length, names: down.join(", ") }, "");
     if (hz.pending_n) A("info", "sodo.att.pending", { n: so(hz.pending_n) }, "selfimprove");
     if (lp && !dinhDuong) A("info", "sodo.att.no_loop", null, "selfimprove");
+    if (fc && fc.stages) {
+      const _pp = fc.stages.proposals || {}, _cn = fc.stages.canary || {};
+      if (_pp.eval_failed) A("warn", "sodo.att.evalfail", { n: so(_pp.eval_failed) }, "selfimprove");
+      if (_cn.reverted) A("warn", "sodo.att.reverted", { n: so(_cn.reverted) }, "selfimprove");
+      if (fc.stages.ci_open) A("warn", "sodo.att.cired", { n: so(fc.stages.ci_open) }, "kanban");
+    }
     const rank = { bad: 0, warn: 1, info: 2 };
     att.sort((a, z) => rank[a.lv] - rank[z.lv]);
     const level = att.some(a => a.lv === "bad") || stat.includes("bad") ? "bad"
@@ -443,6 +590,8 @@
       </section>
       <div class="sd-sect">${esc(t("sodo.pipe_title"))}</div>
       <div class="sd-flow">${flow}</div>
+      <div class="sd-sect">${esc(t("sodo.fac.sect"))}</div>
+      ${facSection(fc)}
       <div class="sd-grid">
         ${card(BLOCKS[0], stat[0], kpi[0], mChips, mRows, dn[0])}
         ${card(BLOCKS[1], stat[1], kpi[1], cChips, cRows, dn[1])}
@@ -453,6 +602,7 @@
         ${card(BLOCKS[6], stat[6], kpi[6], eChips, eRows, dn[6])}
         ${card(BLOCKS[7], stat[7], kpi[7], oChips, oRows, dn[7])}
       </div>
+      ${agentBoard(fc)}
       ${deptSection(dp)}
       </div>`;
 
@@ -460,6 +610,16 @@
     el.querySelectorAll("[data-go]").forEach(bt => (bt.onclick = () => go(bt.dataset.go)));
     el.querySelectorAll("[data-jump]").forEach(bt => (bt.onclick = () => jump(el, bt.dataset.jump)));
     el.querySelectorAll("[data-f]").forEach(bt => (bt.onclick = () => { ui.filter = bt.dataset.f; applyFilter(el); }));
+    // Chạm 1 ô pipeline -> note bar dưới đổi sang giải thích ô đó (bấm lại để tắt).
+    // ui.facNote sống ngoài render nên lựa chọn giữ nguyên qua nhịp tự làm mới.
+    el.querySelectorAll("[data-note]").forEach(st => (st.onclick = () => {
+      ui.facNote = ui.facNote === st.dataset.note ? "" : st.dataset.note;
+      el.querySelectorAll(".sd-stage").forEach(s => s.classList.toggle("on", s.dataset.note === ui.facNote));
+      const nb = el.querySelector(".sd-fac-note");
+      if (nb) nb.innerHTML = ui.facNote
+        ? `<b>${esc(t(ui.facNote))}</b>: ${esc(t(ui.facNote + ".d"))}`
+        : esc(t("sodo.fac.hint"));
+    }));
     el.querySelectorAll("[data-act=refresh]").forEach(bt => (bt.onclick = () => {
       bt.classList.add("spin"); render(el, true);
     }));

@@ -116,6 +116,24 @@ GROUP_ALIASES = {
 _TIEN_TO_TRANG = ("trang ", "page ", "mo ", "open ", "muc ", "tab ", "cho xem ", "xem ", "vao ")
 _TIEN_TO_NHOM = ("nhom ", "group ", "muc ", "phan ", "mo ", "open ", "bung ", "cho xem ", "xem ")
 
+# SURFACE: lớp trình chiếu ĐÈ lên khoang não 3D Joyce (album ảnh cưới, thẻ học viên...) - khác
+# với TRANG dashboard (open_page đổi tab sidebar). Người nói "mở album lên màn hình" là đang
+# bảo mở surface trên avatar, KHÔNG phải đổi trang. id khớp SURFACES trong ui-actions.js và
+# registry JoyceScreen trong joyce-humanoid.js.
+SURFACES = ("album", "students")
+SURFACE_ALIASES = {
+    "album": "album", "album anh": "album", "anh": "album", "hinh": "album", "hinh anh": "album",
+    "anh cuoi": "album", "album cuoi": "album", "album studio": "album",
+    "sale album": "album", "album sale": "album", "h2o studio": "album", "studio": "album",
+    "trinh chieu": "album", "slide": "album",
+    "students": "students", "hoc vien": "students", "danh sach hoc vien": "students",
+    "thong tin hoc vien": "students", "the hoc vien": "students", "hoc sinh": "students",
+    "sinh vien": "students", "h2o book": "students", "h2obook": "students",
+    "book": "students", "hoc vien h2o": "students",
+}
+_TIEN_TO_SURFACE = ("mo ", "open ", "cho xem ", "xem ", "bat ", "hien ", "dua ", "dua len ",
+                    "len ", "len man hinh ", "tren man hinh ", "man hinh ", "keo ", "bung ")
+
 
 def khong_dau(s: str) -> str:
     s = str(s or "").strip().lower().replace("đ", "d")
@@ -167,6 +185,21 @@ def resolve_group(target: str) -> str:
     if t.replace(" ", "_") in GROUPS:
         return t.replace(" ", "_")
     return _tra(t, GROUP_ALIASES, GROUPS)
+
+
+def resolve_surface(target: str) -> str:
+    """Trả id surface hợp lệ hoặc chuỗi rỗng.
+
+    "mở thông tin học viên bên h2obook lên màn hình" -> "students": đuôi "lên màn hình" lột ở
+    đầu (nếu lỡ ở đầu), còn lại _tra bắt cụm "hoc vien" hoặc "h2o book" đều về students.
+    """
+    t = _lot_tien_to(khong_dau(target), _TIEN_TO_SURFACE)
+    for duoi in (" len man hinh", " tren man hinh", " len man", " len may"):
+        if t.endswith(duoi):
+            t = t[: -len(duoi)].strip()
+    if t in SURFACES:
+        return t
+    return _tra(t, SURFACE_ALIASES, SURFACES)
 
 
 # ---------------------------------------------------------------- cuộn
@@ -227,6 +260,8 @@ def normalize_target(action: str, target: str) -> str:
         return resolve_scroll(t)
     if action == "open_group":
         return resolve_group(t)
+    if action == "open_surface":
+        return resolve_surface(t)
     if action == "sidebar":
         return "close" if khong_dau(t) in ("close", "dong", "thu", "thu gon", "gap") else "open"
     return t

@@ -25,14 +25,16 @@ PAGES = ui_targets.PAGES
 ALIASES = ui_targets.ALIASES
 GROUPS = ui_targets.GROUPS
 GROUP_ALIASES = ui_targets.GROUP_ALIASES
+SURFACES = ui_targets.SURFACES
 resolve_page = ui_targets.resolve_page
 resolve_group = ui_targets.resolve_group
+resolve_surface = ui_targets.resolve_surface
 normalize_target = ui_targets.normalize_target
 resolve_scroll = ui_targets.resolve_scroll
 SCROLL_TARGETS = ui_targets.SCROLL_TARGETS
 _khong_dau = ui_targets.khong_dau
 
-ACTIONS = ("open_page", "open_file", "open_task", "scroll", "open_group", "sidebar")
+ACTIONS = ("open_page", "open_file", "open_task", "scroll", "open_group", "sidebar", "open_surface")
 
 
 def check_target(action: str, target: str) -> str:
@@ -62,6 +64,10 @@ def check_target(action: str, target: str) -> str:
     elif action == "sidebar":
         if _khong_dau(t) not in ("open", "close", "mo", "dong", "bung", "thu", "thu gon"):
             return "sidebar chỉ nhận target 'open' (bung thanh bên) hoặc 'close' (thu gọn)."
+    elif action == "open_surface":
+        if not resolve_surface(t):
+            return ("không có surface '" + target + "'. Surface hợp lệ: " + ", ".join(SURFACES) +
+                    " (hoặc tên thường gọi như 'album', 'học viên', 'album cưới').")
     return ""
 
 
@@ -87,6 +93,8 @@ async def _ui(args, ctx) -> str:
         return "Đã bung thanh bên." if target == "open" else "Đã thu gọn thanh bên."
     if action == "open_group":
         return f"Đã bung nhóm {target} trên thanh bên."
+    if action == "open_surface":
+        return f"Đã mở {target} lên màn hình Joyce." + (f" {detail}" if detail else "")
     ten = {"open_page": "trang", "open_file": "file", "open_task": "việc"}[action]
     return f"Đã mở {ten} {target} trên dashboard." + (f" {detail}" if detail else "")
 
@@ -105,7 +113,11 @@ def register(ctx):
             "chat_top | chat_bottom khi họ nói rõ 'cuộn khung chat'); open_group (BUNG một nhóm đang gập trên thanh bên mà "
             "KHÔNG đổi trang, dùng khi người dùng nói 'mở mục Năng lực', 'bung nhóm Kết nối', 'cho xem "
             "phần ẩn trong menu' - target: " + ", ".join(GROUPS) + " hoặc tên tiếng Việt như 'năng lực'); "
-            "sidebar (target: open để bung cả thanh bên, close để thu gọn còn icon). session_id: mã phiên "
+            "sidebar (target: open để bung cả thanh bên, close để thu gọn còn icon); "
+            "open_surface (MỞ MỘT LỚP TRÌNH CHIẾU ĐÈ LÊN KHOANG NÃO 3D JOYCE - khác open_page "
+            "là đổi tab. Dùng khi người dùng bảo 'mở album lên màn hình', 'cho xem học viên "
+            "lên màn hình', 'mở album cưới'. target: " + ", ".join(SURFACES) + " hoặc tên "
+            "thường gọi như 'album', 'học viên', 'h2obook'). session_id: mã phiên "
             "web trong khối KÊNH HỘI THOẠI HIỆN TẠI "
             "(để đúng tab thực hiện; bỏ trống thì mọi tab đang mở làm). Tool trả về 'Đã mở ...' khi "
             "dashboard xác nhận, hoặc ERROR khi không có tab nào mở / trang không tồn tại."

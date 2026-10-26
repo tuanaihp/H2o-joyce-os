@@ -2,6 +2,20 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.28] - 2026-10-26
+### Added
+- **Z.ai (GLM) as the 12th brain**: free flash models included (`glm-4.7-flash`, `glm-4.5-flash`, `glm-4.6v-flash`). The Models page has a "Free brains" section and the picker puts a FREE chip on `:free` ids (OpenRouter, TokenHarbor, 9router). A dead key turns the card red with the reason and Joyce skips that provider in fallbacks.
+- **Voice cloning**: say "clone my voice" and Joyce records a sample from the mic, saves a profile and keeps reading in that voice (runs locally, non-commercial licence). Say "old voice" to go back to the default.
+- **Music ducks while Joyce speaks**: the player moved to a Howler.js core with faster streaming and smooth volume fades. Added a local-files source and voice commands ("play lofi", "next", "stop music").
+- **Change the avatar backdrop by voice** and a knowledge-index chip row inside the empty chat.
+- **Joyce factory and catch-up sweep**: after a job finishes Joyce runs its check command and opens a fix job if it fails; every hour it scans all brains for work that should have run but did not and drops one digest in the inbox. Numbers show on the System map page.
+- **Meaning-based tool matching**: Joyce translates the question to English with a cheap model and matches it against tool names, so "close the order for the customer" finds `create_invoice`. The permission filter still applies.
+- **H2O Book students on the 3D screen**, **Apple Notes sync** into `sources/apple-notes/`, **incident Q&A (Sevbot)**, and a guide to using Joyce in the car.
+- Claude-based agents now get a fallback chain too: if the provider dies midway, the work moves to another one only if nothing outside was done yet.
+
+### Fixed
+- Cleaned translation strings that still had stray em dashes or HTML tags.
+
 ## [1.3.27] - 2026-10-26
 ### Added
 - **Daily jobs right inside Chat**: open the chat and you see your team's job templates (advising, follow-up, reports...). Tap one, fill a few fields and Joyce does it. Each group has a **+** to add your own job; tap a job to edit or delete it.
@@ -10,7 +24,12 @@
 
 ## [1.3.26] - 2026-10-23
 ### Added
-- **System map redesigned** (in progress).
+- **System map page**: one page that shows the whole Joyce system - per-department performance from the real kanban boards, running loops, the dispatcher and items that need attention, with "All" and "Needs attention" filters.
+
+## [1.3.25] - 2026-10-21
+### Added
+- **Harness²-style self-improvement layer (PPC)**: Joyce learns to optimise its own harness (prompts, skills, agents) from real outcome evidence instead of guesswork. Three new capabilities in Brain Default - the `cham-diem-tuong-phan` skill (anonymous A/B scoring, anti-flattery and injection-resistant evidence), the `tu-cai-tien-agent` workflow (Improvement Engineer proposes -> Contrast Judge scores anonymously -> a proposal waits for owner approval, never self-applies), and the `dinh-duong-bai-hoc` loop (daily distillation of evidence-backed lessons from completed work, auto-opens a proposal when an agent repeats a mistake). Workflow and loop are created OFF - enable them on the Work page when wanted.
+- **"Self-improvement (PPC)" card in the Overview tab**: counts pending proposals in `Joyce/proposals/`, lessons and journal days in `Joyce/learn-log/`, plus the most recent learning runs - read straight from vault files so no extra database is needed.
 
 ## [1.3.24] - 2026-10-20
 ### Added

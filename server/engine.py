@@ -532,6 +532,12 @@ GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODELS_URL = "https://api.deepseek.com/models"
 DEEPSEEK_DEFAULT_MODEL = "deepseek-flash"
+# Z.ai (Zhipu GLM bản quốc tế) - endpoint OpenAI-compatible. glm-4.7-flash và
+# glm-4.5-flash FREE vĩnh viễn ($0 in/out), glm-4.6v-flash free có vision; flagship
+# glm-4.7 trả phí. Free bị rate-limit (~1 req/giây) chứ không "không giới hạn".
+# KHÔNG có endpoint /models - danh sách model lấy từ default_models ở PROVIDER_DEFS.
+ZAI_URL = "https://api.z.ai/api/paas/v4/chat/completions"
+ZAI_DEFAULT_MODEL = "glm-4.7-flash"
 
 # Ollama - model chạy NGAY TRÊN MÁY người dùng. Khác mọi provider trên ở hai điểm, và cả hai
 # đều ăn vào cách viết mã chứ không chỉ là cấu hình:
@@ -680,6 +686,19 @@ def _deepseek_thinking(reasoning):
             "reasoning_effort": _DEEPSEEK_EFFORT.get(reasoning, "high")}
 
 
+_ZAI_THINKING_OFF = {"thinking": {"type": "disabled"}}
+
+
+def _zai_thinking(reasoning):
+    """Z.ai GLM-4.5+ dùng đúng trường `thinking.type` enabled/disabled như DeepSeek.
+
+    GLM hybrid-thinking mặc định BẬT trên z.ai (docs mẫu gửi enabled) nên "off" phải
+    nói ra; không có thang effort - level chỉ chọn on/off."""
+    if reasoning in (None, "", "off"):
+        return dict(_ZAI_THINKING_OFF)
+    return {"thinking": {"type": "enabled"}}
+
+
 def _thinking_rejected(status, body_text):
     """A 400 that is about thinking mode itself (missing `reasoning_content` in history, or a
     forced tool_choice), not about the user's request. Retrying with thinking off fixes it."""
@@ -735,7 +754,7 @@ def _thought_without_answer(label: str) -> dict:
 
 
 async def _openai_compat_stream(url, label, api_key, model, messages, reasoning, send_reasoning,
-                                extra_payload=None, fast_extra=None):
+                                extra_payload=None, fast_extra=None, timeout_s=120.0):
     """Chat Completions dạng OpenAI (dùng chung cho OpenAI + Gemini qua endpoint tương thích).
     Stream token-by-token + usage token ở chunk cuối. label chỉ dùng cho thông báo lỗi.
     extra_payload: provider-specific fields merged last (DeepSeek's thinking switch)."""
@@ -747,7 +766,7 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
     payload.update(extra_payload or {})
     payload.update(fast_extra or {})   # Fast mode (0.164.0)
     try:
-        timeout = httpx.Timeout(120.0, connect=15.0)
+        timeout = httpx.Timeout(timeout_s, connect=15.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream("POST", url, headers=headers, json=payload) as r:
                 if r.status_code != 200:
@@ -829,6 +848,14 @@ async def deepseek_stream(api_key, model, messages, reasoning="off"):
         yield ev
 
 
+async def zai_stream(api_key, model, messages, reasoning="off"):
+    """Z.ai GLM (endpoint OpenAI-compatible, provider 'zai') - nhánh KHÔNG tool."""
+    async for ev in _openai_compat_stream(ZAI_URL, "Z.ai", api_key,
+                                          model or ZAI_DEFAULT_MODEL, messages, reasoning,
+                                          False, _zai_thinking(reasoning)):
+        yield ev
+
+
 async def ollama_stream(api_key, model, messages, reasoning="off"):
     """Ollama Cloud (endpoint OpenAI-compatible, provider 'ollama') - nhánh KHÔNG tool.
 
@@ -854,7 +881,8 @@ async def ollama_local_stream(api_key, model, messages, reasoning="off"):
     while True:
         retry = False
         async for ev in _openai_compat_stream(url, "Ollama (Local)", api_key, model,
-                                              messages, "off", False, extra):
+                                              messages, "off", False, extra,
+                                              timeout_s=600.0):
             if (ev.get("type") == "error" and extra != _OLLAMA_THINKING_OFF
                     and _thinking_rejected(400, str(ev.get("content") or "")) and " 400:" in str(ev.get("content") or "")):
                 retry = True
@@ -907,7 +935,7 @@ async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_to
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(url, headers, model, messages,
                                   mcp_tools, mcp_route, extra, "Ollama (Local)",
-                                  thinking_fallback=fallback):
+                                  thinking_fallback=fallback, timeout_s=600.0):
         yield ev
 
 
@@ -1095,6 +1123,7 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
         "openai": (OPENAI_URL, model or "gpt-4o-mini"),
         "groq": (GROQ_URL, model or GROQ_DEFAULT_MODEL),
         "deepseek": (DEEPSEEK_URL, model or DEEPSEEK_DEFAULT_MODEL),
+        "zai": (ZAI_URL, model or ZAI_DEFAULT_MODEL),
         "gemini": (GEMINI_URL, model or "gemini-2.5-flash"),
         "openrouter": (OPENROUTER_URL, model or "openai/gpt-4o-mini"),
         "ollama": (OLLAMA_URL, model),
@@ -1767,7 +1796,7 @@ async def schedule_cancel_gateway(messages, mcp_tools, mcp_route):
 
 
 async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, reasoning_extra, label,
-                        cache_system=False, thinking_fallback=None):
+                        cache_system=False, thinking_fallback=None, timeout_s=180.0):
     """Vòng Chat Completions + tool (OpenAI/OpenRouter). Non-stream từng vòng; yield tool_call + text cuối.
     cache_system=True (OpenRouter + model Claude): đánh cache_control lên system - OpenAI/Gemini
     tự cache nên không cần.
@@ -1864,7 +1893,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             )
         payload.update(reasoning_extra or {})
         async def _gui(payload=payload):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_s, connect=15)) as client:
                 r = await client.post(url, headers=headers, json=payload)
                 # Một số endpoint OpenAI-compatible chỉ nhận "required", không nhận named choice.
                 if (r.status_code in (400, 422) and requirement_pending
@@ -2121,6 +2150,21 @@ async def deepseek_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools,
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(DEEPSEEK_URL, headers, model or DEEPSEEK_DEFAULT_MODEL, messages,
                                   mcp_tools, mcp_route, extra, "DeepSeek",
+                                  thinking_fallback=fallback):
+        yield ev
+
+
+async def zai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """Z.ai GLM + vòng tool-calling MCP - đủ đồ nghề của Joyce như provider API khác.
+
+    Hybrid-thinking của GLM đối xử giống DeepSeek: tool loop giữ thinking tắt
+    (thinking_fallback) để khỏi vỡ vòng gọi tool."""
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    extra = _zai_thinking(reasoning)
+    fallback = None if extra == _ZAI_THINKING_OFF else dict(_ZAI_THINKING_OFF)
+    yield {"type": "meta", "model": model}
+    async for ev in _cc_tool_loop(ZAI_URL, headers, model or ZAI_DEFAULT_MODEL, messages,
+                                  mcp_tools, mcp_route, extra, "Z.ai",
                                   thinking_fallback=fallback):
         yield ev
 

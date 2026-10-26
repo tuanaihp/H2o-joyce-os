@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -56,6 +57,13 @@ ARCHIVE_TERMINAL_AFTER_DAYS = 3.0
 LIMIT_GRACE_SECONDS = limit_resume.GRACE_SECONDS
 LIMIT_MAX_WAIT_SECONDS = limit_resume.MAX_WAIT_SECONDS
 LIMIT_UNKNOWN_WAIT_SECONDS = 30 * 60
+
+# Lớp factory (OpenAI "slower deployments on purpose"): khi hàng việc chạm NGOÀI
+# (external-write: gửi tin, đăng bài, chi tiền...) trong giờ qua đã dày, việc kế
+# tiếp bị cố ý đẩy ra sau + jitter, thay vì để agent flood kênh ngoài.
+PACING_EXT_PER_HOUR = 12        # tối đa việc external-write chạy/giờ/brain
+PACING_DEFER_SECONDS = 300      # vượt trần → hoãn tối thiểu 5 phút
+PACING_JITTER_SECONDS = 600     # + ngẫu nhiên 0-10 phút, tránh xếp hàng bắn cùng lúc
 # Tên gói để câu báo trên thẻ việc nói đúng gói nào hết lượt.
 _TEN_GOI = {
     "claude-code": "Claude (Pro/Max)",
@@ -171,6 +179,9 @@ class TasksDeps:
     # Vai trợ lý được giao việc (root, slug, mã agent) -> prompt phụ. Việc giao cho agent mang
     # khoá `agent:<mã>:<slug>` thì prompt ghé thêm vai trợ lý đó (port Javis).
     agent_persona: Optional[Callable[[str, str, str], str]] = None
+    # Lớp "agentic factory" (factory.py, port OpenAI): (root, task) -> async, chạy sau khi việc
+    # rơi vào done/review/blocked: CI babysit, đăng ký watcher, gợi ý lặp. None = chưa nối.
+    factory_hook: Optional[Callable] = None
 
 
 class TasksFeature:
@@ -343,6 +354,96 @@ class TasksFeature:
             return "skill"
         return "fast"
 
+    # Auto-approve low-risk (OpenAI software factory): risk=low chỉ qua cột duyệt khi
+    # capability an toàn (đọc/ghi trong brain) VÀ policy gate không cờ (tiền/đơn/ngoài
+    # không bao giờ tự duyệt - chính OpenAI cũng giữ human gate cho high-risk).
+    _LOW_RISK_CAPS = {"files", "research", "mcp-read"}
+
+    @classmethod
+    def _low_risk_auto(cls, task: dict) -> bool:
+        md = task.get("metadata") or {}
+        if str(md.get("risk") or "").lower() != "low":
+            return False
+        cap = str(task.get("capability") or "")
+        if cap not in cls._LOW_RISK_CAPS:
+            return False
+        return not cls._policy_gate(
+            str(task.get("title") or ""), str(task.get("intent") or ""),
+            str(task.get("route") or ""), cap)
+
+    @staticmethod
+    def _high_risk_gate(task: dict) -> bool:
+        """risk=high → ép lên cột review (đường chặt của OpenAI cho thay đổi nhạy cảm).
+        Chỉ đọc cờ người/specifier gắn - hệ thống không tự suy đoán rủi ro cao."""
+        md = task.get("metadata") or {}
+        return str(md.get("risk") or "").lower() == "high"
+
+    def _pacing_not_before(self, root: str) -> float:
+        """Trần nhịp external-write (OpenAI 'slower deployments on purpose'). Đếm việc
+        chạm ngoài vừa chạy trong giờ qua; vượt trần → trả mốc not_before sau
+        PACING_DEFER + jitter. Lỗi đọc kho → 0 (đừng vì pacing mà kẹt việc)."""
+        try:
+            now = time.time()
+            recent = 0
+            for t in self.store.list_tasks(root, include_archived=False, limit=400) or []:
+                if str(t.get("capability") or "") != "external-write":
+                    continue
+                if str(t.get("status") or "") not in ("running", "done", "review"):
+                    continue
+                if now - float(t.get("updated_at") or 0) > 3600:
+                    continue
+                recent += 1
+            if recent < PACING_EXT_PER_HOUR:
+                return 0.0
+            return now + PACING_DEFER_SECONDS + random.uniform(0, PACING_JITTER_SECONDS)
+        except Exception:  # noqa: BLE001
+            return 0.0
+
+    # ── Checkpoint cho việc chạy dài ──────────────────────────────────────────
+    # Việc dài mà hết lượt/máy restart/worker gãy thì dispatcher nhặt chạy LẠI TỪ ĐẦU
+    # - cháy thêm một lượt engine cho phần việc đã làm. Worker được nhờ ghi dấu điểm
+    # vào Joyce/checkpoints/<task>.md trong khi làm (mẩu nhỏ, không bắt buộc); hệ
+    # thống cũng tự lưu đuôi kết quả dở dang khi việc ngã. Lần nhặt lại nạp mẩu đó
+    # vào prompt để đi tiếp thay vì mò lại. Checkpoint hỏng/vượt cỡ → bỏ qua, chạy
+    # như bình thường - fail-safe về phía "chạy đủ" chứ không "chạy thiếu".
+
+    _CKPT_MAX_CHARS = 4_000
+
+    @staticmethod
+    def _ckpt_path(root: str, tid: str) -> Path:
+        return Path(root) / "Joyce" / "checkpoints" / f"{tid}.md"
+
+    def _ckpt_read(self, root: str, tid: str) -> str:
+        try:
+            p = self._ckpt_path(root, tid)
+            if not p.is_file() or p.stat().st_size > self._CKPT_MAX_CHARS * 4:
+                return ""
+            return p.read_text(encoding="utf-8", errors="replace")[:self._CKPT_MAX_CHARS]
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _ckpt_write(self, root: str, task: dict, result_tail: str) -> None:
+        try:
+            p = self._ckpt_path(root, str(task.get("id")))
+            p.parent.mkdir(parents=True, exist_ok=True)
+            body = (f"# Checkpoint việc {task.get('id')}\n"
+                    f"# việc: {str(task.get('title') or '')[:120]}\n"
+                    f"# lưu lúc: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    f"Phần việc đã làm trước khi gián đoạn (đuôi kết quả dở):\n\n"
+                    f"{str(result_tail or '')[-3000:]}\n")
+            p.write_text(body[:self._CKPT_MAX_CHARS * 2], encoding="utf-8")
+        except Exception as e:  # noqa: BLE001
+            print(f"[tasks] checkpoint {task.get('id')}: {type(e).__name__}: {e}",
+                  file=sys.stderr)
+
+    def _ckpt_clear(self, root: str, tid: str) -> None:
+        try:
+            p = self._ckpt_path(root, tid)
+            if p.is_file():
+                p.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+
     @staticmethod
     def acl_cho_phep(vault_dich: str, vault_nguon: str) -> bool:
         """Brain dich co chap nhan viec tu brain nguon khong?
@@ -384,6 +485,7 @@ class TasksFeature:
         idempotency_key: str = "",
         dedupe_title: bool = True,
         source_brain: str = "",
+        extra_meta: Optional[dict] = None,
     ) -> str:
         root = self._ensure(brain)
         if source_brain and os.path.normcase(os.path.abspath(source_brain)) != os.path.normcase(os.path.abspath(root)):
@@ -416,7 +518,12 @@ class TasksFeature:
             # co ban ghi ban giao nao: khong tra loi duoc "viec nay tu khoi nao chuyen sang".
             # Giu lai ten brain nguon de so do van hanh dem duoc luong ban giao that.
             metadata={"lane": lane,
-                      **({"source_brain": Path(source_brain).name} if source_brain else {})},
+                      **({"source_brain": Path(source_brain).name} if source_brain else {}),
+                      # Lớp factory (OpenAI): risk/post_check/watch_spec chỉ nhận qua whitelist -
+                      # key lạ truyền vào bị bỏ lặng lẽ thay vì đi ngầm vào metadata.
+                      **({k: v for k, v in (extra_meta or {}).items()
+                          if k in ("risk", "post_check", "watch_spec", "ci_round", "ci_origin",
+                                   "perf_sig")} )},
         )
         self.store.promote_dependencies(root)
         try:
@@ -641,6 +748,9 @@ class TasksFeature:
                         metadata={
                             "acceptance": spec.get("acceptance", []),
                             "specifier": spec.get("specifier", "ai"),
+                            **({"risk": spec["risk"]} if spec.get("risk") else {}),
+                            **({"watch_spec": spec["watch_spec"]}
+                               if spec.get("watch_spec") else {}),
                         },
                         needs_approval=needs_appr,
                     )
@@ -655,6 +765,20 @@ class TasksFeature:
                 )
                 return
 
+            # Lớp factory (OpenAI "slower deployments on purpose"): hàng việc chạm
+            # ngoài trong giờ qua đã dày → cố ý hoãn việc này + jitter, chống flood
+            # Zalo/đăng bài/thanh toán. Giữ nguyên lượt thử (keep_attempt) vì đây
+            # là giãn nhịp chủ động, không phải lỗi của việc.
+            if task.get("capability") == "external-write":
+                nb = self._pacing_not_before(root)
+                if nb:
+                    final_task = self.store.block(
+                        tid, worker_id, "transient",
+                        "Giãn nhịp hành động ngoài (nhiều việc external-write trong giờ qua) - sẽ chạy lại sau.",
+                        transient=True, not_before=nb, keep_attempt=True,
+                    )
+                    return
+
             result, error, needs_input, metadata = await asyncio.wait_for(
                 self._execute(task), timeout=self._tran_giay_viec()
             )
@@ -664,6 +788,10 @@ class TasksFeature:
             if het_luot:
                 final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
             elif error:
+                if self._is_transient(error) and result:
+                    # Việc dài ngã giữa chừng sẽ chạy lại - lưu dấu để lượt sau đi
+                    # tiếp thay vì làm lại từ đầu (checkpoint task, lớp factory).
+                    self._ckpt_write(root, task, result)
                 final_task = self.store.block(
                     tid,
                     worker_id,
@@ -695,8 +823,18 @@ class TasksFeature:
                         result=result,
                     )
                     return
+                # Lớp factory (OpenAI risk classification - 2 chiều):
+                #   low  → auto-approve: qua luôn "done", bỏ cả lượt _verify tốn một call
+                #          model (người dùng không có token vô hạn như OpenAI - low-risk
+                #          chính là chỗ tiết kiệm được mà không mất an toàn).
+                #   high → đường CHẶT HƠN: OpenAI bắt thêm AI review + human bắt buộc cho
+                #          high-risk; ở Joyce tương đương = ép vào cột review kể cả khi việc
+                #          vốn không needs_approval, để người luôn là cổng cuối cho việc
+                #          specifier/caller đã tự đánh dấu nhạy cảm.
+                auto_ok = bool(task.get("needs_approval")) and self._low_risk_auto(task)
+                hi_gate = self._high_risk_gate(task)
                 verify = None
-                if task.get("needs_approval"):
+                if (task.get("needs_approval") or hi_gate) and not auto_ok:
                     if not result:
                         verify = {"pass": False, "reason": "Kết quả rỗng, cần duyệt thủ công",
                                   "skipped": True}
@@ -722,14 +860,21 @@ class TasksFeature:
                     verdict = "✓ Đạt" if verify.get("pass") else "✗ CHƯA ĐẠT"
                     result += (f"\n\n**Kiểm chứng: {verdict}** — "
                                f"{str(verify.get('reason') or '')[:300]}")
+                if auto_ok:
+                    metadata = dict(metadata or {}, auto_approved="low_risk")
+                    result += "\n\n**Tự duyệt** — việc rủi ro thấp (chỉ đọc/ghi trong brain), qua cột review."
+                elif hi_gate and not task.get("needs_approval"):
+                    metadata = dict(metadata or {}, escalated="high_risk")
+                    result += "\n\n**Chặn mức cao** — việc được đánh dấu rủi ro cao, đưa lên cột duyệt cho người xem."
                 final_task = self.store.complete(
                     tid,
                     worker_id,
                     result,
-                    needs_approval=bool(task.get("needs_approval")),
+                    needs_approval=(bool(task.get("needs_approval")) or hi_gate) and not auto_ok,
                     metadata=metadata,
                     artifacts=self._artifacts(result, root),
                 )
+                self._ckpt_clear(root, tid)
                 self.store.promote_dependencies(root)
         except asyncio.CancelledError:
             cancel_all(f"dispatch:{tid}")
@@ -738,10 +883,15 @@ class TasksFeature:
                 # `cancelled` câm cho việc đang chạy, nên mỗi lần bấm Cập nhật là việc nền dở
                 # dang biến mất, không thông báo, không chạy lại. Trả về ready (không tính lượt)
                 # để dispatcher nhặt lại sau khi khởi động.
+                # Chỉ lưu checkpoint khi worker chưa tự ghi - file của worker (điểm
+                # đã làm thật) quý hơn bản rỗng của hệ thống.
+                if not self._ckpt_read(root, tid):
+                    self._ckpt_write(root, task, "")
                 self.store.block(tid, worker_id, "transient",
                                  "Máy chủ khởi động lại giữa chừng, việc sẽ tự chạy lại.",
                                  transient=True, keep_attempt=True)
             else:
+                self._ckpt_clear(root, tid)
                 self.store.cancel_running(tid, "worker cancelled")
             raise
         except Exception as exc:
@@ -767,6 +917,14 @@ class TasksFeature:
             if final_task and final_task.get("status") in ("done", "review", "blocked"):
                 await self._report(final_task)
                 await self._hoc_tu_viec(root, final_task)
+                # Lớp factory (OpenAI): CI babysit → đăng ký watcher → gợi ý lặp.
+                # Nối qua deps để test/host tắt được; lỗi trong hook tự lo, không nuốt báo cáo.
+                if self.deps.factory_hook:
+                    try:
+                        await self.deps.factory_hook(root, final_task)
+                    except Exception as e:
+                        print(f"[kanban] factory hook {tid}: "
+                              f"{type(e).__name__}: {e}", file=sys.stderr)
 
     # ------------------------------------------------------------------
     # AI specification and execution lanes
@@ -887,11 +1045,24 @@ Trả duy nhất JSON hợp lệ, không markdown:
   "intent": "mô tả đầu ra cụ thể và đủ ngữ cảnh",
   "capability": "files|research|mcp-read|code|external-write|image",
   "execution_mode": "suggest|auto|full",
-  "acceptance": ["điều kiện hoàn thành 1", "điều kiện hoàn thành 2"]
+  "acceptance": ["điều kiện hoàn thành 1", "điều kiện hoàn thành 2"],
+  "risk": "low|standard|high",
+  "watch_spec": null
 }}
 
 acceptance là điều kiện KIỂM ĐƯỢC sau khi chạy (file nào phải có, ảnh khổ gì, mục nào phải
 đủ), vì một lượt nghiệm thu riêng sẽ đối chiếu kết quả với từng điều kiện.
+
+risk là mức rủi ro nếu kết quả sai: "low" chỉ khi việc nằm gọn trong brain (đọc/ghi file,
+tổng hợp, dọn dẹp) và sai thì sửa lại được dễ; "high" khi chạm ra ngoài, tiền, hay xoá dữ
+liệu; còn lại "standard". Việc risk=low + capability an toàn sẽ qua cột duyệt nhanh.
+
+watch_spec (tuỳ chọn, có thể null): khi kết quả cần thời gian mới kiểm chứng được (bài đăng
+live, file do tiến trình khác tạo), khai checks để watcher kiểm lại sau, vd:
+{{"checks": [{{"type": "file_exists", "path": "wiki/bao-cao.md"}},
+             {{"type": "contains", "path": "a.md", "needle": "xong"}},
+             {{"type": "url_ok", "url": "https://..."}}],
+  "delay_min": 10, "minutes": 120}}
 
 Luật quyền: files/research/mcp-read/code/image dùng auto. external-write chỉ dùng full nếu goal
 nói rõ đã được phép tự hành động; nếu không thì để auto để kernel chặn và xin quyền.
@@ -918,11 +1089,22 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             )
             if not any(word in raw for word in permission_words):
                 mode = "auto"
+        # Risk từ specifier: "low" chỉ có nghĩa khi capability an toàn (đọc/ghi-trong-brain);
+        # external-write mà model tự khai low vẫn kẹp về standard - model không tự hạ cổng duyệt
+        # cho việc chạm ngoài (cùng triết lý `_kep_quyen`).
+        risk = str(parsed.get("risk") or "").strip().lower()
+        if risk not in ("low", "standard", "high"):
+            risk = ""
+        if risk == "low" and capability not in ("files", "research", "mcp-read"):
+            risk = "standard"
+        watch_spec = parsed.get("watch_spec") if isinstance(parsed.get("watch_spec"), dict) else None
         return {
             "intent": str(parsed.get("intent") or task.get("intent") or task.get("title") or ""),
             "capability": capability,
             "execution_mode": mode,
             "acceptance": parsed.get("acceptance") if isinstance(parsed.get("acceptance"), list) else [],
+            "risk": risk,
+            "watch_spec": watch_spec,
             "specifier": "ai",
         }, ""
 
@@ -980,6 +1162,8 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             "capability": capability,
             "execution_mode": "auto",
             "acceptance": [],
+            "risk": "",
+            "watch_spec": None,
             "specifier": "heuristic",
         }
 
@@ -1102,6 +1286,12 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
         except Exception:
             pass
         acceptance = task.get("metadata", {}).get("acceptance") or []
+        ckpt = self._ckpt_read(str(task.get("brain_root") or ""),
+                               str(task.get("id") or ""))
+        ckpt_block = (
+            "\nCHECKPOINT (lượt trước bị gián đoạn - đây là phần việc ĐÃ LÀM, đừng làm lại,\n"
+            "chỉ làm tiếp phần còn thiếu):\n" + ckpt + "\n"
+        ) if ckpt else ""
         prompt = f"""
 Bạn là autonomous worker của Joyce. Hãy hoàn thành đúng task được giao trong brain đã
 ghim. Tự kiểm tra kết quả trước khi kết thúc. Không mở rộng phạm vi và không hỏi trong
@@ -1115,6 +1305,10 @@ MỤC TIÊU:
 
 ĐIỀU KIỆN HOÀN THÀNH:
 {json.dumps(acceptance, ensure_ascii=False)}
+{ckpt_block}
+Nếu việc dài nhiều bước, sau mỗi cụm việc hoàn tất ghi gọn điểm đã làm vào
+Joyce/checkpoints/{task.get('id')}.md (mục đã xong + mục còn lại + file đã tạo) - nếu
+phiên bị gián đoạn, lượt sau sẽ đi tiếp từ điểm đó thay vì làm lại.
 
 Nếu thiếu một quyết định hoặc dữ liệu mà không thể suy ra an toàn, kết quả phải bắt đầu
 bằng [[NEEDS_INPUT]] và nêu đúng một lý do cụ thể. Nếu hoàn thành, báo cáo ngắn: đã làm
@@ -1662,12 +1856,30 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             execution_mode: str = Form("auto"),
             idempotency_key: str = Form(""),
             source_brain: str = Form(""),
+            risk: str = Form(""),
+            post_check: str = Form(""),
+            watch_spec: str = Form(""),
         ):
             dep_list = [d.strip() for d in (deps or "").split(",") if d.strip()]
             try:
                 value = int(priority)
             except ValueError:
                 value = 2
+            # Lớp factory: risk/post_check/watch_spec qua form (dashboard/API tin cậy).
+            # post_check tách bằng dấu ; hoặc xuống dòng; watch_spec là JSON.
+            extra: dict = {}
+            if risk:
+                extra["risk"] = risk
+            if post_check:
+                extra["post_check"] = [c.strip() for c in re.split(r"[;\n]", post_check)
+                                       if c.strip()]
+            if watch_spec:
+                try:
+                    ws = json.loads(watch_spec)
+                    if isinstance(ws, dict):
+                        extra["watch_spec"] = ws
+                except (TypeError, ValueError):
+                    pass
             try:
                 tid = self.enqueue(
                     brain,
@@ -1681,8 +1893,9 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                     chat_id,
                     capability,
                     execution_mode,
-                    idempotency_key,
-                    source_brain,
+                    idempotency_key=idempotency_key,
+                    source_brain=source_brain,
+                    extra_meta=extra or None,
                 )
             except PermissionError as e:
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=403)

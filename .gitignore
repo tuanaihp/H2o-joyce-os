@@ -237,3 +237,21 @@ joyce-sheet/
 # Plates tham chiếu APEX cho lớp nhìn 3D Joyce - giữ local vì license artwork
 # chưa xác minh (xem tai-lieu-update-tu-openai/JOYCE_APEX_HUMANOID/ASSET_PROVENANCE.md).
 dashboard/humanoid/
+
+# Giọng nhân bản (voice_clone.py): hồ sơ giọng người dùng trong STATE_DIR + weights
+# model v-tts mà package bắt đặt ở <cwd>/pretrained/ - dữ liệu chạy + binary nặng, không commit.
+server/voices/
+pretrained/
+
+# Nhạc local của user cho trình phát giọng nói (joyce-music) - file lớn, bản quyền riêng.
+server/music/
+
+# Dữ liệu chạy + file thăm dò tạm nằm trong server/ (STATE_DIR mặc định) - không commit.
+server/task_usage.json
+server/factory-state.json
+server/_extract/
+server/_imgprobe/
+server/_media_probe.png
+server/_audit_dpaths.json
+/server_startup.log
+/pip_vtts.log

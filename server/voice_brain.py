@@ -34,7 +34,7 @@ MARKER = "JOYCE_ASK_MAIN:"
 # Đường TẮT cho việc chỉ đụng tới giao diện: bộ não giọng tự phát, server gọi thẳng dashboard,
 # không phải đánh thức bộ não chính (xem parse_ui).
 UI_MARKER = "JOYCE_UI:"
-UI_ACTIONS = ("open_page", "open_group", "sidebar", "scroll")
+UI_ACTIONS = ("open_page", "open_group", "sidebar", "scroll", "open_surface")
 # Dòng ĐẦU của mọi câu trả lời: câu người dùng đã DIỄN GIẢI (máy nghe chép sai từ tiếng Anh,
 # bộ não giọng viết lại đúng ý). Server bóc dòng này ra: thay tin người dùng trong kho phiên
 # và trong khung chat, không bao giờ đọc ra loa (xem parse_nghe, split_speakable).
@@ -112,6 +112,10 @@ SYSTEM_PROMPT = (
     "trang: bo_nao (Bộ não), code (Code), nang_luc (Năng lực), viec (Việc), "
     "ket_noi (Kết nối), he_thong (Hệ thống))\n"
     "  " + UI_MARKER + " sidebar open | close    (bung hay thu gọn cả thanh bên)\n"
+    "  " + UI_MARKER + " open_surface <tên>    (MỞ LỚP TRÌNH CHIẾU ĐÈ LÊN KHOANG NÃO 3D - "
+    "khác open_page là đổi tab. Dùng khi họ bảo 'mở album lên màn hình', 'cho xem học viên "
+    "lên màn hình', 'mở album cưới'. Tên: album (album ảnh), students (thông tin học viên "
+    "H2O Book). Viết tên ngắn gọn nhất khớp ý họ nói)\n"
     "  " + UI_MARKER + " scroll top | bottom     (cuộn THỨ NGƯỜI DÙNG ĐANG XEM: có trang nội dung mở thì cuộn trang đó, không thì cuộn khung chat. Chỉ khi họ nói RÕ mới đổi thành "
     "page_top | page_bottom (ép cuộn trang) hay chat_top | chat_bottom (ép cuộn khung chat))\n"
     "Chỉ dùng khuôn này cho việc thuần giao diện. Muốn biết NỘI DUNG bên trong trang thì vẫn phải "

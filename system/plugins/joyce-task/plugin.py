@@ -188,6 +188,11 @@ def _them(args, ctx) -> str:
                 "với route=wf:<slug> (đặt tên việc khác đi, vì tên trùng sẽ bị từ chối).")
 
     chat_id = str((args or {}).get("chat_id") or "").strip()
+    # risk=low (OpenAI low-risk auto-approve): chỉ khai khi việc nằm gọn trong brain và sai
+    # thì sửa lại được dễ - kernel chỉ cho qua review khi capability an toàn, model tự khai
+    # low cho việc chạm ngoài/tiền cũng không có tác dụng.
+    risk = str((args or {}).get("risk") or "").strip().lower()
+    extra_meta = {"risk": risk} if risk in ("low", "standard", "high") else None
     # Model quên chat_id thì hỏi sổ lượt đang chạy (0.64.49): đúng một khung chat đang hỏi trên
     # brain này thì đó chính là người giao việc. Không chắc thì để trống như cũ và cảnh báo.
     tu_gan = False
@@ -198,13 +203,20 @@ def _them(args, ctx) -> str:
         except Exception:
             chat_id = ""
     deps = [d.strip() for d in str((args or {}).get("deps") or "").split(",") if d.strip()]
+    # Ưu tiên 1..3: 1 = khẩn (sửa hệ thống đang gãy), 2 = việc thường, 3 = tự nuôi chạy khi
+    # rảnh. Dispatcher nhặt theo priority trước rồi mới tới giờ tạo - quota hạn thì P1 đi
+    # trước. Model gõ số lạ thì kẹp về 2 như mọi tham số khác.
+    try:
+        prio = max(1, min(3, int((args or {}).get("priority") or 2)))
+    except Exception:
+        prio = 2
     try:
         tid = f.enqueue(
             ctx.vault_root,
             tieu_de,
             str((args or {}).get("intent") or "").strip() or tieu_de,
             route,
-            2,
+            prio,
             deps,
             False,
             "chat",
@@ -212,6 +224,7 @@ def _them(args, ctx) -> str:
             "auto",
             mode,
             "",
+            extra_meta=extra_meta,
         )
     except Exception as e:
         return f"ERROR: không giao được việc ({type(e).__name__}: {e})."
@@ -331,6 +344,13 @@ def register(ctx):
                 "deps": {"type": "string", "description": "Mã các việc phải xong trước, cách nhau dấu phẩy"},
                 "route": {"type": "string",
                           "description": "auto, hoặc wf:<slug> để chạy một quy trình có thật"},
+                "priority": {"type": "integer", "enum": [1, 2, 3],
+                             "description": "Ưu tiên khi quota hạn: 1 = khẩn chạy trước "
+                                            "(sửa cái đang hỏng), 2 = việc thường (mặc định), "
+                                            "3 = tự nuôi chạy khi rảnh (bài học, đại-tu phụ)"},
+                "risk": {"type": "string", "enum": ["low", "standard", "high"],
+                         "description": "low = việc nằm gọn trong brain, sai thì sửa lại dễ "
+                                        "(qua cột duyệt nhanh). Bỏ trống = để hệ thống tự định."},
             },
             "required": ["op"],
         },

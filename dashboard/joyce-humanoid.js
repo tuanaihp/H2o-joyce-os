@@ -522,6 +522,58 @@
       if (album) { album.open(); return; }
       loadAlbumMod().then(function () { ensureAlbum(); if (album) album.open(); });
     }
+    // students.mjs nạp lười giống album.mjs: surface học viên H2O Book mở qua
+    // tool joyce_ui (open_surface) hoặc cử chỉ - không cần HAND CAM bật sẵn.
+    var students = null, studentsLoading = null;
+    function loadStudentsMod() {
+      if (!studentsLoading) {
+        studentsLoading = import("/static/joyce-hands/students.mjs")
+          .then(function (m) { return m; })
+          .catch(function () { studentsLoading = null; return null; });
+      }
+      return studentsLoading;
+    }
+    function openStudents() {
+      closeOtherSurfaces("students");
+      if (students) { if (!students.isOpen()) students.open(); return; }
+      loadStudentsMod().then(function (m) {
+        if (!m) return;
+        var hc = document.querySelector(".hud-center");
+        if (!hc) return;
+        if (!students) students = new m.JoyceStudents({ host: hc });
+        if (!students.isOpen()) students.open();
+      });
+    }
+    // ===== JoyceScreen: registry "màn hình" - một surface mở tại một thời điểm =====
+    // Tool joyce_ui action=open_surface -> ui-actions.js -> JoyceScreen.open(name).
+    // Cử chỉ tay cũng đi qua đây (swipe/zoom) nên surface nào đang mở nhận được đúng
+    // tín hiệu, không phải chỉ album.
+    function closeOtherSurfaces(except) {
+      if (except !== "album" && album && album.isOpen()) album.close();
+      if (except !== "students" && students && students.isOpen()) students.close();
+    }
+    window.JoyceScreen = {
+      open: function (name) {
+        name = String(name || "").toLowerCase();
+        if (name === "album") {
+          closeOtherSurfaces("album");
+          ensureAlbum();
+          if (album) { if (!album.isOpen()) album.open(); return true; }
+          loadAlbumMod().then(function () { ensureAlbum(); if (album && !album.isOpen()) album.open(); });
+          return true;
+        }
+        if (name === "students") { openStudents(); return true; }
+        return false;
+      },
+      swipe: function (dir) {
+        if (students && students.isOpen()) { students.swipe(dir); return; }
+        if (album) album.swipe(dir);         // album.swipe tự mở khi đang đóng (giữ hành vi cũ)
+      },
+      zoomFromRatio: function (r) {
+        if (students && students.isOpen()) { students.zoomFromRatio(r); return; }
+        if (album && album.isOpen()) album.zoomFromRatio(r);
+      },
+    };
     // Hồ sơ cử chỉ đã luyện (server STATE_DIR/hand_gestures.json): nạp vào engine khi
     // mở cam, và áp lại ngay khi bảng huấn luyện lưu (event joyce-hands:profile).
     function applyHandProfile(p) {
@@ -540,7 +592,7 @@
     function runHandAction(act) {
       var hc = document.querySelector(".hud-center");
       switch (act) {
-        case "album.open":  ensureAlbum(); if (album) album.open(); break;
+        case "album.open":  window.JoyceScreen.open("album"); break;
         case "album.next":  if (album) album.next(); break;
         case "album.prev":  if (album) album.prev(); break;
         case "album.close": if (album) album.close(); break;
@@ -579,15 +631,15 @@
       handsDetach = handsMods.bridge.connectJoyceHands(handCtl, apex, {
         onQuietRequest: function (meta) { if (handsGate) handsGate.request(meta); },
         onGesture: function (d) {
-          // Vuốt tay qua camera -> mở/lật/đóng album trình chiếu trên sân khấu não.
-          if (d && d.type === "swipe" && album) album.swipe(d.dir);
+          // Vuốt tay qua camera -> surface đang mở trên sân khấu não (album/học viên).
+          if (d && d.type === "swipe") window.JoyceScreen.swipe(d.dir);
           // Cử chỉ tự luyện -> hành động anh đã gán (album/fullscreen/pulse/stop...).
           if (d && d.type === "custom" && d.action) runHandAction(d.action);
         },
         onTracking: function (d) {
-          // Album đang mở: khoảng cách 2 đầu ngón (cái-trỏ) = zoom liên tục.
+          // Surface đang mở: khoảng cách 2 đầu ngón (cái-trỏ) = zoom liên tục.
           // Chỉ tính khi đúng 1 tay, không phải pose palm (đó là cử chỉ ngừng nói).
-          if (album && album.isOpen() && d.tracked && d.pose !== "palm" && (d.handCount === 1 || d.handCount === undefined)) album.zoomFromRatio(d.pinchRatio);
+          if (d.tracked && d.pose !== "palm" && (d.handCount === 1 || d.handCount === undefined)) window.JoyceScreen.zoomFromRatio(d.pinchRatio);
         },
       });
     }
@@ -788,6 +840,18 @@
       if (apex && apex.loaded) { try { apex.setLevel(amp); } catch (e) {} }
     };
     R.setInCall = function (v) { inCall = !!v; };
+    // Đổi cảnh nền avatar (lệnh giọng JoyceSceneCmd -> đây -> apex.setScene).
+    // Apex đọc localStorage lúc nạp nên lệnh tới trước khi assets sẵn sàng vẫn
+    // được áp; chế độ procedural dự phòng không có backdrop nên chỉ nhớ lựa chọn.
+    R.setScene = function (id) {
+      try { localStorage.setItem("joyce.avatar.scene", id); } catch (e) {}
+      if (apex && apex.loaded && apex.setScene) { try { apex.setScene(id); } catch (e) {} }
+      return true;
+    };
+    R.scene = function () {
+      try { return (apex && apex.scene) || localStorage.getItem("joyce.avatar.scene") || "mountain"; }
+      catch (e) { return "mountain"; }
+    };
     R.pause = function () {
       paused = true; stopLoop();
       closeHands();
@@ -852,5 +916,14 @@
     isActive: function () { return this._inst ? this._inst.isActive() : false; },
     activate: function (on) { if (this._inst) this._inst.activate(on); },
     info: function () { return this._inst ? this._inst.info() : null; },
+    // Lệnh đổi cảnh (giọng): lưu lựa chọn kể cả khi instance chưa dựng, áp khi mount.
+    setScene: function (id) {
+      try { localStorage.setItem("joyce.avatar.scene", id); } catch (e) {}
+      if (this._inst && this._inst.setScene) this._inst.setScene(id);
+    },
+    scene: function () {
+      if (this._inst && this._inst.scene) return this._inst.scene();
+      try { return localStorage.getItem("joyce.avatar.scene") || "mountain"; } catch (e) { return "mountain"; }
+    },
   };
 })();

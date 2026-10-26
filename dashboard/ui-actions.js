@@ -22,7 +22,10 @@
   // trong plugin joyce-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
   // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
   var GROUPS = ["tong_quan", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
-  var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
+  // Surface: lớp trình chiếu ĐÈ lên khoang não 3D Joyce, KHÔNG phải trang sidebar. Cùng danh
+  // sách với SURFACES trong server/ui_targets.py và registry JoyceScreen trong joyce-humanoid.js.
+  var SURFACES = ["album", "students"];
+  var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar", "open_surface"];
   // Phạm vi cuộn. Cùng danh sách với SCROLL_TARGETS trong server/ui_targets.py. `top`/`bottom` để
   // TRANG NÀY tự chọn (xem khungCuonTrang): người nói "cuộn xuống" muốn cuộn thứ họ đang nhìn, mà chỉ
   // trình duyệt mới biết đang có trang nội dung nào mở và nó có cuộn được không.
@@ -65,11 +68,13 @@
       if (GROUPS.indexOf(target) < 0) return { ok: false, error: tw("ui.err_group", { group: target }) };
     } else if (action === "sidebar") {
       if (target !== "open" && target !== "close") return { ok: false, error: tw("ui.err_sidebar") };
+    } else if (action === "open_surface") {
+      if (SURFACES.indexOf(target) < 0) return { ok: false, error: tw("ui.err_surface", { surface: target, list: SURFACES.join(", ") }) };
     }
     return { ok: true, action: action, target: target };
   }
 
-  if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES, GROUPS: GROUPS, SCROLLS: SCROLLS };
+  if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES, GROUPS: GROUPS, SCROLLS: SCROLLS, SURFACES: SURFACES };
   if (typeof document === "undefined") return;   // node: chỉ lấy hàm thuần
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -138,6 +143,13 @@
       }
       return { ok: false, detail: tw("ui.err_nav_not_ready") };
     }
+    if (v.action === "open_surface") {
+      if (window.JoyceScreen && typeof window.JoyceScreen.open === "function") {
+        return window.JoyceScreen.open(v.target)
+          ? { ok: true, detail: "" } : { ok: false, detail: tw("ui.err_surface") };
+      }
+      return { ok: false, detail: tw("ui.err_screen_not_ready") };
+    }
     if (v.action === "scroll") {
       var len = v.target.indexOf("top") >= 0;
       var pham_vi = v.target.indexOf("page") === 0 ? "page" : (v.target.indexOf("chat") === 0 ? "chat" : "auto");
@@ -189,5 +201,5 @@
     try { if (window.JoyceUiActions && typeof window.JoyceUiActions.onDone === "function") window.JoyceUiActions.onDone(v, r); } catch (e) {}
   }
 
-  window.JoyceUiActions = { validate: validate, handle: handle, PAGES: PAGES, GROUPS: GROUPS, onDone: null };
+  window.JoyceUiActions = { validate: validate, handle: handle, PAGES: PAGES, GROUPS: GROUPS, SURFACES: SURFACES, onDone: null };
 })();

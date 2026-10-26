@@ -163,6 +163,71 @@ check("main không có builder nền → giữ nguyên engine Claude",
       aux_engine.swap(base_agy, spec={"provider": "anthropic-cli", "model": ""},
                       settings=S_MAIN_AGY) is base_agy)
 
+# --- safe_retry (mức full): chỉ nhảy mắt khi mắt trước chết SẠCH (0 tool_call) ---
+# Việc full thao tác ra ngoài: engine đã gọi tool rồi mới gãy = có thể đã làm một phần,
+# chạy lại bằng engine khác rủi ro nhân đôi (đăng bài/gửi tin hai lần). Chết ngay từ đầu
+# (hết lượt gói, provider sập trước khi làm gì) thì đổi engine an toàn.
+claude_cap = FakeEngine([ERR("Hết lượt gói Claude Code - resets Oct 26, 10am")], provider="anthropic-cli")
+gemini_ok = FakeEngine([FINAL("gemini chay tiep")], provider="gemini")
+evs = run(collect(FB([claude_cap, gemini_ok], safe_retry=True)))
+check("full + chết sạch (cap ngay): mắt sau cứu", evs[-1]["content"] == "gemini chay tiep")
+check("full + chết sạch: gemini được gọi", gemini_ok.ran == 1)
+
+# Mắt đầu gọi tool rồi mới gãy -> KHÔNG được nhảy mắt (việc có thể đã làm một phần)
+claude_mid = FakeEngine([{"type": "tool_call", "name": "joyce_write"},
+                         ERR("claude sap giua chung")], provider="anthropic-cli")
+gemini2 = FakeEngine([FINAL("khong duoc chay toi")], provider="gemini")
+evs = run(collect(FB([claude_mid, gemini2], safe_retry=True)))
+check("full + gãy sau tool_call: DỪNG chuỗi, lỗi gốc lộ ra",
+      evs[-1]["type"] == "error" and "sap giua chung" in evs[-1]["content"])
+check("full + gãy sau tool_call: mắt sau KHÔNG chạy", gemini2.ran == 0)
+
+# Chỉ phát chữ (suy nghĩ) rồi chết = chưa làm gì ngoài -> vẫn được đổi engine
+claude_text = FakeEngine([{"type": "text", "content": "dang suy nghi..."},
+                          ERR("het luot")], provider="anthropic-cli")
+gemini3 = FakeEngine([FINAL("cuu duoc")], provider="gemini")
+evs = run(collect(FB([claude_text, gemini3], safe_retry=True)))
+check("full + chỉ text rồi chết: mắt sau vẫn cứu (text không gây hành động)",
+      evs[-1]["content"] == "cuu duoc")
+
+# Không bật safe_retry (auto/suggest): gãy sau tool_call vẫn được thử mắt sau như cũ
+claude_mid2 = FakeEngine([{"type": "tool_call", "name": "joyce_read"},
+                          ERR("sap")], provider="anthropic-cli")
+gemini4 = FakeEngine([FINAL("auto van cuu")], provider="gemini")
+evs = run(collect(FB([claude_mid2, gemini4])))
+check("auto + gãy sau tool_call: vẫn thử mắt sau (không rào)", evs[-1]["content"] == "auto van cuu")
+
+# swap(mode="full") dựng chuỗi safe_retry, không còn trả 1 engine trần
+out = aux_engine.swap(FakeEngine(), spec={"provider": "anthropic-cli", "model": ""},
+                      settings=S_KEY, mode="full")
+check("full + Claude: được CHUỖI safe_retry thay vì engine trần",
+      type(out).__name__ == "_FallbackChain" and len(out._all()) == 2
+      and object.__getattribute__(out, "_safe_retry") is True)
+out_auto = aux_engine.swap(FakeEngine(), spec={"provider": "anthropic-cli", "model": ""},
+                           settings=S_KEY, mode="auto")
+check("auto + Claude: chuỗi thường, không rào safe_retry",
+      object.__getattribute__(out_auto, "_safe_retry") is False)
+
+# --- FINAL GIẢ "hết lượt gói" (resets Oct 26): cũng là mắt CHẾT, chuỗi phải nhảy tiếp ---
+# Ca thật 24/10: Claude Code in câu cap tiếng Anh vào chỗ câu trả lời (không phải error),
+# chuỗi tưởng mắt đầu thành công -> bước workflow nhận "kết quả" là câu báo hết lượt.
+cap_final = FakeEngine([FINAL("You've hit your usage limit. resets Oct 26, 10am")],
+                       provider="anthropic-cli")
+gemini5 = FakeEngine([FINAL("gemini nhay vao")], provider="gemini")
+evs = run(collect(FB([cap_final, gemini5])))
+check("final hết lượt: coi mắt đầu CHẾT, mắt sau cứu", evs[-1]["content"] == "gemini nhay vao")
+check("final hết lượt: câu cap KHÔNG lọt ra ngoài như kết quả",
+      all("usage limit" not in (e.get("content") or "") for e in evs if e.get("type") == "final"))
+cap_final2 = FakeEngine([FINAL("Claude AI usage limit reached|1893000000")],
+                        provider="anthropic-cli")
+evs = run(collect(FB([cap_final2, FakeEngine([FINAL("or free chay")])])))
+check("dạng máy 'reached|<epoch>': cũng coi là chết", evs[-1]["content"] == "or free chay")
+# Bài thật TRÍCH câu hết lượt giữa văn bản -> không nghi oan, giữ nguyên kết quả
+bai_that = "Hướng dẫn xử lý:\nKhi gặp thông báo session limit reached thì nên chờ.\n" + "Nội dung. " * 60
+evs = run(collect(FB([FakeEngine([FINAL(bai_that)], provider="anthropic-cli"),
+                      FakeEngine([FINAL("khong duoc toi")])])))
+check("bài thật trích câu limit: giữ nguyên kết quả thật", evs[-1]["content"] == bai_that)
+
 # --- final_loi_dang_nhap: nhận đúng mẫu, không nghi oan ---
 check("bắt câu Not logged in", aux_engine.final_loi_dang_nhap("Not logged in · Please run /login"))
 check("bắt câu OAuth hết hạn", aux_engine.final_loi_dang_nhap(

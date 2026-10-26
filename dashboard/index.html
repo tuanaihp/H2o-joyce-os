@@ -32,9 +32,9 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=2">
-  <link rel="stylesheet" href="/static/style.css?v=126">
+  <link rel="stylesheet" href="/static/style.css?v=127">
   <link rel="stylesheet" href="/static/humanoid.css?v=3">
-  <link rel="stylesheet" href="/static/console.css?v=110">
+  <link rel="stylesheet" href="/static/console.css?v=111">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{var m=localStorage.getItem('joyce.theme'),L=m==='light';if(m!=='light'&&m!=='dark'&&m!=='dim'){var p=/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(localStorage.getItem('joyce.theme.schedule')||'')||[0,6,0,18,0],a=p[1]*60+ +p[2],b=p[3]*60+ +p[4],d=new Date(),n=d.getHours()*60+d.getMinutes();L=a!==b&&(a<b?n>=a&&n<b:n>=a||n<b);}if(L)document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -74,6 +74,7 @@
            (panel ghim right:18px, để nút ở giữa thì bấm một nơi hộp bung nơi khác). -->
       <div class="hud-center-title">
         <span class="engine-banner" id="engineBanner" hidden></span>
+        <span class="brain-chip" id="brainChip" hidden></span>
       </div>
       <!-- NHÓM PHẢI: chuông Thông báo + nút đổi tông (LUÔN hiện) + cụm nút cockpit (ẩn ở trang quản lý) -->
       <div class="hud-top-right">
@@ -225,6 +226,7 @@
         <div class="orb-overlay">
           <div class="orb-state" id="orbState" data-i18n="orb.ready">STANDBY</div>
           <div class="orb-interim" id="voiceInterim"></div>
+          <div class="brain-tag" id="brainTag" hidden></div>
         </div>
         <!-- Brain Chamber V2: công tắc lớp nhìn có NHÃN thay cho nút icon trần.
              brain-v2.js nối vào JoyceHud (hud.js) - "core" = quả cầu nước + telemetry,
@@ -477,6 +479,22 @@
                   <input class="js-input" id="vcElKey" type="password" autocomplete="off" data-i18n-ph="settings.eleven_ph" placeholder="Dán API key ElevenLabs">
                   <label class="js-lbl" for="vcElVoice">Voice ID <span class="dim" data-i18n="settings.voice_id_hint">(lấy ở ElevenLabs → Voices)</span></label>
                   <input class="js-input" id="vcElVoice" data-i18n-ph="settings.eleven_voice_ph" placeholder="Ví dụ: 21m00Tcm4TlvDq8ikWAM (Rachel)">
+                </div>
+                <div id="vcClone" hidden>
+                  <div class="qs-hint" data-i18n="settings.vc_clone_hint">Giọng nhân bản chạy trên máy này (v-tts, miễn phí, không tốn quota). Nạp mẫu 5-30 giây nói rõ MỘT LẦN - Joyce lưu hồ sơ và đọc giọng đó mãi. Lưu ý: v-tts là giấy phép phi thương mại (CC BY-NC); dùng thương mại thì đổi backend sau.</div>
+                  <label class="js-lbl" for="vcCloneName" data-i18n="settings.vc_clone_name">Tên giọng (ví dụ: Giọng anh, Giọng chị Thủy)</label>
+                  <input class="js-input" id="vcCloneName" data-i18n-ph="settings.vc_clone_name_ph" placeholder="Đặt tên để nhận ra giọng">
+                  <label class="js-lbl" for="vcCloneFile" data-i18n="settings.vc_clone_file">File mẫu giọng (wav/mp3/webm/m4a)</label>
+                  <input class="js-input" id="vcCloneFile" type="file" accept="audio/*,.webm,.wav,.mp3,.m4a,.ogg">
+                  <div class="qs-field" style="margin-top:6px">
+                    <button class="gcard-btn ghost" type="button" id="vcCloneRec" data-i18n="settings.vc_clone_rec">Ghi âm mẫu</button>
+                    <span class="gcard-meta" id="vcCloneRecSt"></span>
+                  </div>
+                  <div class="qs-field">
+                    <button class="gcard-btn" type="button" id="vcCloneUp" data-i18n="settings.vc_clone_up">Nạp giọng mới</button>
+                    <span class="gcard-meta" id="vcCloneSt"></span>
+                  </div>
+                  <div id="vcCloneList"></div>
                 </div>
                 <div class="qs-hint" id="vcOpenaiNote" data-i18n="settings.vc_openai_note" hidden>Muốn giọng OpenAI: dán API key OpenAI ở trang Models.</div>
               </details>
@@ -1004,10 +1022,23 @@
   <script src="/static/brain-constellation.js?v=1"></script>
   <script src="/static/vn-geo.js?v=1"></script>
   <script src="/static/brain-planet.js?v=25"></script>
-  <script src="/static/apex-humanoid.js?v=7"></script>
+  <!-- joyce-backdrops: cảnh nền thủ tục cho avatar (lệnh giọng "đổi nền sang…").
+       PHẢI trước apex-humanoid.js: apex.setScene gọi nó khi nạp ảnh xong. -->
+  <script src="/static/joyce-backdrops.js?v=1"></script>
+  <script src="/static/apex-humanoid.js?v=8"></script>
   <script src="/static/joyce-quantum.js?v=2"></script>
   <script src="/static/joyce-gestures.js?v=2"></script>
-  <script src="/static/joyce-humanoid.js?v=13"></script>
+  <script src="/static/joyce-humanoid.js?v=14"></script>
+  <!-- joyce-scene-cmd: bắt lệnh đổi cảnh bằng giọng, đứng trước app.js (onTranscript). -->
+  <script src="/static/joyce-scene-cmd.js?v=1"></script>
+  <!-- joyce-music + joyce-music-cmd: trình phát nhạc FREE (Audius/local/YouTube)
+       và bộ bắt lệnh giọng "mở nhạc…/tắt nhạc/bài tiếp", trước app.js.
+       howler.core: lõi phát nhạc cho joyce-music (stream + fade duck khi nói). -->
+  <script src="/static/vendor/howler.core.min.js?v=1"></script>
+  <script src="/static/joyce-music.js?v=2"></script>
+  <script src="/static/joyce-music-cmd.js?v=1"></script>
+  <!-- joyce-voice-clone-cmd: bắt lệnh "fake giọng anh" bằng giọng, ghi mẫu từ mic đang mở, xử lý tại máy. -->
+  <script src="/static/joyce-voice-clone-cmd.js?v=1"></script>
   <script src="/static/hud.js?v=22"></script>
   <script src="/static/brain-v2.js?v=2"></script>
   <script src="/static/chat-render.js?v=17"></script>
@@ -1023,6 +1054,8 @@
   <script src="/static/word-count.js?v=1"></script>
   <script src="/static/file-editor.js?v=14"></script>
   <script src="/static/chat-ask.js?v=2"></script>
+  <!-- Mục lục tri thức của brain trong khung chat trống (chat-kb.js tự quan sát #chatArea). -->
+  <script src="/static/chat-kb.js?v=1"></script>
   <script src="/static/limit-resume.js?v=1"></script>
   <script src="/static/chat-slash.js?v=3"></script>
   <!-- Lệnh "/" hệ thống (/status /model /compact /plan /goal ...): chạy lệnh mà chat-slash.js vừa nhận
@@ -1058,12 +1091,12 @@
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/mic-dialog.js?v=2"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=138"></script>
+  <script src="/static/app.js?v=139"></script>
   <!-- Sau app.js: dải việc nền đọc window.JoyceSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
        studio.js (ô Model của trợ lý) vì cả hai gọi window.JoyceModelList lúc vẽ. -->
-  <script src="/static/model-list.js?v=3"></script>
+  <script src="/static/model-list.js?v=4"></script>
   <script src="/static/effort-slider.js?v=1"></script>
   <script src="/static/model-picker.js?v=12"></script>
   <script src="/static/composer-plus.js?v=1"></script>
@@ -1127,7 +1160,7 @@
   <script src="/static/sodo.js?v=2"></script>
   <script src="/static/nghien-cuu.js?v=1"></script>
   <script src="/static/lo-trinh.js?v=2"></script>
-  <script src="/static/console.js?v=214"></script>
+  <script src="/static/console.js?v=215"></script>
   <!-- Dock hội thoại nổi bên phải (menu pet -> Trò chuyện). Mượn node chat qua
        JoyceChatBorrow mà console.js expose ở trên, nên phải nạp SAU console.js. -->
   <script src="/static/chat-dock.js?v=1"></script>

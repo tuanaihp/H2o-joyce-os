@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -181,6 +182,43 @@ def _pilot_endpoint_from_state(ctx):
     return ""
 
 
+def _profile_dir(ctx):
+    return Path(ctx.data_dir) / "chrome-profile"
+
+
+def _profile_endpoint(ctx):
+    """Chrome plugin mồ côi từ lần chạy trước (mất state file)? Tìm cổng CDP theo
+    file .pilot-port ta tự ghi, rồi quét command line chrome.exe cùng user-data-dir —
+    Chrome bản mới không ghi DevToolsActivePort nên không trông chờ vào file đó."""
+    profile = str(_profile_dir(ctx))
+    try:
+        port = int((_profile_dir(ctx) / ".pilot-port").read_text(encoding="utf-8").strip())
+        ep = f"http://127.0.0.1:{port}"
+        if _alive(ep):
+            return ep
+    except Exception:
+        pass
+    try:
+        if sys.platform == "win32":
+            out = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Select-Object -ExpandProperty CommandLine"],
+                capture_output=True, text=True, timeout=15).stdout
+        else:
+            out = subprocess.run(["pgrep", "-af", "chrome"], capture_output=True, text=True, timeout=10).stdout
+        for line in out.splitlines():
+            if profile.lower() not in line.lower():
+                continue
+            m = re.search(r"--remote-debugging-port=(\d+)", line)
+            if m:
+                ep = f"http://127.0.0.1:{m.group(1)}"
+                if _alive(ep):
+                    return ep
+    except Exception:
+        pass
+    return ""
+
+
 def _launch(ctx, headless=None):
     exe = None
     for c in _chrome_candidates(ctx):
@@ -193,7 +231,7 @@ def _launch(ctx, headless=None):
             '"chrome.exe --remote-debugging-port=9222" rồi đặt WEB_PILOT_ATTACH=1, hoặc đặt '
             "WEB_PILOT_CHROME=<đường dẫn chrome.exe>.")
     port = _free_port()
-    profile = Path(ctx.data_dir) / "chrome-profile"
+    profile = _profile_dir(ctx)
     profile.mkdir(parents=True, exist_ok=True)
     args = [
         exe, f"--remote-debugging-port={port}", f"--user-data-dir={profile}",
@@ -209,10 +247,16 @@ def _launch(ctx, headless=None):
         if _alive(endpoint):
             try:
                 _state_file(ctx).write_text(json.dumps({"endpoint": endpoint, "pid": proc.pid}), encoding="utf-8")
+                (profile / ".pilot-port").write_text(str(port), encoding="utf-8")
             except Exception:
                 pass
             return endpoint
         if proc.poll() is not None:
+            # Chrome mới exit ngay = đã bàn giao cho instance cũ cùng profile
+            # (chrome mồ côi từ phiên trước). Bám theo cổng nó ghi trong profile.
+            ep = _profile_endpoint(ctx)
+            if ep:
+                return ep
             break
         time.sleep(0.25)
     raise RuntimeError(f"Chrome khởi động không xong (exit={proc.poll()}). Thử chạy tay: {exe}")
@@ -236,7 +280,7 @@ async def _ensure(ctx, attach=None, headless=None):
     endpoint = _find_running(ctx)
     mode = "attach-chrome-dang-chay"
     if not endpoint:
-        endpoint = _pilot_endpoint_from_state(ctx)
+        endpoint = _pilot_endpoint_from_state(ctx) or _profile_endpoint(ctx)
         mode = "chrome-plugin-tai-dung" if endpoint else ""
     if not endpoint:
         endpoint = _launch(ctx, headless=headless)
@@ -272,6 +316,18 @@ def _reset(ctx=None):
     try:
         if _PILOT["proc"]:
             _PILOT["proc"].terminate()
+        elif str(_PILOT.get("mode") or "").startswith("chrome-plugin") and _PILOT.get("endpoint"):
+            # Chrome mồ côi được tái dùng qua DevToolsActivePort — không có handle
+            # process, đóng cả trình duyệt bằng lệnh CDP Browser.close.
+            ver = httpx.get(_PILOT["endpoint"] + "/json/version", timeout=2).json()
+            async def _bye():
+                try:
+                    ws = await websockets.connect(ver["webSocketDebuggerUrl"])
+                    await ws.send(json.dumps({"id": 1, "method": "Browser.close"}))
+                    await ws.close()
+                except Exception:
+                    pass
+            _run(_bye())
     except Exception:
         pass
     if ctx is not None:

@@ -108,13 +108,22 @@
                       : IC("lock", { cls: "ic-dim" })}</span></div>`
         + (on ? "" : `<div class="mb-link" data-goto="models">+ ${esc(T("mpick.add_key"))}</div>`);
     };
+    // Id model free mang đuôi ":free" (OpenRouter, TokenHarbor) hoặc prefix nguồn
+    // free của 9router: kr/ = Kiro, oc/ = OpenCode Free, if/ = iFlow, qw/ = Qwen.
+    // Xếp chúng LÊN ĐẦU danh sách của nhà + đánh chip FREE: chủ muốn đường không
+    // tốn tiền nhìn ra ngay, khỏi lục cả trăm model trả phí (yêu cầu 24/10).
+    const FREE_RE = /([:：\-–—]free$|^(kr|oc|if|qw)\/)/i;
     const hangModel = (p, ids) => {
       let h = "";
-      for (const id of ids.slice(0, limit)) {
+      const free = [], rest = [];
+      for (const id of ids) (FREE_RE.test(id) ? free : rest).push(id);
+      const sap = free.concat(rest);
+      for (const id of sap.slice(0, limit)) {
         const cur = p.id === sel.provider && id === sel.model;
         h += `<div class="mb-item ${cur ? "cur" : ""}" data-prov="${esc(p.id)}" `
           + `data-model="${esc(id)}"><span class="tick">`
-          + `${cur ? IC("check", { cls: "ic-ok" }) : ""}</span><span>${esc(short(id))}</span></div>`;
+          + `${cur ? IC("check", { cls: "ic-ok" }) : ""}</span><span>${esc(short(id))}</span>`
+          + `${FREE_RE.test(id) ? '<b class="mb-free">FREE</b>' : ""}</div>`;
       }
       if (ids.length > limit) {
         h += `<div class="mb-empty">${esc(T("mpick.more").replace("{n}", String(ids.length - limit)))}</div>`;

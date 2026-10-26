@@ -39,6 +39,7 @@
   }
 
   var side = null, listEl = null, searchEl = null, searchTimer = null, refreshTimer = null;
+  var kbEl = null, kbBrain = "";   // khối TRI THỨC (mục lục wiki) trong cột Hội thoại
   // CHẾ ĐỘ LỌC THEO KÊNH (trang Cộng sự, 0.59.4). Cột lịch sử ở đó phải là ĐÚNG cột này -
   // cùng ô tìm, cùng nhóm theo ngày, cùng ghim/đổi tên/xoá, cùng nút "Xem thêm" - chỉ khác
   // là nó chỉ thấy hội thoại của một trợ lý (kênh "agent:<slug>") hay một quy trình.
@@ -1586,6 +1587,7 @@
       searchEl = side.querySelector(".cside-search");
       projBar = null;
       cayEl = null;
+      kbEl = null;
       noiODoTimVaNutMoi();
       loadList();
       return;
@@ -1604,6 +1606,7 @@
         '<button class="cside-new" type="button" data-i18n="sess.new_chat">' + esc(window.t("sess.new_chat")) + '</button>' +
         '<div class="cside-proj"></div>' +
         '<input class="cside-search" data-i18n-ph="sess.search_ph" placeholder="' + esc(window.t("sess.search_ph")) + '">' +
+        '<div class="cside-kb" data-cside-kb></div>' +
         '<div class="cside-list"></div>' +
       '</div>' +
       '<div class="cside-pane" data-pane="files"></div>';
@@ -1611,6 +1614,38 @@
     searchEl = side.querySelector(".cside-search");
     projBar = side.querySelector(".cside-proj");
     cayEl = side.querySelector('[data-pane="files"]');
+    kbEl = side.querySelector("[data-cside-kb]");
+    if (kbEl) kbEl.onclick = function (e) {
+      var inp = document.getElementById("chatInput");
+      // Bấm nút hỏi-nhóm nhỏ trong summary -> hỏi cả nhóm, KHÔNG bung/gập details.
+      var askG = e.target.closest ? e.target.closest(".cside-kb-go") : null;
+      if (askG) {
+        e.preventDefault(); e.stopPropagation();
+        if (inp) {
+          inp.value = window.t("chat.kb_ask", { ten: askG.dataset.kb || "" });
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+          inp.focus();
+        }
+        return;
+      }
+      // Bấm mắt cạnh trang -> mở thẳng file wiki để đọc/sửa.
+      var eye = e.target.closest ? e.target.closest(".cside-kb-eye") : null;
+      if (eye) {
+        e.preventDefault(); e.stopPropagation();
+        var p = eye.dataset.file || "";
+        if (window.JoyceOpenVaultPath) window.JoyceOpenVaultPath(p);
+        else if (window.JoyceOpenFiles) window.JoyceOpenFiles(p);
+        return;
+      }
+      // Bấm trang wiki -> điền sẵn câu hỏi theo đúng trang (KHÔNG tự gửi):
+      // sau chỗ trống gõ tiếp câu hỏi hoặc lệnh "bổ sung/cập nhật ..." đều được.
+      var pg = e.target.closest ? e.target.closest(".cside-kb-page") : null;
+      if (pg && inp) {
+        inp.value = window.t("camnang.kb_ask", { ten: pg.dataset.kbp || "" });
+        inp.dispatchEvent(new Event("input", { bubbles: true }));
+        inp.focus();
+      }
+    };
     noiODoTimVaNutMoi();
     side.querySelectorAll(".cside-tab").forEach(function (b) {
       b.onclick = function () { chonTab(b.dataset.tab); };
@@ -1618,6 +1653,7 @@
     renderProjBar();   // vẽ ngay từ localStorage, khỏi nháy thanh trống trong lúc chờ /projects
     loadProjects();
     loadList();   // lần đầu mở panel: nạp THẲNG, không qua debounce 150ms của refresh()
+    renderKb();
     chonTab(tabDaLuu());
   }
 
@@ -1661,6 +1697,82 @@
     else window.JoyceVaultPanel.giveBack();
   }
 
+  // Khối TRI THỨC trong cột Hội thoại: đọc wiki/index.md của brain đang chọn.
+  // - Index CÓ nhóm (##): mỗi nhóm là một <details> - bấm bung ra các trang wiki
+  //   bên dưới; bấm trang -> điền sẵn câu hỏi theo trang; nút nhỏ trong summary
+  //   -> hỏi cả nhóm.
+  // - Index PHẲNG (không ##, vd brain phòng ban): link gốc liệt kê thẳng.
+  // Cùng luật lọc với camnang.js/chat-kb.js: bỏ _, index, log, sources/ và trùng.
+  // Brain chưa có index/trống thì khối rỗng (không chiếm chỗ). Chỉ ĐIỀN SẴN, không tự gửi.
+  function renderKb() {
+    if (!kbEl) return;
+    var brainNow = brain();
+    kbBrain = brainNow;
+    fetch("/files/read?brain=" + encodeURIComponent(brainNow)
+        + "&path=" + encodeURIComponent("wiki/index.md"))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!kbEl || !kbEl.isConnected || brain() !== kbBrain) return;
+        var cats = [], cur = null;
+        var flat = [], flatSeen = {};
+        var pushPage = function (dst, x) {
+          var rel = x.slice(2, -2).split("|")[0].trim();
+          if (!rel || rel === "index" || rel === "log" || rel[0] === "_"
+              || rel.indexOf("sources/") === 0 || rel[rel.length - 1] === "/") return;
+          if (dst === flat) {
+            if (flatSeen[rel]) return;
+            flatSeen[rel] = 1;
+            dst.push({ rel: rel, base: rel.split("/").pop() });
+            return;
+          }
+          if (dst.seen[rel]) return;
+          dst.seen[rel] = 1;
+          dst.pages.push({ rel: rel, base: rel.split("/").pop() });
+        };
+        String((d && d.content) || "").split(/\r?\n/).forEach(function (line) {
+          var mH = line.match(/^##\s+(.+)/);
+          if (mH) { cur = { name: mH[1].trim(), pages: [], seen: {} }; cats.push(cur); return; }
+          var ms = line.match(/\[\[([^\]]+)\]\]/g);
+          if (ms) ms.forEach(function (x) { pushPage(cur || flat, x); });
+        });
+        cats = cats.filter(function (c) { return c.pages.length > 0; });
+        var tong = flat.length + cats.reduce(function (s, c) { return s + c.pages.length; }, 0);
+        if (!tong) { kbEl.innerHTML = ""; return; }
+        var pageBtn = function (p) {
+          return '<div class="cside-kb-prow"><button type="button" class="cside-kb-page" data-kbp="'
+            + esc(p.base) + '" title="' + esc(window.t("camnang.kb_ask_tip")) + '">'
+            + esc(p.base) + '</button>'
+            + '<button type="button" class="cside-kb-eye" data-file="wiki/' + esc(p.rel) + '.md"'
+            + ' title="' + esc(window.t("camnang.kb_view")) + '">' + ic("eye") + '</button></div>';
+        };
+        var body = cats.map(function (c) {
+          return '<details class="cside-kb-g"><summary>'
+            + '<span class="cside-kb-gn">' + esc(c.name) + '</span><b>' + c.pages.length + '</b>'
+            + '<button type="button" class="cside-kb-go" data-kb="' + esc(c.name) + '"'
+            + ' title="' + esc(window.t("chat.kb_go_tip")) + '">' + ic("message-circle") + '</button>'
+            + '</summary><div class="cside-kb-pages">'
+            + c.pages.map(pageBtn).join("") + '</div></details>';
+        }).join("");
+        if (flat.length) {
+          body += '<div class="cside-kb-pages cside-kb-flat">' + flat.map(pageBtn).join("") + '</div>';
+        }
+        // Trạng thái gập/bung giữ qua localStorage: chủ gập một lần là panel ở
+        // yên gọn, nhường chỗ cho danh sách hội thoại ở dưới (yêu cầu 24/10).
+        var kbOpen = true;
+        try { kbOpen = localStorage.getItem("joyce.cside_kb_open") !== "0"; } catch (e) {}
+        kbEl.innerHTML =
+          '<details class="cside-kb-d"' + (kbOpen ? " open" : "") + '><summary>'
+            + ic("book-open") + ' ' + esc(window.t("camnang.kb_t"))
+            + ' <span class="cside-kb-n">' + esc(window.t("chat.kb_pages", { n: tong })) + '</span></summary>'
+            + '<div class="cside-kb-list">' + body + '</div></details>';
+        var kbDet = kbEl.querySelector(".cside-kb-d");
+        if (kbDet) kbDet.addEventListener("toggle", function () {
+          try { localStorage.setItem("joyce.cside_kb_open", kbDet.open ? "1" : "0"); } catch (e) {}
+        });
+      })
+      .catch(function () {});
+  }
+
   function refresh() {
     if (!side) return;
     var b = brain();
@@ -1671,6 +1783,7 @@
       if (projBar) { renderProjBar(); loadProjects(); }
       // Cây Vault tự dựng lại khi đổi brain (console.js theo dõi #graphSource), nên ở đây
       // không phải làm gì thêm - đó chính là cái lợi của việc mượn node thay vì nuôi bản hai.
+      renderKb();
     }
     // debounce nhẹ: response + notifySessions có thể bắn sát nhau
     clearTimeout(refreshTimer);

@@ -127,6 +127,7 @@ _DEFAULT = {
         "gemini_api_key": "",                  # provider Google Gemini (endpoint OpenAI-compat)
         "groq_api_key": "",                    # provider Groq (endpoint OpenAI-compat, suy luận rất nhanh)
         "deepseek_api_key": "",                # provider DeepSeek (endpoint OpenAI-compat)
+        "zai_api_key": "",                     # provider Z.ai GLM (OpenAI-compat; glm-*-flash FREE)
         # Provider 'ollama' = Ollama Cloud (ollama.com). Bản chạy trên máy nhà KHÔNG được đấu,
         # cố ý: nó đòi thêm một ô địa chỉ - ca đặc biệt duy nhất của cả lớp nhà cung cấp -
         # trong khi phần đông người dùng Joyce chạy nó trên VPS, nơi "localhost" là chính cái
@@ -175,6 +176,10 @@ _DEFAULT = {
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)
             "groq": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"],  # Groq (picker load động)
             "deepseek": ["deepseek-flash", "deepseek-v4-pro"],                     # DeepSeek (picker load động)
+            # Z.ai KHÔNG có endpoint /models - danh sách này là catalog THẬT (2026-10,
+            # docs.z.ai/pricing). Ba con flash FREE vĩnh viễn; còn lại trả phí.
+            "zai": ["glm-4.7-flash", "glm-4.5-flash", "glm-4.6v-flash",
+                    "glm-4.7", "glm-4.6", "glm-4.5", "glm-4.5-air"],
             # Không ghim model Codex: /provider/models lấy catalog LIVE bằng
             # codex app-server model/list và nhớ lại lần thành công gần nhất.
             "openai-oauth": [],
@@ -516,13 +521,16 @@ _SECRET_PATHS = (
     # được. Xem `_secret_keys`.
     "packs.tokens.*",
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
-    "model.groq_api_key", "model.deepseek_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
+    "model.groq_api_key", "model.deepseek_api_key", "model.zai_api_key", "model.ollama_key", "model.ollama_local_key", "model.openai_compat_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
     # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
     "slack.bot_token", "slack.app_token", "whatsapp.access_token", "whatsapp.app_secret",
     "discord.bot_token", "lark.app_secret",
+    # Key h2o_* gọi API public của H2O Book trên Vercel (scope students:read) - connector
+    # /ext/h2obook/students. Mã hoá at rest như mọi token kênh khác.
+    "h2obook.api_key",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",

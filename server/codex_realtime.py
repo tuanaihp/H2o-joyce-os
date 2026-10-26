@@ -334,5 +334,14 @@ def realtime_available(cfg: dict) -> Tuple[bool, str]:
         return False, _LAST_CLI_REASON or "no_cli"
     o = ((cfg or {}).get("model") or {}).get("openai_oauth") or {}
     if o.get("access_token") or o.get("refresh_token") or _codex_logged_in():
+        # Gói ChatGPT vừa báo hết hạn mức trong một phiên Live (429/usage_limit): đừng
+        # chọn lại đường này cho cuộc gọi kế - select_call_engine sẽ rơi xuống api/basic.
+        # Cờ tự hết theo burn_cooldown nên gói mở lại là đường Live tự quay về.
+        try:
+            import task_router
+            if task_router.burn_until("openai-oauth", "chatgpt-live"):
+                return False, "quota_burned"
+        except Exception:
+            pass
         return True, ""
     return False, "no_login"

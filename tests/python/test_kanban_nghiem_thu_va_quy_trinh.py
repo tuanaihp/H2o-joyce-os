@@ -500,6 +500,73 @@ def test_sessions_store_keeps_every_thread(tmp_path):
     assert [r[0] for r in rows] == ["a", "b"]
 
 
+# ------------------------------------------- idea intake (dispatcher regression)
+
+
+def test_idea_candidate_only_picks_idea_tasks(tmp_path):
+    """`[Ý tưởng]` tasks auto-run even when board is off; normal work must wait.
+    The dispatcher calls next_idea_candidate() on a non-auto board - a missing
+    method killed every dispatch tick with AttributeError (field incident)."""
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    root = str(tmp_path / "brain")
+    Path(root).mkdir()
+    normal = store.enqueue(root, "việc thường", "x", capability="files", status="ready")
+    idea = store.enqueue(root, "[Ý tưởng] concept mới", "x", capability="files", status="ready")
+
+    picked = store.next_idea_candidate(root)
+    assert picked and picked["id"] == idea
+    # việc thường KHÔNG bao giờ là idea candidate, dù nó vào trước
+    assert picked["id"] != normal
+    # next_candidate (board auto) vẫn theo FIFO thường
+    assert store.next_candidate(root)["id"] == normal
+    store.close()
+
+
+def test_prepared_accepts_needs_approval_and_merges_metadata(tmp_path):
+    """Regression (same port-loss family as next_idea_candidate): tasks.py calls
+    store.prepared(..., needs_approval=...) after the specifier - the Javis port
+    dropped the kwarg, so every task died with TypeError in 'Cần bạn xử lý'.
+    It also dropped the metadata merge, wiping the lane flag each specify pass."""
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    root = str(tmp_path / "brain")
+    Path(root).mkdir()
+    tid = store.enqueue(root, "báo khách", "x", capability="files", status="ready",
+                        metadata={"lane": "controlled"})
+    claimed = store.claim(tid, "w1")
+    assert claimed
+    out = store.prepared(tid, "w1", "báo giá cho khách", "external-write", "auto",
+                         metadata={"specifier": "ai"}, needs_approval=True)
+    assert out["needs_approval"] is True
+    assert out["status"] == "ready"
+    # metadata GỘP: lane sống sót qua specifier, không bị ghi đè
+    assert out["metadata"].get("lane") == "controlled"
+    assert out["metadata"].get("specifier") == "ai"
+    store.close()
+
+
+def test_dispatch_on_non_auto_board_picks_idea_not_crash(tmp_path, monkeypatch):
+    """Dispatcher-level regression: board 'off' + idea task -> _dispatch_available
+    must select the idea task without AttributeError (the field bug was exactly here:
+    store.next_idea_candidate did not exist, so every tick crashed)."""
+    feature, brain = _feature(tmp_path)
+    root = str(brain)
+    store = feature.store
+    assert store.board_mode(root) == "off"
+    store.enqueue(root, "việc thường", "x", capability="files", status="ready")
+    idea = store.enqueue(root, "[Ý tưởng] ý mới", "x", capability="files", status="ready")
+
+    claimed = []
+
+    async def fake_spawn(task_id):
+        claimed.append(task_id)
+        return True
+
+    monkeypatch.setattr(feature, "_claim_and_spawn", fake_spawn)
+    asyncio.run(feature._dispatch_available())
+    assert claimed == [idea]
+    store.close()
+
+
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-q"]))

@@ -7,6 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const D = path.join(__dirname, "..", "..", "dashboard");
 const mp = fs.readFileSync(path.join(D, "model-picker.js"), "utf8");
+const admin = fs.readFileSync(path.join(D, "console.js"), "utf8");
 const mobile = fs.readFileSync(path.join(D, "mobile-chat.js"), "utf8");
 const app = fs.readFileSync(path.join(D, "app.js"), "utf8");
 const css = fs.readFileSync(path.join(D, "style.css"), "utf8");
@@ -39,6 +40,14 @@ check("the per-session pin stays visible: a pin icon on the chip, in words for s
   && css.includes(".mb-pin[hidden] { display: none; }") && css.includes(".mb-chip.is-pin-broken .mb-pin { color: var(--warn-ink); }"));
 check("pinning itself is untouched: picking a model still pins it to the open session",
   /sessionPin = \{ provider: prov, model: model \};/.test(mp) && /await pinToSession\(sid, prov, model\);/.test(mp));
+check("changing Main Model on the Models page also pins the open chat to that model",
+  /async function syncMainModelToOpenSession\(main\)/.test(admin)
+  && /dataObj && dataObj\.main/.test(admin)
+  && /syncMainModelToOpenSession\(dataObj\.main\)/.test(admin)
+  && /\/sessions\/" \+ encodeURIComponent\(sid\) \+ "\/model"/.test(admin));
+check("a failed session sync stays visible instead of closing the model picker silently",
+  /saved && saved\.ok === false/.test(admin)
+  && /JoyceDialog\.toast\(saved\.error/.test(admin));
 // 0.182.0: the owner reversed the phone move; the chip is back in the top bar (centred), still short and with the pin icon.
 check("phone: the chip goes back up to the header, centred, with its picker under the bar",
   /headerRoot\.insertBefore\(mbOpen, headerCenter\.nextSibling\)/.test(mobile) && /headerRoot\.insertBefore\(mbPop, mbOpen\.nextSibling\)/.test(mobile)

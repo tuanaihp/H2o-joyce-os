@@ -111,11 +111,30 @@ check("provider không có ring -> giữ key caller",
 check("key caller ngoài ring được thử trước ring",
       main._spec_keys("gemini", "kVIP", "g", SK)[0] == ("gemini", "kVIP", "g"))
 
-# Key cháy xuống cuối hàng đợi của lượt
+# Key cháy bị bỏ khỏi hàng đợi cho tới khi cooldown hết
 tr.unburn()
+
+# Event usage phải mang route THỰC và được quy vào đúng key; nếu không UI vòng key luôn 0
+# token, còn bảng tổng dễ ghi nhầm token của key/provider dự phòng cho mắt đầu tiên.
+tr.set_keys("gemini", ["kA", "kB"])
+calls.clear()
+evs = _drain(
+    [("gemini", "kA", "g")],
+    _factory(calls, {("gemini", "g"): [
+        {"type": "usage", "input": 11, "output": 7},
+        {"type": "text", "content": "ok"},
+        {"type": "final", "content": "ok"},
+    ]}),
+)
+use_ev = next(e for e in evs if e.get("type") == "usage")
+slot = tr.ring_status("gemini")["keys"][0]
+check("stream chain gắn provider/model thật lên usage event",
+      use_ev.get("provider") == "gemini" and use_ev.get("model") == "g")
+check("stream chain cộng token vào đúng key slot",
+      slot["uses"] == 1 and slot["tin"] == 11 and slot["tout"] == 7)
 tr.burn_key("gemini", "kA", "429", 60)
-check("key cháy xếp cuối trong lượt (vẫn được thử nốt)",
-      [k for _p, k, _m in main._spec_keys("gemini", "kA", "g", SK)] == ["kB", "kC", "kA"])
+check("key cháy không bị thử lại trong lượt",
+      [k for _p, k, _m in main._spec_keys("gemini", "kA", "g", SK)] == ["kB", "kC"])
 tr.unburn()
 
 # ============================================================
@@ -144,6 +163,11 @@ check("chuỗi user: gemini bung 2 key, CLI/trùng/rỗng bị loại, ollama-lo
 check("skip_prov loại provider khỏi chuỗi",
       main._chat_fallback_specs(skip_prov="gemini") ==
       [("ollama-local", "local", "qwen3:4b")])
+check("não gói hết quota trước khi phát nội dung -> mở chuỗi API",
+      main._subscription_fallback_specs("openai-oauth", ["429 quota exceeded"], False) == specs)
+check("đã phát tool/chữ hoặc lỗi không phải quota -> không replay qua API",
+      main._subscription_fallback_specs("openai-oauth", ["429 quota exceeded"], True) == []
+      and main._subscription_fallback_specs("openai-oauth", ["network timeout"], False) == [])
 
 # Provider API chưa có key -> không vào chuỗi (chỉ làm chậm)
 _s["model"]["chat_fallbacks"] = [{"provider": "deepseek", "model": "d"}]

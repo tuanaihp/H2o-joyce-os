@@ -164,6 +164,7 @@ import voice_turn_protocol
 import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
+import voice_clone   # hồ sơ giọng nhân bản: fake 1 lần -> lưu ref.wav -> v-tts đọc lại (CC BY-NC)
 import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
 import voice_call     # nút mic là gọi Joyce: tự chọn ChatGPT Live / Live API / Cơ bản (0.65.18)
 
@@ -2037,6 +2038,7 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "antigravity-cli", "label": "Google Antigravity CLI", "kind": "cli", "key_field": None,
      "catalog_key": "antigravity-cli", "default_models": []},
     {"id": "openrouter",    "label": "OpenRouter",              "kind": "api", "key_field": "openrouter_key",    "catalog_key": "openrouter",
+     "free_tier": "routes",
      "default_models": ["openai/gpt-4o-mini"]},
     {"id": "anthropic-api", "label": "Anthropic (API)",         "kind": "api", "key_field": "anthropic_api_key", "catalog_key": "anthropic-api",
      "default_models": ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
@@ -2045,11 +2047,21 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "openai",        "label": "OpenAI (ChatGPT API)",    "kind": "api", "key_field": "openai_api_key",    "catalog_key": "openai",
      "default_models": ["gpt-4o", "gpt-4o-mini", "o3-mini"]},
     {"id": "gemini",        "label": "Google Gemini (API)",     "kind": "api", "key_field": "gemini_api_key",    "catalog_key": "gemini",
+     "free_tier": "tier",
      "default_models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]},
     {"id": "groq",          "label": "Groq (API)",              "kind": "api", "key_field": "groq_api_key",      "catalog_key": "groq",
+     "free_tier": "tier",
      "default_models": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"]},
     {"id": "deepseek",      "label": "DeepSeek (API)",          "kind": "api", "key_field": "deepseek_api_key",  "catalog_key": "deepseek",
      "default_models": ["deepseek-flash", "deepseek-v4-pro"]},
+    # Z.ai (Zhipu GLM quốc tế): OpenAI-compatible tại api.z.ai. Ba con flash FREE
+    # vĩnh viễn ($0 in/out, rate-limit ~1req/s) cạnh các model trả phí -> "routes"
+    # để vào cụm "Não miễn phí" nhưng không bảo cả nhà đều free. KHÔNG có endpoint
+    # /models nên default_models chính là catalog (xem config.py).
+    {"id": "zai",           "label": "Z.ai (GLM)",              "kind": "api", "key_field": "zai_api_key",       "catalog_key": "zai",
+     "free_tier": "routes",
+     "default_models": ["glm-4.7-flash", "glm-4.5-flash", "glm-4.6v-flash",
+                        "glm-4.7", "glm-4.6", "glm-4.5", "glm-4.5-air"]},
     # Ollama Cloud. CỐ Ý không đấu bản chạy trên máy nhà: bản đó đòi một ô địa chỉ riêng, tức
     # một ca đặc biệt duy nhất xuyên suốt lớp này, trong khi phần đông người dùng Joyce chạy
     # nó trên VPS - nơi "localhost" là chính cái container chứ không phải máy họ.
@@ -2066,7 +2078,43 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # Địa chỉ lưu ở `model.openai_compat_base`; khoá có thể rỗng. Danh sách model hỏi LIVE
     # từ {base}/models nên default_models để rỗng.
     {"id": "openai-compat", "label": "OpenAI Compatible",       "kind": "api", "key_field": "openai_compat_key",
+     "free_tier": "routes",
      "catalog_key": "openai-compat", "default_models": []},
+]
+
+# free_tier trên PROVIDER_DEFS: "tier" = nhà có gói free thật (Groq/Gemini free tier),
+# "routes" = nhà phục vụ CẢ model free lẫn trả phí - các id free mang đuôi ":free"
+# (OpenRouter, TokenHarbor/OpenAI Compatible). Trang Models xếp những nhà có cờ này
+# vào khu "Não miễn phí" tách khỏi nhà trả phí/gói; picker đánh chip FREE trên id
+# có đuôi ":free" thay vì tin cả provider là free.
+#
+# Tuyến :free của TokenHarbor (tokenharbor.ai/models), xác minh 2026-10-24 + danh
+# sách JEV 1.14 chủ gửi. Lineup XOAY VÒNG theo tuần - bản live từ {base}/models
+# luôn thắng; danh sách này chỉ là lưới để picker bày ra được các id free khi key
+# chết hoặc chưa kịp nạp live.
+TOKENHARBOR_FREE_MODELS = [
+    "gemini-3.8-flash:free",
+    "deepseek-v4.1-flash:free",
+    "deepseek-v4-flash-0731:free",
+    "deepseek-v4-flash:free",
+    "glm-5.3:free",
+    "glm-5.3-flash:free",
+    "claude-haiku-5.5:free",
+    "mimo-v2.6-flash:free",
+]
+
+# Tuyến free của 9router (cổng tự host OpenAI-compatible, dashboard localhost:20128):
+# prefix kr/ = Kiro AI (50 credit/tháng, login Google/GitHub/AWS). OpenCode Free
+# (oc/) auto-fetch nên không ghim id - model đổi theo đợt. iFlow/Qwen đóng từ 2026.
+# Bản live /models của cổng luôn thắng; lưới này chỉ để picker bày đường free khi
+# 9router chưa chạy hoặc chưa nạp được danh sách.
+NINER_FREE_MODELS = [
+    "kr/claude-sonnet-4.5",
+    "kr/claude-haiku-4.5",
+    "kr/glm-5",
+    "kr/MiniMax-M2.5",
+    "kr/deepseek-3.2",
+    "kr/qwen3-coder-next",
 ]
 
 _PROVIDER_KEY_FIELDS = tuple(p["key_field"] for p in PROVIDER_DEFS if p.get("key_field"))
@@ -2133,11 +2181,20 @@ def _providers_view(cfg):
             "needs_key": p["key_field"] is not None,
             "configured": configured,
             "models": models,
+            "free_tier": p.get("free_tier") or "",
             "is_main": main.get("provider") == p["id"],
             # Agent (Studio) chạy được bằng nhà này không. Trang Studio lọc theo cờ này để
             # không bày ra một lựa chọn mà server sẽ lặng lẽ hạ về Claude. Xem AGENT_PROVIDERS.
             "agent_ok": p["id"] in AGENT_PROVIDERS,
         }
+        # Key của provider đã bị từ chối chứng chỉ (401/thu hồi) thì thẻ phải tô ĐỎ kèm
+        # lý do - "đã kết nối" xanh trong khi key chết là nói dối (vụ TokenHarbor 23/10:
+        # key revoked mà card vẫn xanh, chủ tưởng DeepSeek bị khoá tới 26/10).
+        if p["key_field"] or p["id"] in ("openai-compat", "ollama-local"):
+            try:
+                item["dead_key"] = task_router.dead_key_info(p["id"], cfg)
+            except Exception:
+                pass
         if p["kind"] == "oauth":
             item["account"] = oauth.get("account_id", "")
             item["plan"] = oauth.get("plan", "")
@@ -2215,6 +2272,9 @@ def _set_main_model(cfg, provider, model):
                              f"{_cu.get('provider') or ''}/{_cu.get('model') or ''}",
                              f"Đổi bộ não sang {model or provider}")
     m["main"] = {"provider": provider, "model": model}
+    # Người dùng tự chọn não = đã biết não nào đang chạy → gỡ cờ "đã tự chuyển" mà
+    # auto-fallback đặt. Chỗ tự chuyển gọi hàm này xong sẽ GHI LẠI cờ ngay sau đó.
+    m.pop("auto_switch", None)
     if provider == "openrouter":
         m["engine"] = "openrouter"; m["openrouter_model"] = model
     elif provider == "anthropic-api":
@@ -2233,6 +2293,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "groq"
     elif provider == "deepseek":
         m["engine"] = "deepseek"
+    elif provider == "zai":
+        m["engine"] = "zai"
     elif provider == "ollama":
         m["engine"] = "ollama"
     elif provider == "openai-compat":
@@ -2438,6 +2500,11 @@ def _spec_keys(prov: str, key: str, model: str, mcfg: dict = None) -> list:
     if prov in ("ollama-local", "openai-compat"):
         d = _provider_def(prov) or {}
         k = key or (_provider_key(mcfg or {}, d) if mcfg is not None else "")
+        # Key endpoint đã bị cờ chết (auth-invalid) thì bỏ hẳn provider khỏi chuỗi:
+        # một lần gọi biết-trước-là-401 chỉ tốn thời gian và kéo dài throttle của
+        # gateway (TokenHarbor đếm số lần auth sai rồi khóa luôn cả IP).
+        if k and task_router.key_dead(prov, k):
+            return []
         return [(prov, k, model)] if k else []
     settings = {"model": mcfg} if mcfg else None
     all_keys = task_router.keys_for(prov, settings)
@@ -2537,7 +2604,7 @@ def _chat_provider(mcfg):
 # chạy bằng Claude mà không ai biết. Trang Studio đọc chính danh sách này để vẽ ô chọn, nên
 # thêm provider mới ở aux_engine thì thêm tên vào đây là giao diện có ngay.
 AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli",
-                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "ollama",
+                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "zai", "ollama",
                    # Model chạy máy nhà cũng giao được việc nền cho agent. Bỏ nó ra khỏi đây
                    # là tính năng nửa vời: cài model về rồi mà chỉ chat tay được, không giao
                    # cho agent hay workflow nào chạy.
@@ -2773,7 +2840,7 @@ def _fallback_chain(mcfg, cur_prov, cur_model):
         for gm in _GROQ_FALLBACK_MODELS:
             _add("groq", gm)
 
-    for pid in ("openrouter", "anthropic-api", "openai", "gemini", "ollama",
+    for pid in ("openrouter", "anthropic-api", "openai", "gemini", "zai", "ollama",
                 "openai-compat"):
         _add(pid, "")
     return chain
@@ -3044,6 +3111,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.groq_stream(key, model, messages, reasoning)
     if prov == "deepseek":
         return engine.deepseek_stream(key, model, messages, reasoning)
+    if prov == "zai":
+        return engine.zai_stream(key, model, messages, reasoning)
     if prov == "ollama":
         return engine.ollama_stream(key, model, messages, reasoning)
     if prov == "ollama-local":
@@ -3080,7 +3149,7 @@ def _hub_enabled():
 # Provider engine API được nạp công cụ của hub ở `_api_stream_mcp`. Mọi provider có nhánh
 # `*_chat_with_mcp` trong `_vong_tool` PHẢI có tên ở đây: thiếu là danh sách tool rỗng,
 # nhánh có tool không bao giờ chạy và model chỉ chat chay.
-_API_TOOL_PROVIDERS = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama",
+_API_TOOL_PROVIDERS = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "zai", "ollama",
                        "ollama-local", "openai-compat")
 
 
@@ -3141,6 +3210,8 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 return engine.groq_chat_with_mcp(k, m, messages, reasoning, tools, route)
             if p == "deepseek":
                 return engine.deepseek_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "zai":
+                return engine.zai_chat_with_mcp(k, m, messages, reasoning, tools, route)
             if p == "openai-compat":
                 return engine.openai_compat_chat_with_mcp(k, m, messages, reasoning, tools, route)
             if p == "ollama-local":
@@ -3972,7 +4043,11 @@ def _schedule_cancel_reply(action: dict) -> str:
 def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
             "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
-            "groq": "Groq", "deepseek": "DeepSeek", "ollama": "Ollama", "openai-compat": "OpenAI Compatible"}.get(prov, prov)
+            "groq": "Groq", "deepseek": "DeepSeek", "zai": "Z.ai", "ollama": "Ollama", "openai-compat": "OpenAI Compatible",
+            # Ba engine CLI gói thuê bao - id nội bộ đổi ra tên người dùng nhìn thấy trên
+            # trang Models, khớp ENGINE_LABEL của dashboard.
+            "anthropic-cli": "Claude Code", "grok-cli": "Grok Build",
+            "antigravity-cli": "Antigravity"}.get(prov, prov)
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
@@ -4321,7 +4396,9 @@ async def task_engines_get():
             "rings": task_router.all_ring_status(s),
             "chat_main": {"provider": main_prov, "kind": main_kind,
                           "model": main_model or "",
+                          "label": _api_label(main_prov),
                           "api": main_kind == "api"},
+            "auto_switch": m.get("auto_switch") or {},
             "chat_fallbacks": [e for e in (m.get("chat_fallbacks") or [])
                                if isinstance(e, dict) and (e.get("provider") or "").strip()],
             "aux_fallbacks": [e for e in (m.get("aux_fallbacks") or [])
@@ -5390,6 +5467,73 @@ def guide_src(name: str):
     return Response("Không tìm thấy tài liệu.", status_code=404)
 
 
+# ------------------------------ Nhạc trong máy ------------------------------
+# Nguồn FREE thứ ba của trình phát nhạc giọng nói (joyce-music.js), cạnh Audius
+# (API công khai không khoá) và YouTube mở-tab. Quét STATE_DIR/music + ~/Music
+# đệ quy, id = sha1(path) nên ổn định giữa các lần quét và không lộ đường dẫn.
+_MUSIC_EXT = {".mp3", ".m4a", ".flac", ".wav", ".ogg", ".opus", ".aac", ".wma"}
+_MUSIC_CAP = 2000  # chặn quét vô hạn nếu user trỏ vào folder khổng lồ
+
+
+def _music_dirs() -> list:
+    dirs = [cfgmod.STATE_DIR / "music", Path.home() / "Music"]
+    out = []
+    for d in dirs:
+        try:
+            if d.is_dir():
+                out.append(d.resolve())
+        except OSError:
+            pass
+    return out
+
+
+def _music_scan() -> list:
+    """[(id, Path, folder)] - id = sha1 đường dẫn thường hoá, ổn định giữa rescan."""
+    import hashlib
+    out = []
+    for goc in _music_dirs():
+        try:
+            for f in sorted(goc.rglob("*")):
+                if len(out) >= _MUSIC_CAP:
+                    return out
+                try:
+                    if f.is_file() and f.suffix.lower() in _MUSIC_EXT:
+                        fid = hashlib.sha1(str(f.resolve()).lower().encode("utf-8")).hexdigest()[:20]
+                        out.append((fid, f, f.parent.name))
+                except OSError:
+                    continue
+        except OSError:
+            continue
+    return out
+
+
+@app.get("/music/library")
+def music_library(q: str = ""):
+    qn = (q or "").strip().lower()
+    tracks = []
+    for fid, f, folder in _music_scan():
+        title = f.stem
+        if qn and qn not in title.lower() and qn not in str(f).lower():
+            continue
+        tracks.append({"id": fid, "title": title, "folder": folder})
+        if len(tracks) >= 200:
+            break
+    return {"tracks": tracks, "folders": [str(d) for d in _music_dirs()]}
+
+
+@app.get("/music/file/{fid}")
+def music_file(fid: str):
+    for pid, f, _ in _music_scan():
+        if pid == fid:
+            try:
+                trong = any(str(f.resolve()).startswith(str(d)) for d in _music_dirs())
+            except OSError:
+                trong = False
+            if trong and f.is_file() and f.suffix.lower() in _MUSIC_EXT:
+                return FileResponse(str(f))   # FileResponse tự lo Range để tua bài
+    return Response("Không tìm thấy bài.", status_code=404)
+
+
 @app.get("/settings")  # def thường, xem ghi chú ở list_agents
 def settings_get():
     cfg = cfgmod.read_settings()
@@ -5665,9 +5809,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             cfg["image"]["strip_c2pa"] = bool(patch["strip_c2pa"])
     elif section == "voice":
         v = cfg.setdefault("voice", {})
-        if patch.get("tts_provider") in ("edge", "openai", "elevenlabs"):
+        if patch.get("tts_provider") in ("edge", "openai", "elevenlabs", "clone"):
             v["tts_provider"] = patch["tts_provider"]
-        for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice", "elevenlabs_model"):
+        for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice", "elevenlabs_model",
+                  "clone_voice"):
             if patch.get(k):
                 v[k] = str(patch[k]).strip()
         # Chỉ ghi khi có key mới THẬT: client lỡ gửi lại giá trị che "••••abcd" (lấy từ GET
@@ -6159,6 +6304,28 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     # không bao giờ hiện ra thì không có đường nào chữa ngoài sửa tay settings.json.
     fallback = _gop_giu_thu_tu(d.get("default_models", []),
                                cat.get(d.get("catalog_key", "")) or [])
+    # openai-compat trỏ TokenHarbor: ghim sẵn các id :free đã xác minh (ảnh JEV 1.14
+    # chủ gửi). Hai mục đích: (a) fallback bày chúng khi key chết/chưa nạp live -
+    # chính lúc đó là lúc chủ cần thấy đường free; (b) HỢP vào cả bản live vì
+    # /models chỉ liệt tuyến đã opt-in, còn tuyến free mới mở có thể dùng được mà
+    # chưa lên danh sách. Live vẫn thắng phần nó liệt; curated chỉ THÊM chỗ trống,
+    # không gỡ id nào live đưa. Id curated nghỉ free thật thì provider trả lỗi khi
+    # gọi - chuỗi dự phòng xử lý như mọi model hỏng khác.
+    tokenharbor_free = []
+    niner_free = []
+    if provider == "openai-compat":
+        try:
+            _oc_base = engine.openai_compat_base() or ""
+            if "tokenharbor" in _oc_base:
+                tokenharbor_free = TOKENHARBOR_FREE_MODELS
+                fallback = _gop_giu_thu_tu(fallback, TOKENHARBOR_FREE_MODELS)
+            # 9router tự host ở localhost:20128 - nhận diện theo cổng/host, ghim
+            # tuyến free Kiro để picker bày được khi cổng chưa chạy.
+            if "9router" in _oc_base or ":20128" in _oc_base:
+                niner_free = NINER_FREE_MODELS
+                fallback = _gop_giu_thu_tu(fallback, NINER_FREE_MODELS)
+        except Exception:
+            pass
     now = time.time()
     c = _PROV_MODELS_CACHE.get(provider)
     if not refresh and c and (now - c["ts"]) < 600 and c.get("ids"):
@@ -6171,6 +6338,7 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     else:
         last_err = None
     if ids:
+        ids = _gop_giu_thu_tu(ids, tokenharbor_free + niner_free)
         _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
         _remember_catalog(cfg, d, ids)
         return {"models": ids, "live": True}
@@ -7433,6 +7601,7 @@ def _xep_cho_bai_hoc(brain, slug, lessons):
                 f"[Bài học chờ duyệt] {slug}: {les}",
                 f"bai-hoc|{slug}|{les}",
                 route="bai-hoc",
+                priority=3,
                 needs_approval=True,
                 created_by="lesson",
                 status="review",
@@ -8925,6 +9094,84 @@ async def album_list(brain: str = Query("Ban Hang - Sales Hinh Anh"),
         if len(imgs) >= 400:
             break
     return {"brain": brain, "images": imgs}
+
+
+# ---- CONNECTOR H2O BOOK (app Next.js trên Vercel) ----
+# Surface "students" trên màn hình 3D Joyce đọc qua đây. Joyce server gọi
+# /api/public/v1/students của app bằng key h2o_* (scope students:read, tạo ở trang
+# Enterprise của H2O Book) - trình duyệt KHÔNG cầm key, key không vào bundle js.
+# Cấu hình: env H2OBOOK_URL + H2OBOOK_API_KEY, hoặc settings.json {"h2obook":
+# {"url": "...", "api_key": "..."}} - env thắng khi cả hai có.
+_H2OBOOK_CACHE = {"ts": 0.0, "key": "", "data": None}   # cache 2 phút
+
+
+def _h2obook_conf():
+    # App H2O Book đang deploy tại h2-obook.vercel.app (JOYCE-MCP.md) - mặc định
+    # luôn, env/settings chỉ cần ghi đè khi anh đổi domain Vercel.
+    url = os.environ.get("H2OBOOK_URL", "").strip().rstrip("/")
+    key = os.environ.get("H2OBOOK_API_KEY", "").strip()
+    if not (url and key):
+        try:
+            hb = (cfgmod.read_settings().get("h2obook") or {})
+            url = url or str(hb.get("url") or "").strip().rstrip("/")
+            key = key or str(hb.get("api_key") or "").strip()
+        except Exception:
+            pass
+    return url or "https://h2-obook.vercel.app", key
+
+
+async def _h2obook_students(q: str = ""):
+    """-> ({students, mode} | None, lỗi). Gọi API public của H2O Book; trường trả về
+    chỉ đủ để vẽ thẻ: id, name, phone, email, status, joinedAt."""
+    url, key = _h2obook_conf()
+    if not (url and key):
+        return None, "not_configured"
+    now = time.time()
+    ck = url + "|" + q
+    if (_H2OBOOK_CACHE["data"] is not None and _H2OBOOK_CACHE["key"] == ck
+            and now - _H2OBOOK_CACHE["ts"] < 120):
+        return _H2OBOOK_CACHE["data"], None
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(url + "/api/public/v1/students",
+                            headers={"Authorization": f"Bearer {key}"},
+                            params=({"q": q} if q else {}))
+        if r.status_code in (401, 403):
+            return None, "auth_" + str(r.status_code)
+        r.raise_for_status()
+        body = r.json() or {}
+        students = [{
+            "id": str(s.get("id") or ""), "name": str(s.get("name") or "Học viên"),
+            "phone": str(s.get("phone") or ""), "email": str(s.get("email") or ""),
+            "status": str(s.get("status") or ""),
+            "joinedAt": str(s.get("joinedAt") or s.get("joined_at") or ""),
+            "progress": int(s.get("progress") or 0),
+            "stage": str(s.get("currentStageTitle") or ""),
+        } for s in (body.get("students") or [])]
+        data = {"students": students, "mode": str(body.get("mode") or "cloud")}
+        _H2OBOOK_CACHE.update(ts=now, key=ck, data=data)
+        return data, None
+    except Exception as e:
+        return None, str(e).split("\n")[0][:160]
+
+
+@app.get("/ext/h2obook/students")
+async def h2obook_students(q: str = Query("")):
+    """Danh sách học viên từ H2O Book (Vercel) cho surface 'students' của màn hình
+    Joyce. q = lọc theo tên/SĐT (lọc ở phía app, không kéo cả bảng về)."""
+    data, err = await _h2obook_students(q.strip()[:80])
+    if err == "not_configured":
+        return {"source": "h2obook", "students": [], "error": "not_configured",
+                "detail": "Chưa có API key H2O Book: vào h2-obook.vercel.app/enterprise "
+                          "tạo API key (đã có scope students:read) rồi đặt env H2OBOOK_API_KEY "
+                          "hoặc h2obook.api_key trong settings.json của Joyce."}
+    if err == "auth_401" or err == "auth_403":
+        return {"source": "h2obook", "students": [], "error": "auth",
+                "detail": "Key H2O Book bị từ chối (hết hạn/thu hồi/sai scope students:read)."}
+    if err:
+        return {"source": "h2obook", "students": [], "error": "unreachable", "detail": err}
+    return {"source": "h2obook", "students": data["students"], "mode": data["mode"]}
 
 
 # ---- HỒ SƠ CỬ CHỈ TAY (bảng huấn luyện camera, STATE_DIR/hand_gestures.json) ----
@@ -10916,14 +11163,18 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         # allowed_tools + disallowed_tools của chính CLI đó, engine nhà khác lấy tool từ hub
         # nên không mang theo được rào ấy. Đây là hành vi đã hứa trong docs/07, không phải
         # bỏ sót - đổi nó là nới quyền cho việc chạy nền mà không ai yêu cầu.
-        if tools is None and prov not in ("anthropic-cli", "openai-oauth"):
-            # Nhà khác Claude/Codex: mượn ĐÚNG bộ dựng engine của việc nền thay vì viết bản
-            # thứ hai - aux_engine.swap lo cả key, khả dụng, tool qua hub và chuỗi dự phòng
-            # (nhà đã chọn chết giữa chừng thì lùi về Claude/bộ não chính, không chết lặng).
+        if tools is None and prov != "openai-oauth":
+            # Mượn ĐÚNG bộ dựng engine của việc nền thay vì viết bản thứ hai - aux_engine.swap
+            # lo cả key, khả dụng, tool qua hub và chuỗi dự phòng. Agent anthropic-cli cũng đi
+            # qua đây: nhà Claude chết (hết lượt gói, lỗi CLI) thì chuỗi nhảy sang Gemini/
+            # não chính/OpenRouter thay vì chết lặng. `mode` được truyền nguyên trạng để
+            # việc mức full nhận chuỗi safe_retry - chỉ đổi engine khi mắt trước chưa gọi
+            # tool nào, không bao giờ chạy lại việc đã làm dở bằng engine khác.
             # Gọi SAU khi đã gắn joyce_vault/system_prompt vì _build_* đọc lại từ engine này.
             try:
                 c = aux_engine.swap(c, tag="workflow", codex_profile=_write_codex_profile,
-                                    spec={"provider": prov, "model": (model or "")})
+                                    spec={"provider": prov, "model": (model or "")},
+                                    mode=mode)
             except Exception as e:
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         return c
@@ -13146,6 +13397,22 @@ import viec_mau
 viec_mau.register(app, _brain_root, lambda: tasks_feature)
 
 
+@app.get("/work/sweep")
+async def work_sweep(notify: bool = False):
+    """Báo cáo sweep bù (kiểu missingPostWorkflow của Postiz): quét mọi brain xem có
+    việc nào "đáng lẽ đã chạy mà bị lỡ" - nhắc trễ, task kẹt running, việc hoãn quá
+    hạn chưa nhặt, loop lỡ nhịp. notify=1 để đẩy digest vào hòm thư ngay (mặc định
+    chỉ trả báo cáo, digest tự gửi theo nhịp giờ của scheduler)."""
+    deps = sweep_mod.SweepDeps(
+        brains=loop_feature.scheduler_brains,
+        task_root=lambda name: tasks_feature._root(name),
+        reminders=reminders_feature, tasks=tasks_feature, loops=loop_feature,
+        inbox=_sweep_inbox,
+    )
+    rep = await sweep_mod.run_sweep(deps, notify=bool(notify))
+    return {"ok": True, "sweep": rep}
+
+
 @app.get("/viec/all")
 async def viec_all():
     """Gộp MỌI brain cho trang Việc: mỗi brain kèm loop + nhắc hẹn đang chờ, mỗi item gắn
@@ -14353,6 +14620,130 @@ async def plugins_remove(slug: str = Form(...), removed: str = Form("1"),
 # gán được mà không cần `global`. Khởi tạo 0.0 -> chạy ngay ở tick đầu sau khi server lên.
 _MEDIA_GC_LAST = [0.0]
 
+# Sweep bù (port ý tưởng missingPostWorkflow của Postiz): mỗi giờ quét mọi brain,
+# tổng hợp việc "đáng lẽ đã chạy mà bị lỡ" (nhắc trễ, task kẹt running, việc hoãn
+# quá hạn chưa nhặt, loop lỡ nhịp) → MỘT thư digest vào hòm thư. Từng bộ phận đã
+# tự chữa; sweep thêm tầng nhìn để không gì lỡ một cách lặng lẽ. sweep.py.
+import sweep as sweep_mod
+
+_SWEEP_LAST = [0.0]
+
+
+def _sweep_inbox(text: str, **kw):
+    return _bo_vao_hom_thu("", text, quiet=False, **kw)
+
+
+async def _sweep_tick():
+    deps = sweep_mod.SweepDeps(
+        brains=loop_feature.scheduler_brains,
+        task_root=lambda name: tasks_feature._root(name),
+        reminders=reminders_feature,
+        tasks=tasks_feature,
+        loops=loop_feature,
+        inbox=_sweep_inbox,
+    )
+    return await sweep_mod.run_sweep(deps)
+
+
+# Lớp "agentic software factory" (port OpenAI, Pragmatic Engineer 15/09/2026):
+# CI babysit cho việc code, deploy-watcher "handhold" kiểm chứng kết quả thật,
+# Perf Factory gom lỗi cùng chữ ký → 1 task root-cause, Sevbot báo pattern, gợi
+# ý lặp, recipe gallery. Các mảnh sẵn có (incident_desk triage từng sự cố, sweep
+# nhìn việc lỡ, resonance = /goal nền) không bị nhân đôi - factory.py nối phần thiếu.
+import factory as factory_mod
+
+_FACTORY_TICK_LAST = [0.0]
+
+
+def _factory_deps() -> factory_mod.FactoryDeps:
+    return factory_mod.FactoryDeps(
+        brains=loop_feature.scheduler_brains,
+        task_root=lambda name: tasks_feature._root(name),
+        store=tasks_feature.store,
+        enqueue=tasks_feature.enqueue,
+        loops=loop_feature,
+        workflows_dir=lambda root: Path(root) / "workflows",
+        inbox=_sweep_inbox,
+        incidents_list=lambda brain, limit: incident_desk.list(brain, limit),
+        settings_get=lambda: cfgmod.read_settings(),
+        state_dir=Path(cfgmod.STATE_DIR),
+        atomic_write_text=_atomic_write_text,
+    )
+
+
+def _factory_enabled() -> bool:
+    try:
+        return factory_mod.enabled(cfgmod.read_settings())
+    except Exception:
+        return True
+
+
+async def _factory_tick():
+    return await factory_mod.tick(_factory_deps())
+
+
+@app.get("/work/factory")
+async def work_factory(brain: str = ""):
+    """Trạng thái lớp factory: watch đang theo dõi, canary đang canh, số liệu sống
+    từng mắt xích nhà máy (stages), bảng điểm hiệu quả từng agent (agents, theo
+    brain đang xem), và autonomy ratio - % việc xong KHÔNG cần người chạm (KPI
+    'surface area' mà OpenAI dùng để đo factory có thật sự giảm việc người giám
+    sát không)."""
+    deps = _factory_deps()
+    st = factory_mod._load_state(deps)
+    watches = [{"task_id": w.get("task_id"), "title": w.get("title"),
+                "brain": w.get("brain"), "state": w.get("state"),
+                "until": w.get("until")}
+               for w in st.get("watches", []) if w.get("state") == "watching"]
+    canaries = [{"target": c.get("target"), "brain": c.get("brain"),
+                 "state": c.get("state"), "promote_at": c.get("promote_at")}
+                for c in st.get("canaries", [])]
+    tot_f = tot_t = 0
+    per_brain = {}
+    try:
+        for n in deps.brains() or []:
+            a = factory_mod.autonomy_stats(deps, deps.task_root(str(n)))
+            if a.get("finished") or a.get("pending_human"):
+                per_brain[str(n)] = a
+                tot_f += int(a.get("finished") or 0)
+                tot_t += int(a.get("touched") or 0)
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] autonomy all: {type(e).__name__}: {e}", file=sys.stderr)
+    autonomy = {"days": factory_mod.AUTONOMY_DAYS, "finished": tot_f,
+                "touched": tot_t, "untouched": tot_f - tot_t,
+                "ratio": round(1 - tot_t / tot_f, 3) if tot_f else None,
+                "per_brain": per_brain}
+    stages = {}
+    try:
+        stages = factory_mod.stages_snapshot(deps)
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] stages: {type(e).__name__}: {e}", file=sys.stderr)
+    agents = []
+    if brain:
+        try:
+            agents = factory_mod.agent_scoreboard(deps, deps.task_root(brain))
+        except Exception as e:  # noqa: BLE001
+            print(f"[factory] scoreboard {brain}: {type(e).__name__}: {e}",
+                  file=sys.stderr)
+    return {"ok": True, "enabled": _factory_enabled(),
+            "watches": watches, "canaries": canaries,
+            "perf_cooldowns": len(st.get("perf_cd") or {}),
+            "sev_sent": st.get("sev_sent") or {},
+            "stages": stages, "agents": agents,
+            "autonomy": autonomy}
+
+
+# Nối hook sau-khi-xong của kanban vào factory (CI babysit + watcher + gợi ý lặp).
+# Công tắc settings.factory.enabled=false tắt toàn bộ lớp này mà không gỡ code.
+def _noop_factory(root, task):
+    return None
+
+
+tasks_feature.deps.factory_hook = lambda root, task: (
+    factory_mod.post_task(_factory_deps(), root, task) if _factory_enabled()
+    else _noop_factory(root, task)
+)
+
 
 @app.on_event("startup")
 async def _start_scheduler():
@@ -14531,6 +14922,30 @@ async def _start_scheduler():
                         print(f"[purge gc] dọn {n_rac} thư mục quá {purge.TRASH_DAYS} ngày")
                 except Exception as pe:
                     print(f"[purge gc] {type(pe).__name__}: {pe}", file=__import__('sys').stderr)
+                # 7) Sweep bù (kiểu missingPostWorkflow của Postiz): nhịp RIÊNG 1 giờ.
+                #    Quét mọi brain, tổng hợp việc "đáng lẽ đã chạy mà lỡ" → 1 thư digest.
+                #    Từng bộ phận đã tự chữa (nhắc trễ tự bắn, task kẹt tự thu hồi); sweep
+                #    chỉ bổ sung TẦNG NHÌN — không sửa gì, không spam (dedup theo giờ).
+                try:
+                    if time.time() - _SWEEP_LAST[0] >= sweep_mod.SWEEP_INTERVAL_SECONDS:
+                        _SWEEP_LAST[0] = time.time()
+                        rep = await _sweep_tick()
+                        if rep.get("found"):
+                            print(f"[sweep] lỡ: {rep['brains']}", file=__import__('sys').stderr)
+                except Exception as swe:
+                    print(f"[sweep tick] {type(swe).__name__}: {swe}", file=__import__('sys').stderr)
+                # 8) Factory tick (OpenAI agentic factory): deploy-watcher 5 phút một nhịp;
+                #    bên trong factory.tick tự cổng pattern (Perf/Sevbot) + recipes ở nhịp giờ.
+                try:
+                    if time.time() - _FACTORY_TICK_LAST[0] >= factory_mod.WATCH_TICK_SECONDS:
+                        _FACTORY_TICK_LAST[0] = time.time()
+                        if _factory_enabled():
+                            frep = await _factory_tick()
+                            w = (frep.get("watch") or {})
+                            if w.get("failed") or w.get("ok"):
+                                print(f"[factory] watch: {w}", file=__import__('sys').stderr)
+                except Exception as fe:
+                    print(f"[factory tick] {type(fe).__name__}: {fe}", file=__import__('sys').stderr)
             except Exception as e:
                 print(f"[scheduler] {type(e).__name__}: {e}", file=__import__('sys').stderr)
     asyncio.create_task(_scheduler_loop())
@@ -16305,14 +16720,55 @@ async def tts(
             audio = await _tts_openai(text, rate, cfg)
         elif provider == "elevenlabs":
             audio = await _tts_elevenlabs(text, cfg)
+        elif provider == "clone":
+            slug = ((cfg.get("voice", {}) or {}).get("clone_voice") or "").strip()
+            if not slug:
+                raise HTTPException(400, "Chưa chọn giọng nhân bản - nạp mẫu ở cài đặt Giọng trước")
+            audio = await voice_clone.synthesize(text, slug)
+            return Response(content=audio, media_type="audio/wav",
+                            headers={"Cache-Control": "no-cache"})
         else:
             return await _edge_streaming()
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[TTS {provider}] {type(e).__name__}", file=sys.stderr)
+        print(f"[TTS {provider}] {type(e).__name__}: {e}", file=sys.stderr)
         raise HTTPException(502, "Giọng đã chọn hiện không phát được. Vui lòng thử lại hoặc chọn giọng khác.")
     if not audio:
         raise HTTPException(502, "TTS không trả audio.")
     return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-cache"})
+
+
+# ============================================
+# Giọng nhân bản: fake 1 lần -> lưu hồ sơ -> đọc lại mãi (v-tts local, CC BY-NC)
+# ============================================
+@app.get("/voices")
+async def voices_list():
+    """Danh sách hồ sơ giọng nhân bản đã lưu."""
+    return {"ok": True, "voices": voice_clone.list_voices(),
+            "available": voice_clone.available()}
+
+
+@app.post("/voices/clone")
+async def voices_clone(file: UploadFile = File(...), name: str = Form("")):
+    """Nạp mẫu giọng (wav/mp3/webm...) -> hồ sơ vĩnh viễn. 5-30 giây nói rõ là đủ."""
+    data = await file.read()
+    if len(data) < 5000:
+        raise HTTPException(400, "File audio quá nhỏ - cần vài giây nói thật")
+    if len(data) > 30 * 1024 * 1024:
+        raise HTTPException(400, "File quá 30MB")
+    try:
+        prof = await asyncio.to_thread(
+            voice_clone.save_voice, name or Path(file.filename or "giong").stem,
+            data, file.filename or "mau.webm")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "voice": prof}
+
+
+@app.delete("/voices/{slug}")
+async def voices_delete(slug: str):
+    return {"ok": voice_clone.delete_voice(slug)}
 
 
 # ============================================
@@ -16501,7 +16957,8 @@ async def voice_options(brains: int = 1):
                 "openai_voice": v.get("openai_tts_voice") or "alloy",
                 "openai_key_set": bool(m.get("openai_api_key")),
                 "elevenlabs_voice": v.get("elevenlabs_voice") or "",
-                "elevenlabs_key_set": bool(str(v.get("elevenlabs_key") or "").strip())},
+                "elevenlabs_key_set": bool(str(v.get("elevenlabs_key") or "").strip()),
+                "clone_voice": v.get("clone_voice") or ""},
     }
 
 
@@ -16911,6 +17368,17 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 asst_buf["text"] = ""
                 await _j(ev)
             elif t in ("error", "ready"):
+                if t == "error" and getattr(prov, "name", "") == "chatgpt":
+                    # Gói ChatGPT báo hết hạn mức giữa phiên Live: đánh dấu "cháy" để
+                    # /voice/call (codex_realtime.realtime_available) không chọn lại đường
+                    # này ở cuộc gọi kế - trình duyệt rơi xuống api/basic thay vì lặp lỗi.
+                    try:
+                        _em = str(ev.get("message") or ev.get("content") or "")
+                        if task_router.quota_error(_em):
+                            task_router.burn_key("openai-oauth", "chatgpt-live", _em,
+                                                 task_router.burn_cooldown(_em))
+                    except Exception:
+                        pass
                 await _j(ev)
             return True
 
@@ -18482,7 +18950,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
                 if (not used_fast_path and kind == "api" and api_key and
-                        prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek")):
+                        prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "zai")):
                     try:
                         asyncio.create_task(fast_mode.normal(compaction.maybe_compact(
                             store, conv_sid, prov, api_key, api_model, _api_stream)))
@@ -18817,8 +19285,9 @@ async def websocket_endpoint(ws: WebSocket):
                 # đây - đúng bảng mà tool joyce_ui dùng. Tra không ra thì nói thật, đừng bắn
                 # chữ lạ sang trình duyệt rồi nhận câu lỗi khó hiểu.
                 dung = ui_targets.normalize_target(act, tgt)
-                if act in ("open_page", "open_group") and not dung:
-                    res = {"ok": False, "detail": f"không có {'trang' if act == 'open_page' else 'nhóm'} '{tgt}'"}
+                if act in ("open_page", "open_group", "open_surface") and not dung:
+                    loai = {"open_page": "trang", "open_group": "nhóm", "open_surface": "surface"}[act]
+                    res = {"ok": False, "detail": f"không có {loai} '{tgt}'"}
                 else:
                     try:
                         res = await ui_bridge.request(act, dung or tgt, session_id=conv_sid)
@@ -20545,11 +21014,54 @@ async def ollama_local_installed():
                    "size_gb": round(float(m.get("size") or 0) / (1024 ** 3), 1),
                    "modified_at": m.get("modified_at") or "",
                    "desc": mo_ta.get(ten) or mo_ta.get(ten.replace(":latest", "")) or "",
+                   "capabilities": kn,
                    # Chốt Ở SERVER: nơi này biết Ollama trả lời gì, giao diện thì không.
                    "chat_duoc": ollama_local.chat_duoc(ten, kn),
                    "loaded": ten in dang_nap})
     ra.sort(key=lambda x: x["name"])
     return {"ok": True, "models": ra}
+
+
+@app.post("/ollama-local/test")
+async def ollama_local_test(model: str = Form(...), num_ctx: int = Form(2048)):
+    """Test một model local, giữ kết nối sống bằng SSE trong suốt cold-start.
+
+    GLM 29.9B trên GPU 16 GB từng mất hơn ba phút chỉ để nạp. Trả một HTTP response cuối
+    cùng sẽ bị reverse proxy/Cloudflare cắt trước khi Ollama xong; heartbeat mỗi giây làm
+    trạng thái thật hiện ngay trên thẻ model và giữ đường truyền sống.
+    """
+    ep, key = _ol_cfg()
+    ten = str(model or "").strip()
+
+    async def dong():
+        if not ep:
+            yield "data: " + json.dumps({"status": "error", "error": "Chưa đặt địa chỉ Ollama"}, ensure_ascii=False) + "\n\n"
+            return
+        if not ten:
+            yield "data: " + json.dumps({"status": "error", "error": "Chưa chọn model"}, ensure_ascii=False) + "\n\n"
+            return
+        task = asyncio.create_task(ollama_local.test_model(ep, ten, key, num_ctx))
+        bat_dau = time.monotonic()
+        try:
+            while not task.done():
+                yield "data: " + json.dumps({
+                    "status": "loading",
+                    "elapsed_s": round(time.monotonic() - bat_dau),
+                    "model": ten,
+                }, ensure_ascii=False) + "\n\n"
+                await asyncio.sleep(1)
+            kq = await task
+            kq["status"] = "done" if kq.get("ok") else "error"
+            yield "data: " + json.dumps(kq, ensure_ascii=False) + "\n\n"
+        except asyncio.CancelledError:
+            if not task.done():
+                task.cancel()
+            raise
+
+    return StreamingResponse(dong(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+    })
 
 
 @app.get("/ollama-local/recommended")
@@ -21972,6 +22484,7 @@ _GIA_INPUT_1M = {
     "gpt-5-mini": 0.25, "gpt-5": 1.25, "gpt-4o-mini": 0.15, "gpt-4o": 2.5, "o3": 2.0,
     "gemini-2.5-pro": 1.25, "gemini-2.5-flash": 0.30, "gemini": 0.30,
     "deepseek": 0.30, "llama": 0.10, "qwen": 0.20, "mistral": 0.20, "grok": 2.0,
+    "glm-4.7-flash": 0.0, "glm-4.5-flash": 0.0, "glm-4.6v-flash": 0.0, "glm": 0.60,
 }
 _GIA_INPUT_MAC_DINH = 3.0     # không đoán được model thì lấy mức phổ biến tầm trung
 # Mọi con số tiền trên trang Mức dùng đều để nguyên USD. Trước đây có thêm một lớp quy đổi ra
@@ -23349,12 +23862,31 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                     try:
                         _s2 = cfgmod.read_settings()
                         _tg_dat_model(_s2, _fp, _fm)
+                        # Cờ "não chính mới là do máy tự chuyển, không phải user chọn":
+                        # thanh trạng thái + màn avatar đọc nó để báo mờ não đang dùng.
+                        # _set_main_model tự pop cờ nên phải ghi SAU _tg_dat_model; user
+                        # tự chọn model trên trang Models là cờ tự tắt.
+                        _s2.setdefault("model", {})["auto_switch"] = {
+                            "ts": time.time(),
+                            "from": {"provider": prov, "model": api_model or "",
+                                     "label": _api_label(prov)},
+                            "to": {"provider": _fp, "model": _fm or "",
+                                   "label": _api_label(_fp)},
+                            "why": str(_loi_goc or "").strip().splitlines()[0][:160],
+                        }
                         cfgmod.write_settings(_s2)
                     except Exception as _e:
                         print(f"[auto-fallback model] {type(_e).__name__}: {_e}",
                               file=__import__('sys').stderr)
+                    # Kèm lý do gốc (dòng đầu, rút gọn) để user biết não mình chọn chết
+                    # vì gì - "Invalid API key" hay "hết lượt tuần" khác hẳn nhau, chỉ ghi
+                    # "lỗi" thì ca 23/10 lặp lại: user tưởng DeepSeek bị khoá tới ngày 26
+                    # trong khi đó là hạn mức tuần của não DỰ PHÒNG.
+                    _ly_do = str(_loi_goc or "").strip().splitlines()[0][:110].lstrip("⚠ ")
                     _o2["text"] = (f"(tự chuyển não: {_api_label(prov)} "
-                                   f"{api_model or 'mặc định'} lỗi → {_api_label(_fp)} "
+                                   f"{api_model or 'mặc định'} lỗi"
+                                   + (f" - {_ly_do}" if _ly_do else "")
+                                   + f" → {_api_label(_fp)} "
                                    f"{_fm or 'mặc định'})\n\n" + (_o2.get("text") or ""))
                     out, prov, kind, api_key, api_model = _o2, _fp, _fk, _fkey, _fm
                     break
@@ -23789,6 +24321,8 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
             return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "deepseek":
             return engine.deepseek_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "zai":
+            return engine.zai_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama":
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
@@ -24230,6 +24764,11 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # một câu lỗi: không vào nhật ký bộ nhớ, không vào vòng tự học.
         if not out:
             return "(không có nội dung)"
+        # Grok cũng có thể in câu hết lượt ra final thay vì error - soi trên `out`.
+        if _het_luot_ap_dao(out):
+            _noi = _subscription_limit_message(out, "grok-cli")
+            if _noi:
+                return "⚠ " + _noi
         return {"text": channel_context.strip_control_blocks(out), "files": []}
 
     if prov == "antigravity-cli":
@@ -24273,6 +24812,11 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             return _noi or ("⚠ Antigravity CLI lỗi: " + loi[0][:400])
         if not out:
             return "(không có nội dung)"
+        # Antigravity cũng có thể in câu hết lượt ra final thay vì error - soi trên `out`.
+        if _het_luot_ap_dao(out):
+            _noi = _subscription_limit_message(out, "antigravity-cli")
+            if _noi:
+                return "⚠ " + _noi
         return {"text": channel_context.strip_control_blocks(out), "files": []}
 
     if prov == "openai-oauth":
@@ -24392,6 +24936,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             await _nuot_codex(compaction.codex_bootstrap_prompt(_raw, _hien_tai))
         if not out:
             return "⚠ " + (loi[0] if loi else "Codex không trả về nội dung nào.")
+        # Cùng lỗ hổng nhánh Claude ngay dưới: Codex in "You've hit your usage limit"
+        # ra final chứ không phải error. Trả như lỗi để não dự phòng chạy tiếp.
+        if _het_luot_ap_dao(out):
+            _noi = _subscription_limit_message(out, "codex")
+            if _noi:
+                return "⚠ " + _noi
         files = channel_context.collect_turn_files(
             out, written, t0, cwd=_brain_root(brain), exclude=sess["sent"],
             vault_root=_brain_root(brain),
@@ -24551,6 +25101,16 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         out = out or _streamed
         if not out:
             return "⚠ " + (loi[0] if loi else "Engine không trả về nội dung nào.")
+        # Claude Code in câu hết lượt gói ra chỗ CÂU TRẢ LỜI (final), không phải event
+        # error: "You've hit your weekly limit · resets Oct 26, 10am". Trả như lỗi để
+        # chuỗi não dự phòng của _tg_answer chạy tiếp và KHÔNG ghim não đang cạn lượt
+        # làm model mới - ca 23/10: key tokenharbor chết → fallback ghim luôn
+        # anthropic-cli → mọi tin sau đập vào cùng câu báo tuần, user tưởng phiên bị
+        # khoá tới ngày 26.
+        if _het_luot_ap_dao(out):
+            _noi = _subscription_limit_message(out, "claude-code")
+            if _noi:
+                return "⚠ " + _noi
         # Link file → dạng khung chat/Telegram mở được, ưu tiên file vừa ghi trong lượt này.
         try:
             out = _chuan_hoa_link_file(_brain_root(brain), out,
@@ -24626,6 +25186,7 @@ _TG_NHAN_NGAN = {
     "openai": "OpenAI API",
     "gemini": "Gemini API",
     "groq": "Groq",
+    "zai": "Z.ai",
     "ollama": "Ollama",
     "openai-compat": "OpenAI Compat",
 }

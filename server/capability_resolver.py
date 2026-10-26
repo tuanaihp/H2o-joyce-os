@@ -163,11 +163,17 @@ class DeterministicResolver:
 
         embedding_ids = []
         embedding_error = ""
+        semantic_query = ""
         if self.embedding is not None:
             try:
                 embedding_ids = [str(cid) for cid, _score in self.embedding.search(
                     query, brain, self.policy.candidate_limit
                 )]
+                # Adapter biết "nó nghĩ người dùng muốn gì" (TranslatedLexicalAdapter):
+                # lấy query đã dịch để chấm ứng viên semantic theo Ý chứ không theo chữ.
+                tq = getattr(self.embedding, "translate_query", None)
+                if callable(tq):
+                    semantic_query = str(tq(query) or "")
             except Exception as exc:
                 embedding_error = type(exc).__name__
 
@@ -197,6 +203,35 @@ class DeterministicResolver:
                     "score": round(score, 6), "coverage": round(coverage, 6),
                     "capability_revision": item.get("capability_revision"),
                 })
+            ranked.sort(key=lambda x: (-x["score"], -x["coverage"], x["capability_id"]))
+
+        # Nhập ứng viên nhánh semantic tìm được mà lexical không chạm tới (câu hỏi Việt
+        # vs tool tên Anh). Fetch theo ID, qua ĐÚNG _hard_filter như widening, chấm theo
+        # query ĐÃ DỊCH - điểm nghĩa là "khớp ý người dùng" chứ không "khớp chữ gốc".
+        if embedding_ids:
+            seen = {x["capability_id"] for x in ranked}
+            try:
+                extra_items = self.registry.get_capabilities(embedding_ids, brain)
+            except Exception:  # noqa: BLE001 - phần thêm, hỏng thì giữ kết quả lexical
+                extra_items = []
+            sq_norm = _norm(semantic_query)
+            sq_terms = set(sq_norm.split()) or query_terms
+            for item in extra_items:
+                cid = str(item.get("capability_id"))
+                if cid in seen or self._hard_filter(item, actor):
+                    continue
+                score, coverage = self._score(sq_norm, sq_terms, item)
+                ranked.append({
+                    "capability_id": cid, "name": item["name"],
+                    "source_type": item.get("source_type"),
+                    "source_id": item.get("source_id"),
+                    "side_effect": item.get("side_effect"),
+                    "required_mode": item.get("required_mode"),
+                    "score": round(score, 6), "coverage": round(coverage, 6),
+                    "capability_revision": item.get("capability_revision"),
+                    "via": "semantic",
+                })
+                seen.add(cid)
             ranked.sort(key=lambda x: (-x["score"], -x["coverage"], x["capability_id"]))
 
         # Hợp nhất lexical + semantic + affinity nguồn. Chỉ ĐỔI THỨ TỰ trong nhóm đã lọc.
@@ -268,5 +303,12 @@ _RESOLVER: DeterministicResolver | None = None
 def get_resolver() -> DeterministicResolver:
     global _RESOLVER
     if _RESOLVER is None:
-        _RESOLVER = DeterministicResolver()
+        # Nhánh semantic thật: adapter dịch query (VD tiếng Việt -> English keywords)
+        # rồi tìm lại trong registry - xem capability_embedding.py. Lỗi dựng adapter
+        # thì vẫn lexical thuần, không chặn resolver.
+        try:
+            import capability_embedding
+            _RESOLVER = DeterministicResolver(embedding=capability_embedding.get_adapter())
+        except Exception:
+            _RESOLVER = DeterministicResolver()
     return _RESOLVER

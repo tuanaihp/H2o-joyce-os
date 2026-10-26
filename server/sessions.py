@@ -1357,7 +1357,8 @@ class SessionStore:
         return True
 
     def set_pinned_model(self, session_id: str, provider: Optional[str],
-                         model: Optional[str], *, brain: Optional[str] = None) -> bool:
+                         model: Optional[str], *, brain: Optional[str] = None,
+                         channel: Optional[str] = None) -> bool:
         """Ghim model riêng cho MỘT phiên (provider rỗng = gỡ ghim, phiên quay về mặc
         định chung). Cùng khuôn set_project: `brain` khác None thì tạo hàng nếu phiên
         chưa kịp tồn tại - dashboard mint id phía client, user có thể đổi model trước
@@ -1367,7 +1368,11 @@ class SessionStore:
         if prov is None:
             mdl = None   # gỡ ghim là gỡ cả cặp - model mồ côi không định tuyến được
         if brain and not self.get_session(session_id):
-            self.create_session(brain=brain, session_id=session_id)
+            # Phiên nhân viên chưa kịp có hàng phải được tạo đúng kênh của nhân viên.
+            # Route /sessions/{id}/model luôn truyền `channel`; trước đây chữ ký hàm không
+            # nhận tham số này nên MỌI lần đổi model đều nổ 500, kể cả admin truyền None.
+            self.create_session(brain=brain, session_id=session_id,
+                                channel=(channel or "web"))
         if not self.get_session(session_id):
             return False
         self._write(lambda c: c.execute(

@@ -1,0 +1,13 @@
+name: Đồng bộ Apple Notes
+name_en: "Apple Notes Sync"
+slug: apple-notes
+version: 1.0.0
+description: Nhận ghi chú từ Apple Notes qua Shortcut trên iPhone/Mac và ghi thẳng vào sources/apple-notes/ của brain - ghi chú tay của anh/chị thành source thật trong Second Brain. Kèm trang cài đặt (token, chọn brain đích, xem lần đồng bộ cuối) và đường công khai tự xác thực bằng token để điện thoại POST vào.
+description_en: "Receives Apple Notes from a Shortcut on iPhone/Mac and writes them straight into the brain's sources/apple-notes/ - handwritten notes become real sources in the Second Brain. Ships a settings page (token, target brain, last sync) and a token-authenticated public route the phone POSTs to."
+author: Joyce (bundled)
+enabled: true
+min_mode: readonly
+page: ""
+tools:
+  - apple_notes_status
+hooks: []

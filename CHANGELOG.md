@@ -2,20 +2,34 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.28] - 2026-10-26
+### Thêm mới
+- **Z.ai (GLM) thành bộ não thứ 12**: có sẵn model flash miễn phí (`glm-4.7-flash`, `glm-4.5-flash`, `glm-4.6v-flash`). Trang Models có khu "Não miễn phí", picker đánh chip FREE cho id đuôi `:free` (OpenRouter, TokenHarbor, 9router). Key chết thì thẻ tô đỏ kèm lý do và Joyce bỏ qua nhà đó khi dự phòng.
+- **Nhân bản giọng**: nói "fake giọng anh" là Joyce ghi mẫu từ mic, lưu hồ sơ rồi đọc lại bằng giọng đó mãi (chạy trên máy, giấy phép phi thương mại). Nói "giọng cũ" để quay về giọng mặc định.
+- **Nhạc tự nhỏ khi Joyce nói**: trình phát nhạc chuyển sang lõi Howler.js, phát stream nhanh hơn, âm lượng chuyển mượt. Có thêm nguồn nhạc trong máy và lệnh giọng ("mở nhạc lofi", "bài tiếp", "tắt nhạc").
+- **Đổi cảnh nền avatar bằng giọng** và chip mục lục tri thức ngay trong khung chat trống.
+- **Nhà máy Joyce (factory) và sweep bù**: sau khi việc xong, Joyce chạy lệnh kiểm chứng và tự mở việc sửa nếu hỏng; mỗi giờ quét mọi brain tìm việc đáng lẽ đã chạy mà lỡ rồi gửi một thư tổng hợp vào hòm thư. Số liệu hiện ở trang Sơ đồ.
+- **Gọi tool theo ý nghĩa**: Joyce dịch câu hỏi sang tiếng Anh bằng model rẻ rồi so khớp với tên tool, nên "chốt đơn cho khách" tìm được `create_invoice`. Vẫn qua lớp lọc quyền như trước.
+- **Học viên H2O Book trên màn hình 3D**, **đồng bộ Apple Notes** vào `sources/apple-notes/`, **Sevbot hỏi-đáp sự cố**, và hướng dẫn dùng Joyce trên xe hơi.
+- Agent dùng Claude cũng có chuỗi dự phòng: nhà chết giữa chừng thì chuyển sang nhà khác khi chưa làm gì ra ngoài.
+
+### Sửa
+- Vá các chuỗi dịch còn sót gạch dài hoặc thẻ HTML.
+
 ## [1.3.27] - 2026-10-26
 ### Thêm mới
 - **Việc hằng ngày ngay trong Trò chuyện**: mở chat là thấy các việc mẫu của phòng mình (tư vấn, chăm sóc, báo cáo...). Bấm một việc, điền vài ô là Joyce làm. Mỗi nhóm có nút **+** để tự thêm việc của phòng, bấm vào việc để sửa hoặc xóa.
 - **Làm xong bấm "Đã xong"**: Joyce tự hỏi khi việc chạy xong, bấm là việc vào cột Xong ở Việc → Công việc của phòng. Bấm "Ghi nhớ cách làm này" để Joyce ghi cách làm thực tế vào wiki; đủ 3 lần làm một việc thì tự ghi nhớ.
 - Có sẵn việc mẫu cho Bán hàng, CSKH và hai brain cá nhân (Thủy, Tuấn). Chọn "Toàn khối" thì nhân viên chỉ thấy việc của phòng chính.
 
+## [1.3.26] - 2026-10-23
+### Thêm mới
+- **Trang Sơ đồ hệ thống**: một trang nhìn cả hệ thống Joyce - hiệu suất từng phòng ban theo board kanban thật, loop đang bật, dispatcher, các điểm cần chú ý. Có bộ lọc "Tất cả" và "Cần chú ý".
+
 ## [1.3.25] - 2026-10-21
 ### Thêm mới
 - **Tầng tự cải tiến (PPC) theo mô hình Harness²**: Joyce học cách tối ưu harness (prompt, skill, agent) từ bằng chứng kết quả thật thay vì sửa theo cảm tính. Gồm 3 năng lực mới trong Brain Default - skill `cham-diem-tuong-phan` (chấm A/B ẩn danh, chống nịnh người chấm và chống lệnh nhúng trong bằng chứng), workflow `tu-cai-tien-agent` (Kỹ sư Cải tiến đề xuất -> Giám định Tương phản chấm ẩn danh -> phiếu chờ chủ duyệt, không bao giờ tự áp), loop `dinh-duong-bai-hoc` (mỗi ngày chưng cất bài học có bằng chứng từ việc đã chạy, tự mở đề xuất khi thấy agent lặp lỗi). Workflow và loop tạo ở trạng thái TẮT - bật ở trang Việc khi muốn dùng.
 - **Thẻ "Tự cải tiến (PPC)" trong tab Tổng quan**: đếm đề xuất chờ duyệt trong `Joyce/proposals/`, số bài học và ngày nhật ký trong `Joyce/learn-log/`, lượt học gần nhất - đọc trực tiếp từ file vault nên không cần thêm cơ sở dữ liệu.
-
-## [1.3.26] - 2026-10-23
-### Thêm mới
-- **Sơ đồ hệ thống nâng cấp giao diện** (đang làm).
 
 ## [1.3.24] - 2026-10-20
 ### Thêm mới

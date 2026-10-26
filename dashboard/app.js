@@ -188,6 +188,7 @@ const voice = new JoyceVoice({
     runActions(turn.micOn());
   },
   onInterim: (text) => {
+    if (window.JoyceVoiceCloneCmd) window.JoyceVoiceCloneCmd.onInterim(text);
     if (handsFree && !attention.preview(text)) { nhapGiong(""); return; }
     if (adaptive.input(text)) return;
     nhapGiong(text);
@@ -201,7 +202,27 @@ const voice = new JoyceVoice({
     voiceBtn.classList.remove("recording");
     if (adaptive.manual(text)) return;
     nhapGiong("");
+    // Lệnh "fake giọng anh/tôi" + nuốt câu mẫu đang ghi: xử lý tại máy qua
+    // JoyceVoiceCloneCmd (ghi mic -> /voices/clone -> provider clone), không tốn
+    // một lượt model. Trả true = câu đã xong ở đây, đừng gửi não.
+    if (window.JoyceVoiceCloneCmd && window.JoyceVoiceCloneCmd.onTranscript(text)) return;
     text = veTinTuGiong(text);   // luật CHỜ / DỪNG của đạo diễn: trả "" khi không gửi
+    // Lệnh đổi cảnh nền Joyce ("đổi nền sang bãi biển"...): xử lý tại máy qua
+    // JoyceSceneCmd + JoyceBackdrops, không tốn một lượt model. Trả ghi chú mờ
+    // để chủ thấy lệnh đã ăn.
+    if (text && window.JoyceSceneCmd) {
+      const hit = window.JoyceSceneCmd.try(text, { avatarActive: !!(window.JoyceHumanoid && window.JoyceHumanoid.isActive()) });
+      if (hit) { ghiChuThoang(window.t("scene.changed", { name: hit.label })); return; }
+    }
+    // Lệnh nhạc ("mở nhạc lofi", "tắt nhạc", "bài tiếp"...): JoyceMusicCmd bắt tại
+    // máy, JoyceMusic phát Audius/local/mở YouTube - không tốn một lượt model.
+    if (text && window.JoyceMusicCmd) {
+      const opts = { playerActive: !!(window.JoyceMusic && window.JoyceMusic.isActive()) };
+      if (window.JoyceMusicCmd.parse(text, opts)) {
+        window.JoyceMusicCmd.try(text, opts).then(function (hit) { if (hit) ghiChuThoang(hit.label); });
+        return;
+      }
+    }
     if (text) sendMessage(text);
   },
   onEnd: () => {
@@ -233,6 +254,21 @@ const voice = new JoyceVoice({
   onSpeakEnd: () => { runActions(turn.ttsEnd()); setTimeout(guiCauChoLuot, 0); },   // 0.65.28: loa im thì gửi câu đang chờ
   onSlow: (cham) => runActions(turn.setSlow(cham)),
 });
+// JoyceMusic hỏi cờ này để duck nhạc khi Joyce đang nói (cả Audio element lẫn Web Speech).
+window.JoyceVoiceMain = voice;
+
+// Lệnh nhân bản giọng bằng giọng nói: ghi mẫu trên chính micStream đang mở (đã
+// echoCancellation), upload /voices/clone, rồi bật provider clone - Joyce trả
+// lời luôn bằng giọng vừa học. Xử lý tại máy, không đi vòng qua model.
+if (window.JoyceVoiceCloneCmd) {
+  window.JoyceVoiceCloneCmd.init({
+    stream: () => voice.micStream || (window.JoyceVoiceLive && window.JoyceVoiceLive.hasMic() ? window.JoyceVoiceLive.micStream() : null),
+    // force: trong phiên Live nút loa basic (ttsEnabled) thường tắt, nhưng người
+    // vừa ra lệnh bằng giọng nên câu xác nhận phải vẫn ra loa.
+    speak: (t) => voice.enqueueSpeak(t, { uncounted: true, force: true }),
+    toast: (t) => ghiChuThoang(t),
+  });
+}
 
 // ============================================
 // Voice V1 - đạo diễn hội thoại (docs/dev/2026-10-voice-call-spec.md phụ lục A1)
@@ -583,7 +619,7 @@ window.JoyceVoiceMode = { refresh: napCaiDatGiong, get: () => voiceMode };
 
 // Bậc Live: mic bấm là mở phiên nghe nói thẳng thay cho Web Speech. Bản ghi chữ hai chiều
 // vào khung chat như tin thường; orb theo cùng đạo diễn (nói / nghe / gọi tool).
-let _liveUserBubble = null, _liveJoyceText = "", _liveJoyceBubble = null, _liveCtxTimer = null;
+let _liveUserBubble = null, _liveJoyceText = "", _liveJoyceBubble = null, _liveCtxTimer = null, _liveSuppressJoyce = false;
 let _liveStartSeq = 0;
 let _liveWaitingWake = false, _liveBusyUntil = 0;
 // Nối lại NHANH (0.65.24, chủ dự án duyệt 02/10). Đo trên server thử: từ lúc người dùng ngừng nói tới
@@ -668,7 +704,8 @@ async function noiTiepPhienSom(phien, wakeText) {
   const ok = await phien.promise;   // bắt tay còn dở thì chờ nốt
   if (phien.ticket !== _liveStartSeq) return false;
   if (!ok) {
-    if (handsFree) return _cuocGoiDaNoi ? noiLaiHong(wakeText, 0) : chuyenSangCoBan();
+    if (handsFree) return _liveQuotaOut ? ((_liveQuotaOut = false), chuyenSangCoBan())
+                                      : (_cuocGoiDaNoi ? noiLaiHong(wakeText, 0) : chuyenSangCoBan());
     return false;
   }
   if (!(await window.JoyceVoiceLive.attachMic())) return false;   // lỗi mic: attachMic tự báo và đóng
@@ -769,6 +806,14 @@ function guiNguCanhLive() {
     window.JoyceVoiceLive.sendContext(ctx);
   } catch (e) {}
 }
+// Phiên Live chết vì hết hạn mức gói: cờ bật ở onError, đọc ở onClosed/nhánh mở-thất-bại.
+// Thử nối lại ChatGPT Live chỉ đốt thêm thời gian chờ - cuộc gọi rơi thẳng xuống đường
+// Cơ bản (bộ não chính có chuỗi dự phòng riêng: chat_fallbacks ở trang Models).
+let _liveQuotaOut = false;
+// Song song với task_router.quota_error phía máy chủ (lỗi Live về dạng chữ: "usage_limit_reached",
+// "429", "usage limit reached"...). Không bắt cụm quá chung để tránh nuốt lỗi mạng thường.
+const _LIVE_QUOTA_RE = /usage.?limit|rate.?limit|429|too many requests|resource.?exhausted|insufficient.?quota|quota\b|credit balance|billing|hết hạn mức|hết lượt|vượt hạn mức|hết quota|unauthorized|401|403|invalid.?(api|key|token)/i;
+function _loiQuotaLive(msg) { return _LIVE_QUOTA_RE.test(String(msg || "")); }
 async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
   if (!window.JoyceVoiceLive) { alert(window.t("app.live_missing")); return false; }
   if (!som && _liveSom) return noiTiepPhienSom(_liveSom, wakeText);
@@ -841,10 +886,23 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     onTranscript: (role, text, final) => {
       if (role === "user") {
         if (text.trim()) { attention.keepActive(); _liveBusyUntil = Date.now() + 120000; }
-        if (final && text.trim()) { nhapGiong(""); appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); }
-        else nhapGiong(text);
+        // Lệnh xử lý tại máy (vd "fake giọng anh"): nuốt bong bóng + câu trả lời
+        // của model cho lượt này, vì hệ lệnh nội bộ đã tự trả lời (clone giọng...).
+        if (!final) { try { if (window.JoyceVoiceCloneCmd) JoyceVoiceCloneCmd.onInterim(text); } catch (e) {} nhapGiong(text); return; }
+        try {
+          if (text.trim() && window.JoyceVoiceCloneCmd && JoyceVoiceCloneCmd.onTranscript(text.trim())) {
+            nhapGiong("");
+            _liveSuppressJoyce = true;
+            _liveJoyceText = "";
+            if (_liveJoyceBubble) { _liveJoyceBubble.remove(); _liveJoyceBubble = null; }
+            if (window.JoyceVoiceLive && JoyceVoiceLive.skipCurrentReply) JoyceVoiceLive.skipCurrentReply();
+            return;
+          }
+        } catch (e) {}
+        if (text.trim()) { nhapGiong(""); appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); }
         return;
       }
+      if (_liveSuppressJoyce) return;
       _liveJoyceText += text;
       if (!_liveJoyceBubble) _liveJoyceBubble = createStreamingBubble();
       _liveJoyceBubble.dataset.md = _liveJoyceText;   // copy ra markdown gốc, kể cả hội thoại bằng giọng
@@ -855,11 +913,12 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
       _liveBusyUntil = 0; attention.keepActive();
       if (_liveJoyceText.trim()) recordTurn("joyce", _liveJoyceText.trim(), null, null);
       if (_theoLoi && _theoLoi.live && _theoLoi.el === _liveJoyceBubble) _theoLoi.chuaXong = false;   // vẽ đủ khi loa im
-      _liveJoyceText = ""; _liveJoyceBubble = null;
+      _liveJoyceText = ""; _liveJoyceBubble = null; _liveSuppressJoyce = false;
       runActions(turn.turnDone());
     },
     onError: (msg) => {
       _liveBusyUntil = 0;
+      if (_loiQuotaLive(msg)) _liveQuotaOut = true;   // nhánh đóng/ mở-thất-bại đọc cờ này
       if (_liveSom === phien) return;   // nối sớm hỏng: im lặng, câu chốt sẽ mở lại từ đầu
       appendJoyceError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
       runActions(turn.turnDone());
@@ -867,6 +926,18 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
     // Đóng TRƯỚC khi sẵn sàng là mở không được: để nhánh dưới chuyển sang đường Cơ bản.
     onClosed: () => {
       if (_liveSom === phien) { _liveSom = null; clearTimeout(phien.henHuy); capNhatThanhGoi(); return; }
+      if (readySeen && _liveQuotaOut) {
+        // Live chết vì hết hạn mức: KHÔNG cúp máy - dọn phần Live rồi đổi đường gọi
+        // sang Cơ bản, cuộc trò chuyện giọng cứ tiếp tục bằng bộ não chính.
+        _liveQuotaOut = false;
+        adaptive.cancel(); adaptiveContinuation = "";
+        adaptiveOutbox.clear();
+        attention.stop(); _liveWaitingWake = false; _liveToolCount = 0;
+        liveWake.cancelListening();
+        _sendEpoch++;
+        chuyenSangCoBan();
+        return;
+      }
       if (readySeen) tatRanhTay();
     },
   });
@@ -880,8 +951,12 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
   }
   if (!ok) {
     // Mở không được TRƯỚC khi sẵn sàng. Đầu cuộc gọi: chuyển đường Cơ bản như cũ. Giữa cuộc gọi: giữ
-    // ChatGPT Live, thử lại rồi chờ (noiLaiHong), không đổi giọng.
-    if (handsFree && !readySeen) return _cuocGoiDaNoi ? noiLaiHong(wakeText, lanThu) : chuyenSangCoBan();
+    // ChatGPT Live, thử lại rồi chờ (noiLaiHong), không đổi giọng - TRỪ khi lỗi là hết hạn mức
+    // (cờ _liveQuotaOut từ onError), vì thử lại trên gói đã cạn chỉ đốt thêm thời gian chờ.
+    if (handsFree && !readySeen) {
+      if (_liveQuotaOut) { _liveQuotaOut = false; return chuyenSangCoBan(); }
+      return _cuocGoiDaNoi ? noiLaiHong(wakeText, lanThu) : chuyenSangCoBan();
+    }
     tatRanhTay();
   }
   return ok;
@@ -1371,6 +1446,10 @@ function handleMessage(data) {
         if (ask) window.JoyceAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
+      // Báo cho chip "não đang dùng" (console.js): khung response mang provider/model
+      // THỰC đã trả lời - khi vừa qua đường dự phòng, thanh trạng thái + nhãn dưới
+      // avatar đổi ngay sang não đó thay vì tiếp tục khoe não chính đang chết.
+      try { if (window.JoyceNoteRoute) window.JoyceNoteRoute(data.engine, data.model); } catch (e) {}
       const _trich = tepTrichDan(shownText);
       if (_trich.length) {
         if (t) t.tep = (t.tep || []).concat(_trich);
@@ -4167,6 +4246,7 @@ let handsFree = false;
 // thái này nằm ở ba nơi - biến, lớp CSS của nút, và công tắc loa - và bỏ sót một nơi thì giao
 // diện nói dối: nút vẫn sáng "đang nghe" trong khi không có gì đang nghe cả.
 function tatRanhTay() {
+  _liveQuotaOut = false;   // chủ động cúp: không chuyển Co ban dù vừa ăn lỗi hạn mức
   adaptive.cancel(); adaptiveContinuation="";
   adaptiveOutbox.clear();
   attention.stop(); _liveWaitingWake = false; _liveBusyUntil = 0;

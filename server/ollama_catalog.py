@@ -50,6 +50,17 @@ _NEN = [
     ("gemma3:4b", 3.3, "gemma", "Nhẹ, của Google, đọc được cả ảnh.", ["vision"]),
     ("gemma3:12b", 8.1, "gemma", "Bản vừa tầm của Gemma 3, có thị giác.", ["vision"]),
     ("gemma3:27b", 17.0, "gemma", "Bản lớn của Gemma 3.", ["vision"]),
+    # Gemma 4 (Google, Apache 2.0, 2026): đa phương thức + function-calling native.
+    # 12b là "sweet spot" 16GB - 7.6GB đĩa, context 256K, mạnh hơn cả gemma3:27b.
+    # rep=1: đại diện được khuyến nghị của họ gemma - file NHỎ hơn gemma3:12b nên
+    # sort-theo-size sẽ chọn bản cũ nếu không có cờ này.
+    ("gemma4:e2b", 7.2, "gemma", "Bản edge của Gemma 4, nhẹ mà đủ cho việc thường ngày.", ["vision", "tools"]),
+    ("gemma4:12b", 7.6, "gemma", "Ngọt nhất cho máy 16GB: context 256K, đọc được ảnh, gọi tool.", ["vision", "tools"], 1),
+    ("gemma4:26b", 18.0, "gemma", "Bản MoE lớn của Gemma 4, đòi máy trạm.", ["vision", "tools"]),
+    # gpt-oss (OpenAI open-weight, MXFP4): 20b chạy trọn trong 16GB VRAM/RAM hợp nhất
+    # (MoE 3.6B active) - máy 16GB chỉ RAM+CPU thì chật, trừ khi có GPU/Apple Silicon.
+    ("gpt-oss:20b", 14.0, "gpt-oss", "OpenAI open-weight: suy luận + gọi tool, thiết kế cho 16GB VRAM/bộ nhớ hợp nhất.", ["tools", "thinking"]),
+    ("gpt-oss:120b", 65.0, "gpt-oss", "Bản lớn của gpt-oss, cần ~60GB VRAM trở lên.", ["tools", "thinking"]),
     ("deepseek-r1:8b", 5.2, "deepseek", "Suy luận từng bước, hợp phân tích và giải toán.", ["thinking"]),
     ("deepseek-r1:14b", 9.0, "deepseek", "Bản suy luận vừa tầm, cần khoảng 16GB RAM.", ["thinking"]),
     ("deepseek-r1:32b", 20.0, "deepseek", "Suy luận mạnh, đòi máy khá.", ["thinking"]),
@@ -75,9 +86,12 @@ def dat_nguon_song(fn):
     _nguon_song = fn
 
 
-def muc(name, size_gb, ho, mo_ta, nhan):
-    return {"name": name, "size_gb": size_gb, "family": ho, "description": mo_ta,
-            "tags": list(nhan)}
+def muc(name, size_gb, ho, mo_ta, nhan, rep=0):
+    d = {"name": name, "size_gb": size_gb, "family": ho, "description": mo_ta,
+         "tags": list(nhan)}
+    if rep:
+        d["rep"] = True   # đại diện được khuyến nghị của họ - thắng suất họ dù file nhỏ hơn
+    return d
 
 
 def _duong_cache() -> Path:
@@ -221,13 +235,24 @@ def goi_y(specs: dict) -> list:
     ra, da_ho = [], set()
 
     def nhat(ds, tran_suat):
-        """Lấy tối đa `tran_suat` mục, mỗi họ một suất."""
+        """Lấy tối đa `tran_suat` mục, mỗi họ một suất.
+
+        Ngoại lệ `rep`: họ nào có model được đánh dấu rep TRONG danh sách đang xét
+        thì chỉ model đó được nhận suất - đại diện được khuyến nghị thắng kể cả khi
+        một anh em cùng họ đứng trước theo sort size (gemma4:12b nhỏ hơn gemma3:12b
+        nhưng mạnh hơn và là bản nên cài cho máy 16GB)."""
+        rep_cua_ho = {}
+        for m in ds:
+            if m.get("rep"):
+                rep_cua_ho[m.get("family") or m.get("name")] = m["name"]
         lay = 0
         for m in ds:
             if lay >= tran_suat or len(ra) >= MAX_GOI_Y:
                 break
             ho = m.get("family") or m.get("name")
             if ho in da_ho:
+                continue
+            if ho in rep_cua_ho and m["name"] != rep_cua_ho[ho]:
                 continue
             da_ho.add(ho)
             ra.append(m)

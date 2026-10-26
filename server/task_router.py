@@ -27,6 +27,8 @@ import re
 import sys
 import threading
 import time
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import config as cfgmod
 
@@ -38,6 +40,7 @@ KEY_FIELD = {
     "gemini": "gemini_api_key",
     "groq": "groq_api_key",
     "deepseek": "deepseek_api_key",
+    "zai": "zai_api_key",
     "anthropic-api": "anthropic_api_key",
     "ollama": "ollama_key",
     # ollama-local / openai-compat: thứ quyết định dùng được là ENDPOINT, key có thể rỗng.
@@ -49,7 +52,7 @@ KEY_FIELD = {
 # Provider hiện trên card Vòng quay key của trang Phân việc não. Endpoint-tự-khai
 # (ollama-local, openai-compat) lấy key từ trường riêng nên giữ ngoài danh sách này -
 # vòng quay của chúng vẫn hoạt động nếu ai đó điền key phụ, chỉ là UI không bày ra.
-RING_PROVIDERS = ("gemini", "groq", "openrouter", "deepseek", "openai", "anthropic-api", "ollama")
+RING_PROVIDERS = ("gemini", "groq", "openrouter", "deepseek", "zai", "openai", "anthropic-api", "ollama")
 
 # ── Danh mục LOẠI TÁC VỤ thật sự gọi LLM (bám call-site, không phải danh sách chung) ────
 # `tag` là chuỗi các nơi gọi truyền vào aux_engine.apply(..., tag=...). prefix=True nghĩa
@@ -60,70 +63,70 @@ TASK_TYPES = [
      "vi": "Nhắc hẹn & cron", "en": "Reminders & cron",
      "vi_mo_ta": "Việc hẹn giờ chạy nền: báo cáo, nhắc việc, tác vụ lên lịch sẵn.",
      "en_mo_ta": "Scheduled background jobs: reports, reminders, timed chores.",
-     "goi_y": ["groq", "ollama-local"],
+     "goi_y": ["zai", "groq", "ollama-local"],
      "vi_goi_y": "Lượt nhiều, prompt ngắn - Groq free nhanh hoặc model local là đủ.",
      "en_goi_y": "Frequent, short prompts - fast free Groq or a local model is enough."},
     {"id": "loop", "tag": "loop",
      "vi": "Vòng lặp tự chạy", "en": "Self-running loops",
      "vi_mo_ta": "Loop lặp theo chu kỳ tự kiểm tra và báo kết quả.",
      "en_mo_ta": "Periodic loops that self-verify and report results.",
-     "goi_y": ["gemini", "groq"],
+     "goi_y": ["zai", "gemini", "groq"],
      "vi_goi_y": "Có gọi tool - Gemini/Groq free có tool-calling; chừa quota cho việc nặng.",
      "en_goi_y": "Uses tools - free Gemini/Groq support tool-calling; keeps quota cheap."},
     {"id": "kanban", "tag": "dispatch:", "prefix": True,
      "vi": "Việc Kanban (dispatch)", "en": "Kanban dispatch",
      "vi_mo_ta": "Task trên bảng Việc do Joyce tự nhặt chạy nền.",
      "en_mo_ta": "Work-board tasks Joyce picks up and runs in background.",
-     "goi_y": ["gemini", "openrouter"],
+     "goi_y": ["zai", "gemini", "openrouter"],
      "vi_goi_y": "Việc thật có tool - Gemini free cho đa số; OpenRouter free dự phòng.",
      "en_goi_y": "Real tool work - free Gemini for most; OpenRouter free as fallback."},
     {"id": "ingest", "tag": "ingest",
      "vi": "Tiêu hoá nguồn vào wiki", "en": "Source ingestion",
      "vi_mo_ta": "Chưng cất tài liệu/nút thô thành bài wiki của Second Brain.",
      "en_mo_ta": "Distilling raw sources/notes into Second Brain wiki pages.",
-     "goi_y": ["gemini", "deepseek"],
+     "goi_y": ["zai", "gemini", "deepseek"],
      "vi_goi_y": "Đọc-viết dài, không cần tool - Gemini context dài hoặc DeepSeek rẻ.",
      "en_goi_y": "Long read-write, no tools - long-context Gemini or cheap DeepSeek."},
     {"id": "learn", "tag": "learn",
      "vi": "Tự học (verify)", "en": "Self-improvement verify",
      "vi_mo_ta": "Vòng phản biện đọc-only duyệt skill/agent/workflow đề xuất.",
      "en_mo_ta": "Read-only critique passes reviewing proposed skills/agents/workflows.",
-     "goi_y": ["gemini", "deepseek"],
+     "goi_y": ["zai", "gemini", "deepseek"],
      "vi_goi_y": "Chỉ đọc + trả JSON - model rẻ có reasoning tốt là đủ.",
      "en_goi_y": "Read-only JSON verdicts - a cheap model with decent reasoning works."},
     {"id": "curator", "tag": "curator",
      "vi": "Tự học (curator)", "en": "Self-improvement curator",
      "vi_mo_ta": "Pass tuyển chọn/tổng hợp của vòng tự học.",
      "en_mo_ta": "Selection/synthesis pass of the self-improvement loop.",
-     "goi_y": ["gemini", "deepseek"],
+     "goi_y": ["zai", "gemini", "deepseek"],
      "vi_goi_y": "Như nhóm verify - chỉ đọc và trả JSON.",
      "en_goi_y": "Same as verify - read-only JSON output."},
     {"id": "today-brief", "tag": "today-brief",
      "vi": "Bản tin tổng hợp", "en": "Daily brief",
      "vi_mo_ta": "Bản tin sáng/tổng hợp ngày gửi về kênh.",
      "en_mo_ta": "Morning digest / daily summary pushed to a channel.",
-     "goi_y": ["gemini", "openrouter"],
+     "goi_y": ["zai", "gemini", "openrouter"],
      "vi_goi_y": "Tóm tắt văn xuôi - model viết trôi chảy rẻ/free.",
      "en_goi_y": "Prose summarising - any fluent free/cheap model."},
     {"id": "reply-policy", "tag": "reply-policy",
      "vi": "Quyết định trả lời nhóm", "en": "Group reply policy",
      "vi_mo_ta": "Phán xét text-only: có nên trả lời tin nhắn nhóm không.",
      "en_mo_ta": "Text-only judge: whether to answer a group message.",
-     "goi_y": ["groq", "ollama-local"],
+     "goi_y": ["zai", "groq", "ollama-local"],
      "vi_goi_y": "Câu quyết định nhịp cao, ngắn - Groq free hoặc local là nhanh nhất.",
      "en_goi_y": "High-rate short verdicts - free Groq or local is fastest."},
     {"id": "agent-judge", "tag": "agent-judge",
      "vi": "Phán xét kết quả agent", "en": "Agent result judge",
      "vi_mo_ta": "Text-only chấm điểm output của fork agent.",
      "en_mo_ta": "Text-only grading of agent fork output.",
-     "goi_y": ["groq", "deepseek"],
+     "goi_y": ["zai", "groq", "deepseek"],
      "vi_goi_y": "So sánh + chấm ngắn - model rẻ nhanh.",
      "en_goi_y": "Compare-and-grade, short output - a fast cheap model."},
     {"id": "khac", "tag": "",
      "vi": "Việc nền khác", "en": "Other background work",
      "vi_mo_ta": "Mọi việc nền không thuộc loại trên (cửa an toàn).",
      "en_mo_ta": "Any background job not listed above (safe default).",
-     "goi_y": ["gemini", "openrouter"],
+     "goi_y": ["zai", "gemini", "openrouter"],
      "vi_goi_y": "Để trống = theo model việc nền chung ở trang Models.",
      "en_goi_y": "Empty = follows the global background model on the Models page."},
 ]
@@ -423,26 +426,67 @@ def pick_key(provider: str, settings: dict = None) -> str:
 
 
 def usable_keys(provider: str, settings: dict = None) -> list:
-    """Ring cho một lượt gọi: key sạch trước, key đang cháy cuối (để caller còn thử nốt
-    nếu burn chỉ là giây-cuối và mọi key đều bẩn - tốt hơn là bỏ cuộc hẳn)."""
-    ks = keys_for(provider, settings)
-    clean = [k for k in ks if not burn_until(provider, k)]
-    dirty = [k for k in ks if burn_until(provider, k)]
-    return clean + dirty
+    """Các key dùng được NGAY cho một lượt gọi, giữ nguyên thứ tự vòng.
+
+    Key đang cháy phải bị bỏ qua hẳn tới `until`. Đưa nó xuống cuối rồi vẫn thử lại trong
+    cùng lượt chỉ tạo thêm 429 và có thể kéo dài cooldown; `burn_until()` tự đưa key trở lại
+    ngay khi hết giờ nên không cần cơ chế "thử nốt".
+    """
+    return [k for k in keys_for(provider, settings) if not burn_until(provider, k)]
 
 
 def burn_key(provider: str, key: str, why: str = "", seconds: float = 300.0) -> None:
-    """Đánh dấu key tạm chết (quota/429/auth). `seconds` nên lấy từ burn_cooldown(text)."""
+    """Đánh dấu key tạm chết (quota/429/auth). `seconds` nên lấy từ burn_cooldown(text).
+
+    Lỗi auth-invalid (401/403/key thu hồi) thì gắn cờ `dead` + cách ly DEAD_PROBE_SEC
+    giờ: mọi đường pick_key/usable_keys đều bỏ qua nó trong khoảng đó mà không cần
+    sửa call-site, và UI đọc cờ `dead` để tô đỏ. Cờ không vĩnh viễn - revoke của
+    nhà cung cấp đôi khi chỉ là tạm (TokenHarbor 24/10: sáng 401 "revoked", chiều
+    key sống lại). Hết khoảng cách ly key được THỬ LẠI một lần: sống thì note_use
+    tự gỡ cờ, chết thì burn_key gắn lại cờ và tính khoảng mới."""
     if not key:
         return
     _load_burns()
+    dead = dead_error(why)
     with _LOCK:
         (_burns.setdefault(provider, {}))[_fp(key)] = {
-            "until": time.time() + max(30.0, float(seconds or 0)),
+            "until": time.time() + (DEAD_PROBE_SEC if dead
+                                    else max(30.0, float(seconds or 0))),
             "why": (why or "")[:240],
             "tail": _tail(key),
+            "dead": bool(dead),
         }
         _save_burns()
+
+
+# Khoảng cách ly trước khi thử lại một key "dead": đủ dài để không phí quota vào
+# key thật sự thu hồi, đủ ngắn để revoke-tạm tự lành. 6 giờ = tối đa 4 lần thử/ngày.
+DEAD_PROBE_SEC = 6 * 3600.0
+
+
+def key_dead(provider: str, key: str) -> bool:
+    """Key này đang trong khoảng cách ly 'dead' không - tức vừa bị từ chối chứng chỉ
+    VÀ chưa tới lượt thử lại. Hết khoảng (until qua) trả False để chuỗi cho key cơ
+    hội tự lành: thành công thì note_use gỡ cờ, thất bại thì burn_key gắn lại."""
+    if not key:
+        return False
+    _load_burns()
+    ent = (_burns.get(provider) or {}).get(_fp(key)) or {}
+    return bool(ent.get("dead")) and float(ent.get("until") or 0) > time.time()
+
+
+def dead_key_info(provider: str, settings: dict = None) -> dict:
+    """{"dead","why","tail"} của key CHẾT đầu tiên trong vòng provider - cho thẻ
+    Models tô đỏ. Cờ `dead` tồn tại tới khi một lượt gọi THÀNH CÔNG gỡ nó (note_use)
+    hoặc chủ đổi key - kể cả khi đang trong kỳ thử lại, thẻ vẫn đỏ vì lần kiểm chứng
+    gần nhất là bị từ chối. Không có key chết -> {} ."""
+    _load_burns()
+    for k in keys_for(provider, settings):
+        ent = (_burns.get(provider) or {}).get(_fp(k)) or {}
+        if ent.get("dead"):
+            return {"dead": True, "why": (ent.get("why") or "")[:200],
+                    "tail": ent.get("tail") or _tail(k)}
+    return {}
 
 
 def note_use(provider: str, key: str, tin: int = 0, tout: int = 0) -> None:
@@ -456,6 +500,12 @@ def note_use(provider: str, key: str, tin: int = 0, tout: int = 0) -> None:
         with _LOCK:
             ent = _burns.setdefault(provider, {}).setdefault(_fp(key), {"until": 0})
             ent["tail"] = _tail(key)
+            # Key vừa phục vụ THÀNH CÔNG một lượt => không thể đang cháy hay chết.
+            # Bắt buộc tự gỡ cờ: revoke phía nhà cung cấp có thể chỉ là tạm (TokenHarbor
+            # 24/10: sáng 401 "revoked", chiều key lại sống). Không gỡ thì cờ dead 10-năm
+            # kìm hẳn một key đã hồi, và thẻ đỏ nói dối mãi.
+            ent["until"] = 0
+            ent.pop("dead", None)
             ent["uses"] = int(ent.get("uses") or 0) + 1
             ent["tin"] = int(ent.get("tin") or 0) + int(tin or 0)
             ent["tout"] = int(ent.get("tout") or 0) + int(tout or 0)
@@ -490,13 +540,15 @@ def ring_status(provider: str, settings: dict = None) -> dict:
         until = float(ent.get("until") or 0)
         slots.append({"tail": _tail(k),
                       "burned": until > now,
+                      "dead": bool(ent.get("dead")),
                       "until": until if until > now else 0,
                       "why": (ent.get("why") or "")[:200],
                       "uses": int(ent.get("uses") or 0),
                       "tin": int(ent.get("tin") or 0),
                       "tout": int(ent.get("tout") or 0)})
     return {"provider": provider, "total": len(ks),
-            "burned": sum(1 for s in slots if s["burned"]), "keys": slots}
+            "burned": sum(1 for s in slots if s["burned"]),
+            "dead": sum(1 for s in slots if s["dead"]), "keys": slots}
 
 
 def all_ring_status(settings: dict = None) -> list:
@@ -566,7 +618,7 @@ _QUOTA_RE = (
     r"\b429\b", r"too many requests", r"rate.?limit", r"resource.?exhaust",
     r"insufficient.?quota", r"quota\b", r"tokens? per (minute|day)",
     r"requests? per (minute|day|second)", r"\brpm\b|\btpm\b|\brpd\b|\btpd\b",
-    r"usage limit", r"credit balance", r"billing", r"quota exceeded",
+    r"usage.?limit", r"credit balance", r"billing", r"quota exceeded",
     r"exceeded your (current |)quota", r"hit your usage limit",
     r"hết hạn mức", r"hết lượt", r"vượt hạn mức", r"hết quota",
     # auth của KEY RIÊNG: key chết -> xoay key kế là đúng (khác với mất đăng nhập plan).
@@ -582,6 +634,29 @@ def quota_error(text: str) -> bool:
     return any(re.search(p, low) for p in _QUOTA_RE)
 
 
+# Lỗi "key chết VĨNH VIỄN" - khác hẳn cháy quota: chờ không hồi, phải thay key mới.
+# Đánh dấu riêng để (a) vòng quay bỏ qua hẳn, không thử lại mỗi 5 phút tốn một lần
+# gọi chết, và (b) UI tô đỏ để chủ thấy mà xoá/thay. Giới hạn ở lỗi do CHỮNG CHỈ
+# bị từ chối (sai/thu hồi/hết hạn) - 403 "không đủ quyền" trên key cũng là vĩnh
+# viễn cho key đó. Cố tình KHÔNG gồm 429/quota: "too many failed authentication
+# attempts" của TokenHarbor là 429 - throttle tạm, không phải key chết.
+_DEAD_RE = (
+    r"invalid or revoked", r"invalid_api_key", r"invalid api key",
+    r"api key not valid", r"incorrect api key", r"api key expired",
+    r"key.{0,30}(revoked|disabled|deactivated|deleted)", r"\brevoked\b",
+    r"authentication.?fail", r"unauthorized", r"reported as leaked",
+    r"\b401\b", r"\b403\b",
+)
+
+
+def dead_error(text: str) -> bool:
+    """Lỗi này có phải 'chứng chỉ bị từ chối vĩnh viễn' không - key phải THAY, không
+    phải chờ. Bảo thủ: chỉ nhận tín hiệu auth-invalid rõ ràng, lỡ bỏ sót còn hơn gắn
+    cờ chết nhầm một key chỉ đang bị throttle."""
+    low = (text or "").lower()
+    return any(re.search(p, low) for p in _DEAD_RE)
+
+
 def burn_cooldown(text: str) -> float:
     """Ước lượng key nên nằm cháy bao lâu, suy từ nội dung lỗi (giây)."""
     low = (text or "").lower()
@@ -591,9 +666,16 @@ def burn_cooldown(text: str) -> float:
         sec = v * 3600 if u in ("h", "gio", "giờ") else v * 60 if u in ("m", "phut", "phút") else v
         return min(sec + 10.0, 7200.0)
     if re.search(r"per day|daily|each day|day limit|rpd|tpd|mỗi ngày|trong ngày|hạn mức ngày", low):
-        # Đa số free quota reset theo UTC - chờ tới nửa đêm UTC + 5 phút đệm.
-        now = time.time()
-        return max(60.0, (int(now // 86400) + 1) * 86400 + 300.0 - now)
+        # Gemini RPD reset lúc nửa đêm Pacific (tài liệu Google), không phải UTC. Giữ 5 phút
+        # đệm để tránh đồng hồ lệch; nếu máy thiếu timezone database thì lui về UTC an toàn.
+        try:
+            now_dt = datetime.now(ZoneInfo("America/Los_Angeles"))
+            next_midnight = (now_dt + timedelta(days=1)).replace(
+                hour=0, minute=5, second=0, microsecond=0)
+            return max(60.0, next_midnight.timestamp() - time.time())
+        except Exception:
+            now = time.time()
+            return max(60.0, (int(now // 86400) + 1) * 86400 + 300.0 - now)
     if re.search(r"per minute|rpm|tpm|mỗi phút", low):
         return 75.0
     return 300.0

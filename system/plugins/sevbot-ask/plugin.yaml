@@ -1,0 +1,12 @@
+name: Sevbot hỏi-đáp
+name_en: "Incident Q&A"
+slug: sevbot-ask
+version: 1.0.0
+description: Hỏi-đáp về sự cố (incident) của brain - liệt kê sự cố đang mở và đọc context một sự cố để agent trả lời người dùng. Chỉ đọc; KHÔNG tự hành động khắc phục, đúng giới hạn Sevbot của OpenAI.
+description_en: "Read-only incident Q&A: list open incidents and read one incident's context (error, triage, history) so the agent can answer 'what happened / why / what do we do'. Never executes mitigations."
+author: Joyce (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - sevbot_ask
+hooks: []

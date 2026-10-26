@@ -691,6 +691,16 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
   position: absolute; bottom: 10px; left: 0; right: 0;
   text-align: center; pointer-events: none; z-index: 5;
 }
+/* Nhãn não đang dùng, mờ dưới avatar: luôn thấy Joyce trả lời bằng não nào mà không
+   cần mở trang Models. Sáng hơn + màu vàng khi não vừa được TỰ chuyển (auto-fallback). */
+.brain-tag {
+  margin-top: 4px; font-size: 11px; letter-spacing: .6px;
+  color: rgba(160,210,240,.42); pointer-events: auto; cursor: pointer;
+  white-space: nowrap; transition: color .25s, opacity .25s;
+}
+.brain-tag:hover { color: rgba(160,210,240,.8); }
+.brain-tag.sw { color: rgba(251,191,36,.75); }
+.brain-tag[hidden] { display: none; }
 .orb-state {
   font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   font-size: 13px; font-weight: 600; letter-spacing: 4.5px; text-transform: uppercase;
@@ -1107,6 +1117,30 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   content: "Nói hoặc gõ để bắt đầu hội thoại với Joyce.";
   color: var(--text3); font-size: 14px; font-style: italic;
 }
+/* Mục lục tri thức của brain (chat-kb.js): chỉ nằm trong transcript lúc trống,
+   tin đầu tiên vào là nó tự rụng để nhường chỗ cho hội thoại. */
+.chat-kb { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  background: var(--wash, rgba(127,127,127,.05)); margin: 4px 0 8px; }
+.chat-kb-h { display: flex; align-items: center; gap: 8px; }
+.chat-kb-h b { font-size: 13.5px; }
+.chat-kb-i { display: inline-flex; color: var(--accent); }
+.chat-kb-i svg, .chat-kb-i .ic { width: 15px; height: 15px; }
+.chat-kb-n { font-size: 11px; font-weight: 700; color: var(--text3);
+  background: var(--wash, rgba(127,127,127,.08)); border-radius: 999px; padding: 1px 7px; }
+.chat-kb-more { margin-left: auto; font-size: 11.5px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--text3); cursor: pointer; }
+.chat-kb-more:hover { border-color: var(--accent); color: var(--accent); }
+.chat-kb-d { font-size: 12px; color: var(--text3); margin: 4px 0 8px; }
+.chat-kb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-kb-chip { font-size: 12px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card, #fff); cursor: pointer; text-align: left; transition: border-color .15s; }
+.chat-kb-chip b { color: var(--accent); font-size: 11px; margin-left: 2px; }
+.chat-kb-chip:hover { border-color: var(--accent); }
+/* Trang phẳng (index không có nhóm ##) - cùng chip nhưng nền rõ hơn chút để phân biệt. */
+.chat-kb-page { font-size: 12px; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--wash, rgba(127,127,127,.05));
+  cursor: pointer; text-align: left; }
+.chat-kb-page:hover { border-color: var(--accent); color: var(--accent); }
 .msg { animation: fadeIn 0.2s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .msg-user { display: flex; flex-direction: column; align-items: flex-end; }
@@ -2119,6 +2153,56 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cs-menu-ico, .cs-proj-name .ic { display: inline-flex; flex: none; color: var(--text2); }
 .cs-menu-row.on .cs-menu-ico, .cs-proj-name .ic { color: inherit; }
 .ci-meta .act .pin.on { color: var(--accent); }
+/* Khối TRI THỨC trong cột Hội thoại: mục lục wiki của brain (sessions-ui.js renderKb).
+   <details> mở mặc định, gập lại được khi muốn nhường chỗ cho danh sách hội thoại.
+   Mỗi nhóm ## là một <details> con - bấm bung ra các trang wiki bên trong. */
+.cside-kb { flex: none; }
+.cside-kb-d > summary { display: flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--text3);
+  list-style: none; user-select: none; }
+.cside-kb-d summary::-webkit-details-marker { display: none; }
+/* Mũi tên gập rõ ràng như hàng nhóm bên dưới: trước đây header gập được nhưng không
+   có dấu hiệu nào cho thấy nó bấm được. */
+.cside-kb-d > summary::before { content: "▸"; font-size: 9px; color: var(--text3);
+  flex: none; transition: transform .12s; }
+.cside-kb-d[open] > summary::before { transform: rotate(90deg); }
+.cside-kb-d > summary:hover { color: var(--text2); }
+.cside-kb-d > summary svg, .cside-kb-d > summary .ic { width: 13px; height: 13px; }
+.cside-kb-n { font-weight: 600; opacity: .8; }
+.cside-kb-list { margin-top: 7px; display: flex; flex-direction: column; gap: 2px; }
+.cside-kb-g > summary { display: flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 12px; color: var(--text2); list-style: none; user-select: none;
+  padding: 4px 6px; border-radius: 7px; }
+.cside-kb-g > summary::-webkit-details-marker { display: none; }
+.cside-kb-g > summary::before { content: "▸"; font-size: 9px; color: var(--text3);
+  flex: none; transition: transform .12s; }
+.cside-kb-g[open] > summary::before { transform: rotate(90deg); }
+.cside-kb-g > summary:hover { background: var(--wash, rgba(127,127,127,.07)); color: var(--text); }
+.cside-kb-gn { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.cside-kb-g > summary > b { color: var(--accent); font-size: 10px; flex: none; }
+.cside-kb-go { flex: none; border: 0; background: transparent; color: var(--text3);
+  cursor: pointer; padding: 2px; border-radius: 6px; display: inline-flex; opacity: 0; }
+.cside-kb-g > summary:hover .cside-kb-go, .cside-kb-go:focus-visible { opacity: 1; }
+.cside-kb-go:hover { color: var(--accent); }
+.cside-kb-go svg, .cside-kb-go .ic { width: 12px; height: 12px; }
+/* Trang wiki bên trong một nhóm: mỗi trang một HÀNG (dễ quét khi danh sách 50 trang
+   như brain phòng ban), gồm nút tên (điền câu hỏi) + nút mắt (mở file wiki sửa). */
+.cside-kb-pages { display: flex; flex-direction: column; gap: 1px; padding: 0 0 6px 16px; }
+.cside-kb-prow { display: flex; align-items: center; gap: 3px; min-width: 0;
+  border-radius: 7px; }
+.cside-kb-prow:hover { background: var(--wash, rgba(127,127,127,.07)); }
+.cside-kb-page { flex: 1 1 auto; min-width: 0; font-size: 12px; padding: 4px 6px;
+  border: 0; background: transparent; color: var(--text2); cursor: pointer;
+  text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: 7px; }
+.cside-kb-page:hover { color: var(--accent); }
+.cside-kb-eye { flex: none; border: 0; background: transparent; color: var(--text3);
+  cursor: pointer; padding: 2px; border-radius: 6px; display: inline-flex; opacity: 0; }
+.cside-kb-prow:hover .cside-kb-eye, .cside-kb-eye:focus-visible { opacity: 1; }
+.cside-kb-eye:hover { color: var(--accent); }
+.cside-kb-eye svg, .cside-kb-eye .ic { width: 12px; height: 12px; }
+.cside-kb-flat { padding-left: 4px; margin-top: 4px; }
 .cside-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
 .cside-list::-webkit-scrollbar { width: 4px; }
 .cside-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -2213,6 +2297,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .mb-item:hover { background: var(--bg3); }
 .mb-item.cur { background: var(--accent-wash-2); color: var(--accent); }
 .mb-item .tick { width: 14px; color: var(--green); flex: none; }
+/* Chip FREE trên hàng model có đuôi :free (OpenRouter/TokenHarbor). */
+.mb-free { font-size: 9.5px; letter-spacing: .8px; color: var(--green, #2fbf71);
+  border: 1px solid var(--green, #2fbf71); border-radius: 4px; padding: 0 4px;
+  margin-left: auto; flex: none; font-weight: 600; }
 .mb-empty { font-size: 12px; color: var(--text3); padding: 4px 10px 8px; }
 .mb-link { font-size: 12px; color: var(--accent2); padding: 4px 10px 8px; cursor: pointer; }
 .mb-link:hover { text-decoration: underline; }
@@ -4821,6 +4909,47 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .joyce-album .ja-prev { left: 12px; }
 .joyce-album .ja-next { right: 12px; }
 
+/* ---- surface STUDENTS (H2O Book): danh sách + thẻ chi tiết, cùng khung .joyce-album ---- */
+.js-students .js-q {
+  margin-left: auto; width: min(190px, 34%); background: #04161bee; color: #cfeeff;
+  border: 1px solid #19ddff33; border-radius: 8px; padding: 5px 10px;
+  font: 12px var(--font); outline: none;
+}
+.js-students .js-q:focus { border-color: #19ddff88; }
+.js-students .js-q::placeholder { color: #4e7d8c; }
+.js-card { display: flex; align-items: center; gap: 10px; text-align: left; }
+.js-card .ja-info { flex: 1; min-width: 0; }
+.js-card .ja-info em {
+  display: inline-block; margin-top: 3px; font-style: normal; font-size: 9px;
+  letter-spacing: .12em; padding: 2px 7px; border-radius: 6px; background: #19ddff22; color: #8fdcf2;
+}
+.js-card .ja-info em.js-ok { background: #1ad98f22; color: #7de8bd; }
+.js-card .ja-info em.js-wait { background: #e8b93d22; color: #eed48a; }
+.js-ava {
+  flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+  background: linear-gradient(160deg, #0e4a5c, #072530); border: 1px solid #19ddff33;
+  font: 600 19px var(--font); color: #9fe8ff; text-transform: uppercase;
+}
+.js-ava-big { width: 72px; height: 72px; border-radius: 20px; font-size: 30px; }
+.js-detail {
+  position: relative; height: 100%; display: flex; align-items: center; justify-content: center;
+  gap: clamp(10px, 4vw, 40px); padding: 0 clamp(48px, 8vw, 90px);
+}
+.js-profile {
+  width: min(430px, 70%); text-align: center; padding: 26px 22px;
+  background: #03181dee; border: 1px solid #19ddff33; border-radius: 18px;
+  box-shadow: 0 18px 60px #000a, 0 0 0 1px #19ddff11;
+}
+.js-profile h3 { margin: 12px 0 6px; font-size: 20px; letter-spacing: .02em; }
+.js-profile em { font-style: normal; font-size: 10px; letter-spacing: .14em; padding: 3px 10px; border-radius: 8px; background: #19ddff22; color: #8fdcf2; }
+.js-profile em.js-ok { background: #1ad98f22; color: #7de8bd; }
+.js-profile em.js-wait { background: #e8b93d22; color: #eed48a; }
+.js-profile dl { margin: 16px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; text-align: left; }
+.js-profile dt { font-size: 10px; letter-spacing: .12em; color: #4e7d8c; text-transform: uppercase; }
+.js-profile dd { margin: 0; font-size: 13px; color: #dff6ff; word-break: break-all; }
+.js-nav, .js-prev, .js-next { position: static; transform: none; }
+.js-pos { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font: 11px var(--font); color: #4e7d8c; letter-spacing: .1em; }
+
 /* ============================================
    Tinh vân kiểu CHÒM SAO (brain-constellation.js, 1.3.24 - docs/dev/2026-10-tinh-van-apex-design.md)
    Quả cầu brain đang mở ở giữa + các nhánh thư mục / vận hành / MCP. Nút #tvModeBtn chuyển
@@ -4877,3 +5006,35 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .bc-btn:hover { border-color: var(--bc-c); }
 .bc-status { font-size: 12px; color: var(--warn-ink); }
 .bc-status.on { color: var(--ok-ink); }
+
+/* ---- Joyce Music: thanh phát nhạc mini (joyce-music.js) ---- */
+.jm-bar {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(90px);
+  display: flex; align-items: center; gap: 6px; z-index: 640;
+  padding: 7px 10px; border-radius: 14px; max-width: min(560px, calc(100vw - 24px));
+  background: rgba(10, 16, 28, .82); border: 1px solid rgba(103, 232, 249, .22);
+  backdrop-filter: blur(10px); box-shadow: 0 6px 28px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.3) inset;
+  opacity: 0; pointer-events: none; transition: transform .35s ease, opacity .35s ease;
+}
+.jm-bar.on { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+.jm-btn {
+  border: 0; background: none; color: rgba(160, 210, 240, .85); font-size: 15px; line-height: 1;
+  padding: 6px 7px; border-radius: 8px; cursor: pointer; flex: none;
+}
+.jm-btn:hover { color: #fff; background: rgba(103, 232, 249, .12); }
+.jm-meta { min-width: 0; max-width: 260px; overflow: hidden; }
+.jm-title {
+  font-size: 12.5px; color: rgba(226, 240, 255, .95); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.jm-sub {
+  font-size: 10.5px; color: rgba(150, 190, 220, .6); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.jm-src {
+  flex: none; font-size: 9px; letter-spacing: .12em; padding: 3px 7px; border-radius: 20px;
+  color: rgba(52, 211, 153, .95); border: 1px solid rgba(52, 211, 153, .35);
+  background: rgba(52, 211, 153, .08);
+}
+.jm-vol { width: 64px; accent-color: rgba(103, 232, 249, .7); flex: none; }
+.jm-close { color: rgba(150, 190, 220, .5); }

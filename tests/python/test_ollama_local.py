@@ -38,6 +38,7 @@ def check(name, cond, them=""):
 
 # ---- Ollama giả: đủ bốn endpoint Joyce dùng ----------------------------------
 DA_XOA = []
+TEST_REQUESTS = []
 
 
 class OllamaGia(BaseHTTPRequestHandler):
@@ -83,6 +84,11 @@ class OllamaGia(BaseHTTPRequestHandler):
                 self.wfile.write((json.dumps(mo) + "\n").encode("utf-8"))
                 self.wfile.flush()
             return
+        if self.path == "/api/generate":
+            TEST_REQUESTS.append(body)
+            return self._tra(200, {"response": "JOYCE_OK", "done": True,
+                                   "load_duration": 2_000_000_000,
+                                   "eval_count": 8, "eval_duration": 1_000_000_000})
         self._tra(404, {"error": "not found"})
 
     def do_DELETE(self):
@@ -198,6 +204,8 @@ check("model chat được đánh dấu chat được",
       _map.get("gemma3:4b") is True and _map.get("qwen3:8b") is True, _map)
 check("CANARY: model embedding trong danh sách bị đánh dấu KHÔNG chat được",
       _map.get("nomic-embed-text") is False, _map)
+check("route trả capabilities để giao diện nói rõ model local làm được gì",
+      next(m for m in _r["models"] if m["name"] == "qwen3:8b").get("capabilities") == ["completion", "tools"])
 
 # Ollama cũ không có trường capabilities -> phải LUI VỀ đoán tên, không được coi mọi thứ là
 # chat được (đó là cách hỏng im lặng: nút hiện ra, bấm vào rồi chat mới chết).
@@ -221,6 +229,19 @@ check("KHÔNG bịa ra endpoint huỷ tải",
       # nguy hiểm nhất: từ fastapi 0.141 nó không thấy route trong router con, và một endpoint
       # huỷ có thật nằm trong đó sẽ khiến phép thử XANH OAN.
       "/ollama-local/pull/cancel" not in moi_duong_dan(main.app))
+
+# ---- 4a. Test model: request dài sống bằng SSE, dùng context nhỏ và giữ model nóng -------
+with c.stream("POST", "/ollama-local/test", data={"model": "qwen3:8b", "num_ctx": "2048"}) as resp:
+    thu = [json.loads(d[6:]) for d in resp.iter_lines() if d.startswith("data: ")]
+check("test model phát trạng thái nạp trước khi có kết quả",
+      thu and thu[0].get("status") == "loading", thu)
+check("test model trả kết quả chạy thật kèm tốc độ",
+      thu and thu[-1].get("status") == "done" and thu[-1].get("tokens_per_s") == 8.0, thu)
+_req = TEST_REQUESTS[-1] if TEST_REQUESTS else {}
+check("test dùng context 2K + tắt thinking để model lớn vừa máy",
+      (_req.get("options") or {}).get("num_ctx") == 2048 and _req.get("think") is False, _req)
+check("test giữ model nóng 30 phút để bấm làm main xong không phải nạp lại",
+      _req.get("keep_alive") == "30m", _req)
 
 # ---- 4b. Trỏ nhầm vào WEB SERVER: phải nói đúng bệnh, không phải mã số trần ----
 # Vụ thật 02/09: gõ thiếu cổng -> trúng web server của chính VPS -> nó đá HTTPS bằng 301, và

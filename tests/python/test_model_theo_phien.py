@@ -17,6 +17,7 @@ Bẫy đã né mà test phải ghim chặt:
   được chết lượt chat.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
+import asyncio
 import sys
 import tempfile
 from pathlib import Path
@@ -70,13 +71,29 @@ with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
     check("phiên chưa tồn tại + không brain → False",
           not store.set_pinned_model("chua-co", "groq", "m"))
     check("phiên chưa tồn tại + có brain → tự tạo hàng rồi ghim",
-          store.set_pinned_model("chua-co", "groq", "m", brain="brain-a"))
+          store.set_pinned_model("chua-co", "groq", "m", brain="brain-a",
+                                 channel="staff:nhan-vien-a"))
     check("hàng tự tạo mang đúng brain",
           (store.get_session("chua-co") or {}).get("brain") == "brain-a")
+    check("hàng tự tạo mang đúng channel (route đổi model không còn nổ 500)",
+          (store.get_session("chua-co") or {}).get("channel") == "staff:nhan-vien-a")
 
     ds = store.list_sessions(limit=10)
     check("list_sessions trả kèm cột ghim (UI vẽ badge được)",
           any("pinned_provider" in r for r in ds))
+
+    # Route từng nổ 500 trước khi vào store vì truyền keyword `channel` mà chữ ký
+    # set_pinned_model không nhận. Gọi đúng route để canh cả mối nối, không chỉ canh store.
+    _get_store_that, _staff_req_that = main.get_store, main._staff_req
+    try:
+        main.get_store = lambda: store
+        main._staff_req = lambda _request: None
+        _r = asyncio.run(main.sessions_set_model(object(), sid, provider="zai",
+                                                  model="glm-4.7-flash", brain="brain-a"))
+    finally:
+        main.get_store, main._staff_req = _get_store_that, _staff_req_that
+    check("route đổi model không còn nổ 500 vì keyword channel",
+          _r.get("ok") is True and store.get_session(sid)["pinned_provider"] == "zai")
 
     # ---- 2. Định tuyến theo phiên ----
     MCFG = {"main": {"provider": "anthropic-cli", "model": "opus"},

@@ -43,7 +43,7 @@ GIU_NGUYEN = 4
 # Nhà API mà bộ nén nền của Joyce đã chạy được (cùng danh sách với móc nén nền sau mỗi lượt
 # trong main.py). Nhà khác (Ollama, OpenAI-compat) chưa được kiểm chứng đường tóm tắt nên
 # không đoán mò: báo thẳng là chưa hỗ trợ thay vì nén hỏng.
-NHA_API_NEN_DUOC = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek")
+NHA_API_NEN_DUOC = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "zai")
 
 
 def khoi_ke_hoach() -> str:

@@ -276,6 +276,7 @@
   // rơi về thông báo thay vì 404. Mặc định BẬT (additive rollout).
   let _wsV1 = true;
   let _renderGen = 0;         // token chống race: mỗi lần đổi trang tăng 1; render async cũ tự bỏ
+  let _cloneVoices = [];      // hồ sơ giọng nhân bản từ GET /voices (nạp khi render thẻ giọng)
   let _fmPending = null;       // { dir, file } - vị trí mở sẵn cho trang Tệp tin (khi bấm link file/thư mục trong chat)
   let _fmSauKhiDong = null;    // việc trang Tệp tin cần làm khi đóng trình sửa (nạp lại danh sách)
   let graphEnabled = true;
@@ -2228,6 +2229,8 @@
     .kn-task-top{display:flex;gap:9px;align-items:flex-start}.kn-task-title{flex:1;color:var(--text);font-size:14px;font-weight:600;line-height:1.35}
     .kn-pill{flex:none;border-radius:99px;padding:2px 7px;font-size:10px;border:1px solid var(--hairline);color:var(--text3)}
     .kn-task-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px;color:var(--text3);font-size:11px}
+    .kn-prio{display:inline-flex;align-items:center;gap:2px;margin-right:5px;font-size:11px;font-weight:700;vertical-align:-1px}
+    .kn-prio svg{width:12px;height:12px}
     .kn-task-result{margin-top:6px;color:var(--text3);font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .kn-verify-badge{display:inline-block;margin-top:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
     .kn-verify-pass{background:var(--green,#22c55e);color:#fff}
@@ -4433,7 +4436,9 @@
   const _PRIO = { 1: ["chevrons-up", "ic-err"], 2: ["chevron-up", "ic-warn"], 3: ["chevron-down", "ic-dim"] };
   function _prioIcon(p) {
     const spec = _PRIO[p];
-    return spec ? ic(spec[0], { cls: spec[1] }) : "";
+    // Số thứ tự ưu tiên luôn đi kèm icon: chủ nhìn P1/P2/P3 là biết việc nào chạy trước
+    // (dispatcher nhặt theo priority khi quota hạn), không phải đoán màu icon.
+    return spec ? `<span class="kn-prio ${spec[1]}" title="${esc(t("kanban.prio_lc"))} ${p}">${ic(spec[0], { cls: spec[1] })}P${p}</span>` : "";
   }
   // Bảng TÊN KHOÁ chứ không phải chữ: file này nạp trước khi từ điển i18n về, đọc t() ở đây
   // là đóng băng nhãn ở giá trị lúc chưa có. Tra chữ bằng _kstatus() tại thời điểm vẽ.
@@ -4637,6 +4642,7 @@
         <div>
           <div style="font-size:16px;color:var(--text);font-weight:650"><span class="kn-dot off" id="knLiveDot"></span><span id="knLiveText">Dispatcher</span></div>
           <p style="color:var(--text3);font-size:13px;max-width:680px;margin:6px 0 0">${esc(t("kanban.intro"))}</p>
+          <p style="color:var(--text3);font-size:12px;max-width:680px;margin:4px 0 0">${esc(t("kanban.prio_legend"))}</p>
         </div>
         <div class="si-actions" style="margin:0">
           <button class="s-btn" id="knAdd">${esc(t("kanban.add"))}</button>
@@ -5302,13 +5308,17 @@
       const rec = (tt.goi_y || []).includes(spec.provider);
       const u = tt.use || {}, dx = tt.dx || {};
       const tok = (u["in"] || 0) + (u["out"] || 0);
-      const usd = u.cost || u.cost_est || 0;
+      // cost_est đã gồm cả giá thật (nếu provider trả về) + phần ước tính còn lại.
+      // Dùng `cost || cost_est` sẽ hụt tiền khi một loại việc chạy lẫn CLI có cost thật
+      // và API chỉ có bảng giá ước tính.
+      const usd = u.cost_est || u.cost || 0;
+      const costExact = usd > 0 && Math.abs(usd - (u.cost || 0)) < 0.0000001;
       const models = Object.keys(u.models || {}).join(" · ");
       const dxCls = { ok: "ok", save: "save", switch: "warn", none: "" }[dx.state] || "";
       const useHtml = u.turns
-        ? `<div class="rt-use-n">${u.turns} ${esc(t("rt.turns"))} · ${fmtTok(tok)}</div>` +
+        ? `<div class="rt-use-n" title="${esc(t("rt.token_split", { vao: fmtTok(u["in"] || 0), ra: fmtTok(u["out"] || 0) }))}">${u.turns} ${esc(t("rt.turns"))} · ${fmtTok(tok)} token</div>` +
           `<div class="rt-use-m" title="${esc(models)}">${esc(shortModels(models))}</div>` +
-          `<div class="rt-use-c">${usd > 0 ? "~$" + usd.toFixed(2) : esc(t("rt.free"))}</div>`
+          `<div class="rt-use-c">${usd > 0 ? (costExact ? "$" : "≈ $") + usd.toFixed(4) : esc(t("rt.free"))}</div>`
         : `<div class="rt-use-e">${esc(t("rt.no_use"))}</div>`;
       return `<tr data-task="${esc(tt.id)}">
         <td class="rt-cell-name">
@@ -5423,19 +5433,25 @@
       // ô nhập phía dưới - không giới hạn số key (Gemini 10 key cũng xếp được). Key chỉ
       // hiện ĐUÔI, server giữ bản đầy đủ; xoá/thêm đi qua endpoint theo vị trí.
       const st = r.keys.map((k, i) => {
-        const cls = k.burned ? "rt-slot burned" : "rt-slot ok";
-        const meta = k.burned
-          ? t("rt.slot_burned", { gio: new Date(k.until * 1000).toLocaleTimeString((window.JoyceI18n && JoyceI18n.locale()) || "vi-VN", { hour: "2-digit", minute: "2-digit" }) })
-          : (k.uses ? t("rt.slot_uses", { so: k.uses }) : "");
+        // dead (auth-invalid - tự thử lại sau 6h) đứng TRƯỚC burned (quota
+        // tạm): key chết cũng đang "cháy" nhưng phải gọi đúng tên nó để chủ xử lý.
+        const cls = k.dead ? "rt-slot dead" : k.burned ? "rt-slot burned" : "rt-slot ok";
+        const keyTok = (k.tin || 0) + (k.tout || 0);
+        const used = k.uses ? t("rt.slot_usage", { so: k.uses, token: fmtTok(keyTok) }) : "";
+        const meta = k.dead
+          ? t("rt.slot_dead")
+          : k.burned
+            ? t("rt.slot_burned", { gio: new Date(k.until * 1000).toLocaleTimeString((window.JoyceI18n && JoyceI18n.locale()) || "vi-VN", { hour: "2-digit", minute: "2-digit" }) })
+            : used;
         return `<div class="rt-key" data-i="${i}">
-          <span class="${cls}" title="${esc(k.why || "")}"><b class="rt-key-no">${i + 1}</b>${esc(k.tail)}${meta ? ` <i>${esc(meta)}</i>` : ""}</span>
+          <span class="${cls}" title="${esc([k.why || "", used, t("rt.token_split", { vao: fmtTok(k.tin || 0), ra: fmtTok(k.tout || 0) })].filter(Boolean).join(" · "))}"><b class="rt-key-no">${i + 1}</b>${esc(k.tail)}${meta ? ` <i>${esc(meta)}</i>` : ""}</span>
           <button class="rt-key-del" type="button" title="${esc(t("rt.key_del"))}">×</button>
         </div>`;
       }).join("");
       return `<div class="rt-ring" data-prov="${esc(r.provider)}">
         <div class="rt-ring-head">
           <b>${esc(pdef.label || r.provider)}</b>
-          <span class="rt-ring-sum">${t("rt.ring_sum", { so: r.total, chay: r.burned })}</span>
+          <span class="rt-ring-sum">${t("rt.ring_sum", { so: r.total, chay: r.burned })}${r.dead ? ` · <b class="rt-dead-n">${esc(t("rt.dead_sum", { so: r.dead }))}</b>` : ""}</span>
         </div>
         <div class="rt-keys-list">${st || `<div class="rt-keys-empty">${esc(t("rt.no_keys"))}</div>`}</div>
         <div class="rt-key-add">
@@ -5855,6 +5871,64 @@
     olNoiNutTai(host, () => { olVeGoiY(el); olVeDaCai(el); });
   }
 
+  function olTestCtx(el) {
+    const s = el.querySelector(".ol-test-ctx");
+    const n = parseInt((s && s.value) || "2048", 10);
+    return [2048, 4096, 8192, 16384].includes(n) ? n : 2048;
+  }
+
+  async function olThuModel(btn, el) {
+    const row = btn.closest(".ol-row-item");
+    const st = row && row.querySelector(".ol-test-state");
+    const model = btn.dataset.model;
+    const ctx = olTestCtx(el);
+    btn.disabled = true;
+    if (st) { st.className = "ol-test-state busy"; st.textContent = t("ol.test_start"); }
+    const fd = new FormData();
+    fd.append("model", model); fd.append("num_ctx", String(ctx));
+    try {
+      const r = await fetch("/ollama-local/test", { method: "POST", body: fd });
+      if (!r.ok || !r.body) throw new Error("HTTP " + r.status);
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      let dem = "";
+      for (;;) {
+        const got = await reader.read();
+        dem += dec.decode(got.value || new Uint8Array(), { stream: !got.done });
+        const dong = dem.split("\n");
+        dem = dong.pop();
+        for (const d of dong) {
+          if (!d.startsWith("data: ")) continue;
+          let mo = {};
+          try { mo = JSON.parse(d.slice(6)); } catch (e) { continue; }
+          if (!st) continue;
+          if (mo.status === "loading") {
+            st.className = "ol-test-state busy";
+            st.textContent = t("ol.test_loading", { giay: mo.elapsed_s || 0 });
+          } else if (mo.status === "done" && mo.ok) {
+            st.className = "ol-test-state ok";
+            st.textContent = t("ol.test_ok", {
+              giay: Math.round((mo.elapsed_s || 0) * 10) / 10,
+              toc: mo.tokens_per_s || 0,
+              ctx: mo.num_ctx || ctx,
+            });
+            const name = row.querySelector(".ol-row-name");
+            if (name && !name.querySelector(".ol-badge-loaded")) {
+              name.insertAdjacentHTML("beforeend", '<span class="ol-badge ol-badge-loaded">' + esc(t("ol.ready")) + "</span>");
+            }
+          } else if (mo.status === "error") {
+            st.className = "ol-test-state err";
+            st.textContent = t("ol.test_fail", { loi: mo.error || t("ol.test_unknown") });
+          }
+        }
+        if (got.done) break;
+      }
+    } catch (e) {
+      if (st) { st.className = "ol-test-state err"; st.textContent = t("ol.test_fail", { loi: String(e) }); }
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function olVeDaCai(el, vuaDat) {
     const host = el.querySelector("#olInst");
     if (!host) return;
@@ -5872,28 +5946,44 @@
     // cả hai chiều - `all-minilm`, `bge-m3` là model embedding mà tên không có chữ "embed".
     const chatDuoc = (m) => (m && typeof m.chat_duoc === "boolean")
       ? m.chat_duoc : !/embed/i.test((m && m.name) || "");
-    host.innerHTML = '<h3 class="ol-h">' + ic("database") + " " + esc(t("ol.inst_title")) +
+    host.innerHTML = '<div class="ol-inst-head"><h3 class="ol-h">' + ic("database") + " " + esc(t("ol.inst_title")) +
       '<span class="ol-h-sub">' + ds.length + "</span></h3>" +
+      '<label class="ol-test-config"><span>' + esc(t("ol.test_ctx")) + '</span><select class="ol-in ol-test-ctx">' +
+        [2048, 4096, 8192, 16384].map(n => '<option value="' + n + '"' + (n === 2048 ? " selected" : "") + '>' + (n / 1024) + "K</option>").join("") +
+      '</select></label></div>' +
       (vuaDat ? '<div class="ol-hint ol-ok">' + esc(t("ol.set_main_ok", { ten: vuaDat })) + "</div>" : "") +
       (ds.length ? '<div class="ol-list">' + ds.map(m =>
           '<div class="ol-row-item">' +
             '<span class="ol-row-ico">' + ic("cpu") + "</span>" +
             '<span class="grow"><span class="ol-row-name">' + esc(m.name) +
               (laChinh(m.name) ? '<span class="ol-badge ol-badge-main">' + esc(t("ol.is_main")) + "</span>" : "") +
-              (m.loaded ? '<span class="ol-badge">' + esc(t("ol.loaded")) + "</span>" : "") + "</span>" +
-              '<span class="ol-row-meta">' + olGb(m.size_gb) + "</span>" +
+              (m.loaded ? '<span class="ol-badge ol-badge-loaded">' + esc(t("ol.ready")) + "</span>" : "") + "</span>" +
+              '<span class="ol-row-meta">Local · Ollama · ' + olGb(m.size_gb) +
+                ((m.capabilities || []).length ? " · " + esc(m.capabilities.join(" · ")) : "") + "</span>" +
               (m.desc ? '<span class="ol-row-desc">' + esc(m.desc) + "</span>" : "") + "</span>" +
+            ((!m.loaded && m.size_gb >= 12 && chatDuoc(m))
+              ? '<span class="ol-row-note ol-cold-note">' + ic("hourglass") + " " + esc(t("ol.cold_note")) + "</span>" : "") +
             // 02/09: chủ repo hỏi "sao có 2 model mà chỉ 1 dùng được". Bản cũ chỉ LẶNG LẼ
             // bỏ nút đi, nên không có cách nào biết vì sao ngoài việc đi hỏi. Nói ra.
             (!chatDuoc(m)
               ? '<span class="ol-row-note">' + ic("info") + " " + esc(t("ol.embed_note")) + "</span>"
-              : (laChinh(m.name) ? ""
-                 : '<button class="gcard-btn primary ol-main" type="button" data-model="' + esc(m.name) + '">' +
-                     ic("star") + " " + esc(t("ol.use_main")) + "</button>")) +
-            '<button class="gcard-btn ol-go" type="button" data-model="' + esc(m.name) + '">' +
-              ic("trash-2") + " " + esc(t("ol.remove")) + "</button>" +
+              : '<span class="ol-test-state" aria-live="polite"></span>') +
+            '<span class="ol-row-actions">' +
+              (chatDuoc(m) ? '<button class="gcard-btn ol-test" type="button" data-model="' + esc(m.name) + '">' +
+                ic("play") + " " + esc(t("ol.test")) + "</button>" : "") +
+              (chatDuoc(m) && !laChinh(m.name)
+                ? '<button class="gcard-btn primary ol-main" type="button" data-model="' + esc(m.name) + '">' +
+                    ic("star") + " " + esc(t("ol.use_main")) + "</button>" : "") +
+              '<button class="gcard-btn ol-go" type="button" data-model="' + esc(m.name) + '">' +
+                ic("trash-2") + " " + esc(t("ol.remove")) + "</button></span>" +
           "</div>").join("") + "</div>"
         : '<div class="ol-empty-line">' + esc(t("ol.inst_none")) + "</div>");
+    const ctxSel = host.querySelector(".ol-test-ctx");
+    if (ctxSel) {
+      try { ctxSel.value = localStorage.getItem("joyce-ollama-test-ctx") || "2048"; } catch (e) {}
+      ctxSel.onchange = () => { try { localStorage.setItem("joyce-ollama-test-ctx", ctxSel.value); } catch (e) {} };
+    }
+    host.querySelectorAll(".ol-test").forEach((b) => { b.onclick = () => olThuModel(b, el); });
     host.querySelectorAll(".ol-main").forEach((b) => {
       b.onclick = async () => {
         b.disabled = true;
@@ -6011,7 +6101,7 @@
       `<button class="seg-btn ${reasoning === v ? "sel" : ""}" data-reason="${v}" title="${esc(d)}">` +
       `<span class="seg-lb">${esc(l)}</span><span class="seg-d">${esc(d)}</span></button>`).join("");
 
-    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
+    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "zai": "zai_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
     const provHead = (p, on, kindLabel, statusText) => `
         <div class="prov-head">
           <span class="prov-shield ${on ? "on" : ""}">${_shield(on)}</span>
@@ -6020,9 +6110,17 @@
             <div class="prov-status ${on ? "on" : ""}">${statusText}</div>
           </div>
           ${p.is_main ? '<span class="prov-badge">MAIN</span>' : ""}
+          ${p.free_tier ? `<span class="prov-badge free" title="${esc(t(p.free_tier === "routes" ? "models.free_tip_routes" : "models.free_tip_tier"))}">FREE</span>` : ""}
         </div>`;
     const provCard = (p) => {
       const on = p.configured;
+      // Khung đỏ "key chết" - server đã thấy chứng chỉ bị từ chối (401/thu hồi/sai).
+      // Khác cháy quota: cờ dead tự thử lại sau 6h, nhưng chủ nên dán key MỚI - nói
+      // ngay trên thẻ để không mò code (vụ TokenHarbor 23/10: key revoked mà thẻ xanh).
+      const deadNote = (p.dead_key && p.dead_key.dead)
+        ? `<div class="prov-note dead">${WARN_ICON} <b>${esc(t("models.dead_key"))}</b>
+             <i>${esc(p.dead_key.why || "")}</i> ${esc(t("models.dead_key_act"))}</div>`
+        : "";
       // Máy thiếu binary CLI thì nói TẠI ĐÂY, đừng để user đăng nhập xanh rồi vào chat mới
       // vỡ (báo cáo 16/08: người mới cài "kết nối được nhưng không sử dụng được").
       // cli_found === false mới cảnh báo - undefined nghĩa là thẻ không thuộc diện kiểm.
@@ -6037,6 +6135,7 @@
           : t("models.st_not_connected") + " · " + p.models.length + " model";
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "Device code", st)}
+          ${deadNote}
           ${cliWarn("codex")}
           <div class="prov-action" style="flex-wrap:wrap">
             ${on
@@ -6059,6 +6158,7 @@
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Grok Build CLI" }));
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "MCP/skill", st)}
+          ${deadNote}
           <div class="prov-note">${esc(t("models.grok_note"))}</div>
           ${cliWarn("grok")}
           ${p.cli_found ? "" : `<div class="prov-steps">
@@ -6089,6 +6189,7 @@
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Antigravity CLI" }));
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "MCP/skill", st)}
+          ${deadNote}
           <div class="prov-note">${esc(t("models.agy_note"))}</div>
           ${p.cli_found ? "" : `<div class="prov-steps">
             <div>${esc(t("models.cli_install"))}<br><code>${esc(p.cai_lenh || "")}</code></div>
@@ -6139,6 +6240,7 @@
         // Endpoint tự khai: thứ quyết định "đã kết nối" là Base URL, key có thể bỏ trống.
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "MCP Joyce", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model")}
+          ${deadNote}
           <div class="prov-note">${esc(t("models.oc_note"))}</div>
           <div class="prov-action" style="flex-wrap:wrap">
             <input class="js-input" id="ocBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.openai_compat_base || "")}" placeholder="${esc(t("models.oc_base_ph"))}">
@@ -6151,6 +6253,7 @@
       }
       return `<div class="prov-card ${p.is_main ? "main" : ""}">
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "MCP Joyce", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model")}
+        ${deadNote}
         ${p.needs_key
           ? `<div class="prov-action"><input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.key_ph"))}"><button class="gcard-btn" data-pk="${p.id}">${on ? esc(t("models.key_change")) : esc(t("models.connect"))}</button>${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}</div>`
           : `<div class="prov-note">${esc(t("models.no_key_note"))}</div>`}
@@ -6172,7 +6275,18 @@
       </div>
       <div class="cview-section">
         <h3>◆ Providers <span style="opacity:.5">${esc(t("models.h_prov_sub"))}</span></h3>
-        <div class="prov-list">${provList.map(provCard).join("")}</div>
+        ${(() => {
+          // Hai khu tách rõ: nhà có đường free (Gemini/Groq free tier, OpenRouter +
+          // OpenAI Compatible/TokenHarbor các tuyến :free) xếp lên một cụm "Não miễn
+          // phí"; còn lại (API trả theo lượt + các gói subscription) nằm dưới.
+          const freeList = provList.filter(p => p.free_tier);
+          const paidList = provList.filter(p => !p.free_tier);
+          return (freeList.length
+            ? `<div class="prov-zone-h">${esc(t("models.zone_free"))}</div>
+               <div class="prov-list">${freeList.map(provCard).join("")}</div>` : "")
+            + `<div class="prov-zone-h">${esc(t("models.zone_paid"))}</div>
+               <div class="prov-list">${paidList.map(provCard).join("")}</div>`;
+        })()}
       </div>
       <div class="cview-section">
         <h3>◆ ${esc(t("models.h_aux"))} <span style="opacity:.5">${esc(t("models.h_aux_sub"))}</span></h3>
@@ -6760,7 +6874,12 @@
       if (sw) sw.onclick = async () => {
         if (!selModel) return;
         sw.disabled = true; sw.textContent = t("settings.saving");
-        await SAVE(selProv, selModel);
+        const saved = await SAVE(selProv, selModel);
+        if (saved && saved.ok === false) {
+          if (window.JoyceDialog) window.JoyceDialog.toast(saved.error || t("settings.save_failed"), true);
+          sw.disabled = false; sw.textContent = opts.title ? t("models.mp_pick") : "Switch";
+          return;
+        }
         modal.classList.remove("open");
         if (onDone) onDone();
       };
@@ -7632,7 +7751,7 @@
     // native, bốn provider API đi qua vòng gọi tool + hub trong _api_stream_mcp. Gemini từng
     // thiếu trong danh sách này nên khách chạy Gemini bị banner vàng "chưa hỗ trợ gọi công cụ"
     // dù bên dưới đã chạy MCP ngon - nhánh vàng giờ chỉ còn để chặn provider lạ.
-    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat"];
+    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "zai", "ollama", "ollama-local", "openai-compat"];
     const mainLabel = (provs.find(p => p.id === main.provider) || {}).label || main.provider || "-";
     let warn = "";
     if (main.provider === "openai-oauth") {
@@ -8621,6 +8740,30 @@
     });
   }
 
+  // Đổi Main Model ở trang Models phải áp luôn vào phiên đang mở. Phiên đã có model ghim
+  // sẽ thắng settings chung, nên chỉ refresh thanh model là chưa đủ: nó đọc lại đúng ghim
+  // cũ và tiếp tục hiện/chạy Sonnet dù đầu trang đã là Z.ai.
+  async function syncMainModelToOpenSession(main) {
+    let sid = "", brain = "";
+    try {
+      sid = (window.JoyceSessions && window.JoyceSessions.current()) || "";
+      brain = (window.JoyceSessions && window.JoyceSessions.brain()) || "";
+    } catch (e) {}
+    if (!sid) return { ok: true, skipped: true };
+    const fd = new FormData();
+    fd.append("provider", (main && main.provider) || "");
+    fd.append("model", (main && main.model) || "");
+    fd.append("brain", brain);
+    try {
+      const r = await fetch("/sessions/" + encodeURIComponent(sid) + "/model", { method: "POST", body: fd });
+      let d = {};
+      try { d = await r.json(); } catch (e) {}
+      return (r.ok && d.ok !== false) ? { ok: true } : { ok: false, error: d.error || t("settings.save_failed") };
+    } catch (e) {
+      return { ok: false, error: t("app.err_net") };
+    }
+  }
+
   // ---- Lưu 1 section settings ----
   async function saveSetting(section, dataObj) {
     const fd = new FormData();
@@ -8629,9 +8772,13 @@
     let res;
     try { res = await (await fetch("/settings", { method: "POST", body: fd })).json(); }
     catch (e) { res = { ok: false }; }
-    // Đổi model ở trang Models mà thanh model trong chat không đổi theo: hai chỗ đó đọc
-    // /settings ở hai thời điểm khác nhau và không ai báo cho ai. Làm mới ngay tại đây để
-    // mọi đường đổi model đều đồng bộ, thay vì nhớ gọi ở từng nút.
+    // Chỉ lựa chọn Main Model mới kéo phiên đang mở theo. Đổi key, model việc nền, Telegram
+    // hay reasoning không được đụng ghim của cuộc trò chuyện.
+    if (section === "model" && res && res.ok !== false && dataObj && dataObj.main) {
+      const synced = await syncMainModelToOpenSession(dataObj.main);
+      if (!synced.ok) res = { ...res, ok: false, error: synced.error || t("settings.save_failed") };
+    }
+    // Làm mới mọi chỗ hiển thị model sau khi cả settings và ghim phiên đã đồng bộ.
     if (section === "model") refreshModelUi();
     return res;
   }
@@ -8763,20 +8910,36 @@
       // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
       // ElevenLabs riêng (key và Voice ID ở Nâng cao). Chọn giọng là chọn luôn nhà cung cấp.
       basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
-        : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
+        : tts.provider === "elevenlabs" ? "elevenlabs"
+        : tts.provider === "clone" ? "clone:" + (tts.clone_voice || "")
+        : "edge:" + (edgeSel ? edgeSel.value : "");
       const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
       const oaOn = tts.openai_key_set || tts.provider === "openai";
+      // Giọng nhân bản (v-tts local): mỗi hồ sơ đã nạp là một lựa chọn. Lần đầu chưa có
+      // giọng nào vẫn hiện nhóm rỗng để người dùng biết chỗ nạp mẫu trong Nâng cao.
+      let cloneOpts = "";
+      try {
+        const vr = await (await fetch("/voices", { cache: "no-store" })).json();
+        _cloneVoices = (vr && vr.voices) || [];
+      } catch (e) { _cloneVoices = _cloneVoices || []; }
+      if ((_cloneVoices || []).length) {
+        cloneOpts = `<optgroup label="Giọng nhân bản">${_cloneVoices.map(x => opt("clone:" + x.slug, (x.name || x.slug), basicVoice)).join("")}</optgroup>`;
+      }
       sel.innerHTML = `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
         + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
-        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
+        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`
+        + cloneOpts;
     }
     const basic = call.engine === "basic";
     const isEleven = () => basic && sel.value === "elevenlabs";
+    const isClone = () => basic && sel.value.startsWith("clone:");
     tryBtn.hidden = call.engine === "api";   // giọng của Live qua API không có mẫu thu sẵn
     $("vcVoiceNote").hidden = !(basic && sel.value.startsWith("edge:"));
     $("vcRateRow").hidden = !basic;          // tốc độ đọc chỉ áp cho giọng đọc của đường Cơ bản
     $("vcOpenaiNote").hidden = !basic || !!tts.openai_key_set;
     $("vcEleven").hidden = !isEleven();
+    $("vcClone").hidden = !isClone();
+    renderCloneList();
     $("vcElKeySet").hidden = !tts.elevenlabs_key_set;
     $("vcElVoice").value = tts.elevenlabs_voice || "";
     sel.onchange = async () => {
@@ -8785,6 +8948,12 @@
       if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
       $("vcVoiceNote").hidden = !val.startsWith("edge:");
       $("vcEleven").hidden = val !== "elevenlabs";
+      $("vcClone").hidden = !val.startsWith("clone:");
+      if (val.startsWith("clone:")) {
+        await luuGiong({ tts_provider: "clone", clone_voice: val.slice(6) });
+        tts.provider = "clone"; tts.clone_voice = val.slice(6);
+        return;
+      }
       if (val.startsWith("edge:")) {
         // Giọng Edge sống ở máy này (localStorage, app.js nghe sự kiện change của #voiceSel).
         if (edgeSel) { edgeSel.value = val.slice(5); edgeSel.dispatchEvent(new Event("change")); }
@@ -8873,6 +9042,79 @@
       if (r && r.ok) { $("vcElKey").value = ""; tts.elevenlabs_key_set = true; $("vcElKeySet").hidden = false; }
     };
     $("vcElVoice").onchange = () => luuGiong({ elevenlabs_voice: $("vcElVoice").value.trim() });
+
+    // Giọng nhân bản: nạp mẫu 1 lần -> hồ sơ vĩnh viễn; danh sách kèm nút xoá.
+    function renderCloneList() {
+      const box = $("vcCloneList"); if (!box) return;
+      const vs = _cloneVoices || [];
+      if (!vs.length) { box.innerHTML = `<div class="qs-hint">${esc(t("settings.vc_clone_empty"))}</div>`; return; }
+      box.innerHTML = vs.map(x => `<div class="qs-field" style="justify-content:space-between">
+        <span>${esc(x.name || x.slug)} <span class="dim">(${esc(x.backend || "vtts")})</span></span>
+        <button class="gcard-btn ghost" type="button" data-del="${esc(x.slug)}">${esc(t("settings.vc_clone_del"))}</button>
+      </div>`).join("");
+      box.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+        await fetch("/voices/" + encodeURIComponent(b.dataset.del), { method: "DELETE" });
+        _cloneVoices = (_cloneVoices || []).filter(x => x.slug !== b.dataset.del);
+        renderCloneList(); renderVoiceCard();
+      });
+    }
+    const cloneUp = $("vcCloneUp");
+    if (cloneUp) cloneUp.onclick = async () => {
+      const f = $("vcCloneFile"), nm = $("vcCloneName"), st = $("vcCloneSt");
+      if (!f.files || !f.files[0]) { st.textContent = t("settings.vc_clone_need_file"); return; }
+      const fd = new FormData();
+      fd.append("file", f.files[0]);
+      fd.append("name", (nm.value || f.files[0].name).trim());
+      st.textContent = t("settings.vc_clone_uploading");
+      try {
+        const r = await (await fetch("/voices/clone", { method: "POST", body: fd })).json();
+        if (r && r.ok) {
+          st.textContent = t("settings.vc_clone_done");
+          f.value = ""; nm.value = "";
+          renderVoiceCard();   // nạp lại danh sách + chọn luôn giọng vừa tạo
+        } else st.textContent = (r && r.detail) || t("settings.save_failed");
+      } catch (e) { st.textContent = t("settings.save_failed"); }
+    };
+
+    // Ghi âm mẫu ngay trong panel: MediaRecorder -> webm -> upload như file (server đổi wav).
+    const recBtn = $("vcCloneRec"), recSt = $("vcCloneRecSt");
+    if (recBtn) {
+      let _rec = null, _chunks = [], _recTimer = 0, _recStream = null;
+      const _stopRec = () => { try { _rec && _rec.state !== "inactive" && _rec.stop(); } catch (e) {} };
+      recBtn.onclick = async () => {
+        if (_rec && _rec.state === "recording") { _stopRec(); return; }
+        if (!navigator.mediaDevices || !window.MediaRecorder) { recSt.textContent = t("settings.vc_clone_rec_fail"); return; }
+        try {
+          _recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          _chunks = [];
+          _rec = new MediaRecorder(_recStream);
+          _rec.ondataavailable = ev => { if (ev.data && ev.data.size) _chunks.push(ev.data); };
+          _rec.onstop = async () => {
+            clearInterval(_recTimer);
+            (_recStream.getTracks() || []).forEach(tr => tr.stop());
+            _recStream = null; _rec = null;
+            recBtn.textContent = t("settings.vc_clone_rec");
+            const blob = new Blob(_chunks, { type: "audio/webm" });
+            _chunks = [];
+            if (blob.size < 5000) { recSt.textContent = t("settings.vc_clone_rec_short"); return; }
+            const fd = new FormData();
+            fd.append("file", blob, "ghi-am.webm");
+            fd.append("name", (($("vcCloneName") || {}).value || "Giọng ghi âm").trim());
+            recSt.textContent = t("settings.vc_clone_uploading");
+            try {
+              const r = await (await fetch("/voices/clone", { method: "POST", body: fd })).json();
+              if (r && r.ok) { recSt.textContent = t("settings.vc_clone_done"); renderVoiceCard(); }
+              else recSt.textContent = (r && r.detail) || t("settings.save_failed");
+            } catch (e) { recSt.textContent = t("settings.save_failed"); }
+          };
+          _rec.start();
+          let s = 0;
+          recSt.textContent = t("settings.vc_clone_rec_ing", { s: 0 });
+          recBtn.textContent = t("settings.vc_clone_rec_stop");
+          _recTimer = setInterval(() => { s++; recSt.textContent = t("settings.vc_clone_rec_ing", { s }); }, 1000);
+        } catch (e) { recSt.textContent = t("settings.vc_clone_rec_fail"); }
+      };
+    }
 
     // Lỗi gần nhất khiến câu nói rơi về bộ não chính (server nhớ tới khi một lượt chạy tốt).
     // Không có dòng này thì người dùng chỉ thấy mic "đi thẳng vào bộ não chính" mà không biết vì sao.
@@ -11507,6 +11749,76 @@
     b.hidden = false;
   }
 
+  // ── Chip "não đang dùng": thanh trạng thái (#brainChip) + nhãn mờ dưới avatar
+  // (#brainTag) đọc cùng một nguồn /task-engines. Não chính đổi tay người dùng thì chip
+  // cập nhật theo; não do máy TỰ chuyển (auto-fallback) thì server đặt cờ auto_switch và
+  // chip đổi màu + kể não gốc đã chết vì gì - để người dùng không bao giờ tưởng Joyce
+  // đang chạy một não trong khi thật ra là não khác.
+  //
+  // Hai nguồn sự thật phải hoà nhau:
+  //  - chat_main (server): não user chọn / não máy vừa ghim sau fallback Telegram.
+  //  - _lastRoute (client): provider THỰC trả lời lượt chat gần nhất, bắt từ khung
+  //    "response" của websocket (app.js gọi JoyceNoteRoute). Chat web KHÔNG ghim não
+  //    dự phòng vào settings - lượt sau nó thử lại não chính - nên nếu chỉ đọc
+  //    chat_main, chip sẽ nói "DeepSeek" trong khi mọi câu trả lời thực ra do
+  //    ChatGPT viết. Đó đúng là hiểu lầm khiến user tưởng DeepSeek bị khoá tới 26/10.
+  const _ENG2PROV = { codex: "openai-oauth", cli: "anthropic-cli" };   // tên runtime ≠ id provider
+  let _lastRoute = null;   // {prov, model, ts}
+  window.JoyceNoteRoute = function (engine, model) {
+    if (!engine || engine === "joyce-gateway") return;   // đường nội bộ, không phải não
+    const prov = _ENG2PROV[engine] || engine;
+    _lastRoute = { prov: prov, model: model || "", ts: Date.now() };
+    // Cập nhật ngay không chờ vòng poll 45s: người dùng phải thấy não vừa trả lời.
+    refreshBrainChip();
+  };
+  // ENGINE_LABEL là const top-level của app.js (script thường) - nằm trong global lexical
+  // scope, gọi được bằng tên trần chứ không qua window. Hàm chỉ chạy sau khi mọi script nạp.
+  const _brainLabel = (prov) => (typeof ENGINE_LABEL !== "undefined" && ENGINE_LABEL[prov]) || prov;
+  async function refreshBrainChip() {
+    const chip = document.getElementById("brainChip");
+    const tag = document.getElementById("brainTag");
+    if (!chip && !tag) return;
+    let d;
+    try {
+      const r = await fetch("/task-engines", { cache: "no-store" });
+      if (!r.ok) return;
+      d = await r.json();
+    } catch (e) { return; }
+    const cm = (d && d.chat_main) || {};
+    const sw = (d && d.auto_switch) || {};
+    const swTo = (sw.to && sw.to.provider) || "";
+    // Cờ chỉ sáng khi não hiện tại ĐÚNG là não máy tự chọn; user đổi tay sang não khác
+    // (kể cả cùng provider khác model) thì server đã pop cờ, đây là lưới an toàn thêm.
+    const pinned = !!(swTo && swTo === cm.provider && (!sw.to.model || sw.to.model === cm.model));
+
+    // Não hiển thị: ưu tiên não THỰC trả lời lượt gần nhất nếu khác não chính
+    // (fallback theo lượt, không ghim); còn không thì não chính như settings ghi.
+    const routeDiff = _lastRoute && _lastRoute.prov && _lastRoute.prov !== cm.provider
+                      && (Date.now() - _lastRoute.ts) < 15 * 60 * 1000;
+    const prov = routeDiff ? _lastRoute.prov : (cm.provider || "");
+    const model = routeDiff ? _lastRoute.model : (cm.model || "");
+    const label = routeDiff ? _brainLabel(prov) : (cm.label || prov);
+    const isSw = pinned || routeDiff;
+    const fromL = sw.from
+      ? ((sw.from.label || sw.from.provider || "") + (sw.from.model ? " · " + sw.from.model : ""))
+      : ((cm.label || cm.provider || "") + (cm.model ? " · " + cm.model : ""));
+    const text = label
+      ? (isSw ? window.t("cs.brain_sw", { ten: label + (model ? " · " + model : "") })
+              : window.t("cs.brain_now", { ten: label + (model ? " · " + model : "") }))
+      : "";
+    const tip = isSw
+      ? window.t("cs.brain_sw_tip", { tu: fromL, ly_do: (sw.why || "") })
+      : window.t("cs.brain_tip");
+    if (chip) {
+      chip.textContent = text; chip.title = tip;
+      chip.classList.toggle("sw", isSw); chip.hidden = !label;
+    }
+    if (tag) {
+      tag.textContent = text; tag.title = tip;
+      tag.classList.toggle("sw", isSw); tag.hidden = !label;
+    }
+  }
+
   // ============================================================
   // Workstation badge rail + command palette (gói Experience Layer)
   // ============================================================
@@ -11650,6 +11962,12 @@
     if (ccm) ccm.onclick = () => datChatColThu(false);
     try { if (localStorage.getItem("joyce_chatcol_thu") === "1") document.body.classList.add("chatcol-thu"); } catch (e) {}
     refreshEngineBanner();
+    refreshBrainChip();
+    setInterval(refreshBrainChip, 45000);   // não tự chuyển lúc đang xem thì chip đuổi theo
+    const _bc = document.getElementById("brainChip");
+    if (_bc) _bc.addEventListener("click", () => navigateTo("models"));
+    const _bt = document.getElementById("brainTag");
+    if (_bt) _bt.addEventListener("click", () => navigateTo("models"));
     setInterval(refreshEngineBanner, 90000);
     // Badge chờ-duyệt/cảnh báo trên rail (Experience Layer) - poll nhẹ 60s, và
     // refresh ngay khi đổi brain (listener brain-changed ở dưới gọi lại hàm này).

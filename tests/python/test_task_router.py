@@ -99,8 +99,8 @@ tr.unburn()
 check("pick_key trả key đầu chưa cháy", tr.pick_key("gemini", SK) == "kAAA")
 tr.burn_key("gemini", "kAAA", "429", 60)
 check("key cháy thì pick_key nhảy key kế", tr.pick_key("gemini", SK) == "kBBB")
-check("usable_keys: sạch trước, cháy cuối (không mất key)",
-      tr.usable_keys("gemini", SK) == ["kBBB", "kCCC", "kAAA"])
+check("usable_keys: bỏ key đang cháy tới khi cooldown hết",
+      tr.usable_keys("gemini", SK) == ["kBBB", "kCCC"])
 check("burn_until dương cho key vừa cháy", tr.burn_until("gemini", "kAAA") > 0)
 n = tr.unburn("gemini")
 check("unburn(provider) mở đúng 1 slot", n == 1 and tr.pick_key("gemini", SK) == "kAAA")
@@ -143,7 +143,9 @@ for msg in ("network timeout", "connection reset by peer", "model not found",
             "context length exceeded", ""):
     check(f"quota_error KHÔNG nhận oan: {msg!r}", not tr.quota_error(msg))
 check("cooldown 'try again in 30s' ~ 40s", tr.burn_cooldown("try again in 30s") == 40.0)
-check("cooldown per-day chờ tới nửa đêm UTC", tr.burn_cooldown("requests per day exceeded") > 3600)
+_daily_cd = tr.burn_cooldown("requests per day exceeded")
+check("cooldown per-day chờ tới nửa đêm Pacific + đệm",
+      60 <= _daily_cd <= 25 * 3600)
 check("cooldown per-minute ~ 75s", tr.burn_cooldown("tokens per minute exceeded") == 75.0)
 check("cooldown không rõ -> 5 phút", tr.burn_cooldown("429") == 300.0)
 
