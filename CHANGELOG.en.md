@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.30] - 2026-10-27
+### Fixed
+- **The Operations CRM now says so when the server has not loaded it** (before it showed a blank page with "Not Found"): restart Joyce after updating. The "Quick add with AI" box is open by default and a one-minute guide sits above Contacts, as designed.
+
 ## [1.3.29] - 2026-10-26
 ### Added
 - **Operations CRM**: a separate tab for departments to manage customers (Contacts, Pipeline, Tasks, Proposals, Segments). One customer can belong to several departments, and each department only sees its own deals and tasks. The pipeline has + and - buttons to add or remove stages.

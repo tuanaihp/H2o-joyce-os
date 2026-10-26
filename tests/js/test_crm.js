@@ -60,7 +60,7 @@ const dong = {
   "crm.ev_": ["create", "edit", "deal", "todo", "dept", "extract", "approve", "wiki", "delete", "restore"],
 };
 Object.keys(dong).forEach((p) => dong[p].forEach((x) => dung.add(p + x)));
-["crm.all_depts", "crm.pick_dept", "crm.trash", "crm.trash_back", "crm.restore", "crm.restored", "crm.trash_empty", "crm.thr_pre", "crm.thr_post", "crm.f_name", "crm.f_phone", "crm.f_email", "crm.f_company", "page.crm.label", "page.crm.title", "page.crm.sub", "staff.crm_grant", "staff.crm_hint", "staff.crm_none", "staff.crm_view", "staff.crm_full", "crm.dept_on", "crm.dept_on_saved", "crm.read_only", "crm.no_dept"].forEach((k) => dung.add(k));
+["crm.need_restart", "crm.guide_title", "crm.guide_body", "crm.all_depts", "crm.pick_dept", "crm.trash", "crm.trash_back", "crm.restore", "crm.restored", "crm.trash_empty", "crm.thr_pre", "crm.thr_post", "crm.f_name", "crm.f_phone", "crm.f_email", "crm.f_company", "page.crm.label", "page.crm.title", "page.crm.sub", "staff.crm_grant", "staff.crm_hint", "staff.crm_none", "staff.crm_view", "staff.crm_full", "crm.dept_on", "crm.dept_on_saved", "crm.read_only", "crm.no_dept"].forEach((k) => dung.add(k));
 dung.delete("crm.f_"); dung.delete("crm.tab_"); dung.delete("crm.mode_"); dung.delete("crm.seg_"); dung.delete("crm.p_"); dung.delete("crm.ev_");
 const thieuVi = [...dung].filter((k) => !(k in vi));
 const thieuEn = [...dung].filter((k) => !(k in en));

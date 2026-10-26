@@ -189,7 +189,7 @@
     host.appendChild(el);
     var S = { me: null, brain: "", tab: "contacts", q: "", ds: [], sel: 0, chiTiet: null, pipe: null,
               viec: [], dexuat: [], seg: [], tq: null, loi: "", info: "", tamLoi: false,
-              hienThem: false, daXoa: false, hienNhanh: false, nhanh: null, hopThu: null, hienDeal: false, hienViec: false };
+              hienThem: false, daXoa: false, hienNhanh: true, nhanh: null, hopThu: null, hienDeal: false, hienViec: false };
 
     async function nap(chi) {
       try {
@@ -209,7 +209,7 @@
         await Promise.all(tac);
         S.loi = "";
       } catch (e) {
-        S.loi = e.status === 403 ? tw("crm.no_access") : (e.message || tw("crm.err_load"));
+        S.loi = e.status === 403 ? tw("crm.no_access") : (e.status === 404 ? tw("crm.need_restart") : (e.message || tw("crm.err_load")));
       }
       if (!chi) ve();
     }
@@ -318,7 +318,8 @@
         + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="inbox">' + esc(tw("crm.from_inbox")) + "</button>" : "")
         + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="trash">' + esc(S.daXoa ? tw("crm.trash_back") : tw("crm.trash")) + "</button>" : "") + "</div>"
         + (S.hienNhanh ? khungNhanh() : "") + (S.hopThu ? khungHopThu() : "") + (S.hienThem ? formKhach() : "") + dsHtml + "</div></div>";
-      return '<div class="crm-split">' + trai + '<div class="crm-det">' + (S.chiTiet ? chiTiet(S.chiTiet) : '<div class="crm-muted">' + esc(tw("crm.pick_contact")) + "</div>") + "</div></div>";
+      var guide = '<details class="crm-card" style="margin-bottom:10px"><summary style="cursor:pointer">' + esc(tw("crm.guide_title")) + "</summary><p class=\"crm-muted\">" + esc(tw("crm.guide_body")) + "</p></details>";
+      return guide + '<div class="crm-split">' + trai + '<div class="crm-det">' + (S.chiTiet ? chiTiet(S.chiTiet) : '<div class="crm-muted">' + esc(tw("crm.pick_contact")) + "</div>") + "</div></div>";
     }
 
     function khungHopThu() {

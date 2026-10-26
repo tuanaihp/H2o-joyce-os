@@ -6693,5 +6693,8 @@
   "crm.dept_on": "Mở CRM cho phòng này",
   "crm.dept_on_saved": "Đã đổi trạng thái CRM của phòng",
   "crm.read_only": "Chỉ xem",
-  "crm.no_dept": "Chưa có phòng nào của bạn được mở CRM. Nhờ quản trị mở CRM cho phòng."
+  "crm.no_dept": "Chưa có phòng nào của bạn được mở CRM. Nhờ quản trị mở CRM cho phòng.",
+  "crm.need_restart": "Máy chủ Joyce chưa nạp CRM. Hãy khởi động lại Joyce rồi tải lại trang (Ctrl+F5).",
+  "crm.guide_title": "Hướng dẫn dùng CRM (đọc 1 phút)",
+  "crm.guide_body": "Danh bạ lưu khách và hồ sơ. Pipeline theo dõi cơ hội theo giai đoạn của từng phòng (có nút + và - để thêm xoá giai đoạn). Việc cần làm nhắc lịch chăm sóc và đáp xuống bảng Công việc khi xong. Đề xuất là nơi bạn duyệt những gì Joyce đọc được từ hội thoại. Phân khúc gom khách theo nhóm cần chăm."
 }

@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.30] - 2026-10-27
+### Sửa
+- **CRM vận hành báo rõ khi máy chủ chưa nạp CRM** (trước đó chỉ hiện "Not Found" trên trang trống): cần khởi động lại Joyce sau khi cập nhật. Khay "Thêm nhanh bằng AI" mở sẵn và có hướng dẫn một phút ở đầu Danh bạ, đúng như thiết kế.
+
 ## [1.3.29] - 2026-10-26
 ### Thêm mới
 - **CRM vận hành**: tab riêng quản khách hàng cho các phòng (Danh bạ, Pipeline, Việc cần làm, Đề xuất, Phân khúc). Một khách thuộc nhiều phòng, mỗi phòng chỉ thấy cơ hội và việc của phòng mình. Pipeline có nút + và - để thêm xoá giai đoạn.
