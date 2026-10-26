@@ -6326,7 +6326,7 @@ button.ovw-cap-lk:hover { border-color: var(--accent-line); color: var(--accent-
 .rt-slot.burned { border-color: var(--red, #e05555); color: var(--red, #e05555); }
 /* Key chết vĩnh viễn (auth-invalid): đỏ đậm + nền đỏ mờ, khác hẳn "burned" chỉ là
    hết quota tạm - chủ phải XOÁ/THAY key chứ không ngồi chờ hồi. */
-.rt-slot.dead { border-color: var(--red, #e05555); color: #fff;
+.rt-slot.dead { border-color: var(--red, #e05555); color: var(--on-accent, #fff);
   background: var(--red, #e05555); font-weight: 600; }
 .rt-slot.dead i { opacity: 0.95; }
 .rt-slot i { font-style: normal; opacity: 0.8; font-family: inherit; }

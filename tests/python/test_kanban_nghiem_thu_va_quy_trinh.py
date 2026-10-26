@@ -361,6 +361,9 @@ def _brain(tmp_path, monkeypatch, verify_answers, status="active", step_extra=""
             self.kw = k
             engines.append(self)
 
+        def is_available(self):
+            return True
+
         async def query(self, prompt):
             calls.append(prompt)
             if "KẾT QUẢ CẦN KIỂM CHỨNG" in prompt:

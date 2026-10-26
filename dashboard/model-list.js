@@ -112,7 +112,7 @@
     // free của 9router: kr/ = Kiro, oc/ = OpenCode Free, if/ = iFlow, qw/ = Qwen.
     // Xếp chúng LÊN ĐẦU danh sách của nhà + đánh chip FREE: chủ muốn đường không
     // tốn tiền nhìn ra ngay, khỏi lục cả trăm model trả phí (yêu cầu 24/10).
-    const FREE_RE = /([:：\-–—]free$|^(kr|oc|if|qw)\/)/i;
+    const FREE_RE = /([:：\-–-]free$|^(kr|oc|if|qw)\/)/i;
     const hangModel = (p, ids) => {
       let h = "";
       const free = [], rest = [];

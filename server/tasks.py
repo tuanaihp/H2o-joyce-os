@@ -862,10 +862,10 @@ class TasksFeature:
                                f"{str(verify.get('reason') or '')[:300]}")
                 if auto_ok:
                     metadata = dict(metadata or {}, auto_approved="low_risk")
-                    result += "\n\n**Tự duyệt** — việc rủi ro thấp (chỉ đọc/ghi trong brain), qua cột review."
+                    result += "\n\n**Tự duyệt** - việc rủi ro thấp (chỉ đọc/ghi trong brain), qua cột review."
                 elif hi_gate and not task.get("needs_approval"):
                     metadata = dict(metadata or {}, escalated="high_risk")
-                    result += "\n\n**Chặn mức cao** — việc được đánh dấu rủi ro cao, đưa lên cột duyệt cho người xem."
+                    result += "\n\n**Chặn mức cao** - việc được đánh dấu rủi ro cao, đưa lên cột duyệt cho người xem."
                 final_task = self.store.complete(
                     tid,
                     worker_id,

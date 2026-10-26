@@ -1,8 +1,8 @@
-"""Web Pilot — lái Chrome thật qua CDP, pattern Jev Ultrafast (chọn thay vì generate).
+"""Web Pilot - lái Chrome thật qua CDP, pattern Jev Ultrafast (chọn thay vì generate).
 
 Cơ chế: snapshot.js chạy trong trang → bảng phần tử đánh số [1] button "…", [2] textbox "…" →
 engine CHỈ CẦN CHỌN số + hành động, không tự viết selector (chống hallucinate). Trước khi
-mutate (bấm/gõ/chọn) luôn kiểm guard: element + ngữ cảnh còn y hệt không — trang đã đổi thì
+mutate (bấm/gõ/chọn) luôn kiểm guard: element + ngữ cảnh còn y hệt không - trang đã đổi thì
 báo stale, KHÔNG retry hành động cũ (chống double-submit/double-click).
 
 Trình duyệt (theo thứ tự ưu tiên):
@@ -42,6 +42,16 @@ _TEXT_LIMIT = 4000
 # ---------------------------------------------------------------------------
 _LOOP = None
 _READY = threading.Event()
+
+
+
+def _no_window() -> int:
+    """Cờ CREATE_NO_WINDOW trên Windows (winproc), 0 nơi khác hoặc khi không nạp được."""
+    try:
+        import winproc
+        return winproc.no_window()
+    except Exception:
+        return 0
 
 
 def _loop_thread():
@@ -119,7 +129,7 @@ def _alive(endpoint):
 
 
 def _find_running(ctx):
-    """Chrome đang mở với remote-debugging — attach được cả profile thật lẫn tab sẵn có."""
+    """Chrome đang mở với remote-debugging - attach được cả profile thật lẫn tab sẵn có."""
     attach = os.environ.get("WEB_PILOT_ATTACH", "")
     urls = []
     if attach.strip():
@@ -170,7 +180,7 @@ def _state_file(ctx):
 
 
 def _pilot_endpoint_from_state(ctx):
-    """Chrome plugin đã mở ở phiên trước còn sống? Tái dùng — profile khoá một lần,
+    """Chrome plugin đã mở ở phiên trước còn sống? Tái dùng - profile khoá một lần,
     không tái dùng thì mở Chrome thứ hai trên cùng profile sẽ exit ngay."""
     try:
         st = json.loads(_state_file(ctx).read_text(encoding="utf-8"))
@@ -188,7 +198,7 @@ def _profile_dir(ctx):
 
 def _profile_endpoint(ctx):
     """Chrome plugin mồ côi từ lần chạy trước (mất state file)? Tìm cổng CDP theo
-    file .pilot-port ta tự ghi, rồi quét command line chrome.exe cùng user-data-dir —
+    file .pilot-port ta tự ghi, rồi quét command line chrome.exe cùng user-data-dir -
     Chrome bản mới không ghi DevToolsActivePort nên không trông chờ vào file đó."""
     profile = str(_profile_dir(ctx))
     try:
@@ -203,9 +213,10 @@ def _profile_endpoint(ctx):
             out = subprocess.run(
                 ["powershell", "-NoProfile", "-Command",
                  "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Select-Object -ExpandProperty CommandLine"],
-                capture_output=True, text=True, timeout=15).stdout
+                capture_output=True, text=True, timeout=15, creationflags=_no_window()).stdout
         else:
-            out = subprocess.run(["pgrep", "-af", "chrome"], capture_output=True, text=True, timeout=10).stdout
+            out = subprocess.run(["pgrep", "-af", "chrome"], capture_output=True, text=True, timeout=10,
+                                 creationflags=_no_window()).stdout
         for line in out.splitlines():
             if profile.lower() not in line.lower():
                 continue
@@ -240,7 +251,7 @@ def _launch(ctx, headless=None):
     ]
     if headless if headless is not None else _headless_default():
         args.append("--headless=new")
-    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=_no_window())
     _PILOT["proc"] = proc
     endpoint = f"http://127.0.0.1:{port}"
     for _ in range(80):
@@ -317,7 +328,7 @@ def _reset(ctx=None):
         if _PILOT["proc"]:
             _PILOT["proc"].terminate()
         elif str(_PILOT.get("mode") or "").startswith("chrome-plugin") and _PILOT.get("endpoint"):
-            # Chrome mồ côi được tái dùng qua DevToolsActivePort — không có handle
+            # Chrome mồ côi được tái dùng qua DevToolsActivePort - không có handle
             # process, đóng cả trình duyệt bằng lệnh CDP Browser.close.
             ver = httpx.get(_PILOT["endpoint"] + "/json/version", timeout=2).json()
             async def _bye():
@@ -348,7 +359,7 @@ async def _eval(expr):
 
 
 # ---------------------------------------------------------------------------
-# Bảng hành động đánh số — port action_space() của Jev: element index + op
+# Bảng hành động đánh số - port action_space() của Jev: element index + op
 # ---------------------------------------------------------------------------
 def _action_space(actions):
     elements, indices, targets, controls = [], {}, {}, {}
@@ -383,7 +394,7 @@ def _action_space(actions):
 async def _observe():
     v = await _eval(_SNAPSHOT_JS)
     if not v:
-        raise RuntimeError("Trang chưa sẵn sàng — thử lại sau 1 giây.")
+        raise RuntimeError("Trang chưa sẵn sàng - thử lại sau 1 giây.")
     elements, targets, controls = _action_space(v.get("actions", []))
     v["elements"], v["targets"], v["controls"] = elements, targets, controls
     _PILOT["page"] = v
@@ -410,7 +421,7 @@ def _render(page, note=""):
 
 
 # ---------------------------------------------------------------------------
-# Guard trước mutation — Jev fresh(): so sánh page_key + guard của đúng node
+# Guard trước mutation - Jev fresh(): so sánh page_key + guard của đúng node
 # ---------------------------------------------------------------------------
 async def _fresh(page, action):
     node = action["node"]
@@ -426,7 +437,7 @@ async def _fresh(page, action):
 async def _act_impl(ctx, args):
     page = _PILOT["page"]
     if not page:
-        return {"ok": False, "error": "Chưa có trang nào — gọi web_pilot_open hoặc web_pilot_snapshot trước."}
+        return {"ok": False, "error": "Chưa có trang nào - gọi web_pilot_open hoặc web_pilot_snapshot trước."}
     op = str(args.get("op") or "").upper()
     element = str(args.get("element") or "").strip()
     text = args.get("text")
@@ -468,7 +479,7 @@ async def _act_impl(ctx, args):
     if not await _fresh(page, action):
         new_page = await _observe()
         return {"ok": False, "stale": True,
-                "error": "Trang/element đã đổi từ lúc chụp — KHÔNG tự làm lại. Chọn lại từ bảng mới.",
+                "error": "Trang/element đã đổi từ lúc chụp - KHÔNG tự làm lại. Chọn lại từ bảng mới.",
                 "snapshot": _render(new_page)}
 
     if op == "CLICK":
@@ -477,14 +488,14 @@ async def _act_impl(ctx, args):
             f' n.scrollIntoView({{block:"nearest"}}); const r=n.getBoundingClientRect();'
             f' return {{x:r.x+r.width/2, y:r.y+r.height/2}}; }})()')
         if not rect:
-            return {"ok": False, "error": "Element biến mất khỏi trang — chụp snapshot lại."}
+            return {"ok": False, "error": "Element biến mất khỏi trang - chụp snapshot lại."}
         cdp = _PILOT["cdp"]
         for t in ("mousePressed", "mouseReleased"):
             await cdp.call("Input.dispatchMouseEvent", type=t,
                            x=rect["x"], y=rect["y"], button="left", clickCount=1)
     elif op == "TYPE_TEXT":
         if text is None:
-            return {"ok": False, "error": "TYPE_TEXT cần tham số 'text' — engine tự viết nội dung cần gõ."}
+            return {"ok": False, "error": "TYPE_TEXT cần tham số 'text' - engine tự viết nội dung cần gõ."}
         await _eval(
             f'(() => {{ const n=window.__h2oPilot.nodes.get({json.dumps(node)}); if(!n) return null;'
             f' n.focus();'
@@ -508,7 +519,7 @@ async def _act_impl(ctx, args):
 
     await asyncio.sleep(0.35)
     old_marker = page.get("marker")
-    # Trang có thể đang navigate — Runtime.evaluate tạm thời lỗi. Thử lại vài nhịp
+    # Trang có thể đang navigate - Runtime.evaluate tạm thời lỗi. Thử lại vài nhịp
     # trước khi kết luận; websocket chết thì nối lại tới endpoint (Chrome vẫn sống).
     new_page, last_err = None, ""
     for _ in range(8):
@@ -523,7 +534,7 @@ async def _act_impl(ctx, args):
                 await _reconnect()
     if new_page is None:
         return {"ok": True, "op": op, "element": element, "page_changed": None,
-                "note": f"Hành động đã ghi nhận nhưng đọc lại trang lỗi ({last_err[:120]}) — có thể tab đã đóng/mở tab mới. Gọi web_pilot_snapshot để quan sát lại."}
+                "note": f"Hành động đã ghi nhận nhưng đọc lại trang lỗi ({last_err[:120]}) - có thể tab đã đóng/mở tab mới. Gọi web_pilot_snapshot để quan sát lại."}
     return {"ok": True, "op": op, "element": element, "label": action["label"][:80],
             "page_changed": json.dumps(old_marker) != json.dumps(new_page.get("marker")),
             "snapshot": _render(new_page)}
@@ -567,7 +578,7 @@ def _t_open(args, ctx):
     return json.dumps({**_render(page), "ok": True,
                        "pilot": {"mode": mode},
                        "note": ("Đang dùng Chrome đang mở của bạn (đăng nhập sẵn). " if mode.startswith("attach")
-                                else "Đang dùng Chrome profile riêng của plugin — đăng nhập 1 lần trong cửa sổ này thì các phiên sau vẫn còn. ") +
+                                else "Đang dùng Chrome profile riêng của plugin - đăng nhập 1 lần trong cửa sổ này thì các phiên sau vẫn còn. ") +
                                "Chọn element + op rồi gọi web_pilot_act."}, ensure_ascii=False)
 
 
@@ -579,7 +590,7 @@ def _t_snapshot(args, ctx):
             page = _run(_observe())
         except Exception as e:
             _reset()
-            return "ERROR: " + str(e) + " — gọi web_pilot_open trước."
+            return "ERROR: " + str(e) + " - gọi web_pilot_open trước."
     out = _render(page)
     if args.get("full_text"):
         try:
@@ -599,7 +610,7 @@ def _t_act(args, ctx):
             return json.dumps(_run(_act_impl(ctx, args)), ensure_ascii=False)
         except Exception as e:
             _reset()
-            return "ERROR: " + str(e) + " — phiên trình duyệt đã đóng, gọi web_pilot_open để mở lại."
+            return "ERROR: " + str(e) + " - phiên trình duyệt đã đóng, gọi web_pilot_open để mở lại."
 
 
 def _t_close(args, ctx):
@@ -621,7 +632,7 @@ def _t_status(args, ctx):
         "attach_9222": bool(running),
         "headless": _headless_default(),
         "hint": ("Mở Chrome bằng: chrome.exe --remote-debugging-port=9222 để Joyce dùng luôn profile đang đăng nhập."
-                 if not running else "Phát hiện Chrome debug tại 127.0.0.1:9222 — gọi web_pilot_open attach=true để lái nó."),
+                 if not running else "Phát hiện Chrome debug tại 127.0.0.1:9222 - gọi web_pilot_open attach=true để lái nó."),
     }, ensure_ascii=False)
 
 
@@ -663,7 +674,7 @@ def register(ctx):
         description=("Thực hiện 1 hành động trên element đã đánh số: op=CLICK | TYPE_TEXT | SELECT | SCROLL_DOWN | "
                      "SCROLL_UP | WAIT; element=số trong bảng; text=nội dung gõ (TYPE_TEXT, bạn tự viết); "
                      "option='3:2' cho SELECT; press_enter=true gõ xong bấm Enter (search/submit); "
-                     "seconds cho WAIT. Trang có guard — nếu báo 'stale' phải snapshot lại rồi chọn lại, không được "
+                     "seconds cho WAIT. Trang có guard - nếu báo 'stale' phải snapshot lại rồi chọn lại, không được "
                      "lặp hành động cũ. DONE của bạn không phải bằng chứng: sau khi xong phải tự kiểm kết quả thật "
                      "(URL, text trang, dữ liệu xuất hiện)."),
         handler=_t_act, min_mode="full",

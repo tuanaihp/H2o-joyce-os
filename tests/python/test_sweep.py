@@ -1,4 +1,4 @@
-"""Test sweep bù — quét "việc đáng lẽ đã chạy mà lỡ" với deps giả, không cần server.
+"""Test sweep bù - quét "việc đáng lẽ đã chạy mà lỡ" với deps giả, không cần server.
 Chạy: python tests/python/test_sweep.py"""
 import asyncio
 import io
@@ -18,7 +18,7 @@ FAIL = [0]
 def t(name, ok, extra=""):
     PASS[0] += 1 if ok else 0
     FAIL[0] += 0 if ok else 1
-    print(f"{'✓' if ok else '✗'} {name}{' — ' + extra if extra else ''}")
+    print(f"{'✓' if ok else '✗'} {name}{' - ' + extra if extra else ''}")
 
 
 NOW = time.time()

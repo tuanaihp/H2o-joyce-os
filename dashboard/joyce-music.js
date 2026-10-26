@@ -140,7 +140,7 @@
       '<button class="jm-btn jm-prev" title="Prev" aria-label="Previous">⏮</button>' +
       '<button class="jm-btn jm-play" title="Play/Pause" aria-label="Play">▶</button>' +
       '<button class="jm-btn jm-next" title="Next" aria-label="Next">⏭</button>' +
-      '<div class="jm-meta"><div class="jm-title">—</div><div class="jm-sub">—</div></div>' +
+      '<div class="jm-meta"><div class="jm-title">-</div><div class="jm-sub">-</div></div>' +
       '<span class="jm-src"></span>' +
       '<input class="jm-vol" type="range" min="0" max="100" value="80" aria-label="Volume">' +
       '<button class="jm-btn jm-close" title="Close" aria-label="Close">✕</button>';
@@ -162,7 +162,7 @@
     const bar = buildBar(), a = audio();
     bar.classList.add('on');
     bar.querySelector('.jm-play').textContent = a.paused ? '▶' : '⏸';
-    bar.querySelector('.jm-title').textContent = tr ? tr.title : '—';
+    bar.querySelector('.jm-title').textContent = tr ? tr.title : '-';
     bar.querySelector('.jm-sub').textContent = tr ? (tr.artist || '') : '';
     bar.querySelector('.jm-src').textContent = S.source === 'local' ? t('music.srcLocal') : 'AUDIUS · FREE';
     bar.querySelector('.jm-vol').value = Math.round(a.volume * 100);

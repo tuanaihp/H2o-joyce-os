@@ -31,7 +31,7 @@ import time
 import types as _types   # object tạm cho _apply_antigravity_hub ở endpoint kiểm tra
 import yaml
 import fastyaml
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Form, Request, Body, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Form, Request, Body, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -14925,7 +14925,7 @@ async def _start_scheduler():
                 # 7) Sweep bù (kiểu missingPostWorkflow của Postiz): nhịp RIÊNG 1 giờ.
                 #    Quét mọi brain, tổng hợp việc "đáng lẽ đã chạy mà lỡ" → 1 thư digest.
                 #    Từng bộ phận đã tự chữa (nhắc trễ tự bắn, task kẹt tự thu hồi); sweep
-                #    chỉ bổ sung TẦNG NHÌN — không sửa gì, không spam (dedup theo giờ).
+                #    chỉ bổ sung TẦNG NHÌN - không sửa gì, không spam (dedup theo giờ).
                 try:
                     if time.time() - _SWEEP_LAST[0] >= sweep_mod.SWEEP_INTERVAL_SECONDS:
                         _SWEEP_LAST[0] = time.time()

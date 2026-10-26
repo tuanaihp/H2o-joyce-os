@@ -1,4 +1,4 @@
-"""factory.py — lớp "agentic software factory" cho Joyce (port ý tưởng OpenAI, Pragmatic
+"""factory.py - lớp "agentic software factory" cho Joyce (port ý tưởng OpenAI, Pragmatic
 Engineer 15/09/2026; trang học: wiki/agent-update/OpenAI Software Factory - nha may agentic
 9 buoc).
 
@@ -54,6 +54,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
+
+import winproc
 
 # ── Ngưỡng ──────────────────────────────────────────────────────────────────
 WATCH_TICK_SECONDS = 300          # watcher chạy mỗi 5 phút
@@ -241,7 +243,8 @@ async def _run_cmd(cmd: str, cwd: str) -> tuple:
     try:
         proc = await asyncio.create_subprocess_shell(
             cmd, cwd=cwd,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            **winproc.kwargs_no_window())
         try:
             out, _ = await asyncio.wait_for(proc.communicate(), timeout=CI_CMD_TIMEOUT)
             tail = (out or b"").decode("utf-8", "replace")[-1500:]
@@ -307,7 +310,7 @@ async def ci_babysit(deps: FactoryDeps, root: str, task: dict) -> dict:
         res["fix_tid"] = fix_tid
         await deps.inbox(
             f"🧪 **CI babysit**: check của '{task.get('title')}' đỏ "
-            f"({len(fails)}/{len(cmds)} lệnh) — đã xếp việc sửa vòng {round_no}/"
+            f"({len(fails)}/{len(cmds)} lệnh) - đã xếp việc sửa vòng {round_no}/"
             f"{cfg.get('ci_max_rounds')}.",
             kind="system", label="ci babysit", source="factory",
             dedup=f"ci:{task.get('id')}:{round_no}")
@@ -428,7 +431,7 @@ async def watch_tick(deps: FactoryDeps) -> dict:
                   file=sys.stderr)
         try:
             await deps.inbox(
-                f"👀 **Handhold**: '{w.get('title')}' kiểm chứng THẤT BẠI — "
+                f"👀 **Handhold**: '{w.get('title')}' kiểm chứng THẤT BẠI - "
                 f"{'; '.join(fails)[:240]}. Đã đưa việc về Sẵn sàng chạy lại.",
                 kind="system", label="deploy watch", source="factory",
                 dedup=f"watchfail:{w.get('task_id')}")
@@ -541,7 +544,7 @@ async def pattern_tick(deps: FactoryDeps) -> dict:
                 rep["sev"].append({"sig": sig, "count": g["count"]})
                 try:
                     await deps.inbox(
-                        f"🚨 **Sevbot**: {g['count']} sự cố CÙNG MẪU trong 24h — khả năng một "
+                        f"🚨 **Sevbot**: {g['count']} sự cố CÙNG MẪU trong 24h - khả năng một "
                         f"gốc chung.\nChữ ký: {sig}\nĐối tượng: {refs}\nLỗi mẫu: "
                         f"{g['sample'][:200]}\nĐề xuất: việc `[Perf] root-cause` đã (hoặc sẽ) "
                         f"được xếp để điều tra gốc; nếu lỗi liên quan đăng nhập/khoá API/quota "
@@ -857,7 +860,7 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
         else:
             await deps.inbox(
                 f"🔧 **Tự cải tiến**: proposal `{fp.stem}` (WIN, low-risk) đã áp vào "
-                f"`{rel}` — bản cũ lưu tại `Joyce/proposals/.backup/`, muốn lật lại thì "
+                f"`{rel}` - bản cũ lưu tại `Joyce/proposals/.backup/`, muốn lật lại thì "
                 f"copy bản backup đè lên.",
                 kind="system", label="self-improve", source="factory",
                 dedup=f"apply:{fp.stem}:{fp.stat().st_mtime_ns}")

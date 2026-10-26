@@ -237,7 +237,7 @@ input,button{{font-size:14px;padding:6px 10px;margin:4px 0}}
 Ví dụ: <code>https://joyce-cua-anh.example.com/ext/apple-notes/push</code><br>
 (Kiểm thử: <code>GET /ext/apple-notes/ping?token=TOKEN</code>)<br>
 Trên MacBook: <a href="/ext/apple-notes/script"><b>⬇ Tải script cho MacBook</b></a>
-(file .command đã điền sẵn URL tunnel + token hiện tại) — về Downloads chạy
+(file .command đã điền sẵn URL tunnel + token hiện tại) - về Downloads chạy
 <code>bash ~/Downloads/apple-notes-sync.command</code>, hiện hộp chọn thư mục của macOS.
 Trên iPhone: dựng theo hướng dẫn Shortcuts.
 </div>
@@ -275,7 +275,7 @@ rồi chạy bản mới nhất, ví dụ <code>bash ~/Downloads/apple-notes-syn
 </div>
 
 <div class="card"><b>Lần đồng bộ cuối:</b><br>{last_html}</div>
-<div class="card"><b>Cây thư mục điện thoại đã gửi ({esc(str(cay.get('at') or '—'))}):</b>
+<div class="card"><b>Cây thư mục điện thoại đã gửi ({esc(str(cay.get('at') or '-'))}):</b>
 <ul>{dong_cay}</ul></div>"""
 
 

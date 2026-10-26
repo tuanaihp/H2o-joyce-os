@@ -79,7 +79,7 @@ check("Resonance can set goals on deepseek", resonance.engine_support("deepseek"
 
 _CLAUDEMD = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 check("CLAUDE.md names DeepSeek among the brains (it is the system prompt of every chat turn)",
-      "Eleven brains" in _CLAUDEMD and "Groq, DeepSeek, Ollama" in _CLAUDEMD)
+      "Twelve brains" in _CLAUDEMD and "DeepSeek, Z.ai (GLM), Ollama" in _CLAUDEMD)
 check("CLAUDE.md counts seven API engines", "The seven API engines" in _CLAUDEMD)
 
 check("_api_label is human-readable", main._api_label("deepseek") == "DeepSeek")

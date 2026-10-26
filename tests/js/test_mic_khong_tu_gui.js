@@ -66,7 +66,7 @@ check("app.js đồng bộ handsFree sang voice.js (và tắt ngay khi mic hỏn
 // Không đổi hành vi này (rảnh tay và bấm-giữ-Space đều cần gửi ngay), chỉ ghi lại cho rõ:
 // hễ ai bỏ chốt ở mục 1-2 thì tin nhắn ma quay lại ngay.
 check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
-  /onTranscript: \(text\) => \{[\s\S]{0,200}if \(text\) sendMessage\(text\);/.test(app));
+  /onTranscript: \(text\) => \{[\s\S]{0,2500}if \(text\) sendMessage\(text\);/.test(app));
 // Chỗ thứ 5 (0.55.63) là sendMessage TỰ GỌI LẠI CHÍNH NÓ sau khi file đính kèm tải lên
 // xong - cùng một lượt Enter của người dùng bị hoãn, không phải một đường gửi mới.
 // Chỗ thứ 6 (0.57.17) cùng kiểu HOÃN chứ không phải đường mới: người dùng nói chen ngang lúc

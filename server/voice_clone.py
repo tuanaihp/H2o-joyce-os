@@ -1,4 +1,4 @@
-"""voice_clone.py — hồ sơ giọng nhân bản (clone once, reuse forever).
+"""voice_clone.py - hồ sơ giọng nhân bản (clone once, reuse forever).
 
 Mỗi giọng = một thư mục `<STATE_DIR>/voices/<slug>/` gồm `ref.wav` (mẫu gốc đã
 chuẩn hoá) + `profile.json`. Backend hiện tại: v-tts (local, CPU, giấy phép
@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import config as cfgmod
+import winproc
 
 _VOICES_ROOT = None
 _VTTS = None          # singleton model (nạp nặng ~giây, tải weights ~285MB lần đầu)
@@ -75,7 +76,7 @@ def _to_wav(src: Path, dst: Path) -> bool:
     try:
         subprocess.run(
             [_FFMPEG, "-y", "-i", str(src), "-ac", "1", "-ar", "22050", str(dst)],
-            capture_output=True, timeout=60, check=True)
+            capture_output=True, timeout=60, check=True, **winproc.kwargs_no_window())
         return dst.is_file() and dst.stat().st_size > 1000
     except Exception:  # noqa: BLE001
         return False

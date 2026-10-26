@@ -1,13 +1,13 @@
 ---
 name: Lái trình duyệt web (Web Pilot)
-description: Điều khiển Chrome thật bằng bảng phần tử đánh số — đọc số liệu, điền form, bấm nút trên các trang không có API (dashboard, CRM, admin, trang cần đăng nhập). Dùng khi cần làm việc trên web mà không có MCP/API nào.
+description: Điều khiển Chrome thật bằng bảng phần tử đánh số - đọc số liệu, điền form, bấm nút trên các trang không có API (dashboard, CRM, admin, trang cần đăng nhập). Dùng khi cần làm việc trên web mà không có MCP/API nào.
 group: Cong cu
 ---
 
-# Web Pilot — lái web bằng cách CHỌN, không generate
+# Web Pilot - lái web bằng cách CHỌN, không generate
 
 Plugin `web-pilot` biến trang web thành bảng phần tử đánh số. Việc của bạn là chọn số,
-không phải viết selector/code trang (cấm — hay sai và dễ bị lạm dụng).
+không phải viết selector/code trang (cấm - hay sai và dễ bị lạm dụng).
 
 ## Vòng lặp bắt buộc
 
@@ -26,7 +26,7 @@ web_pilot_close()
 
 1. **Guard**: mỗi act được kiểm trang còn y nguyên trước khi chạm. Báo `stale` =
    trang đã đổi → snapshot lại, chọn element từ bảng MỚI. Không lặp hành động cũ.
-2. **DONE không phải bằng chứng** — sau khi submit/đăng/gửi, phải kiểm trang thật:
+2. **DONE không phải bằng chứng** - sau khi submit/đăng/gửi, phải kiểm trang thật:
    URL đổi? dòng xác nhận xuất hiện? Không thấy = chưa xong, đừng báo thành công.
 3. **Trang đăng nhập**: gặp form login/captcha → DỪNG, bảo người dùng đăng nhập tay
    1 lần trong cửa sổ Chrome của plugin (profile giữ lâu dài). Không tự gõ mật khẩu.
@@ -39,14 +39,14 @@ web_pilot_close()
 - **Mặc định**: plugin tự mở Chrome profile riêng (đăng nhập giữ lâu dài, không đụng
   Chrome bạn đang dùng). Lần đầu vào trang cần login → đăng nhập tay MỘT lần.
 - **`attach: true`**: lái Chrome đang mở của bạn (mở bằng `chrome.exe
-  --remote-debugging-port=9222`) — dùng sẵn mọi đăng nhập của bạn.
+  --remote-debugging-port=9222`) - dùng sẵn mọi đăng nhập của bạn.
 - **`headless: true`**: chạy ẩn (máy chủ/VPS hoặc tác vụ nền không cần nhìn).
 
 ## Công thức đọc số liệu (việc hay gặp nhất)
 
 `web_pilot_open(dashboard_url)` → đọc `text` trong kết quả → thiếu thì
 `web_pilot_snapshot(full_text=true)` lấy tới 20k ký tự → trích số liệu cần báo.
-Đọc thuần không cần `web_pilot_act` — snapshot là đủ.
+Đọc thuần không cần `web_pilot_act` - snapshot là đủ.
 
 ## Công thức điền form
 

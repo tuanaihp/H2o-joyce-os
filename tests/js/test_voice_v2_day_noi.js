@@ -41,7 +41,7 @@ check("voice.js: file quá nhỏ (dưới 2 KB) không gửi", /blob\.size < 200
 
 // 3
 check("live: 16 kHz lên, 24 kHz xuống", /IN_RATE = 16000, OUT_RATE = 24000/.test(live));
-check("live: interrupted -> flushPlayback", /d\.type === "interrupted"\) \{[\s\S]{0,120}flushPlayback\(\)/.test(live));
+check("live: interrupted -> flushPlayback", /d\.type === "interrupted"\) \{[\s\S]{0,220}flushPlayback\(\)/.test(live));
 check("live: gửi Int16 buffer nhị phân", /ws\.send\(floatToPcm16\(f32\)\.buffer\)/.test(live));
 check("voice.js: tải trước đoạn KẾ trong hàng đợi khi ở khúc cuối", /_preloadNextQueued\(\) \{/.test(voice)
       && /this\._chunkIndex !== this\.ttsChunks\.length - 1\) return;/.test(voice) && /else this\._preloadNextQueued\(\);/.test(voice));
@@ -51,7 +51,7 @@ check("server: làn nhanh chỉ đẩy câu đã khép qua split_speakable", /vo
 check("live: có sendText và stop", /sendText: sendText, sendContext: sendContext/.test(live) && /type: "stop"/.test(live));
 check("live: phát nối tiếp theo nextAt", /nextAt = t \+ ab\.duration/.test(live));
 check("live: bị ngắt thì đo ms đã phát TRƯỚC khi xả rồi gửi khung played",
-      /var ms = playedMs\(\);[\s\S]{0,80}flushPlayback\(\);[\s\S]{0,80}sendJson\(\{ type: "played", ms: ms \}\)/.test(live));
+      /var ms = playedMs\(\);[\s\S]{0,200}flushPlayback\(\);[\s\S]{0,80}sendJson\(\{ type: "played", ms: ms \}\)/.test(live));
 check("live: sendContext chỉ gửi khi đổi", /if \(text === lastCtx/.test(live) && /type: "context"/.test(live) && /sendContext: sendContext/.test(live));
 check("live: nhận reconnected", /d\.type === "reconnected"/.test(live));
 check("app.js: phiên Live gửi ngữ cảnh giao diện định kỳ", /setInterval\(guiNguCanhLive, 1500\)/.test(app) && /JoyceVoiceLive\.sendContext\(ctx\)/.test(app));

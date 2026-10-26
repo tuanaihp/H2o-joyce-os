@@ -126,7 +126,7 @@ async function main() {
     check("không có nguồn lỗi thì không báo 'không tải được'", !h.includes(VI["sodo.down"]));
     check("phòng việc kẹt xếp lên đầu khối Bán hàng, thanh tiến độ có mặt", h.indexOf("Ban Hang - Sales Vay") > 0 && h.includes("sd-bar"));
     check("bộ lọc phòng ban Tất cả / Cần chú ý", h.includes('data-f="all"') && h.includes('data-f="attn"'));
-    check("không dùng em dash trong HTML", !h.includes("—"));
+    check("không dùng em dash trong HTML", !h.includes("-"));
     check("màu chỉ dùng token theme, không còn --tx/--bd/--tx2 không ai định nghĩa", !/var\(--(tx2?|bd|bg2|bg3)/.test(SODO));
   }
   // ---- một nguồn lỗi: khối liên quan báo "Không tải được", các khối khác vẫn bình thường ----
@@ -182,7 +182,7 @@ async function main() {
       f: "sodo.kpi.lessons", g: "sodo.kpi.win", h: "sodo.kpi.loops", i: "sodo.s.ok", j: "sodo.s.warn", k: "sodo.s.bad", l: "sodo.s.off",
       m: "sodo.s.err", n: "sodo.health.ok", o: "sodo.health.warn", p: "sodo.health.bad", q: "sodo.open.dept" })))];
   check("mọi khoá sodo.* dùng trong sodo.js có trong vi.json và en.json", keys.every((k) => k in VI && k in EN));
-  check("giá trị vi/en không dùng em dash", Object.keys(VI).filter((k) => k.startsWith("sodo.")).every((k) => !VI[k].includes("—") && !(EN[k] || "").includes("—")));
+  check("giá trị vi/en không dùng em dash", Object.keys(VI).filter((k) => k.startsWith("sodo.")).every((k) => !VI[k].includes("-") && !(EN[k] || "").includes("-")));
 
   if (fails.length) { console.log("\nĐỎ " + fails.length + " mục"); process.exit(1); }
   console.log("\nTất cả xanh.");

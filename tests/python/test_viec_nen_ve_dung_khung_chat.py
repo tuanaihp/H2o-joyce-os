@@ -83,7 +83,7 @@ class _Store:
 class _F:
     store = _Store()
 
-    def enqueue(self, *a):
+    def enqueue(self, *a, **kw):
         nhan.append(a)
         return "t1"
 

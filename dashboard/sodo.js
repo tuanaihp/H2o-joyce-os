@@ -333,7 +333,7 @@
         (r.running ? ` · <b>${so(r.running)}</b> ${esc(t("sodo.ag.running"))}` : "") +
         (r.wins ? ` · <b>${so(r.wins)}</b> PPC` : "");
       const pct = r.score == null ? 0 : r.score;
-      const scoreTxt = r.score == null ? "—" : pct + "%";
+      const scoreTxt = r.score == null ? "-" : pct + "%";
       return `<div class="sd-ag-r ${cls}"><span class="sd-dot"></span>
         <span class="sd-ag-name" title="${esc(r.slug)}">${esc(r.name || r.slug)}</span>
         <span class="sd-ag-role" title="${esc(r.role)}">${esc(r.role || "-")}</span>

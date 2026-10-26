@@ -111,12 +111,14 @@ try:
 
     nhan.clear()
     cli2 = mk("x", "opus", "anthropic-cli")
-    check("Claude Code giữ nguyên đường cũ (không qua aux_engine)", not nhan, nhan)
+    # Từ 1.3.28 agent Claude Code cũng đi qua aux_engine.swap để có chuỗi dự phòng: nhà Claude chết
+    # (hết lượt gói, lỗi CLI) thì nhảy sang nhà khác thay vì chết lặng.
+    check("Claude Code cũng đi qua aux_engine (để có chuỗi dự phòng)", nhan.get("provider") == "anthropic-cli", nhan)
     check("model Claude vẫn được gán vào engine Claude", getattr(cli2, "model", None) == "opus")
 
     nhan.clear()
     cli3 = mk("x", "", "")
-    check("để Mặc định thì không ép nhà nào", not nhan, nhan)
+    check("để Mặc định thì rơi về Claude Code, không ép nhà khác", nhan.get("provider") in (None, "anthropic-cli") and not nhan.get("model"), nhan)
 
     # Rào an toàn đã hứa ở docs/07: workflow chạy NỀN ở chế độ giới hạn công cụ thì agent
     # luôn là Claude Code, kể cả khi chọn nhà khác - giới hạn nằm ở allowed_tools/

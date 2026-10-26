@@ -28,7 +28,10 @@ check("provOn: rieng anthropic-cli lay theo claudeOn, con lai lay theo configure
   /const provOn = \(p\) => \(p\.id === "anthropic-cli" \? claudeOn : !!p\.configured\)/.test(CONSOLE_JS));
 check("sort co tiebreak theo chi so goc (on dinh, khong phu thuoc engine)",
   /\.sort\(\(a, b\) => \(provOn\(b\.p\) - provOn\(a\.p\)\) \|\| \(a\.i - b\.i\)\)/.test(CONSOLE_JS));
-check("danh sach card dung ban da sap xep", CONSOLE_JS.includes("${provList.map(provCard).join(\"\")}"));
+// Từ 1.3.28 trang Models tách hai khu "Não miễn phí" và "Trả phí", cả hai đều lọc từ provList đã sắp.
+check("danh sach card dung ban da sap xep (hai khu free va tra phi cung lay tu provList)",
+  CONSOLE_JS.includes("provList.filter(p => p.free_tier)") && CONSOLE_JS.includes("provList.filter(p => !p.free_tier)")
+  && CONSOLE_JS.includes("${freeList.map(provCard).join(\"\")}") && CONSOLE_JS.includes("${paidList.map(provCard).join(\"\")}"));
 check("hop Doi model chinh cung dung ban da sap xep",
   CONSOLE_JS.includes("openModelPicker(provList, main,"));
 check("hop Doi model viec nen cung dung ban da sap xep",

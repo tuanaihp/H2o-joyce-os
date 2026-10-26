@@ -1,4 +1,4 @@
-// Port từ browser-use/jev-ultrafast (MIT) — bảng hành động đánh số cho Web Pilot.
+// Port từ browser-use/jev-ultrafast (MIT) - bảng hành động đánh số cho Web Pilot.
 // Giữ nguyên thuật toán: liệt kê phần tử tương tác được nhìn thấy + nhãn ngữ nghĩa
 // + guard (định danh node + ngữ cảnh quanh nó) để kiểm tra trước khi mutate.
 // Namespace đổi __jevFast -> __h2oPilot.

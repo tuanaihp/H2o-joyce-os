@@ -1,4 +1,4 @@
-"""Sweep bù — port ý tưởng `missingPostWorkflow` của Postiz sang Joyce.
+"""Sweep bù - port ý tưởng `missingPostWorkflow` của Postiz sang Joyce.
 
 Postiz chạy một workflow quét giờ: tìm bài QUEUE đã quá `publishDate` mà timer
 durable không nhặt được (worker sập, workflow chết) rồi `signalWithStart` đẩy
@@ -11,7 +11,7 @@ ngày hoặc một mắt xích chết ngầm, người dùng không biết đã 
 
 Module này quét mọi brain mỗi SWEEP_INTERVAL_SECONDS, tổng hợp các khoản "đáng lẽ
 đã chạy mà chưa/chạy trễ", rồi bỏ MỘT mẩu thư digest vào hòm thư (dedup theo giờ
-để không spam). Không tự sửa gì — sửa là việc của từng bộ phận đã có; sweep chỉ
+để không spam). Không tự sửa gì - sửa là việc của từng bộ phận đã có; sweep chỉ
 làm việc bỏ lỡ không bao giờ lặng lẽ.
 """
 
@@ -56,7 +56,7 @@ class BrainSweep:
 def _scan_brain(deps: SweepDeps, name: str, now: float) -> BrainSweep:
     out = BrainSweep(brain=name)
 
-    # 1) Nhắc hẹn pending đã quá hạn — tick sẽ bắn bù nhưng sweep ghi nhận độ trễ.
+    # 1) Nhắc hẹn pending đã quá hạn - tick sẽ bắn bù nhưng sweep ghi nhận độ trễ.
     try:
         for r in deps.reminders.pending_views(name) or []:
             due = float(r.get("due_at") or 0)
@@ -68,7 +68,7 @@ def _scan_brain(deps: SweepDeps, name: str, now: float) -> BrainSweep:
     except Exception as e:  # noqa: BLE001 - quét đừng làm chết sweep
         print(f"[sweep] reminders {name}: {type(e).__name__}: {e}", file=sys.stderr)
 
-    # 2) Kanban: task 'running' mà claim hết hạn (worker chết ngầm — reclaim sẽ cứu)
+    # 2) Kanban: task 'running' mà claim hết hạn (worker chết ngầm - reclaim sẽ cứu)
     #    + task 'ready/todo' treo not_before quá hạn mà dispatcher chưa nhặt.
     #    Kèm capacity digest (OpenAI: load hệ tăng 10x mới thấy bottleneck - đo
     #    throughput/chờ queue/tỷ lệ blocked để thấy TRƯỚC khi hàng vỡ).
@@ -117,7 +117,7 @@ def _scan_brain(deps: SweepDeps, name: str, now: float) -> BrainSweep:
     except Exception as e:  # noqa: BLE001
         print(f"[sweep] kanban {name}: {type(e).__name__}: {e}", file=sys.stderr)
 
-    # 3) Loop bật mà next_run đã qua quá lâu — loop này "lỡ nhịp" (auto-pause thì bỏ).
+    # 3) Loop bật mà next_run đã qua quá lâu - loop này "lỡ nhịp" (auto-pause thì bỏ).
     try:
         st_all = deps.loops.read_state(name)
         for lp in deps.loops.list_loops(name) or []:
@@ -144,8 +144,8 @@ def _fmt_min(m: int) -> str:
 
 
 def digest_text(items: list[BrainSweep], now: float) -> str:
-    """Một mẩu digest ngắn gọn — nhóm theo brain, liệt kê loại lỡ."""
-    lines = ["🧹 **Sweep bù** — phát hiện việc đáng lẽ đã chạy nhưng bị lỡ:"]
+    """Một mẩu digest ngắn gọn - nhóm theo brain, liệt kê loại lỡ."""
+    lines = ["🧹 **Sweep bù** - phát hiện việc đáng lẽ đã chạy nhưng bị lỡ:"]
     for b in items:
         lines.append(f"\n**{b.brain}**")
         for r in b.late_reminders[:3]:
@@ -164,7 +164,7 @@ def digest_text(items: list[BrainSweep], now: float) -> str:
                 f"blocked {cap.get('blocked_pct', 0)}%, chờ lâu nhất "
                 f"{_fmt_min(int(cap.get('queue_wait_min', 0)))}, xong 24h qua: "
                 f"{cap.get('done_24h', 0)}")
-    lines.append("\nCác bộ phận tự chữa vẫn đang chạy — mẩu này chỉ để anh biết có gì đã lỡ. "
+    lines.append("\nCác bộ phận tự chữa vẫn đang chạy - mẩu này chỉ để anh biết có gì đã lỡ. "
                  "Kiểm tra trang **Việc** nếu con số cứ tăng.")
     return "\n".join(lines)
 

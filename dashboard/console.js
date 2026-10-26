@@ -276,7 +276,6 @@
   // rơi về thông báo thay vì 404. Mặc định BẬT (additive rollout).
   let _wsV1 = true;
   let _renderGen = 0;         // token chống race: mỗi lần đổi trang tăng 1; render async cũ tự bỏ
-  let _cloneVoices = [];      // hồ sơ giọng nhân bản từ GET /voices (nạp khi render thẻ giọng)
   let _fmPending = null;       // { dir, file } - vị trí mở sẵn cho trang Tệp tin (khi bấm link file/thư mục trong chat)
   let _fmSauKhiDong = null;    // việc trang Tệp tin cần làm khi đóng trình sửa (nạp lại danh sách)
   let graphEnabled = true;
@@ -8852,6 +8851,7 @@
   // Đọc /voice/options?brains=0: bỏ danh sách bộ não giọng (máy tự chọn) nên không phải chờ
   // `agy models`, có khi tới 30 giây.
   const OPENAI_TTS_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
+  let _cloneVoices = [];      // hồ sơ giọng nhân bản từ GET /voices (nạp khi render thẻ giọng)
   const LIVE_API_NAMES = { gemini: "Gemini", openai: "OpenAI", "gpt-live": "GPT-Live" };
   // Mã lý do -> khoá i18n viết ĐỦ (test_i18n quét khoá tĩnh, không đọc được khoá ghép chuỗi).
   const CALL_REASON = {

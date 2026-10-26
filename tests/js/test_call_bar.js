@@ -64,7 +64,8 @@ assert.match(app, /if \(e\.code === "Escape"\) \{\s*\n[\s\S]{0,400}tatRanhTay\(\
 assert.match(app, /fetch\("\/voice\/call"\)/, 'mode comes from the call engine');
 // 0.65.25: only the FIRST connection of a call falls back to Basic; mid-call it retries and waits
 // (test_voice_focus_app.js runs both cases).
-assert.match(app, /if \(handsFree && !readySeen\) return _cuocGoiDaNoi \? noiLaiHong\(wakeText, lanThu\) : chuyenSangCoBan\(\);/,
+// 1.3.28: lỗi hết hạn mức Live thì sang Cơ bản ngay (_liveQuotaOut), còn lại giữ luật cũ.
+assert.match(app, /if \(handsFree && !readySeen\) \{[\s\S]{0,400}return _cuocGoiDaNoi \? noiLaiHong\(wakeText, lanThu\) : chuyenSangCoBan\(\);/,
   'Live that cannot start falls back to Basic only before the call has connected');
 assert.match(app, /voice.muted = _callMuted/, "mute stops the basic path from reopening the mic");
 assert.match(app, /capNhatThanhGoi\(\);\s*\n\}/, 'orb updates also update the call bar');

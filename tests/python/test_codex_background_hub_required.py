@@ -211,8 +211,10 @@ for m in ("suggest", "auto", "full"):
           hub_entry(cfg).get("required") is True and (cfg.get("features") or {}).get("apps") is False)
     check(f"swap({m}): Codex link reaches the hub at {want_mode(m)}",
           (hub_entry(cfg).get("http_headers") or {}).get("X-Joyce-Mode") == want_mode(m))
-    shape_ok = len(links) == 1 if m == "full" else (len(links) >= 2 and links[0] is codex[0])
-    check(f"swap({m}): chain shape unchanged (full has no fallback, others Codex first)", shape_ok,
+    # Từ 1.3.28 full cũng có chuỗi (safe_retry: chỉ nhảy mắt khi mắt trước chưa gọi tool nào),
+    # nên mọi mức đều là Codex đứng đầu rồi tới các mắt dự phòng.
+    shape_ok = len(links) >= 2 and links[0] is codex[0]
+    check(f"swap({m}): Codex first, then fallbacks (full via safe_retry)", shape_ok,
           [type(x).__name__ for x in links])
 
 

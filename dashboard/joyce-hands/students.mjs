@@ -1,7 +1,7 @@
 // Surface "students" trong khoang não (.hud-center): thẻ học viên từ H2O Book
 // (app Next.js trên Vercel). Mở bằng giọng nói ("mở thông tin học viên lên màn
 // hình") qua tool joyce_ui action=open_surface -> JoyceScreen.open('students').
-// Dữ liệu: GET /ext/h2obook/students?q= — Joyce server gọi /api/public/v1/students
+// Dữ liệu: GET /ext/h2obook/students?q= - Joyce server gọi /api/public/v1/students
 // của app bằng key h2o_* (scope students:read); trình duyệt KHÔNG cầm key.
 // 2 tầng: lưới thẻ học viên (có ô tìm theo tên/SĐT) -> thẻ chi tiết.
 // Vuốt xuống = lùi 1 tầng / đóng; vuốt trái/phải ở tầng chi tiết = học viên
@@ -101,7 +101,7 @@ export class JoyceStudents {
       '<button class="ja-card js-card" data-pick="' + n + '">' +
         '<span class="js-ava">' + esc((s.name || '?').trim().charAt(0).toUpperCase()) + '</span>' +
         '<span class="ja-info"><b>' + esc(s.name) + '</b>' +
-        '<i>' + esc(s.stage || s.phone || s.email || '—') + '</i>' +
+        '<i>' + esc(s.stage || s.phone || s.email || '-') + '</i>' +
         this._status(s.status) + '</span>' +
       '</button>').join('') + '</div>';
   }

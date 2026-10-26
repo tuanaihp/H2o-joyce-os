@@ -448,6 +448,9 @@ def test_repo_defaults_never_admit_the_agent_path(tmp_path, monkeypatch):
         def __init__(self, *a, **k):
             self.model = None
 
+        def is_available(self):   # từ 1.3.28 agent Claude cũng đi qua chuỗi dự phòng, chuỗi hỏi mắt này
+            return True
+
         async def query(self, prompt):
             calls.append(prompt)
             yield {"type": "final", "content": "KQ"}
