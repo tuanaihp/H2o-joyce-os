@@ -189,7 +189,7 @@
     host.appendChild(el);
     var S = { me: null, brain: "", tab: "contacts", q: "", ds: [], sel: 0, chiTiet: null, pipe: null,
               viec: [], dexuat: [], seg: [], tq: null, loi: "", info: "", tamLoi: false,
-              hienThem: false, hienNhanh: false, nhanh: null, hopThu: null, hienDeal: false, hienViec: false };
+              hienThem: false, daXoa: false, hienNhanh: false, nhanh: null, hopThu: null, hienDeal: false, hienViec: false };
 
     async function nap(chi) {
       try {
@@ -199,7 +199,7 @@
         }
         var b = encodeURIComponent(S.brain);
         var tac = [api("GET", "/crm/tong-quan?brain=" + b).then(function (r) { S.tq = r; })];
-        if (S.tab === "contacts") tac.push(api("GET", "/crm/lien-he?brain=" + b + "&q=" + encodeURIComponent(S.q)).then(function (r) { S.ds = r.items; }));
+        if (S.tab === "contacts") tac.push(api("GET", "/crm/lien-he?brain=" + b + "&q=" + encodeURIComponent(S.q) + (S.daXoa ? "&da_xoa=1" : "")).then(function (r) { S.ds = r.items; }));
         if (S.tab === "pipeline" && S.brain) tac.push(api("GET", "/crm/pipeline?brain=" + b).then(function (r) { S.pipe = r; }));
         if (S.tab === "todos") tac.push(api("GET", "/crm/viec?brain=" + b).then(function (r) { S.viec = r.items; }));
         if (S.tab === "proposals") tac.push(api("GET", "/crm/de-xuat?brain=" + b).then(function (r) { S.dexuat = r.items; }));
@@ -247,7 +247,9 @@
           ? '<select class="crm-sel" data-a="mode">' + ["off", "duyet", "auto"].map(function (m) {
               return '<option value="' + m + '"' + (S.me.che_do === m ? " selected" : "") + ">" + esc(tw(K_MODE[m])) + "</option>";
             }).join("") + "</select>"
-          : "<b>" + esc(tw(K_MODE[S.me.che_do] || K_MODE.duyet)) + "</b>") + "</div>";
+          : "<b>" + esc(tw(K_MODE[S.me.che_do] || K_MODE.duyet)) + "</b>")
+        + (coQuyen && S.me.che_do !== "off" ? "<span>" + esc(tw("crm.thr_pre")) + '</span><input class="crm-sel" type="number" min="2" max="100" style="width:64px" data-a="nguong" value="' + esc(S.me.nguong) + '"><span>' + esc(tw("crm.thr_post")) + "</span>" : "")
+        + "</div>";
       var q = S.tq || {};
       var kp = [
         [tw("crm.kpi_contacts"), q.lien_he || 0, ""],
@@ -299,7 +301,10 @@
     }
 
     function trangDanhBa() {
-      var dsHtml = S.ds.length ? S.ds.map(function (c) {
+      var dsHtml = S.daXoa ? (S.ds.length ? S.ds.map(function (c) {
+        return '<div class="crm-bar"><span style="flex:1;min-width:0">' + esc(c.name || c.phone || ("#" + c.id)) + "</span>"
+          + '<button class="crm-btn" data-a="restore" data-id="' + c.id + '">' + esc(tw("crm.restore")) + "</button></div>";
+      }).join("") : '<div class="crm-muted">' + esc(tw("crm.trash_empty")) + "</div>") : S.ds.length ? S.ds.map(function (c) {
         return '<button class="crm-row' + (c.id === S.sel ? " on" : "") + '" data-a="open" data-id="' + c.id + '"><span class="crm-av">' + esc(chuCaiDau(c.name || c.phone))
           + '</span><span class="crm-rt"><b>' + esc(c.name || c.phone || ("#" + c.id)) + "</b><small>" + esc([c.company, c.phone].filter(Boolean).join(" | ")) + "</small></span></button>";
       }).join("") : '<div class="crm-muted">' + esc(tw("crm.empty_contacts")) + "</div>";
@@ -307,7 +312,8 @@
         + '<div class="crm-bar"><input class="crm-in" data-r="search" placeholder="' + esc(tw("crm.search_ph")) + '" value="' + esc(S.q) + '" style="flex:1">'
         + '<button class="crm-btn pri" data-a="add" title="' + esc(tw("crm.add_contact")) + '">+</button></div>'
         + '<div class="crm-bar"><button class="crm-btn" data-a="quick-toggle">' + esc(tw("crm.quick_title")) + "</button>"
-        + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="inbox">' + esc(tw("crm.from_inbox")) + "</button>" : "") + "</div>"
+        + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="inbox">' + esc(tw("crm.from_inbox")) + "</button>" : "")
+        + '<button class="crm-btn" data-a="trash">' + esc(S.daXoa ? tw("crm.trash_back") : tw("crm.trash")) + "</button></div>"
         + (S.hienNhanh ? khungNhanh() : "") + (S.hopThu ? khungHopThu() : "") + (S.hienThem ? formKhach() : "") + dsHtml + "</div></div>";
       return '<div class="crm-split">' + trai + '<div class="crm-det">' + (S.chiTiet ? chiTiet(S.chiTiet) : '<div class="crm-muted">' + esc(tw("crm.pick_contact")) + "</div>") + "</div></div>";
     }
@@ -528,6 +534,11 @@
         if (r) S.me.che_do = r.che_do;
         ve();
       }
+      else if (a === "nguong") {
+        var r4 = await lam("/crm/cau-hinh/trich", { nguong: t.value }, tw("crm.mode_saved"));
+        if (r4) S.me.nguong = r4.nguong;
+        ve();
+      }
       else if (a === "dept-add" && t.value) { await lam("/crm/lien-he/phong", { id: S.sel, brain: t.value, bat: 1 }); await moChiTiet(S.sel); }
       else if (a === "deal-move") { await lam("/crm/deal/buoc", { id: t.getAttribute("data-id"), stage: t.value }); }
       else if (a === "todo-done") { await lam("/crm/viec/xong", { id: t.getAttribute("data-id"), xong: t.checked ? 1 : 0 }); if (S.tab === "contacts") await moChiTiet(S.sel); }
@@ -561,6 +572,8 @@
         var r = await lam("/crm/hop-thu/nhap", { customer_id: id, brain: S.brain }, tw("crm.imported"));
         if (r && r.contact) { S.hopThu = null; await moChiTiet(r.contact.id); }
       }
+      else if (a === "trash") { S.daXoa = !S.daXoa; S.sel = 0; S.chiTiet = null; await nap(); }
+      else if (a === "restore") { await lam("/crm/lien-he/xoa", { id: id, khoi_phuc: 1 }, tw("crm.restored")); }
       else if (a === "dept-off") { await lam("/crm/lien-he/phong", { id: S.sel, brain: b.getAttribute("data-b"), bat: 0 }); await moChiTiet(S.sel); }
       else if (a === "delete") {
         if (typeof confirm === "function" && !confirm(tw("crm.confirm_delete"))) return;

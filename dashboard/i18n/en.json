@@ -6679,5 +6679,12 @@
   "staff.crm_grant": "Can use the Operations CRM",
   "staff.crm_hint": "Opens the CRM tab for this account; they only see their own department's customers",
   "crm.all_depts": "All departments",
-  "crm.pick_dept": "Pick a department above to see this."
+  "crm.pick_dept": "Pick a department above to see this.",
+  "crm.trash": "Deleted customers",
+  "crm.trash_back": "Back to contacts",
+  "crm.restore": "Restore",
+  "crm.restored": "Customer restored",
+  "crm.trash_empty": "No deleted customers.",
+  "crm.thr_pre": "after",
+  "crm.thr_post": "new customer messages"
 }

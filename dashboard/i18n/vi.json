@@ -6679,5 +6679,12 @@
   "staff.crm_grant": "Được dùng CRM vận hành",
   "staff.crm_hint": "Mở tab CRM cho tài khoản này, chỉ thấy khách của phòng mình",
   "crm.all_depts": "Tất cả phòng",
-  "crm.pick_dept": "Chọn một phòng ở ô phía trên để xem mục này."
+  "crm.pick_dept": "Chọn một phòng ở ô phía trên để xem mục này.",
+  "crm.trash": "Khách đã xoá",
+  "crm.trash_back": "Quay lại danh bạ",
+  "crm.restore": "Khôi phục",
+  "crm.restored": "Đã khôi phục khách",
+  "crm.trash_empty": "Không có khách nào đã xoá.",
+  "crm.thr_pre": "sau",
+  "crm.thr_post": "tin khách mới"
 }

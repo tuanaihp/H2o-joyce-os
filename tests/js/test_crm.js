@@ -55,7 +55,7 @@ const dong = {
   "crm.ev_": ["create", "edit", "deal", "todo", "dept", "extract", "approve", "wiki", "delete", "restore"],
 };
 Object.keys(dong).forEach((p) => dong[p].forEach((x) => dung.add(p + x)));
-["crm.all_depts", "crm.pick_dept", "crm.f_name", "crm.f_phone", "crm.f_email", "crm.f_company", "page.crm.label", "page.crm.title", "page.crm.sub", "staff.crm_grant", "staff.crm_hint"].forEach((k) => dung.add(k));
+["crm.all_depts", "crm.pick_dept", "crm.trash", "crm.trash_back", "crm.restore", "crm.restored", "crm.trash_empty", "crm.thr_pre", "crm.thr_post", "crm.f_name", "crm.f_phone", "crm.f_email", "crm.f_company", "page.crm.label", "page.crm.title", "page.crm.sub", "staff.crm_grant", "staff.crm_hint"].forEach((k) => dung.add(k));
 dung.delete("crm.f_"); dung.delete("crm.tab_"); dung.delete("crm.mode_"); dung.delete("crm.seg_"); dung.delete("crm.p_"); dung.delete("crm.ev_");
 const thieuVi = [...dung].filter((k) => !(k in vi));
 const thieuEn = [...dung].filter((k) => !(k in en));

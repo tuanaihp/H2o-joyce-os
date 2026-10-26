@@ -1,6 +1,6 @@
 # CRM quản trị khách hàng cho phòng ban - kế hoạch (TÀI LIỆU SỐNG)
 
-Trạng thái (26/10/2026): **mới rà soát và lập kế hoạch, chưa code.** Chờ chủ chốt 4 câu hỏi ở mục 8 rồi mới làm P1.
+Trạng thái (26/10/2026): **P0 đến P5 đã code xong ở nhánh `claude/crm-van-hanh-1-3-29` (v1.3.29), chưa merge `main`.** Chủ đã chốt 4 câu hỏi (mục 8). Việc còn chờ chủ ở mục 10.
 
 ## Cách dùng tài liệu này
 
@@ -11,7 +11,7 @@ Mỗi lần làm thêm thì cập nhật mục 6 (giai đoạn) và THÊM một 
 - File mẫu: `tai-lieu-update-tu-openai/update-quan-tri-crm/JOYCE_QUAN_LY_SHOP_REVID_PROTOTYPE_V1.html` (một trang HTML, dữ liệu mẫu "Tiệm bánh Mây", lưu bằng `localStorage`, chưa có server).
 - Phần liên quan CRM trong file mẫu: **Danh bạ khách, Pipeline cơ hội, Việc cần làm, "Thêm nhanh bằng AI" (dán đoạn chat để ra liên hệ), Hộp chat khách có khung thông tin CRM, Chăm sóc khách (phân khúc + lịch nhắc)**.
 - Các tab còn lại của file mẫu (Đơn bán hàng, Kho, Thu chi, Nhân sự và lương, Marketing, Ảnh AI, Báo giá) **không thuộc phạm vi CRM** và Joyce đã có chỗ riêng hoặc chưa cần. Không làm trong kế hoạch này.
-- **Đề xuất vị trí: đặt CRM làm tab thứ ba của trang Chatbot** (thanh bên, nhóm Năng lực, id `conversations`), cạnh "Hòm thư bot" và "Bot". Tên tab: **Khách hàng**. Lý do ở mục 3.
+- **Đã chốt (chủ, 26/10/2026): CRM là TRANG RIÊNG** ("CRM vận hành", thanh bên, nhóm Năng lực, id `crm`), KHÔNG làm tab trong Chatbot như đề xuất ban đầu. Lý do chủ nêu: sau này cấp quyền riêng cho từng tài khoản nhân viên. Mục 3 giữ lại để lưu lý lẽ, phần quyết định ghi ở mục 8.
 - Joyce đã có sẵn nền: bảng `customers` (tên, tag, ghi chú, metadata), `conversations`, `messages` trong `server/conversations.py`. Kế hoạch là **mở rộng nền đó**, không dựng kho thứ hai.
 - Nguyên tắc tiết kiệm quota (đã chốt trong repo): đếm, lọc, nhắc hạn, chia phòng do **code làm**; model chỉ đọc đoạn chat để trích thông tin và soạn nội dung.
 
@@ -38,7 +38,7 @@ Không làm:
 
 **Chưa có** (đây là phần file mẫu bổ sung): số điện thoại, công ty, nguồn khách; **cơ hội (deal) theo giai đoạn**; **việc chăm sóc gắn với khách**; **dòng thời gian tương tác**; **phân khúc khách**; **trích thông tin tự động từ đoạn chat**; **khách thuộc phòng nào**.
 
-Điểm cần kiểm lại trước khi code (chưa xác minh): route HTTP nào đang phơi `danh_sach_khach` ra dashboard (tìm trong `main.py` không thấy `/customers`; có thể do store pack cắm vào hoặc nằm file khác). P1 bắt đầu bằng việc xác minh điểm này.
+Đã xác minh khi làm P0: `danh_sach_khach` và các hàm đọc/ghi khách KHÔNG có route HTTP nào trong repo, chỉ gói `joyce.khach-hang-crm` (ở Kho cài đặt) gọi chúng. Vì vậy CRM mới dùng bảng riêng và có route riêng `/crm/*`, không đụng gói cũ.
 
 ## 3. Vì sao đặt ở tab thứ ba của Chatbot
 
@@ -100,6 +100,8 @@ Trên điện thoại: một cột, bấm khách mở chi tiết có nút quay l
 
 ## 6. Giai đoạn
 
+**Tất cả P0 đến P5 đã xong (26/10/2026).** Bảng dưới giữ nguyên làm lịch sử kế hoạch.
+
 Mỗi giai đoạn nhỏ, có test và merge riêng. Đặt xí chỗ số phiên bản trước khi code theo `docs/quy-uoc-dev.md`.
 
 | GĐ | Nội dung | Kết quả |
@@ -119,13 +121,45 @@ Mỗi giai đoạn nhỏ, có test và merge riêng. Đặt xí chỗ số phiê
 - Dữ liệu cá nhân khách: xem 4.4.
 - Nhiều phiên Claude đang sửa dở `main.py`, `console.js`, `index.html`: làm trong worktree riêng từ `origin/main`, không đụng thư mục chính.
 
-## 8. Câu hỏi chờ chủ chốt
+## 8. Quyết định đã chốt (chủ, 26/10/2026) và cách code hiện thực
+
+1. **Tab riêng "CRM vận hành"**, cấp quyền từng tài khoản: `h2o_staff.quyen` (danh sách, hiện chỉ có `crm`), mặc định rỗng. Admin tick ở trang Nhân viên ("Được dùng CRM vận hành") hoặc gọi `POST /h2o-staff/update quyen=crm`; gửi `quyen=-` để thu hết (Form rỗng bị FastAPI coi là không gửi). Nhân viên không tự cấp quyền được (`/h2o-staff*` chặn). Không có quyền: rail ẩn mục CRM, `/crm/*` trả 403.
+2. **Khách thuộc nhiều phòng** do em đề xuất và chủ giao quyết: khách có danh sách `depts`; **cơ hội, việc, giai đoạn thì của TỪNG phòng**. Phòng X chỉ thấy cơ hội và việc của X. Tạo cơ hội hoặc việc cho phòng X thì khách tự được thêm vào phòng X. Nút **+ / -** ở mục "Phòng phụ trách" thêm gỡ phòng; không gỡ được phòng cuối cùng. Nhân viên chỉ gán được phòng trong phạm vi của mình, phòng ngoài bị bỏ lặng lẽ.
+3. **5 giai đoạn mặc định** (Mới, Đang tư vấn, Chờ chốt, Đã chốt, Mất), **nút + và - ở Pipeline** để thêm xoá, riêng từng phòng. Giai đoạn thêm nằm trước Đã chốt; không xoá được Đã chốt và Mất; xoá giai đoạn thì cơ hội trong đó chuyển về giai đoạn mở đầu.
+4. **Joyce tự trích hồ sơ nhưng có duyệt**: ba chế độ `off` / `duyet` (mặc định) / `auto`, chủ hoặc Trưởng phòng đổi ở ô "Joyce tự trích hồ sơ". Chế độ duyệt: kết quả vào tab **Đề xuất**, nhân viên tick từng mục rồi Duyệt. Chế độ auto: Joyce áp thẳng nhưng vẫn ghi dòng thời gian "Joyce (tự động)". Nút bấm tay "Cập nhật hồ sơ từ chat" luôn ra đề xuất. Trường nhân viên đã sửa tay bị **khoá**, Joyce không đề xuất đổi.
+
+### Lệch so với kế hoạch ban đầu (cố ý)
+
+- **Việc chăm sóc có bảng riêng `crm_todos`** thay vì ghi thẳng vào Kanban với `customer_id`: cần lọc theo khách, hạn, trễ hạn mà Kanban không hỗ trợ truy vấn theo metadata. Việc xong thì **đáp xuống cột Xong của Kanban phòng** (`ghi_viec_xong`, như việc mẫu) nên quản lý vẫn thấy ở Việc → Công việc.
+- **Không sửa bảng cũ của hộp thư**, dùng bảng `crm_*` cùng file SQLite (không cần `ALTER TABLE`, không rủi ro cho kho đang chạy). Móc duy nhất vào hộp thư là một lời gọi `crm.khi_khach_nhan` cuối `ghi_su_kien`, bọc `try` nuốt lỗi.
+- **Wiki phòng do luật cố định viết**, không tốn model, và lọc SĐT và email khỏi mọi dòng (test bắt được một lỗi rò SĐT qua dòng thời gian, đã sửa).
+
+## 9. Tra cứu nhanh
+
+| Cần gì | Ở đâu |
+|---|---|
+| Logic, bảng, HTTP `/crm/*` | `server/crm.py` |
+| Giao diện | `dashboard/crm.js` (CSS tự chèn, chỉ token theme), khoá chữ `crm.*` trong `dashboard/i18n/vi.json` và `en.json` |
+| Gắn trang vào rail, ẩn theo quyền | `dashboard/console.js` (`RAIL_ITEMS`, `_coQuyenCrm`, `renderCrm`) |
+| Quyền từng tài khoản | `server/h2o_staff.py` (`quyen`), `main.py` (`/h2o-staff`, `/auth/status` trả `quyen`) |
+| Test | `tests/python/test_crm.py`, `test_crm_nhan_vien.py`, `tests/js/test_crm.js` |
+| Model trích hồ sơ | `crm.model_re`: cùng cách chọn nhà rẻ với `capability_embedding._resolve_target` (Z.ai flash miễn phí đứng đầu nếu có key) |
+
+## 10. Việc còn chờ chủ quyết
+
+1. **Khách trong hộp thư chưa gắn phòng**: bot/kênh chưa có bảng "kênh này thuộc phòng nào". Hiện Trưởng phòng hoặc chủ bấm "Nhập từ hộp thư" để chọn khách vào phòng. Muốn tự gán thì cần bảng kênh → phòng (cần chủ cho biết bot nào của phòng nào).
+2. **Mức quyền chi tiết hơn**: hiện `crm` là một quyền duy nhất (đọc ghi trọn trong phòng mình). Có cần tách "chỉ xem" không?
+3. **Xoá khách**: đang là xoá mềm, mọi nhân viên có quyền CRM đều xoá được và khôi phục được (nút "Khách đã xoá" ở Danh bạ). Cần giới hạn xoá cho Trưởng phòng không?
+4. **Ngưỡng tự trích** mặc định 8 tin khách mới, sửa được ở ô số cạnh chế độ tự trích (chủ và Trưởng phòng). Chế độ mặc định là Chờ duyệt. Chủ muốn mặc định khác không?
+5. **Lịch nhắc chăm sóc** (nhắn khách theo kịch bản) chưa làm: tab Phân khúc mới chỉ liệt kê nhóm khách, chưa gửi gì. Gửi tin cho khách phải đi qua Hòm thư bot và luật quyền sẵn có.
+6. Chưa thử với hội thoại Zalo/Telegram thật (test dùng sự kiện giả qua `ghi_su_kien`).
+
+## 11. Nhật ký
 
 1. Đặt **tab "Khách hàng" trong trang Chatbot** (đề xuất) hay mục thanh bên riêng?
 2. Một khách có thể thuộc **nhiều phòng** cùng lúc (ví dụ vừa Bán hàng vừa CSKH), hay mỗi khách một phòng phụ trách?
 3. Giai đoạn pipeline mặc định cho từng phòng: dùng 5 giai đoạn ở 4.1 hay anh có quy trình riêng (ví dụ Học viên: Đăng ký, Học thử, Đóng học phí, Đang học)?
 4. Có cho Joyce **tự trích hồ sơ** khi đủ N tin (phải nhớ là tốn lượt model) hay chỉ khi nhân viên bấm nút?
 
-## 9. Nhật ký
-
 - 26/10/2026: Rà soát file mẫu và nền sẵn có trong `conversations.py`; viết kế hoạch; chưa code.
+- 26/10/2026: Chủ chốt 4 câu hỏi. Code P0 đến P5 ở nhánh `claude/crm-van-hanh-1-3-29` (v1.3.29, dựng trên nhánh gộp 1.3.28 chưa merge): `server/crm.py`, `dashboard/crm.js`, quyền `crm` từng tài khoản, 3 file test. Thử thật bằng Chrome headless trên máy chủ thử cô lập: danh bạ, pipeline, nút + và - giai đoạn, chuyển cơ hội, việc xong đáp Kanban, phân khúc, màn hình điện thoại. Sửa thêm chữ nút chính khó đọc (`--on-accent`) ở CRM và khay Việc hằng ngày.
