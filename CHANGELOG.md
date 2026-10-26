@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.29] - 2026-10-26
+### Thêm mới
+- **CRM vận hành** (đang làm): tab riêng cho nhân viên các phòng quản khách hàng, cơ hội và việc chăm sóc.
+
 ## [1.3.28] - 2026-10-26
 ### Thêm mới
 - **Z.ai (GLM) thành bộ não thứ 12**: có sẵn model flash miễn phí (`glm-4.7-flash`, `glm-4.5-flash`, `glm-4.6v-flash`). Trang Models có khu "Não miễn phí", picker đánh chip FREE cho id đuôi `:free` (OpenRouter, TokenHarbor, 9router). Key chết thì thẻ tô đỏ kèm lý do và Joyce bỏ qua nhà đó khi dự phòng.
