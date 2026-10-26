@@ -2,6 +2,13 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.29] - 2026-10-26
+### Added
+- **Operations CRM**: a separate tab for departments to manage customers (Contacts, Pipeline, Tasks, Proposals, Segments). One customer can belong to several departments, and each department only sees its own deals and tasks. The pipeline has + and - buttons to add or remove stages.
+- **Per-account access**: the CRM tab is hidden from staff by default; tick "Can use the Operations CRM" on the Staff page to open it for that account only.
+- **Joyce collects customer profiles on its own**: it reads conversations and proposes needs, budget and deadlines; staff approve each item before it enters the profile. The owner picks Off, Review or Auto. Also "Quick add with AI" (paste a chat) and "Remember how to handle this customer" into the department wiki.
+- Fixed hard-to-read primary button text in the Daily jobs tray.
+
 ## [1.3.28] - 2026-10-26
 ### Added
 - **Z.ai (GLM) as the 12th brain**: free flash models included (`glm-4.7-flash`, `glm-4.5-flash`, `glm-4.6v-flash`). The Models page has a "Free brains" section and the picker puts a FREE chip on `:free` ids (OpenRouter, TokenHarbor, 9router). A dead key turns the card red with the reason and Joyce skips that provider in fallbacks.

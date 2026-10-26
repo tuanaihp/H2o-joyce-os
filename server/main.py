@@ -1671,7 +1671,8 @@ async def auth_status(request: Request):
             "require_login": require, "authed": authed,
             "staff": ({"id": staff["id"], "ten": staff["ten"], "role": staff.get("role") or "staff",
                        "sdt": staff.get("sdt") or "",
-                       "models": staff.get("models") or []}
+                       "models": staff.get("models") or [],
+                       "quyen": staff.get("quyen") or []}
                       if (staff and not has_session) else None),
             # 2FA lộ ra ở đây là CỐ Ý và không phải rò rỉ: màn đăng nhập cần biết có hỏi ô mã
             # hay không, mà việc "tài khoản này có 2FA" thì kẻ tấn công cũng biết ngay sau lần
@@ -13396,6 +13397,14 @@ import viec_mau
 
 viec_mau.register(app, _brain_root, lambda: tasks_feature)
 
+# CRM VẬN HÀNH (crm.py, docs/dev/2026-10-crm-quan-tri-khach-hang.md): khách, cơ hội, việc chăm sóc
+# theo phòng. Nhân viên chỉ vào khi admin cấp quyền `crm` (h2o_staff.quyen); phạm vi phòng lấy từ
+# _STAFF_SCOPE, nên /crm KHÔNG đọc/ghi được dữ liệu của phòng không thuộc mình.
+import crm
+
+crm.register(app, lambda: h2o_departments.list_all().get("phong", []),
+             lambda: _STAFF_SCOPE.get() or (), lambda: tasks_feature, _brain_root)
+
 
 @app.get("/work/sweep")
 async def work_sweep(notify: bool = False):
@@ -21573,12 +21582,13 @@ async def h2o_staff_list(request: Request):
 @app.post("/h2o-staff")
 async def h2o_staff_add(request: Request, ten: str = Form(...), sdt: str = Form(...),
                         pin: str = Form(...), role: str = Form("staff"),
-                        models: str = Form(""), phong_ban: str = Form("")):
+                        models: str = Form(""), phong_ban: str = Form(""), quyen: str = Form("")):
     if _staff_req(request):
         return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
     ds = [m.strip() for m in re.split(r"[,\n]", models or "") if m.strip()]
     ok, r = h2o_staff_mod.create(ten, sdt, pin, role=role, models=ds,
-                                 phong_ban=[x.strip() for x in re.split(r"[,\n]", phong_ban or "") if x.strip()])
+                                 phong_ban=[x.strip() for x in re.split(r"[,\n]", phong_ban or "") if x.strip()],
+                                 quyen=[x.strip() for x in re.split(r"[,\n]", quyen or "") if x.strip()])
     if not ok:
         return JSONResponse({"ok": False, "error": r}, status_code=400)
     return {"ok": True, "staff": r}
@@ -21588,10 +21598,13 @@ async def h2o_staff_add(request: Request, ten: str = Form(...), sdt: str = Form(
 async def h2o_staff_update(request: Request, id: str = Form(...), ten: str = Form(None),
                            sdt: str = Form(None), pin: str = Form(None),
                            role: str = Form(None), models: str = Form(None),
-                           active: str = Form(None), phong_ban: str = Form(None)):
+                           active: str = Form(None), phong_ban: str = Form(None),
+                           quyen: str = Form(None)):
     if _staff_req(request):
         return JSONResponse({"ok": False, "error": "staff_denied"}, status_code=403)
     kw = {"ten": ten, "sdt": sdt, "pin": pin, "role": role}
+    if quyen is not None:
+        kw["quyen"] = [x.strip() for x in re.split(r"[,\n]", quyen) if x.strip() and x.strip() != "-"]
     if models is not None:
         kw["models"] = [m.strip() for m in re.split(r"[,\n]", models) if m.strip()]
     if active is not None:

@@ -206,6 +206,7 @@ const I18N_MIGRATED = [
   "dashboard/chatbots-reply-policy.js",      // 0.65.0: viết mới, sạch chuỗi Việt từ đầu
   "dashboard/brain-constellation.js",        // 1.3.24: Tinh vân chòm sao, viết mới qua window.t
   "dashboard/viec-mau.js",                  // 1.3.27: Việc hằng ngày, viết mới qua tw()
+  "dashboard/crm.js",                       // 1.3.29: CRM vận hành, viết mới qua tw()
 ];
 
 for (const rel of I18N_MIGRATED) {

@@ -2,6 +2,19 @@
   "format_version": 1,
   "announcements": [
     {
+      "id": "crm-van-hanh",
+      "kind": "community",
+      "title": "CRM vận hành cho từng phòng ban",
+      "summary": "Tab riêng quản khách, cơ hội và việc chăm sóc; Joyce tự đề xuất hồ sơ từ hội thoại, nhân viên duyệt.",
+      "body": "Một khách có thể thuộc nhiều phòng, mỗi phòng chỉ thấy cơ hội và việc của phòng mình. Pipeline thêm hoặc xoá giai đoạn bằng nút + và -. Joyce đọc hội thoại rồi đề xuất nhu cầu, ngân sách, hạn; chỉ mục nào nhân viên duyệt mới vào hồ sơ (chủ chọn Tắt, Chờ duyệt hoặc Tự áp). Tab CRM mặc định ẩn với nhân viên, chủ cấp quyền từng tài khoản ở trang Nhân viên.",
+      "published_at": "2026-10-26",
+      "priority": "normal",
+      "cta": {
+        "label": "Xem nhật ký cập nhật →",
+        "action": "changelog"
+      }
+    },
+    {
       "id": "semantic-capability-match",
       "kind": "community",
       "title": "Gọi tool theo ý nghĩa, không cần đúng từ khoá",

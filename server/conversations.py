@@ -382,6 +382,12 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
             except Exception:
                 db.execute("ROLLBACK")
                 raise
+        if e["sender_type"] == "customer" and customer_id:
+            try:      # CRM: đủ ngưỡng tin mới thì đề xuất cập nhật hồ sơ (nuốt mọi lỗi)
+                import crm
+                crm.khi_khach_nhan(customer_id)
+            except Exception:
+                pass
         return {"ok": True, "trung": False, "conversation_id": conv_id, "message_id": msg_id,
                 "customer_id": customer_id}
     except Exception as ex:

@@ -521,7 +521,7 @@
       ".vm-err{color:var(--danger-ink);font-size:13px}",
       ".vm-fa{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
       ".vm-tools{margin-left:auto;display:flex;gap:4px}",
-      ".vm-go{border:0;border-radius:10px;padding:8px 16px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:14px;cursor:pointer}",
+      ".vm-go{border:0;border-radius:10px;padding:8px 16px;background:var(--accent);color:var(--on-accent);font:inherit;font-size:14px;cursor:pointer}",
       ".vm-go:disabled{opacity:.6;cursor:default}",
       ".vm-ghost{border:0;background:transparent;color:var(--text2);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}",
       ".vm-ghost:hover{background:var(--wash);color:var(--text)}",

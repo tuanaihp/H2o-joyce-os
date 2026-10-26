@@ -88,7 +88,20 @@ def by_sdt(sdt: str):
     return None
 
 
-def create(ten: str, sdt: str, pin: str, role: str = "staff", models=None, phong_ban=None):
+# Quyền mở thêm từng trang riêng cho một tài khoản (admin cấp). Mặc định KHÔNG có quyền nào.
+QUYEN_HOP_LE = ("crm",)
+
+
+def _quyen_hop_le(qs) -> list:
+    out = []
+    for q in (qs or []):
+        q = str(q or "").strip()
+        if q in QUYEN_HOP_LE and q not in out:
+            out.append(q)
+    return out
+
+
+def create(ten: str, sdt: str, pin: str, role: str = "staff", models=None, phong_ban=None, quyen=None):
     """(ok, err|record). PIN 4-8 chữ số; SĐT là khoá đăng nhập nên phải duy nhất."""
     ten = str(ten or "").strip()
     sdt_n = norm_sdt(sdt)
@@ -110,6 +123,7 @@ def create(ten: str, sdt: str, pin: str, role: str = "staff", models=None, phong
         "id": sid, "ten": ten, "sdt": sdt_n, "pin_hash": h, "pin_salt": salt,
         "role": role, "models": [str(m) for m in (models or []) if str(m).strip()],
         "phong_ban": _phong_hop_le(phong_ban),
+        "quyen": _quyen_hop_le(quyen),
         "active": True, "created": time.time(),
     }
     d["staff"].append(rec)
@@ -119,7 +133,7 @@ def create(ten: str, sdt: str, pin: str, role: str = "staff", models=None, phong
 
 
 def update(sid: str, ten=None, sdt=None, pin=None, role=None, models=None, active=None,
-           phong_ban=None):
+           phong_ban=None, quyen=None):
     d = _doc()
     for s in d["staff"]:
         if s.get("id") != sid:
@@ -149,6 +163,8 @@ def update(sid: str, ten=None, sdt=None, pin=None, role=None, models=None, activ
             s["active"] = bool(active)
         if phong_ban is not None:
             s["phong_ban"] = _phong_hop_le(phong_ban)
+        if quyen is not None:
+            s["quyen"] = _quyen_hop_le(quyen)
         _save(d)
         return True, _view(s)
     return False, "Không tìm thấy nhân viên"

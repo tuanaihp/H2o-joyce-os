@@ -42,6 +42,7 @@
     lotrinh: "clipboard-check",
     chatbots: "headset",
     conversations: "messages-square",
+    crm: "users",
     skills: "puzzle",
     files: "folder-tree",
     selfimprove: "repeat",
@@ -125,7 +126,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
-    "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "files",
+    "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "crm", "files",
     "terminal", "coding", "projects", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -174,7 +175,7 @@
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal", "coding", "projects"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "conversations", "skills", "plugins"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "conversations", "crm", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "sodo", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
@@ -208,6 +209,12 @@
   const RAIL_AN_KHONG_QUAN_LY = new Set(["departments", "chungcat"]);
   // typeof: rail còn được dựng trong môi trường không có window (test chạy console.js trong vm).
   const _laNhanVien = () => typeof window !== "undefined" && !!(window.__h2oStaff || window.__h2oStaffNav);
+  // CRM vận hành là tab RIÊNG: nhân viên chỉ thấy khi admin cấp quyền `crm` cho tài khoản (h2o_staff.quyen).
+  // Server vẫn tự kiểm 403, đây chỉ để khỏi bày một mục bấm vào không được.
+  function _coQuyenCrm() {
+    const s = typeof window !== "undefined" ? window.__h2oStaff : null;
+    return !!(s && Array.isArray(s.quyen) && s.quyen.indexOf("crm") >= 0);
+  }
   // Nhóm quyền theo chức vụ, khớp _STAFF_CAP phía server: "admin" | "quan_ly" | "nhan_vien" | "hoc_viec".
   function _quyenNV() {
     const s = typeof window !== "undefined" ? window.__h2oStaff : null;
@@ -222,7 +229,8 @@
     const nv = _laNhanVien();
     const quanLy = nv && _quyenNV() === "quan_ly";
     const an = (id) => RAIL_AN.has(id) || (nv && RAIL_AN_NHAN_VIEN.has(id))
-      || (nv && !quanLy && RAIL_AN_KHONG_QUAN_LY.has(id));
+      || (nv && !quanLy && RAIL_AN_KHONG_QUAN_LY.has(id))
+      || (nv && id === "crm" && !_coQuyenCrm());
     const groups = RAIL_GROUPS.map(g => {
       const items = (g.ids || [])
         .map(id => { seen.add(id); return an(id) ? null : RAIL_BY_ID[id]; })
@@ -255,7 +263,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -734,6 +742,7 @@
       return window.JoyceTeams.render(el);
     }
     if (id === "conversations") return renderConversations(el);
+    if (id === "crm") return renderCrm(el);
     if (id === "learn")    return renderLearn(el);
     // Nhóm Tổng quan: bốn trang con do overview.js vẽ (cùng kiểu uỷ quyền như camnang.js).
     if (["command", "departments", "calendar", "reports", "chungcat"].includes(id)) {
@@ -856,6 +865,13 @@
     const fn = window.JoyceConversations && window.JoyceConversations.render;
     if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("conversations", window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder("conversations", window.t("cs.mod_not_ready", { ten: "conversations.js" }));
+  }
+
+  // Trang CRM vận hành do crm.js dựng - cùng kiểu uỷ quyền.
+  function renderCrm(el) {
+    const fn = window.JoyceCrm && window.JoyceCrm.render;
+    if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("crm", window.t("cs.err_load") + e.message); } }
+    else el.innerHTML = placeholder("crm", window.t("cs.mod_not_ready", { ten: "crm.js" }));
   }
 
   // Trang Coding: nằm trong NHÓM Code trên rail, nhưng KHÔNG do code-term.js dựng.
@@ -1230,6 +1246,9 @@
         <div class="popover-label" style="margin-top:12px">${esc(t("staff.dept_lbl"))}</div>
         <div class="qs-hint" style="margin:2px 0 8px">${esc(t("staff.dept_hint"))}</div>
         <div id="stFDept" class="st-dept-pick"></div>
+        <div class="popover-label" style="margin-top:12px">${esc(t("staff.crm_grant"))}</div>
+        <div class="qs-hint" style="margin:2px 0 8px">${esc(t("staff.crm_hint"))}</div>
+        <label class="st-model-chip"><input type="checkbox" id="stFCrm"><span>${esc(t("staff.crm_grant"))}</span></label>
         <div class="si-actions" style="margin-top:12px">
           <button class="s-btn" id="stFSave" type="button">${esc(t("common.save"))}</button>
           <button class="s-btn-ghost" id="stFCancel" type="button">${esc(t("common.cancel"))}</button>
@@ -1332,6 +1351,7 @@
           : ({ staff: "nhan_vien", lead: "truong_phong" }[s.role] || "nhan_vien");
         el.querySelectorAll("#stFModels input[type=checkbox]").forEach(c => { c.checked = (s.models || []).includes(c.value); });
         setDeptPick(s.phong_ban || []);
+        el.querySelector("#stFCrm").checked = (s.quyen || []).includes("crm");
         el.querySelector("#stFTen").focus();
       });
     };
@@ -1344,6 +1364,7 @@
       ["#stFTen", "#stFSdt", "#stFPin"].forEach(i => el.querySelector(i).value = "");
       el.querySelectorAll("#stFModels input[type=checkbox]").forEach(c => c.checked = false);
       setDeptPick([]);
+      el.querySelector("#stFCrm").checked = false;
       el.querySelector("#stFTen").focus();
     };
     el.querySelector("#stFCancel").onclick = () => { el.querySelector("#stForm").style.display = "none"; };
@@ -1351,7 +1372,8 @@
       const models = [...el.querySelectorAll("#stFModels input:checked")].map(c => c.value);
       const body = { ten: el.querySelector("#stFTen").value.trim(), sdt: el.querySelector("#stFSdt").value.trim(),
                      role: el.querySelector("#stFRole").value, models: models.join("\n"),
-                     phong_ban: deptOrder.join("\n") };
+                     phong_ban: deptOrder.join("\n"),
+                     quyen: el.querySelector("#stFCrm").checked ? "crm" : "-" };
       const pin = el.querySelector("#stFPin").value.trim();
       if (editId) {
         body.id = editId;
