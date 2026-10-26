@@ -40,7 +40,12 @@ check("trang crm co trong RAIL_ITEMS, nhom Nang luc, VIEW_META va co ham ve",
   && /"conversations", "crm", "learn"/.test(con) && /if \(id === "crm"\) return renderCrm\(el\)/.test(con));
 check("nhan vien an muc CRM tru khi duoc cap quyen (_coQuyenCrm)", /nv && id === "crm" && !_coQuyenCrm\(\)/.test(con)
   && /quyen\.indexOf\("crm"\) >= 0/.test(con));
-check("form nhan vien co o tick CRM va gui quyen", /id="stFCrm"/.test(con) && /quyen: el\.querySelector\("#stFCrm"\)\.checked \? "crm" : "-"/.test(con));
+check("form nhan vien co o chon quyen CRM (khong / chi xem / day du) va gui quyen", /id="stFCrm"/.test(con) && /value="crm_xem"/.test(con)
+  && /quyen: el\.querySelector\("#stFCrm"\)\.value \|\| "-"/.test(con));
+check("nhan vien chi xem cung thay muc CRM", /quyen\.indexOf\("crm_xem"\) >= 0/.test(con));
+check("che do chi xem khoa moi dieu khien ghi", /function khoaGhi\(\)/.test(src) && /S\.me\.chi_xem\) khoaGhi\(\)/.test(src));
+check("nut xoa va khach da xoa chi hien cho quan ly hoac admin", /S\.me\.admin \|\| S\.me\.quan_ly\) \? '<button class="crm-btn dng" data-a="delete"/.test(src)
+  && /S\.me\.admin \|\| S\.me\.quan_ly\) \? '<button class="crm-btn" data-a="trash"/.test(src));
 check("bo lang nghe gan tren goc rieng, khong gan len khung dung chung", /document\.createElement\("div"\)/.test(src) && /el\.addEventListener\("click"/.test(src)
   && !/host\.addEventListener/.test(src));
 
@@ -55,13 +60,13 @@ const dong = {
   "crm.ev_": ["create", "edit", "deal", "todo", "dept", "extract", "approve", "wiki", "delete", "restore"],
 };
 Object.keys(dong).forEach((p) => dong[p].forEach((x) => dung.add(p + x)));
-["crm.all_depts", "crm.pick_dept", "crm.trash", "crm.trash_back", "crm.restore", "crm.restored", "crm.trash_empty", "crm.thr_pre", "crm.thr_post", "crm.f_name", "crm.f_phone", "crm.f_email", "crm.f_company", "page.crm.label", "page.crm.title", "page.crm.sub", "staff.crm_grant", "staff.crm_hint"].forEach((k) => dung.add(k));
+["crm.all_depts", "crm.pick_dept", "crm.trash", "crm.trash_back", "crm.restore", "crm.restored", "crm.trash_empty", "crm.thr_pre", "crm.thr_post", "crm.f_name", "crm.f_phone", "crm.f_email", "crm.f_company", "page.crm.label", "page.crm.title", "page.crm.sub", "staff.crm_grant", "staff.crm_hint", "staff.crm_none", "staff.crm_view", "staff.crm_full", "crm.dept_on", "crm.dept_on_saved", "crm.read_only", "crm.no_dept"].forEach((k) => dung.add(k));
 dung.delete("crm.f_"); dung.delete("crm.tab_"); dung.delete("crm.mode_"); dung.delete("crm.seg_"); dung.delete("crm.p_"); dung.delete("crm.ev_");
 const thieuVi = [...dung].filter((k) => !(k in vi));
 const thieuEn = [...dung].filter((k) => !(k in en));
 check(`du khoa vi cho ${dung.size} khoa` + (thieuVi.length ? " THIEU: " + thieuVi.join() : ""), thieuVi.length === 0);
 check("du khoa en" + (thieuEn.length ? " THIEU: " + thieuEn.join() : ""), thieuEn.length === 0);
-const mine = (o) => Object.keys(o).filter((k) => k.startsWith("crm.") || k.startsWith("page.crm.") || k === "staff.crm_grant" || k === "staff.crm_hint").sort().join();
+const mine = (o) => Object.keys(o).filter((k) => k.startsWith("crm.") || k.startsWith("page.crm.") || k.startsWith("staff.crm_")).sort().join();
 check("khoa crm.* khop giua vi va en", mine(vi) === mine(en));
 const dau = String.fromCharCode(0x2014);
 const co = (o) => Object.keys(o).filter((k) => /crm/.test(k)).some((k) => o[k].indexOf(dau) >= 0);

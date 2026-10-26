@@ -237,6 +237,35 @@ def _put_set(db, key: str, value: str) -> None:
                " ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
 
 
+def phong_bat() -> Optional[set]:
+    """Các phòng ĐƯỢC MỞ CRM. None = chưa ai cấu hình, mọi phòng đều mở (giữ hành vi cũ).
+    Đã cấu hình thì phòng nào không có trong danh sách thì nhân viên phòng đó không xem được."""
+    raw = _dung(lambda db: _get_set(db, "phong_bat", ""))
+    if not raw:
+        return None
+    try:
+        ds = json.loads(raw)
+    except Exception:
+        return None
+    return {str(x) for x in ds} if isinstance(ds, list) else None
+
+
+def dat_phong_bat(brain: str, bat: bool, tat_ca: List[str]) -> List[str]:
+    cur = phong_bat()
+    ds = set(tat_ca) if cur is None else set(cur)
+    if bat:
+        ds.add(brain)
+    else:
+        ds.discard(brain)
+    ra = sorted(ds)
+
+    def f(db):
+        _put_set(db, "phong_bat", json.dumps(ra, ensure_ascii=False))
+        db.commit()
+    _dung(f)
+    return ra
+
+
 def che_do_trich() -> str:
     v = _dung(lambda db: _get_set(db, "auto_mode", "duyet"))
     return v if v in CHE_DO else "duyet"
@@ -1045,16 +1074,28 @@ def tong_quan(brain: str, allowed: Optional[set]) -> dict:
 
 
 # ------------------------------------------------------------------ HTTP
+QUAN_LY = ("ceo", "giam_doc", "truong_phong", "lead")
+
+
 def _nguoi(request: Request) -> tuple:
-    """(ten, allowed|None, la_quan_ly). Nhân viên chưa được cấp `crm` thì 403."""
+    """(ten, allowed|None, la_quan_ly).
+
+    Nhân viên cần quyền `crm` (dùng đầy đủ) hoặc `crm_xem` (chỉ xem; mọi method ghi trả 403), và chỉ
+    thấy các phòng vừa thuộc phạm vi của mình vừa đã được admin MỞ CRM (`phong_bat`)."""
     st = getattr(request.state, "staff", None) or {}
     if not st:
         return "Chủ", None, True
-    if "crm" not in (st.get("quyen") or []):
+    q = st.get("quyen") or []
+    if "crm" not in q and "crm_xem" not in q:
         raise HTTPException(403, "Tài khoản chưa được cấp quyền dùng CRM")
+    if "crm" not in q and request.method != "GET":
+        raise HTTPException(403, "Tài khoản chỉ được xem CRM, không sửa được")
     scope = _deps["scope"]() or ()
     allowed = {Path(r).name for r in scope}
-    quan_ly = str(st.get("role") or "") in ("ceo", "giam_doc", "truong_phong", "lead")
+    bat = phong_bat()
+    if bat is not None:
+        allowed &= bat
+    quan_ly = str(st.get("role") or "") in QUAN_LY
     return str(st.get("ten") or "Nhân viên"), allowed, quan_ly
 
 
@@ -1105,7 +1146,12 @@ async def crm_me(request: Request):
     ph = _deps["phong"]()
     if allowed is not None:
         ph = [p for p in ph if p.get("brain") in allowed] or [{"brain": b, "ten": b} for b in sorted(allowed)]
-    return {"ok": True, "ten": ten, "admin": allowed is None, "quan_ly": ql, "phong": ph,
+    else:
+        bat = phong_bat()
+        ph = [dict(p, bat=(bat is None or p.get("brain") in bat)) for p in ph]
+    st = getattr(request.state, "staff", None) or {}
+    chi_xem = bool(st) and "crm" not in (st.get("quyen") or [])
+    return {"ok": True, "ten": ten, "admin": allowed is None, "quan_ly": ql, "phong": ph, "chi_xem": chi_xem,
             "mac_dinh": (_phong_chinh(allowed, request) if allowed is not None
                          else (ph[0]["brain"] if ph else "")),
             "che_do": che_do_trich(), "nguong": nguong_trich()}
@@ -1176,7 +1222,9 @@ async def crm_phong(request: Request, id: int = Form(...), brain: str = Form(...
 @router.post("/crm/lien-he/xoa")
 @_loi
 async def crm_xoa(request: Request, id: int = Form(...), khoi_phuc: int = Form(0)):
-    ten, allowed, _ql = _nguoi(request)
+    ten, allowed, ql = _nguoi(request)
+    if allowed is not None and not ql:
+        raise HTTPException(403, "Chỉ chủ, CEO, giám đốc hoặc trưởng phòng được xoá hoặc khôi phục khách")
     return {"ok": xoa_lien_he(id, allowed, ten, bool(khoi_phuc))}
 
 
@@ -1206,6 +1254,19 @@ async def crm_set_trich(request: Request, che_do: str = Form(""), nguong: int = 
         db.commit()
     _dung(f)
     return {"ok": True, "che_do": che_do_trich(), "nguong": nguong_trich()}
+
+
+@router.post("/crm/cau-hinh/phong")
+@_loi
+async def crm_set_phong(request: Request, brain: str = Form(...), bat: int = Form(1)):
+    """Admin mở/đóng CRM cho từng phòng. Phòng đóng thì nhân viên phòng đó không xem được gì."""
+    _, allowed, _ql = _nguoi(request)
+    if allowed is not None:
+        raise HTTPException(403, "Chỉ chủ mới mở hoặc đóng CRM theo phòng")
+    tat_ca = [p.get("brain") for p in _deps["phong"]() if p.get("brain")]
+    if brain.strip() not in tat_ca:
+        raise HTTPException(400, "Không có phòng này")
+    return {"ok": True, "phong_bat": dat_phong_bat(brain.strip(), bool(bat), tat_ca)}
 
 
 @router.post("/crm/giai-doan")

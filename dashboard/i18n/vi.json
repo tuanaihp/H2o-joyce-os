@@ -6676,8 +6676,8 @@
   "crm.ev_wiki": "Wiki",
   "crm.ev_delete": "Xoá",
   "crm.ev_restore": "Khôi phục",
-  "staff.crm_grant": "Được dùng CRM vận hành",
-  "staff.crm_hint": "Mở tab CRM cho tài khoản này, chỉ thấy khách của phòng mình",
+  "staff.crm_grant": "CRM vận hành",
+  "staff.crm_hint": "Mở tab CRM cho tài khoản này. Chỉ xem: không sửa được gì. Chỉ phòng đã được mở CRM mới thấy.",
   "crm.all_depts": "Tất cả phòng",
   "crm.pick_dept": "Chọn một phòng ở ô phía trên để xem mục này.",
   "crm.trash": "Khách đã xoá",
@@ -6686,5 +6686,12 @@
   "crm.restored": "Đã khôi phục khách",
   "crm.trash_empty": "Không có khách nào đã xoá.",
   "crm.thr_pre": "sau",
-  "crm.thr_post": "tin khách mới"
+  "crm.thr_post": "tin khách mới",
+  "staff.crm_none": "Không dùng CRM",
+  "staff.crm_view": "Chỉ xem",
+  "staff.crm_full": "Dùng đầy đủ",
+  "crm.dept_on": "Mở CRM cho phòng này",
+  "crm.dept_on_saved": "Đã đổi trạng thái CRM của phòng",
+  "crm.read_only": "Chỉ xem",
+  "crm.no_dept": "Chưa có phòng nào của bạn được mở CRM. Nhờ quản trị mở CRM cho phòng."
 }

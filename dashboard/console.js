@@ -213,7 +213,7 @@
   // Server vẫn tự kiểm 403, đây chỉ để khỏi bày một mục bấm vào không được.
   function _coQuyenCrm() {
     const s = typeof window !== "undefined" ? window.__h2oStaff : null;
-    return !!(s && Array.isArray(s.quyen) && s.quyen.indexOf("crm") >= 0);
+    return !!(s && Array.isArray(s.quyen) && (s.quyen.indexOf("crm") >= 0 || s.quyen.indexOf("crm_xem") >= 0));
   }
   // Nhóm quyền theo chức vụ, khớp _STAFF_CAP phía server: "admin" | "quan_ly" | "nhan_vien" | "hoc_viec".
   function _quyenNV() {
@@ -1248,7 +1248,11 @@
         <div id="stFDept" class="st-dept-pick"></div>
         <div class="popover-label" style="margin-top:12px">${esc(t("staff.crm_grant"))}</div>
         <div class="qs-hint" style="margin:2px 0 8px">${esc(t("staff.crm_hint"))}</div>
-        <label class="st-model-chip"><input type="checkbox" id="stFCrm"><span>${esc(t("staff.crm_grant"))}</span></label>
+        <select class="js-input" id="stFCrm" style="max-width:260px">
+          <option value="">${esc(t("staff.crm_none"))}</option>
+          <option value="crm_xem">${esc(t("staff.crm_view"))}</option>
+          <option value="crm">${esc(t("staff.crm_full"))}</option>
+        </select>
         <div class="si-actions" style="margin-top:12px">
           <button class="s-btn" id="stFSave" type="button">${esc(t("common.save"))}</button>
           <button class="s-btn-ghost" id="stFCancel" type="button">${esc(t("common.cancel"))}</button>
@@ -1351,7 +1355,7 @@
           : ({ staff: "nhan_vien", lead: "truong_phong" }[s.role] || "nhan_vien");
         el.querySelectorAll("#stFModels input[type=checkbox]").forEach(c => { c.checked = (s.models || []).includes(c.value); });
         setDeptPick(s.phong_ban || []);
-        el.querySelector("#stFCrm").checked = (s.quyen || []).includes("crm");
+        el.querySelector("#stFCrm").value = (s.quyen || []).includes("crm") ? "crm" : ((s.quyen || []).includes("crm_xem") ? "crm_xem" : "");
         el.querySelector("#stFTen").focus();
       });
     };
@@ -1364,7 +1368,7 @@
       ["#stFTen", "#stFSdt", "#stFPin"].forEach(i => el.querySelector(i).value = "");
       el.querySelectorAll("#stFModels input[type=checkbox]").forEach(c => c.checked = false);
       setDeptPick([]);
-      el.querySelector("#stFCrm").checked = false;
+      el.querySelector("#stFCrm").value = "";
       el.querySelector("#stFTen").focus();
     };
     el.querySelector("#stFCancel").onclick = () => { el.querySelector("#stForm").style.display = "none"; };
@@ -1373,7 +1377,7 @@
       const body = { ten: el.querySelector("#stFTen").value.trim(), sdt: el.querySelector("#stFSdt").value.trim(),
                      role: el.querySelector("#stFRole").value, models: models.join("\n"),
                      phong_ban: deptOrder.join("\n"),
-                     quyen: el.querySelector("#stFCrm").checked ? "crm" : "-" };
+                     quyen: el.querySelector("#stFCrm").value || "-" };
       const pin = el.querySelector("#stFPin").value.trim();
       if (editId) {
         body.id = editId;

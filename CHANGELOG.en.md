@@ -5,7 +5,7 @@
 ## [1.3.29] - 2026-10-26
 ### Added
 - **Operations CRM**: a separate tab for departments to manage customers (Contacts, Pipeline, Tasks, Proposals, Segments). One customer can belong to several departments, and each department only sees its own deals and tasks. The pipeline has + and - buttons to add or remove stages.
-- **Per-account access**: the CRM tab is hidden from staff by default; tick "Can use the Operations CRM" on the Staff page to open it for that account only.
+- **Per-account and per-department access**: the CRM tab is hidden by default. On the Staff page pick "View only" or "Full access" per account; the owner also switches CRM on or off per department, and only switched-on departments are visible. Only the owner, CEO, directors and department heads can delete customers or import them from the inbox.
 - **Joyce collects customer profiles on its own**: it reads conversations and proposes needs, budget and deadlines; staff approve each item before it enters the profile. The owner picks Off, Review or Auto. Also "Quick add with AI" (paste a chat) and "Remember how to handle this customer" into the department wiki.
 - Fixed hard-to-read primary button text in the Daily jobs tray.
 

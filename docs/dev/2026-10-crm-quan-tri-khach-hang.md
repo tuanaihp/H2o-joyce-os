@@ -147,11 +147,11 @@ Mỗi giai đoạn nhỏ, có test và merge riêng. Đặt xí chỗ số phiê
 
 ## 10. Việc còn chờ chủ quyết
 
-1. **Khách trong hộp thư chưa gắn phòng**: bot/kênh chưa có bảng "kênh này thuộc phòng nào". Hiện Trưởng phòng hoặc chủ bấm "Nhập từ hộp thư" để chọn khách vào phòng. Muốn tự gán thì cần bảng kênh → phòng (cần chủ cho biết bot nào của phòng nào).
-2. **Mức quyền chi tiết hơn**: hiện `crm` là một quyền duy nhất (đọc ghi trọn trong phòng mình). Có cần tách "chỉ xem" không?
-3. **Xoá khách**: đang là xoá mềm, mọi nhân viên có quyền CRM đều xoá được và khôi phục được (nút "Khách đã xoá" ở Danh bạ). Cần giới hạn xoá cho Trưởng phòng không?
+1. **Khách trong hộp thư chưa gắn phòng tự động** (chủ chốt 27/10: để Trưởng phòng, giám đốc, CEO hoặc chủ tự bấm "Nhập từ hộp thư", đã làm). Tự gán chỉ cần khi có bảng kênh → phòng; chưa ai yêu cầu.
+2. ~~Tách quyền chỉ xem~~ **Đã làm 27/10**: `crm_xem` (chỉ xem, mọi method ghi trả 403, UI gỡ nút ghi) và `crm` (đầy đủ). Thêm lớp theo phòng: chủ mở hoặc đóng CRM cho từng phòng (`crm_settings.phong_bat`, ô tick "Mở CRM cho phòng này" khi chọn một phòng). Chưa cấu hình gì thì mọi phòng đều mở; đã cấu hình thì phòng ngoài danh sách không thấy gì.
+3. ~~Xoá khách~~ **Đã chốt 27/10**: chỉ chủ, CEO, giám đốc, trưởng phòng xoá và khôi phục được (xoá mềm, nút "Khách đã xoá" ở Danh bạ); nhân viên thường không thấy nút.
 4. **Ngưỡng tự trích** mặc định 8 tin khách mới, sửa được ở ô số cạnh chế độ tự trích (chủ và Trưởng phòng). Chế độ mặc định là Chờ duyệt. Chủ muốn mặc định khác không?
-5. **Lịch nhắc chăm sóc** (nhắn khách theo kịch bản) chưa làm: tab Phân khúc mới chỉ liệt kê nhóm khách, chưa gửi gì. Gửi tin cho khách phải đi qua Hòm thư bot và luật quyền sẵn có.
+5. **Nhắn khách theo kịch bản**: chủ chốt 27/10 để thử sau. Tab Phân khúc mới chỉ liệt kê nhóm khách, chưa gửi gì; gửi tin cho khách phải đi qua Hòm thư bot và luật quyền sẵn có.
 6. Chưa thử với hội thoại Zalo/Telegram thật (test dùng sự kiện giả qua `ghi_su_kien`).
 
 ## 11. Nhật ký
@@ -163,3 +163,4 @@ Mỗi giai đoạn nhỏ, có test và merge riêng. Đặt xí chỗ số phiê
 
 - 26/10/2026: Rà soát file mẫu và nền sẵn có trong `conversations.py`; viết kế hoạch; chưa code.
 - 26/10/2026: Chủ chốt 4 câu hỏi. Code P0 đến P5 ở nhánh `claude/crm-van-hanh-1-3-29` (v1.3.29, dựng trên nhánh gộp 1.3.28 chưa merge): `server/crm.py`, `dashboard/crm.js`, quyền `crm` từng tài khoản, 3 file test. Thử thật bằng Chrome headless trên máy chủ thử cô lập: danh bạ, pipeline, nút + và - giai đoạn, chuyển cơ hội, việc xong đáp Kanban, phân khúc, màn hình điện thoại. Sửa thêm chữ nút chính khó đọc (`--on-accent`) ở CRM và khay Việc hằng ngày.
+- 27/10/2026: Chủ chốt vòng 2: nhập hộp thư do quản lý tự bấm; quyền chỉ xem theo phòng; xoá khách chỉ quản lý. Code: quyền `crm_xem`, `phong_bat` mở CRM theo phòng, xoá khách chỉ quản lý, UI gỡ nút ghi khi chỉ xem. Test bắt được một lỗi: đọc cấu hình phòng bằng hàm `_loads` với giá trị mặc định None nên không bao giờ đọc được danh sách (đã sửa).

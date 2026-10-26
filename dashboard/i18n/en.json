@@ -6676,8 +6676,8 @@
   "crm.ev_wiki": "Wiki",
   "crm.ev_delete": "Deleted",
   "crm.ev_restore": "Restored",
-  "staff.crm_grant": "Can use the Operations CRM",
-  "staff.crm_hint": "Opens the CRM tab for this account; they only see their own department's customers",
+  "staff.crm_grant": "Operations CRM",
+  "staff.crm_hint": "Opens the CRM tab for this account. View only: nothing can be edited. Only departments with CRM switched on are visible.",
   "crm.all_depts": "All departments",
   "crm.pick_dept": "Pick a department above to see this.",
   "crm.trash": "Deleted customers",
@@ -6686,5 +6686,12 @@
   "crm.restored": "Customer restored",
   "crm.trash_empty": "No deleted customers.",
   "crm.thr_pre": "after",
-  "crm.thr_post": "new customer messages"
+  "crm.thr_post": "new customer messages",
+  "staff.crm_none": "No CRM",
+  "staff.crm_view": "View only",
+  "staff.crm_full": "Full access",
+  "crm.dept_on": "CRM open for this department",
+  "crm.dept_on_saved": "Department CRM status updated",
+  "crm.read_only": "View only",
+  "crm.no_dept": "None of your departments has CRM switched on. Ask an admin to open it."
 }

@@ -5,7 +5,7 @@
 ## [1.3.29] - 2026-10-26
 ### Thêm mới
 - **CRM vận hành**: tab riêng quản khách hàng cho các phòng (Danh bạ, Pipeline, Việc cần làm, Đề xuất, Phân khúc). Một khách thuộc nhiều phòng, mỗi phòng chỉ thấy cơ hội và việc của phòng mình. Pipeline có nút + và - để thêm xoá giai đoạn.
-- **Cấp quyền từng nhân viên**: tab CRM mặc định ẩn với nhân viên, chủ tick "Được dùng CRM vận hành" ở trang Nhân viên là mở cho đúng tài khoản đó.
+- **Cấp quyền từng nhân viên và từng phòng**: tab CRM mặc định ẩn. Ở trang Nhân viên chọn "Chỉ xem" hoặc "Dùng đầy đủ" cho từng tài khoản; chủ còn mở hoặc đóng CRM theo phòng, phòng nào được mở mới xem được. Chỉ chủ, CEO, giám đốc và trưởng phòng được xoá khách và nhập khách từ hộp thư.
 - **Joyce tự thu thập hồ sơ khách**: đọc hội thoại, đề xuất nhu cầu, ngân sách, hạn; nhân viên duyệt từng mục mới vào hồ sơ. Chủ chọn Tắt, Chờ duyệt hoặc Tự áp. Có thêm "Thêm nhanh bằng AI" (dán đoạn chat) và "Ghi nhớ cách xử lý khách này" lên wiki phòng.
 - Sửa chữ nút chính khó đọc ở khay Việc hằng ngày.
 

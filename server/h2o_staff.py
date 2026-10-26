@@ -89,7 +89,7 @@ def by_sdt(sdt: str):
 
 
 # Quyền mở thêm từng trang riêng cho một tài khoản (admin cấp). Mặc định KHÔNG có quyền nào.
-QUYEN_HOP_LE = ("crm",)
+QUYEN_HOP_LE = ("crm", "crm_xem")   # crm = dùng đầy đủ, crm_xem = chỉ xem
 
 
 def _quyen_hop_le(qs) -> list:

@@ -236,6 +236,7 @@
     // ---- cac khoi giao dien
     function khungTren() {
       var phong = S.me.phong || [];
+      var banPhong = (!S.me.admin || !S.brain) ? null : phong.filter(function (p) { return p.brain === S.brain; })[0];
       var chon = phong.length > 1 || S.me.admin
         ? '<select class="crm-sel" data-a="brain">' + (S.me.admin ? '<option value="">' + esc(tw("crm.all_depts")) + "</option>" : "") + phong.map(function (p) {
             return '<option value="' + esc(p.brain) + '"' + (p.brain === S.brain ? " selected" : "") + ">" + esc(p.ten || p.brain) + "</option>";
@@ -263,7 +264,9 @@
         return '<button class="crm-tab' + (S.tab === t ? " on" : "") + '" data-a="tab" data-v="' + t + '">' + esc(tw(K_TAB[t]))
           + (n ? '<span class="crm-badge">' + n + "</span>" : "") + "</button>";
       }).join("");
-      return '<div class="crm-top">' + chon + che + "</div>"
+      var bat = banPhong ? '<label class="crm-muted"><input type="checkbox" data-a="phong-bat"' + (banPhong.bat ? " checked" : "") + "> " + esc(tw("crm.dept_on")) + "</label>" : "";
+      var ro = S.me.chi_xem ? '<span class="crm-chip">' + esc(tw("crm.read_only")) + "</span>" : "";
+      return '<div class="crm-top">' + chon + bat + ro + che + "</div>"
         + '<div class="crm-kpis">' + kp.map(function (k) {
           return '<div class="crm-kpi ' + k[2] + '"><small>' + esc(k[0]) + "</small><b>" + esc(k[1]) + "</b></div>";
         }).join("") + "</div>"
@@ -313,7 +316,7 @@
         + '<button class="crm-btn pri" data-a="add" title="' + esc(tw("crm.add_contact")) + '">+</button></div>'
         + '<div class="crm-bar"><button class="crm-btn" data-a="quick-toggle">' + esc(tw("crm.quick_title")) + "</button>"
         + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="inbox">' + esc(tw("crm.from_inbox")) + "</button>" : "")
-        + '<button class="crm-btn" data-a="trash">' + esc(S.daXoa ? tw("crm.trash_back") : tw("crm.trash")) + "</button></div>"
+        + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="trash">' + esc(S.daXoa ? tw("crm.trash_back") : tw("crm.trash")) + "</button>" : "") + "</div>"
         + (S.hienNhanh ? khungNhanh() : "") + (S.hopThu ? khungHopThu() : "") + (S.hienThem ? formKhach() : "") + dsHtml + "</div></div>";
       return '<div class="crm-split">' + trai + '<div class="crm-det">' + (S.chiTiet ? chiTiet(S.chiTiet) : '<div class="crm-muted">' + esc(tw("crm.pick_contact")) + "</div>") + "</div></div>";
     }
@@ -365,7 +368,7 @@
         + '<button class="crm-btn crm-back" data-a="back">&larr; ' + esc(tw("crm.back")) + "</button>"
         + (c.customer_id ? '<button class="crm-btn" data-a="extract">' + ic("sparkles") + " " + esc(tw("crm.extract")) + "</button>" : "")
         + '<button class="crm-btn" data-a="remember">' + esc(tw("crm.remember")) + "</button>"
-        + '<button class="crm-btn dng" data-a="delete">- ' + esc(tw("crm.delete")) + "</button></div>";
+        + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn dng" data-a="delete">- ' + esc(tw("crm.delete")) + "</button>" : "") + "</div>";
       return hanhDong + dx + formKhach(c) + phongHtml + hsHtml + deals + todos + conv + ev;
     }
 
@@ -477,11 +480,26 @@
 
     function ve() {
       if (!S.me) { el.innerHTML = '<div class="crm"><div class="crm-muted">' + esc(S.loi || tw("crm.loading")) + "</div></div>"; return; }
+      if (!S.me.admin && !(S.me.phong || []).length) { el.innerHTML = '<div class="crm"><div class="crm-muted">' + esc(tw("crm.no_dept")) + "</div></div>"; return; }
       var body = { contacts: trangDanhBa, pipeline: trangPipeline, todos: trangViec, proposals: trangDeXuat, segments: trangPhanKhuc }[S.tab]();
       var giu = el.querySelector('[data-r="search"]');
       var dangGo = giu && document.activeElement === giu;
       el.innerHTML = '<div class="crm' + (S.sel && S.tab === "contacts" ? " det" : "") + '">' + khungTren() + '<div class="crm-body">' + body + "</div></div>";
+      if (S.me.chi_xem) khoaGhi();
       if (dangGo) { var m = el.querySelector('[data-r="search"]'); if (m) { m.focus(); m.setSelectionRange(m.value.length, m.value.length); } }
+    }
+
+    // Chế độ chỉ xem: gỡ mọi nút và form ghi (máy chủ vẫn chặn 403, đây chỉ để khỏi bày nút vô ích).
+    function khoaGhi() {
+      var ghi = ["add", "quick-toggle", "inbox", "trash", "restore", "delete", "dept-off", "dept-add", "deal-form", "todo-form",
+                 "deal-new", "todo-new", "deal-del", "todo-del", "todo-done", "stage-add", "stage-del", "deal-move", "extract",
+                 "remember", "approve", "reject", "mode", "nguong", "phong-bat", "import", "cancel-add"];
+      ghi.forEach(function (a) {
+        [].slice.call(el.querySelectorAll('[data-a="' + a + '"]')).forEach(function (n) {
+          if (n.tagName === "INPUT" || n.tagName === "SELECT") n.disabled = true; else n.style.display = "none";
+        });
+      });
+      [].slice.call(el.querySelectorAll("form[data-form]")).forEach(function (f) { f.style.display = "none"; });
     }
 
     // ---- su kien
@@ -533,6 +551,10 @@
         var r = await lam("/crm/cau-hinh/trich", { che_do: t.value }, tw("crm.mode_saved"));
         if (r) S.me.che_do = r.che_do;
         ve();
+      }
+      else if (a === "phong-bat") {
+        await lam("/crm/cau-hinh/phong", { brain: S.brain, bat: t.checked ? 1 : 0 }, tw("crm.dept_on_saved"));
+        S.me = null; await nap();
       }
       else if (a === "nguong") {
         var r4 = await lam("/crm/cau-hinh/trich", { nguong: t.value }, tw("crm.mode_saved"));
