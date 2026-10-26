@@ -305,6 +305,7 @@ class TaskStore:
         task_id: str = "",
         dedupe_title: bool = True,
         metadata: Optional[dict] = None,
+        result: str = "",
     ) -> str:
         root = str(brain_root)
         self.ensure_board(root)
@@ -342,15 +343,15 @@ class TaskStore:
                         id, brain_root, title, normalized_title, intent, route,
                         capability, execution_mode, priority, status, needs_approval,
                         created_by, chat_id, idempotency_key, max_attempts,
-                        metadata_json, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        metadata_json, result, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         tid, root, title, normalized, intent or title, route or "auto",
                         capability or "auto", execution_mode or "auto",
                         max(1, min(3, int(priority or 2))), safe_status,
                         int(bool(needs_approval)), created_by or "user", str(chat_id or ""),
                         idempotency_key or "", max(1, int(max_attempts or 3)),
-                        _json(metadata or {}), ts, ts,
+                        _json(metadata or {}), str(result or ""), ts, ts,
                     ),
                 )
                 for dep in dict.fromkeys(str(d) for d in (deps or []) if str(d)):

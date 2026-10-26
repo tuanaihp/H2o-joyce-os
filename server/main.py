@@ -13137,6 +13137,14 @@ import knowledge_sky
 knowledge_sky.register(app, _brain_root, _default_brain_dir, lambda: bool(_STAFF_SCOPE.get()), BRAINS_DIR,
                        lambda: _STAFF_SCOPE.get() or ())
 
+# VIỆC MẪU THEO PHÒNG (viec_mau.py, docs/dev/2026-10-chat-cong-viec-hang-ngay.md): chip việc hằng
+# ngày ở khung chat, nút "Đã xong" ghi thẳng cột Xong của Kanban + hồ sơ để chưng cất lên wiki.
+# Nhân viên mọi chức vụ thêm/xoá được việc trong phòng mình (không nằm trong _STAFF_DEPT_EDIT,
+# vì chặn đó dành cho Trưởng phòng); phạm vi phòng do _brain_root ép.
+import viec_mau
+
+viec_mau.register(app, _brain_root, lambda: tasks_feature)
+
 
 @app.get("/viec/all")
 async def viec_all():

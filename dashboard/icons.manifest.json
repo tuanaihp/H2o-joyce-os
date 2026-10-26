@@ -177,6 +177,22 @@
       "palette",
       "type",
       "pin"
+    ],
+    "viec-mau": [
+      "phone",
+      "heart-handshake",
+      "receipt",
+      "clipboard-list",
+      "megaphone",
+      "video",
+      "graduation-cap",
+      "calendar-check",
+      "shield-alert",
+      "presentation",
+      "target",
+      "camera",
+      "languages",
+      "list-checks"
     ]
   }
 }

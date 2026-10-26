@@ -4,7 +4,9 @@
 
 ## [1.3.27] - 2026-10-26
 ### Added
-- **Daily jobs inside Chat** (in progress).
+- **Daily jobs right inside Chat**: open the chat and you see your team's job templates (advising, follow-up, reports...). Tap one, fill a few fields and Joyce does it. Each group has a **+** to add your own job; tap a job to edit or delete it.
+- **Done? Tap "Done"**: Joyce asks when the job finishes, and tapping moves it to the Done column of your team's Work board. "Remember how this was done" writes the real way of working into the wiki; after 3 runs of the same job it does so by itself.
+- Ready-made jobs for Sales, Customer care and the two personal brains (Thủy, Tuấn). With "All divisions" selected, staff only see their main team's jobs.
 
 ## [1.3.24] - 2026-10-20
 ### Added

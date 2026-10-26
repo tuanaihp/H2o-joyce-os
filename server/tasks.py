@@ -427,6 +427,24 @@ class TasksFeature:
         self.wake()
         return tid
 
+    def ghi_viec_xong(self, brain: str, title: str, result: str, chat_id: str,
+                      idempotency_key: str, who: str, metadata: Optional[dict] = None) -> str:
+        """Ghi nhận một việc NGƯỜI DÙNG ĐÃ LÀM XONG (nút "Đã xong" của việc mẫu) thẳng ở cột
+        Xong. Không đi qua `enqueue` vì nó luôn xếp vào triage để bộ điều phối chạy: ghi việc đã
+        xong bằng đường đó làm việc bị chạy lại, tốn quota hai lần. Cùng idempotency_key thì
+        trả lại bản ghi cũ (bấm đúp không nhân đôi)."""
+        root = self._ensure(brain)
+        tid = self.store.enqueue(
+            root, title, title, "auto", 2, None, False, who or "user", chat_id,
+            "auto", "auto", idempotency_key, "done", dedupe_title=False,
+            metadata=dict(metadata or {}), result=result or "",
+        )
+        try:
+            asyncio.get_running_loop().create_task(self._asnapshot(root))
+        except RuntimeError:
+            self._snapshot(root)
+        return tid
+
     # ------------------------------------------------------------------
     # Dedicated dispatcher
     # ------------------------------------------------------------------

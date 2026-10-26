@@ -4,7 +4,9 @@
 
 ## [1.3.27] - 2026-10-26
 ### Thêm mới
-- **Việc hằng ngày ngay trong Trò chuyện** (đang làm).
+- **Việc hằng ngày ngay trong Trò chuyện**: mở chat là thấy các việc mẫu của phòng mình (tư vấn, chăm sóc, báo cáo...). Bấm một việc, điền vài ô là Joyce làm. Mỗi nhóm có nút **+** để tự thêm việc của phòng, bấm vào việc để sửa hoặc xóa.
+- **Làm xong bấm "Đã xong"**: Joyce tự hỏi khi việc chạy xong, bấm là việc vào cột Xong ở Việc → Công việc của phòng. Bấm "Ghi nhớ cách làm này" để Joyce ghi cách làm thực tế vào wiki; đủ 3 lần làm một việc thì tự ghi nhớ.
+- Có sẵn việc mẫu cho Bán hàng, CSKH và hai brain cá nhân (Thủy, Tuấn). Chọn "Toàn khối" thì nhân viên chỉ thấy việc của phòng chính.
 
 ## [1.3.24] - 2026-10-20
 ### Thêm mới

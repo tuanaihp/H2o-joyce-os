@@ -555,6 +555,10 @@
          là nó đi theo, không bị bỏ lại như thanh #toolBar cũ. -->
     <div class="bg-strip" id="bgStrip" hidden></div>
 
+    <!-- Khay "Việc hằng ngày" (viec-mau.js): chip việc mẫu của brain đang chọn, chỉ hiện khi khung chat
+         còn trống. Nằm trong CHAT_NODE_IDS (console.js) nên đi theo khung chat sang trang Trò chuyện. -->
+    <div class="vm-tray" id="vmTray" hidden></div>
+
     <!-- The Coding page's own chip row (that page inserts its chips here on desktop). Empty on the home
          page, so hidden (.model-bar:empty). The model chip moved into the composer (port Javis 0.153.0). -->
     <div class="model-bar" id="modelBar"></div>
@@ -1063,6 +1067,7 @@
   <script src="/static/effort-slider.js?v=1"></script>
   <script src="/static/model-picker.js?v=12"></script>
   <script src="/static/composer-plus.js?v=1"></script>
+  <script src="/static/viec-mau.js?v=1"></script>
   <script src="/static/composer-folder.js?v=1"></script>
   <script src="/static/branding.js?v=7"></script>
   <script src="/static/quick-settings.js?v=11"></script>
