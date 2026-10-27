@@ -27,7 +27,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -92,7 +92,42 @@ CREATE TABLE IF NOT EXISTS so_hoat_dong(
   loai TEXT DEFAULT '', ref_id INTEGER, trang_thai TEXT DEFAULT 'xong', created_at REAL);
 CREATE INDEX IF NOT EXISTS ix_so_hd_t ON so_hoat_dong(created_at);
 CREATE TABLE IF NOT EXISTS so_cau_hinh(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS so_cong_viec(
+  id INTEGER PRIMARY KEY, ma_phong TEXT, nhom TEXT DEFAULT '', ten TEXT, phi_them REAL DEFAULT 0,
+  hoa_hong REAL DEFAULT 0, so_ngay INTEGER DEFAULT 1, ap_dung INTEGER DEFAULT 1, created_at REAL,
+  UNIQUE(ma_phong, ten));
+CREATE TABLE IF NOT EXISTS so_giao_viec(
+  id INTEGER PRIMARY KEY, hop_dong_id INTEGER, cong_viec_id INTEGER, nhan_su_id INTEGER, ten TEXT, ma_phong TEXT DEFAULT '',
+  hoa_hong REAL DEFAULT 0, phi_them REAL DEFAULT 0, so_luong REAL DEFAULT 1, han TEXT DEFAULT '',
+  trang_thai TEXT DEFAULT 'todo', created_at REAL, UNIQUE(hop_dong_id, cong_viec_id, nhan_su_id));
 """
+
+# Mã phòng trong bảng "5_DS chia việc" của H2O: tên hiển thị và vai nhân sự hay gặp ở phòng đó.
+MA_PHONG = {
+    "MAKEUP": ("Makeup", "makeup"), "PHOTO": ("Chụp ảnh", "chup"), "PTS": ("Photoshop, hậu kỳ", "hotro"),
+    "OUT": ("Thử đồ", "hotro"), "WDRESS": ("Tư vấn váy", "sales"),
+}
+# (mã phòng, nhóm, tên việc, phí thu thêm khách, hoa hồng, số ngày) - chép nguyên từ Google Sheet của chủ ngày 27/10/2026.
+# Bốn dòng 27 đến 30 của sheet đang bị ẩn nên chưa có ở đây.
+CONG_VIEC_H2O = [
+    ("MAKEUP", "Bới tóc", "Bới tóc cô dâu ăn hỏi", 0, 70000, 1), ("MAKEUP", "Bới tóc", "Bới tóc cô dâu ngày cưới", 0, 70000, 1),
+    ("MAKEUP", "Bới tóc", "Bới tóc cô dâu", 0, 70000, 1), ("MAKEUP", "Bới tóc", "Bới tóc lễ dự", 0, 0, 1),
+    ("MAKEUP", "Bới tóc", "Bới tóc 2 lần ngày chụp", 0, 0, 1), ("MAKEUP", "Bới tóc", "Cuộn tóc", 0, 21000, 1),
+    ("MAKEUP", "Bới tóc", "Hoàn thiện", 0, 49000, 1), ("MAKEUP", "Bới tóc", "Thay tóc chụp", 0, 0, 1),
+    ("MAKEUP", "Bới tóc", "Take care chụp", 0, 0, 1),
+    ("PHOTO", "Chụp studio", "Chụp ảnh cưới studio", 0, 250000, 1), ("PHOTO", "Chụp studio", "Chụp ảnh gia đình", 0, 0, 1),
+    ("PHOTO", "Chụp studio", "Chụp ảnh khác", 0, 0, 1), ("PHOTO", "Chụp ngoại cảnh", "Chụp ảnh ngoại cảnh", 0, 450000, 1),
+    ("PHOTO", "Chụp studio", "Chụp ảnh phóng sự", 0, 0, 3),
+    ("MAKEUP", "Makeup", "Makeup cô dâu", 0, 90000, 1), ("MAKEUP", "Makeup", "Makeup lễ dự", 0, 0, 1),
+    ("MAKEUP", "Makeup", "Makeup nền", 0, 27000, 1), ("MAKEUP", "Makeup", "Makeup nền và lông mày", 0, 45000, 1),
+    ("MAKEUP", "Makeup", "Hoàn thiện có lông mày", 0, 63000, 1), ("MAKEUP", "Makeup", "Hoàn thiện không lông mày", 0, 45000, 1),
+    ("PTS", "Pts", "Chạy slide ảnh", 0, 0, 1), ("PTS", "Pts", "Photoshop ảnh khung", 0, 150000, 1),
+    ("PTS", "Pts", "Photoshop ảnh các loại", 0, 0, 1), ("PTS", "Pts", "Photoshop ảnh phóng 60x90", 0, 50000, 1),
+    ("OUT", "Thử đồ", "Sắp đồ cho khách", 0, 0, 1),
+    ("WDRESS", "Tư vấn váy", "Tư vấn Offline", 0, 50000, 1), ("WDRESS", "Tư vấn váy", "Tư vấn Online", 0, 0, 3),
+    ("WDRESS", "Tư vấn váy", "Tư vấn váy", 0, 0, 1),
+    ("MAKEUP", "Makeup", "Makeup cd ăn hỏi", 0, 90000, 1), ("MAKEUP", "Makeup", "Makeup cd cưới", 0, 90000, 1),
+]
 
 _lock = threading.RLock()
 _ready: set = set()
@@ -462,7 +497,7 @@ def _su_kien_viec(sk: dict, by: str) -> dict:
 
 def xu_ly(events: Any, by: str = "Joyce", chat_id: str = "", by_info: Optional[dict] = None) -> dict:
     """Cửa duy nhất để ghi sổ. `events`: một sự kiện hoặc danh sách; mỗi sự kiện có `loai`:
-    hop_dong | thu | chi | viec | phan_cong. Lỗi một sự kiện không làm hỏng các sự kiện khác."""
+    hop_dong | thu | chi | viec | phan_cong | giao_viec. Lỗi một sự kiện không làm hỏng các sự kiện khác."""
     if isinstance(events, dict):
         events = [events]
     by_info = by_info or {}
@@ -484,8 +519,14 @@ def xu_ly(events: Any, by: str = "Joyce", chat_id: str = "", by_info: Optional[d
                 if not hd:
                     raise ValueError("Không thấy hợp đồng để phân công")
                 kq.append(phan_cong(hd["id"], sk.get("ten") or sk.get("nhan_su"), sk.get("vai") or ""))
+            elif loai == "giao_viec":
+                hd = tim_hop_dong(sk.get("hop_dong"))[0]
+                if not hd:
+                    raise ValueError("Không thấy hợp đồng để chia việc")
+                kq.append(giao_viec(hd["id"], sk.get("cong_viec") or sk.get("viec"), sk.get("ten") or sk.get("nhan_su"),
+                                    sk.get("so_luong") or 1, sk.get("han") or "", sk.get("ma_phong") or ""))
             else:
-                raise ValueError("loai phải là hop_dong, thu, chi, viec hoặc phan_cong")
+                raise ValueError("loai phải là hop_dong, thu, chi, viec, phan_cong hoặc giao_viec")
         except (ValueError, PermissionError) as e:
             loi.append({"stt": i + 1, "loai": loai, "loi": str(e)})
     return {"ok": not loi, "ket_qua": kq, "loi": loi}
@@ -698,6 +739,7 @@ def ds_nhan_su() -> List[dict]:
 def xoa_nhan_su(nid: int) -> None:
     def f(db):
         db.execute("DELETE FROM so_phan_cong WHERE nhan_su_id=?", (int(nid),))
+        db.execute("DELETE FROM so_giao_viec WHERE nhan_su_id=?", (int(nid),))
         db.execute("DELETE FROM so_nhan_su WHERE id=?", (int(nid),))
         db.commit()
     _dung(f)
@@ -723,24 +765,188 @@ def go_phan_cong(hid: int, nid: int) -> None:
     _dung(lambda db: (db.execute("DELETE FROM so_phan_cong WHERE hop_dong_id=? AND nhan_su_id=?", (int(hid), int(nid))), db.commit()))
 
 
+# ---------------------------------------------------------------- danh mục việc và chia việc
+TRANG_THAI_GV = ("todo", "doing", "done")
+
+
+def _nap_h2o(db, ghi_de: bool = False) -> int:
+    n = 0
+    for ma, nhom, ten, phi, hh, ngay in CONG_VIEC_H2O:
+        cur = db.execute("SELECT id FROM so_cong_viec WHERE ma_phong=? AND ten=?", (ma, ten)).fetchone()
+        if cur and not ghi_de:
+            continue
+        if cur:
+            db.execute("UPDATE so_cong_viec SET nhom=?, phi_them=?, hoa_hong=?, so_ngay=? WHERE id=?", (nhom, phi, hh, ngay, cur["id"]))
+        else:
+            db.execute("INSERT INTO so_cong_viec(ma_phong, nhom, ten, phi_them, hoa_hong, so_ngay, ap_dung, created_at) VALUES(?,?,?,?,?,?,1,?)",
+                       (ma, nhom, ten, phi, hh, ngay, time.time()))
+        n += 1
+    db.commit()
+    return n
+
+
+def nap_cong_viec_h2o(ghi_de: bool = False) -> int:
+    """Nạp bảng việc và hoa hồng của H2O. Mặc định chỉ thêm dòng còn thiếu, không đè số chủ đã sửa."""
+    return _dung(lambda db: _nap_h2o(db, ghi_de))
+
+
+def ds_cong_viec() -> List[dict]:
+    def f(db):
+        # Lần đầu dùng thì tự nạp bảng của chủ một lần; xóa hết sau đó sẽ không bị nạp lại.
+        if not db.execute("SELECT 1 FROM so_cau_hinh WHERE key='cv_da_nap'").fetchone():
+            _nap_h2o(db)
+            db.execute("INSERT OR REPLACE INTO so_cau_hinh(key,value) VALUES('cv_da_nap','1')")
+            db.commit()
+        return _rows(db.execute("SELECT * FROM so_cong_viec ORDER BY ma_phong, id").fetchall())
+    out = _dung(f)
+    for r in out:
+        r["phong_ten"] = MA_PHONG.get(r["ma_phong"], (r["ma_phong"], "khac"))[0]
+        r["vai_goi_y"] = MA_PHONG.get(r["ma_phong"], ("", "khac"))[1]
+    return out
+
+
+def luu_cong_viec(data: dict) -> dict:
+    cid = int(data.get("id") or 0)
+    ma = _ascii(data.get("ma_phong")).upper().strip().replace(" ", "")[:20]
+    ten = _s(data.get("ten"), 160)
+    if not ma or not ten:
+        raise ValueError("Việc cần mã phòng và tên việc")
+    nhom = _s(data.get("nhom"), 80)
+    phi, hh = tien(data.get("phi_them", 0)), tien(data.get("hoa_hong", 0))
+    ngay = max(1, min(365, int(float(data.get("so_ngay") or 1))))
+    ap = 0 if data.get("ap_dung") in (0, "0", False, "false") else 1
+
+    def f(db):
+        if cid:
+            db.execute("UPDATE so_cong_viec SET ma_phong=?, nhom=?, ten=?, phi_them=?, hoa_hong=?, so_ngay=?, ap_dung=? WHERE id=?",
+                       (ma, nhom, ten, phi, hh, ngay, ap, cid))
+            db.commit()
+            return cid
+        if db.execute("SELECT 1 FROM so_cong_viec WHERE ma_phong=? AND ten=?", (ma, ten)).fetchone():
+            raise ValueError(f"Phòng {ma} đã có việc \"{ten}\"")
+        cur = db.execute("INSERT INTO so_cong_viec(ma_phong, nhom, ten, phi_them, hoa_hong, so_ngay, ap_dung, created_at) VALUES(?,?,?,?,?,?,?,?)",
+                         (ma, nhom, ten, phi, hh, ngay, ap, time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    try:
+        i = _dung(f)
+    except sqlite3.IntegrityError:
+        raise ValueError(f"Phòng {ma} đã có việc \"{ten}\"")
+    return dict(_dung(lambda db: db.execute("SELECT * FROM so_cong_viec WHERE id=?", (i,)).fetchone()))
+
+
+def xoa_cong_viec(cid: int) -> None:
+    """Xóa khỏi danh mục; các việc đã chia giữ nguyên số tiền đã chốt lúc chia."""
+    _dung(lambda db: (db.execute("DELETE FROM so_cong_viec WHERE id=?", (int(cid),)), db.commit()))
+
+
+def tim_cong_viec(ten: Any, ma_phong: str = "") -> dict:
+    t = _ascii(ten).lower().strip()
+    if not t:
+        raise ValueError("Cần tên đầu việc")
+    ds = [c for c in ds_cong_viec() if c["ap_dung"] and (not ma_phong or c["ma_phong"] == ma_phong.upper())]
+    ex = [c for c in ds if _ascii(c["ten"]).lower() == t]
+    if len(ex) == 1:
+        return ex[0]
+    kq = ex or [c for c in ds if t in _ascii(c["ten"]).lower()]
+    if len(kq) == 1:
+        return kq[0]
+    if not kq:
+        raise ValueError(f"Không thấy đầu việc \"{ten}\" trong bảng hoa hồng")
+    raise ValueError("Có nhiều việc khớp \"" + str(ten) + "\": " + "; ".join(f"{c['ten']} ({c['ma_phong']})" for c in kq[:6]) + ". Nói rõ hơn hoặc kèm mã phòng.")
+
+
+def giao_viec(hid: int, cong_viec: Any, ten: Any, so_luong: Any = 1, han: str = "", ma_phong: str = "") -> dict:
+    hd = lay_hop_dong(hid)
+    if not hd or hd["trang_thai"] == "huy":
+        raise ValueError("Không thấy hợp đồng để chia việc")
+    cv = tim_cong_viec(cong_viec, ma_phong)
+    t = _ascii(ten).lower().strip()
+    if not t:
+        raise ValueError("Chia việc cần tên nhân sự")
+    ns = [n for n in ds_nhan_su() if not n["nghi"] and t in _ascii(n["ten"]).lower()]
+    if not ns:
+        raise ValueError(f"Không thấy nhân sự \"{ten}\"")
+    n = ns[0]
+    try:
+        sl = float(so_luong or 1)
+    except (TypeError, ValueError):
+        sl = 1.0
+    sl = max(0.0, min(1000.0, sl)) or 1.0
+    han = _s(han, 10)
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", han):
+        han = (datetime.now() + timedelta(days=int(cv["so_ngay"] or 1))).strftime("%Y-%m-%d")
+
+    def f(db):
+        r = db.execute("SELECT id FROM so_giao_viec WHERE hop_dong_id=? AND cong_viec_id=? AND nhan_su_id=?", (hd["id"], cv["id"], n["id"])).fetchone()
+        if r:   # gửi lại cùng câu thì cập nhật, không cộng dồn
+            db.execute("UPDATE so_giao_viec SET so_luong=?, han=?, hoa_hong=?, phi_them=? WHERE id=?", (sl, han, cv["hoa_hong"], cv["phi_them"], r["id"]))
+            db.commit()
+            return r["id"]
+        cur = db.execute("INSERT INTO so_giao_viec(hop_dong_id, cong_viec_id, nhan_su_id, ten, ma_phong, hoa_hong, phi_them, so_luong, han, trang_thai, created_at)"
+                         " VALUES(?,?,?,?,?,?,?,?,?,'todo',?)", (hd["id"], cv["id"], n["id"], cv["ten"], cv["ma_phong"], cv["hoa_hong"], cv["phi_them"], sl, han, time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    gid = _dung(f)
+    tien_hh = round(cv["hoa_hong"] * sl)
+    h = ghi_hoat_dong(VAI_PHONG["nhan_su"][0], f"Chia việc \"{cv['ten']}\" cho {n['ten']} ({hd['ma']}), hoa hồng {_vnd(tien_hh)}", "giao_viec", gid)
+    return {"loai": "giao_viec", "id": gid, "hop_dong": hd["ma"], "nhan_su": n["ten"], "cong_viec": cv["ten"], "hoa_hong": tien_hh, "han": han,
+            "phong": h["phong"], "agent": h["agent"],
+            "tom_tat": f"{h['agent'] or h['phong']}: chia \"{cv['ten']}\" cho {n['ten']} ({hd['ma']}), hoa hồng {_vnd(tien_hh)}."}
+
+
+def ds_giao_viec(hid: int = 0) -> List[dict]:
+    sql = ("SELECT g.*, h.ma AS hop_dong_ma, h.ten_khach, h.trang_thai AS hd_trang_thai, n.ten AS nhan_su_ten FROM so_giao_viec g"
+           " LEFT JOIN so_hop_dong h ON h.id=g.hop_dong_id LEFT JOIN so_nhan_su n ON n.id=g.nhan_su_id")
+    if hid:
+        return _dung(lambda db: _rows(db.execute(sql + " WHERE g.hop_dong_id=? ORDER BY g.id", (int(hid),)).fetchall()))
+    return _dung(lambda db: _rows(db.execute(sql + " ORDER BY g.id DESC LIMIT 500").fetchall()))
+
+
+def doi_giao_viec(gid: int, ts: str) -> None:
+    if ts not in TRANG_THAI_GV:
+        raise ValueError("Trạng thái không hợp lệ")
+    _dung(lambda db: (db.execute("UPDATE so_giao_viec SET trang_thai=? WHERE id=?", (ts, int(gid))), db.commit()))
+
+
+def go_giao_viec(gid: int) -> None:
+    _dung(lambda db: (db.execute("DELETE FROM so_giao_viec WHERE id=?", (int(gid),)), db.commit()))
+
+
 def hoa_hong(ky: str = "") -> List[dict]:
-    """Hoa hồng tạm tính theo kỳ (tháng ký hợp đồng). Chỉ hợp đồng Đã ký hoặc Hoàn thành mới có hoa hồng."""
+    """Hoa hồng tạm tính theo kỳ (tháng ký hợp đồng). Chỉ hợp đồng Đã ký hoặc Hoàn thành mới có hoa hồng.
+    Hai nguồn: số tiền cố định theo từng đầu việc đã chia (loai=cong_viec), và phần trăm theo vai (loai=ty_le).
+    Người đã được chia việc trong một hợp đồng thì chỉ hưởng theo việc ở hợp đồng đó, không cộng thêm phần trăm."""
     cfg = cau_hinh()
     ky = ky or _ky()
     pcs = _dung(lambda db: _rows(db.execute(
         "SELECT p.hop_dong_id, p.nhan_su_id, p.vai, n.ten, n.ty_le, h.ma, h.ten_khach, h.gia_tri, h.ngay_ky, h.ngay, h.trang_thai"
         " FROM so_phan_cong p JOIN so_nhan_su n ON n.id=p.nhan_su_id JOIN so_hop_dong h ON h.id=p.hop_dong_id"
         " WHERE h.trang_thai IN ('da_ky','hoan_thanh')").fetchall()))
+    gvs = _dung(lambda db: _rows(db.execute(
+        "SELECT g.*, n.ten AS nhan_su_ten, n.vai AS nhan_su_vai, h.ma, h.ten_khach, h.ngay_ky, h.ngay, h.trang_thai AS hd_ts"
+        " FROM so_giao_viec g JOIN so_nhan_su n ON n.id=g.nhan_su_id JOIN so_hop_dong h ON h.id=g.hop_dong_id"
+        " WHERE h.trang_thai IN ('da_ky','hoan_thanh')").fetchall()))
+    co_viec = {(g["hop_dong_id"], g["nhan_su_id"]) for g in gvs}
     out = []
     for p in pcs:
         if ky != "all" and _ky(p["ngay_ky"] or p["ngay"]) != ky:
             continue
+        if (p["hop_dong_id"], p["nhan_su_id"]) in co_viec:
+            continue
         ct = chi_tiet_hop_dong(p["hop_dong_id"])
         co_so = max(0.0, ct["lai_gop"]) if cfg["co_so_hh"] == "lai_gop" else ct["thu"]
         ty = p["ty_le"] if p["ty_le"] is not None else cfg["ty_le_vai"].get(p["vai"], 0.0)
-        out.append({"hop_dong_id": p["hop_dong_id"], "ma": p["ma"], "ten_khach": p["ten_khach"], "nhan_su_id": p["nhan_su_id"],
+        out.append({"loai": "ty_le", "hop_dong_id": p["hop_dong_id"], "ma": p["ma"], "ten_khach": p["ten_khach"], "nhan_su_id": p["nhan_su_id"],
                     "ten": p["ten"], "vai": p["vai"], "co_so": co_so, "co_so_loai": cfg["co_so_hh"], "ty_le": ty,
                     "so_tien": round(co_so * ty / 100.0), "trang_thai": p["trang_thai"]})
+    for g in gvs:
+        if ky != "all" and _ky(g["ngay_ky"] or g["ngay"]) != ky:
+            continue
+        out.append({"loai": "cong_viec", "hop_dong_id": g["hop_dong_id"], "ma": g["ma"], "ten_khach": g["ten_khach"], "nhan_su_id": g["nhan_su_id"],
+                    "ten": g["nhan_su_ten"], "vai": g["nhan_su_vai"], "cong_viec": g["ten"], "ma_phong": g["ma_phong"], "so_luong": g["so_luong"],
+                    "don_gia": g["hoa_hong"], "co_so": g["hoa_hong"], "ty_le": None, "so_tien": round(g["hoa_hong"] * g["so_luong"]),
+                    "xong": g["trang_thai"] == "done", "trang_thai": g["hd_ts"]})
     return out
 
 
@@ -1012,6 +1218,55 @@ async def r_mau(request: Request):
 async def r_mau_xoa(request: Request):
     shop_state._kiem_quyen(request)
     return {"ok": True, "da_xoa": xoa_mau()}
+
+
+@router.get("/shop/so/cong-viec")
+async def r_cv(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_cong_viec(), "phong": {k: v[0] for k, v in MA_PHONG.items()}}
+
+
+@router.post("/shop/so/cong-viec")
+@_loi
+async def r_cv_luu(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "cong_viec": luu_cong_viec(_json(data))}
+
+
+@router.post("/shop/so/cong-viec/xoa")
+@_loi
+async def r_cv_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    xoa_cong_viec(id)
+    return {"ok": True}
+
+
+@router.post("/shop/so/cong-viec/nap-h2o")
+async def r_cv_nap(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "da_nap": nap_cong_viec_h2o()}
+
+
+@router.get("/shop/so/giao-viec")
+async def r_gv(request: Request, hop_dong_id: int = 0):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_giao_viec(hop_dong_id)}
+
+
+@router.post("/shop/so/giao-viec/buoc")
+@_loi
+async def r_gv_buoc(request: Request, id: int = Form(...), trang_thai: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    doi_giao_viec(id, trang_thai)
+    return {"ok": True}
+
+
+@router.post("/shop/so/giao-viec/xoa")
+@_loi
+async def r_gv_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    go_giao_viec(id)
+    return {"ok": True}
 
 
 def register(app, phong_fn, tasks_fn, brain_root_fn) -> None:

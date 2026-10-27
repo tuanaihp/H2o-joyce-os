@@ -21,7 +21,7 @@ try:
 except Exception:          # chạy ngoài máy chủ
     luot_dang_chay = None
 
-_LOAI = ("hop_dong", "thu", "chi", "viec", "phan_cong")
+_LOAI = ("hop_dong", "thu", "chi", "viec", "phan_cong", "giao_viec")
 
 
 def _la_nhan_vien() -> bool:
@@ -43,7 +43,7 @@ def _ghi(args, ctx) -> str:
     if isinstance(ev, dict):
         ev = [ev]
     if not isinstance(ev, list) or not ev:
-        return ("ERROR: thiếu su_kien. Mỗi sự kiện là một object có `loai` (hop_dong | thu | chi | viec | phan_cong). "
+        return ("ERROR: thiếu su_kien. Mỗi sự kiện là một object có `loai` (hop_dong | thu | chi | viec | phan_cong | giao_viec). "
                 "Ví dụ: [{loai:'hop_dong', ten:'Tuấn Thủy', sdt:'0899252392', goi:'Gói chụp ảnh studio', gia_tri:15000000}, "
                 "{loai:'thu', so_tien:15000000, khach:'0899252392'}, {loai:'chi', so_tien:4000000, dien_giai:'Setup', khach:'0899252392'}]")
     chat_id = str((args or {}).get("chat_id") or "").strip()
@@ -115,7 +115,9 @@ def register(ctx):
         "trang_thai ('bao_gia' mặc định, hoặc da_ky)}; "
         "thu {so_tien, khach (số điện thoại, mã HD0001 hoặc tên để gắn hợp đồng), hang_muc, dien_giai}; "
         "chi {so_tien, khach, hang_muc, dien_giai}; viec {tieu_de, han (YYYY-MM-DD), giao_cho, hop_dong}; "
-        "phan_cong {hop_dong, ten, vai: sales|chup|makeup|hotro}. Số tiền là số đồng (15 triệu = 15000000). "
+        "phan_cong {hop_dong, ten, vai: sales|chup|makeup|hotro}; "
+        "giao_viec {hop_dong, cong_viec (tên đầu việc trong bảng hoa hồng, vd 'Makeup cô dâu'), ten (nhân sự), so_luong (mặc định 1), han}: "
+        "chia một đầu việc của hợp đồng cho một người, hoa hồng cố định theo bảng và tự vào bảng lương. Số tiền là số đồng (15 triệu = 15000000). "
         "Nhận thu cọc của hợp đồng đang báo giá thì hợp đồng tự chuyển Đã ký. Gửi lại cùng một sự kiện trong 10 phút "
         "không bị ghi hai lần. Khoản chi nhân viên báo từ hạn mức trở lên nằm 'chờ duyệt' cho chủ; chủ báo thì ghi luôn. "
         "op=xem: số liệu thu chi, hợp đồng, công nợ của kỳ (ky=YYYY-MM hoặc all). "

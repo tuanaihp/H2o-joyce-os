@@ -198,6 +198,80 @@ check("trưởng phòng KHÔNG tự duyệt chi của mình (403)", http.post("/
 vai["staff"] = {"ten": "Sếp", "role": "giam_doc"}
 check("giám đốc duyệt được", http.post("/shop/so/quy/duyet", data={"id": pid, "quyet": "duyet"}).json()["phieu"]["trang_thai"] == "da_ghi")
 
+# ---------------- bảng hoa hồng theo đầu việc và chia việc
+vai["staff"] = None
+cv = shop_so.ds_cong_viec()
+check("bảng việc của chủ tự nạp 30 dòng một lần", len(cv) == 30 and len(shop_so.ds_cong_viec()) == 30)
+by = {c["ten"]: c for c in cv}
+check("hoa hồng cố định đúng bảng: makeup cô dâu 90k, ngoại cảnh 450k, tư vấn offline 50k, phóng sự 3 ngày",
+      by["Makeup cô dâu"]["hoa_hong"] == 90000 and by["Chụp ảnh ngoại cảnh"]["hoa_hong"] == 450000 and by["Tư vấn Offline"]["hoa_hong"] == 50000
+      and by["Chụp ảnh phóng sự"]["so_ngay"] == 3 and by["Chụp ảnh phóng sự"]["hoa_hong"] == 0)
+check("tên khớp đúng được ưu tiên: Makeup nền là 27k, không nhầm Makeup nền và lông mày", shop_so.tim_cong_viec("makeup nen")["hoa_hong"] == 27000)
+try:
+    shop_so.tim_cong_viec("Tư vấn")
+    check("tên mơ hồ phải bị từ chối kèm gợi ý", False)
+except ValueError as e:
+    check("tên mơ hồ phải bị từ chối kèm gợi ý", "Tư vấn Offline" in str(e))
+try:
+    shop_so.tim_cong_viec("Quay phim drone")
+    check("đầu việc không có trong bảng bị từ chối", False)
+except ValueError:
+    check("đầu việc không có trong bảng bị từ chối", True)
+check("nạp lại bảng H2O không thêm trùng và không đè số đã sửa", (shop_so.luu_cong_viec({"id": by["Cuộn tóc"]["id"], "ma_phong": "MAKEUP", "nhom": "Bới tóc", "ten": "Cuộn tóc", "hoa_hong": 30000}),
+      shop_so.nap_cong_viec_h2o())[1] == 0 and {c["ten"]: c for c in shop_so.ds_cong_viec()}["Cuộn tóc"]["hoa_hong"] == 30000)
+try:
+    shop_so.luu_cong_viec({"ma_phong": "makeup", "ten": "Makeup cô dâu", "hoa_hong": 1})
+    check("thêm trùng (phòng, tên việc) bị từ chối", False)
+except ValueError:
+    check("thêm trùng (phòng, tên việc) bị từ chối", True)
+mot = shop_so.luu_cong_viec({"ma_phong": "OUT", "nhom": "Thử đồ", "ten": "Việc thử", "hoa_hong": "120k", "phi_them": "50.000", "so_ngay": 2})
+check("thêm việc mới: hiểu '120k' và '50.000'", mot["hoa_hong"] == 120000 and mot["phi_them"] == 50000 and mot["so_ngay"] == 2)
+shop_so.xoa_cong_viec(mot["id"])
+check("xóa việc rồi gọi lại không bị tự nạp lại bảng", len(shop_so.ds_cong_viec()) == 30 and all(c["ten"] != "Việc thử" for c in shop_so.ds_cong_viec()))
+
+ma_ = shop_so.luu_nhan_su({"ten": "Ngô Thảo", "vai": "sales", "luong_cb": 5e6})
+huy_ = shop_so.luu_nhan_su({"ten": "Đặng Huy", "vai": "chup", "luong_cb": 8e6})
+mk_ = shop_so.luu_nhan_su({"ten": "Vũ Lan", "vai": "makeup", "luong_cb": 4e6})
+r0 = shop_so.xu_ly({"loai": "hop_dong", "ten": "Khách Chia Việc", "sdt": "0977000111", "goi": "Cưới trọn gói", "gia_tri": "10 triệu", "trang_thai": "bao_gia"}, "Chủ")
+hdv = shop_so.tim_hop_dong("0977000111")[0]
+shop_so.xu_ly({"loai": "phan_cong", "hop_dong": hdv["ma"], "ten": "Thảo", "vai": "sales"}, "Chủ")
+sv = shop_so.xu_ly([
+    {"loai": "giao_viec", "hop_dong": hdv["ma"], "cong_viec": "Tư vấn Offline", "ten": "Ngô Thảo"},
+    {"loai": "giao_viec", "hop_dong": hdv["ma"], "cong_viec": "Chụp ảnh ngoại cảnh", "ten": "Đặng Huy"},
+    {"loai": "giao_viec", "hop_dong": hdv["ma"], "cong_viec": "Chụp ảnh cưới studio", "ten": "Huy"},
+    {"loai": "giao_viec", "hop_dong": hdv["ma"], "cong_viec": "Makeup cô dâu", "ten": "Vũ Lan", "so_luong": 2},
+    {"loai": "giao_viec", "hop_dong": hdv["ma"], "cong_viec": "Quay drone", "ten": "Huy"}], "Chủ")
+check("chia 4 việc thành công, 1 việc lạ báo lỗi riêng", len(sv["ket_qua"]) == 4 and len(sv["loi"]) == 1 and "drone" in sv["loi"][0]["loi"])
+check("chia việc đi qua agent Nhân Sự Vận Hành và nêu tiền", "Agent Trưởng Nhân Sự Vận Hành" in sv["ket_qua"][0]["tom_tat"] and "50.000" in sv["ket_qua"][0]["tom_tat"])
+check("hạn mặc định = hôm nay + số ngày của việc", all(len(x["han"]) == 10 for x in sv["ket_qua"]))
+check("hợp đồng mới Báo giá thì CHƯA có hoa hồng", [x for x in shop_so.hoa_hong() if x["hop_dong_id"] == hdv["id"]] == [])
+shop_so.doi_trang_thai_hd(hdv["id"], "da_ky", "Chủ")
+hh = {x["ten"] + "|" + x.get("cong_viec", ""): x for x in shop_so.hoa_hong() if x["hop_dong_id"] == hdv["id"]}
+check("ký xong: có hoa hồng từng việc, Thảo chỉ nhận 50k theo việc (không cộng thêm phần trăm)",
+      hh["Ngô Thảo|Tư vấn Offline"]["so_tien"] == 50000 and not any(k.startswith("Ngô Thảo") and k.endswith("|") for k in hh))
+check("Huy 2 việc: 450k + 250k; Lan x2 = 180k", hh["Đặng Huy|Chụp ảnh ngoại cảnh"]["so_tien"] == 450000 and hh["Đặng Huy|Chụp ảnh cưới studio"]["so_tien"] == 250000 and hh["Vũ Lan|Makeup cô dâu"]["so_tien"] == 180000)
+shop_so.xu_ly({"loai": "giao_viec", "hop_dong": hdv["ma"], "cong_viec": "Makeup cô dâu", "ten": "Vũ Lan", "so_luong": 2}, "Chủ")
+check("gửi lại cùng câu không cộng dồn", len([g for g in shop_so.ds_giao_viec(hdv["id"]) if g["ten"] == "Makeup cô dâu"]) == 1
+      and sum(x["so_tien"] for x in shop_so.hoa_hong() if x["ten"] == "Vũ Lan") == 180000)
+lg = {d["ten"]: d for d in shop_so.bang_luong()["dong"]}
+check("bảng lương = lương cơ bản + hoa hồng theo việc", lg["Đặng Huy"]["tong"] == 8e6 + 700000 and lg["Vũ Lan"]["tong"] == 4e6 + 180000 and lg["Ngô Thảo"]["tong"] == 5e6 + 50000)
+shop_so.luu_cong_viec({"id": by["Makeup cô dâu"]["id"], "ma_phong": "MAKEUP", "nhom": "Makeup", "ten": "Makeup cô dâu", "hoa_hong": 100000})
+check("đổi giá trong bảng không làm đổi số tiền đã chốt lúc chia", sum(x["so_tien"] for x in shop_so.hoa_hong() if x["ten"] == "Vũ Lan") == 180000)
+gid = next(g["id"] for g in shop_so.ds_giao_viec(hdv["id"]) if g["ten"] == "Chụp ảnh cưới studio")
+shop_so.doi_giao_viec(gid, "done")
+check("đánh dấu xong việc", next(x for x in shop_so.hoa_hong() if x.get("cong_viec") == "Chụp ảnh cưới studio")["xong"] is True)
+shop_so.go_giao_viec(gid)
+check("gỡ việc đã chia thì hoa hồng mất theo", all(x.get("cong_viec") != "Chụp ảnh cưới studio" for x in shop_so.hoa_hong()))
+shop_so.xoa_nhan_su(mk_["id"])
+check("xóa nhân sự dọn luôn việc đã chia của họ", all(g["nhan_su_id"] != mk_["id"] for g in shop_so.ds_giao_viec()))
+http2 = TestClient(app)
+check("HTTP: chủ đọc bảng việc", len(http2.get("/shop/so/cong-viec").json()["items"]) == 30)
+check("HTTP: thêm việc trùng trả 400", http2.post("/shop/so/cong-viec", data={"data": json.dumps({"ma_phong": "PHOTO", "ten": "Chụp ảnh gia đình"})}).status_code == 400)
+check("HTTP: danh sách việc đã chia của hợp đồng", len(http2.get("/shop/so/giao-viec", params={"hop_dong_id": hdv["id"]}).json()["items"]) >= 2)
+vai["staff"] = {"ten": "Lan", "role": "nhan_vien"}
+check("HTTP: nhân viên thường không đụng được bảng hoa hồng", http2.get("/shop/so/cong-viec").status_code == 403 and http2.post("/shop/so/cong-viec/xoa", data={"id": 1}).status_code == 403)
+vai["staff"] = None
+
 # ---------------- tool joyce_shop (chat gọi)
 import asyncio  # noqa: E402
 import importlib.util  # noqa: E402

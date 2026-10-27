@@ -91,9 +91,9 @@ const defaults=[
 let state=JSON.parse(localStorage.getItem('joyce-shop-org')||'null')||{owner:'Thuỷ H2O',rooms:defaults};
 let sample=localStorage.getItem('joyce-shop-sample')==='1', editing=false, zoom=.78, offset={x:0,y:0}, dragging=false,start={x:0,y:0};
 const statusText={sales:['Lên đơn mới','In báo giá','Kiểm kho'],customer:['Trả lời inbox','Ghi chú khách','Nhắn khách cũ'],marketing:['Viết bài Fanpage','Tạo ảnh','Lên lịch đăng'],finance:['Ghi sổ quỹ','Đối soát công nợ','Chốt báo cáo'],people:['Chấm công','Giao việc','Tính lương'],tech:['Kiểm tra tích hợp','Viết workflow','Sửa tự động hóa']};
-const tabs=['Tổng quan bộ','CRM khách hàng','Tổng quan bán hàng','Đơn bán hàng','Kho hàng','Thu chi & công nợ','Nhân sự & lương','Trợ lý điều hành','Báo giá & hóa đơn','Hộp chat khách','Chăm sóc khách','Viết marketing','Ảnh AI','Công việc'];
-const tabScreens=[0,5,1,2,4,10,11,13,3,6,7,8,9,12];
-const tabSlugs=['tong-quan-bo','crm-khach-hang','tong-quan-ban-hang','don-ban-hang','kho-hang','thu-chi-cong-no','nhan-su-luong','tro-ly-dieu-hanh','bao-gia-hoa-don','hop-chat-khach','cham-soc-khach','viet-marketing','anh-ai','cong-viec'];
+const tabs=['Tổng quan bộ','CRM khách hàng','Tổng quan bán hàng','Đơn bán hàng','Kho hàng','Thu chi & công nợ','Nhân sự & lương','Trợ lý điều hành','Báo giá & hóa đơn','Hộp chat khách','Chăm sóc khách','Viết marketing','Ảnh AI','Công việc','Hoa hồng & việc'];
+const tabScreens=[0,5,1,2,4,10,11,13,3,6,7,8,9,12,14];
+const tabSlugs=['tong-quan-bo','crm-khach-hang','tong-quan-ban-hang','don-ban-hang','kho-hang','thu-chi-cong-no','nhan-su-luong','tro-ly-dieu-hanh','bao-gia-hoa-don','hop-chat-khach','cham-soc-khach','viet-marketing','anh-ai','cong-viec','hoa-hong-viec'];
 document.getElementById('tabs').innerHTML=tabs.map((x,i)=>`<button class="tab ${i===0?'active':''}">${x}</button>`).join('');
 document.querySelectorAll('.tab').forEach((b,i)=>b.onclick=()=>openTab(i));
 let activeTab=0, cart=[];
