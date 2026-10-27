@@ -387,7 +387,7 @@
   };
 
   /* ---------------- Danh mục đồ và lịch sử thuê đồ ---------------- */
-  const ST_DO = { san_sang: ['Sẵn sàng', 'ok'], giu_cho: ['Giữ chỗ', 'wait'], dang_thue: ['Đang thuê', 'out'], qua_han: ['Quá hạn', 'late'], tam_ngung: ['Tạm ngưng', 'off'] };
+  const ST_DO = { san_sang: ['Sẵn sàng', 'ok'], giu_cho: ['Giữ chỗ', 'wait'], dang_thue: ['Đang thuê', 'out'], qua_han: ['Quá hạn', 'late'], tam_ngung: ['Tạm ngưng', 'off'], dang_giat: ['Đang giặt', 'wait'] };
   const ST_THUE = { giu_cho: '1. Giữ chỗ', dang_thue: '2. Đang thuê', da_tra: '4. Đã trả', huy: 'Hủy' };
   const dmy = d => d ? String(d).split('-').reverse().join('/') : '';
   async function mDo() {
@@ -401,7 +401,7 @@
       hien.map(d => {
         const st = ST_DO[d.tinh_trang];
         const lich = d.lich.map(v => '<small style="display:block;color:#707b74">' + esc(dmy(v.tu) + (v.den !== v.tu ? ' - ' + dmy(v.den) : '') + ' · ' + v.khach) + '</small>').join('');
-        return '<tr' + (d.ap_dung ? '' : ' style="opacity:.55"') + '><td><b>' + esc(d.ten_do) + '</b>' + (d.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '<small style="display:block;color:#707b74">' + esc(d.ma_dv) + (d.pb ? ' · ' + esc(d.pb) : '') + '</small></td><td>' + esc(d.nhom) + '</td><td>' + esc(d.co) + '</td><td>' + (d.don_gia ? vnd(d.don_gia) : '<span style="color:#bc7518">Chưa có giá</span>') + '</td><td><span class="so-st so-st-' + st[1] + '">' + st[0] + '</span>' + lich + '</td><td>' + d.so_lan_thue + '</td><td style="max-width:220px">' + esc(d.mo_ta) + '</td><td><button class="so-mini" onclick="soThue(\'' + esc(d.ma_do) + '\')">Cho thuê</button><button class="so-mini" onclick="soDo(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDoXoa(' + d.id + ')">×</button></td></tr>';
+        return '<tr' + (d.ap_dung ? '' : ' style="opacity:.55"') + '><td><b>' + esc(d.ten_do) + '</b>' + (d.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '<small style="display:block;color:#707b74">' + esc(d.ma_dv) + (d.pb ? ' · ' + esc(d.pb) : '') + '</small></td><td>' + esc(d.nhom) + '</td><td>' + esc(d.co) + '</td><td>' + (d.don_gia ? vnd(d.don_gia) : '<span style="color:#bc7518">Chưa có giá</span>') + '</td><td><span class="so-st so-st-' + st[1] + '">' + st[0] + (d.san_lai ? ' đến ' + dmy(d.san_lai) : '') + '</span>' + lich + '</td><td>' + d.so_lan_thue + '</td><td style="max-width:220px">' + esc(d.mo_ta) + '</td><td><button class="so-mini" onclick="soThue(\'' + esc(d.ma_do) + '\')">Cho thuê</button><button class="so-mini" onclick="soDo(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDoXoa(' + d.id + ')">×</button></td></tr>';
       }).join('') + '</tbody></table></div>' :
       '<div class="so-empty"><b>Chưa có món đồ nào</b>Bấm "+ Đồ" để thêm, hoặc "Nạp đồ mẫu" để thử luồng thuê và trả. Anh có thể tự nhập dữ liệu thật vào bất cứ lúc nào.</div>';
     return moduleHead('♛', 'Danh mục đồ', 'Váy, vest, áo dài cho thuê. Tình trạng tự tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê hay quá hạn chưa trả.') +

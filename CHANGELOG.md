@@ -8,7 +8,7 @@
 - **Gõ mã gói là có giá.** Lập hợp đồng hoặc báo giá chỉ cần gõ mã hay tên gói, giá tự điền; đơn bán hàng nhắc khách còn phải trả cọc nào. Hỏi Joyce "giá gói PRW-STCB" là tra được ngay.
 - **Chia việc theo hợp đồng.** Mỗi hợp đồng giao từng đầu việc cho từng người; hoa hồng vào bảng lương tự tính theo số tiền của từng việc, không còn chỉ theo phần trăm.
 
-- **Hai tab mới: Danh mục đồ và Lịch sử thuê đồ.** Quản lý váy, vest, áo dài cho thuê: đồ nào sẵn sàng, đang thuê hay quá hạn chưa trả. Cho thuê gắn hợp đồng và ghi thu luôn, chặn thuê trùng ngày, nhận trả báo trễ hạn. Có nút nạp 5 đồ mẫu để thử và xóa gọn.
+- **Hai tab mới: Danh mục đồ và Lịch sử thuê đồ.** Quản lý váy, vest, áo dài cho thuê: đồ nào sẵn sàng, đang thuê hay quá hạn chưa trả. Cho thuê gắn hợp đồng và ghi thu luôn, chặn thuê trùng ngày kể cả 3 ngày giặt phơi sau mỗi lần trả, nhận trả báo trễ hạn. Có nút nạp 5 đồ mẫu để thử và xóa gọn.
 
 ## [1.3.37] - 2026-10-27
 ### Thêm

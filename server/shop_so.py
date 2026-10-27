@@ -1193,6 +1193,7 @@ def xoa_mau() -> int:
 
 # ---------------------------------------------------------------- danh mục đồ, lịch sử thuê đồ
 TRANG_THAI_THUE = ("giu_cho", "dang_thue", "da_tra", "huy")      # 1. Giữ chỗ, 2. Đang thuê, 4. Đã trả (như sheet của chủ), Hủy
+NGAY_GIAT_MAC_DINH = 3                                             # ngày giặt phơi sau mỗi lần trả, trước khi cho thuê lại
 _VAI_THUE_DO = "sales_vay"                                       # phòng nhận việc cho thuê và nhận trả đồ
 
 
@@ -1211,8 +1212,39 @@ def _chuan_ma_do(v: Any) -> str:
     return re.sub(r"\s+", "", x)[:40]
 
 
+def _dmy(ngay: str) -> str:
+    return datetime.strptime(ngay, "%Y-%m-%d").strftime("%d/%m/%Y")
+
+
+def _ngay_giat(db) -> int:
+    """Số ngày giặt phơi sau mỗi lần trả. Đọc từ cấu hình ngay_giat nếu có, không thì 3 ngày."""
+    r = db.execute("SELECT value FROM so_cau_hinh WHERE key='ngay_giat'").fetchone()
+    try:
+        return max(0, min(30, int(float(r[0])))) if r else NGAY_GIAT_MAC_DINH
+    except (TypeError, ValueError):
+        return NGAY_GIAT_MAC_DINH
+
+
+def _khoang_ban(v: dict, buf: int) -> tuple:
+    """Đồ bị chiếm từ ngày thuê đến hết ngày trả (thực tế nếu đã trả, dự kiến nếu chưa), cộng số ngày giặt phơi.
+    Trả về (ngày bắt đầu, ngày sẵn sàng cho thuê lại)."""
+    het = v["ngay_tra_thuc"] if v["trang_thai"] == "da_tra" and v["ngay_tra_thuc"] else v["ngay_tra_du_kien"]
+    return v["ngay_thue"], _cong_ngay(het, buf)
+
+
+def _thong_bao_trung(ma: str, dung: list, tu: str, den: str, buf: int) -> str:
+    chi = []
+    for v, het in dung:
+        het_thuc = _cong_ngay(het, -buf)
+        tt = {"dang_thue": "đang thuê", "giu_cho": "giữ chỗ"}.get(v["trang_thai"], "đã trả, đang giặt phơi")
+        chi.append(f"{v['khach']} thuê {_dmy(v['ngay_thue'])} đến {_dmy(het_thuc)} ({tt}, phiếu {v['key']})")
+    san = max(het for _, het in dung)
+    return (f"Đồ {ma} không cho thuê từ {_dmy(tu)} đến {_dmy(den)} vì trùng lịch: " + "; ".join(chi)
+            + f". Sau mỗi lần trả cần {buf} ngày giặt phơi, nên đồ sẵn sàng lại từ {_dmy(san)}. Ngày thuê sớm nhất: {_dmy(san)}.")
+
+
 def ds_do() -> List[dict]:
-    """Danh mục đồ kèm tình trạng tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê, quá hạn, tạm ngưng."""
+    """Danh mục đồ kèm tình trạng tính từ lịch sử thuê: sẵn sàng, đang giặt, giữ chỗ, đang thuê, quá hạn, tạm ngưng."""
     hn = _homnay()
 
     def f(db):
@@ -1220,8 +1252,9 @@ def ds_do() -> List[dict]:
         act = _rows(db.execute("SELECT key, ma_do, trang_thai, ngay_thue, ngay_tra_du_kien, khach FROM so_thue_do"
                                " WHERE trang_thai IN ('giu_cho','dang_thue') ORDER BY ngay_thue").fetchall())
         dem = {r[0]: r[1] for r in db.execute("SELECT ma_do, COUNT(*) FROM so_thue_do WHERE trang_thai IN ('dang_thue','da_tra') GROUP BY ma_do").fetchall()}
-        return it, act, dem
-    it, act, dem = _dung(f)
+        tra = {r[0]: r[1] for r in db.execute("SELECT ma_do, MAX(ngay_tra_thuc) FROM so_thue_do WHERE trang_thai='da_tra' AND ngay_tra_thuc!='' GROUP BY ma_do").fetchall()}
+        return it, act, dem, tra, _ngay_giat(db)
+    it, act, dem, tra, buf = _dung(f)
     for r in it:
         mine = [a for a in act if a["ma_do"] == r["ma_do"]]
         dang = next((a for a in mine if a["trang_thai"] == "dang_thue"), None)
@@ -1229,12 +1262,16 @@ def ds_do() -> List[dict]:
         r["so_lan_thue"] = int(dem.get(r["ma_do"], 0))
         r["lich"] = [{"key": a["key"], "trang_thai": a["trang_thai"], "tu": a["ngay_thue"], "den": a["ngay_tra_du_kien"], "khach": a["khach"]} for a in mine]
         r["hien_tai"] = (dang or (mine[0] if mine else {})).get("key", "")
+        r["san_lai"] = ""
         if not r["ap_dung"]:
             r["tinh_trang"] = "tam_ngung"
         elif dang:
             r["tinh_trang"] = "qua_han" if dang["ngay_tra_du_kien"] < hn else "dang_thue"
         elif mine:
             r["tinh_trang"] = "giu_cho"
+        elif r["ma_do"] in tra and _cong_ngay(tra[r["ma_do"]], buf) > hn:
+            r["tinh_trang"] = "dang_giat"
+            r["san_lai"] = _cong_ngay(tra[r["ma_do"]], buf)
         else:
             r["tinh_trang"] = "san_sang"
     return it
@@ -1325,14 +1362,19 @@ def _su_kien_thue_do(sk: dict, by: str, chat_id: str, by_info: dict) -> dict:
     key = uuid.uuid4().hex[:8]
 
     def f(db):
-        va = _rows(db.execute("SELECT * FROM so_thue_do WHERE ma_do=? AND trang_thai IN ('giu_cho','dang_thue')"
-                              " AND NOT (ngay_tra_du_kien < ? OR ngay_thue > ?)", (it["ma_do"], tu, den)).fetchall())
-        if va:
-            v = va[0]
-            if v["ngay_thue"] == tu and ((sdt and v["sdt"] == sdt) or (not sdt and _ascii(v["khach"]).lower() == _ascii(ten).lower())):
+        buf = _ngay_giat(db)
+        dung = []
+        for v in _rows(db.execute("SELECT * FROM so_thue_do WHERE ma_do=? AND trang_thai IN ('giu_cho','dang_thue','da_tra')",
+                                  (it["ma_do"],)).fetchall()):
+            bat, het = _khoang_ban(v, buf)
+            if tu < het and bat < _cong_ngay(den, buf):   # khoảng thuê mới (kể cả giặt phơi) chạm khoảng đã có
+                dung.append((v, het))
+        if dung:
+            v = dung[0][0]
+            if len(dung) == 1 and v["trang_thai"] in ("giu_cho", "dang_thue") and v["ngay_thue"] == tu and (
+                    (sdt and v["sdt"] == sdt) or (not sdt and _ascii(v["khach"]).lower() == _ascii(ten).lower())):
                 return {"da_co": v}
-            raise ValueError(f"Đồ {it['ma_do']} đã có {'người đang thuê' if v['trang_thai'] == 'dang_thue' else 'người giữ chỗ'} "
-                             f"từ {v['ngay_thue']} đến {v['ngay_tra_du_kien']} (phiếu {v['key']}, khách {v['khach']}); chọn đồ hoặc ngày khác")
+            raise ValueError(_thong_bao_trung(it["ma_do"], dung, tu, den, buf))
         qh = db.execute("SELECT * FROM so_thue_do WHERE ma_do=? AND trang_thai='dang_thue' AND ngay_tra_du_kien<? AND ngay_thue<=?", (it["ma_do"], hn, tu)).fetchone()
         if qh and tu <= hn:
             raise ValueError(f"Đồ {it['ma_do']} chưa được trả: phiếu {qh['key']} của {qh['khach']} đã quá hạn từ {qh['ngay_tra_du_kien']}")

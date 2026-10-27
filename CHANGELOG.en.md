@@ -8,7 +8,7 @@
 - **Type a package code and the price fills in.** When creating a contract or quote, just type the package code or name and the price fills itself; the sales order shows which deposit the customer still owes. Ask Joyce "price of package PRW-STCB" for a quick lookup.
 - **Split jobs per contract.** Each contract hands every job to a person; the commission in payroll is computed from the amount of each job, not only from a percentage.
 
-- **Two new tabs: Item Catalog and Rental History.** Manage dresses, suits and ao dai for rent: which items are ready, rented out or overdue. Renting links to a contract and can book the payment at once, double-booking the same dates is blocked, and returns flag late items. A button loads 5 sample items to try and clears them cleanly.
+- **Two new tabs: Item Catalog and Rental History.** Manage dresses, suits and ao dai for rent: which items are ready, rented out or overdue. Renting links to a contract and can book the payment at once, double-booking is blocked, including 3 washing days after each return, and late returns are flagged. A button loads 5 sample items to try and clears them cleanly.
 
 ## [1.3.37] - 2026-10-27
 ### Added

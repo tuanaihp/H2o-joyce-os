@@ -91,13 +91,13 @@ def _bao_cao(args, ctx) -> str:
 def _do(args, ctx) -> str:
     """Tra danh mục đồ: đồ còn trống hay đang thuê, giữ chỗ những ngày nào."""
     d = shop_so._vnd
-    ten = {"san_sang": "sẵn sàng", "giu_cho": "có người giữ chỗ", "dang_thue": "ĐANG THUÊ", "qua_han": "QUÁ HẠN chưa trả", "tam_ngung": "tạm ngưng"}
+    ten = {"san_sang": "sẵn sàng", "giu_cho": "có người giữ chỗ", "dang_thue": "ĐANG THUÊ", "qua_han": "QUÁ HẠN chưa trả", "tam_ngung": "tạm ngưng", "dang_giat": "đang giặt phơi"}
     ds = shop_so.goi_y_do(str((args or {}).get("tu_khoa") or ""))
     if not ds:
         return "Danh mục đồ không có món nào khớp. Nói rõ hơn mã hoặc loại đồ, hoặc xem tab Danh mục đồ."
     ra = []
     for x in ds:
-        dong = f"- {x['ten_do']} ({x['nhom']}{', cỡ ' + x['co'] if x['co'] else ''}) {d(x['don_gia'])}đ/lần, thuê {x['so_lan_thue']} lần: {ten[x['tinh_trang']]}"
+        dong = f"- {x['ten_do']} ({x['nhom']}{', cỡ ' + x['co'] if x['co'] else ''}) {d(x['don_gia'])}đ/lần, thuê {x['so_lan_thue']} lần: {ten[x['tinh_trang']]}{', sẵn sàng từ ' + shop_so._dmy(x['san_lai']) if x.get('san_lai') else ''}"
         if x["lich"]:
             dong += "; lịch " + ", ".join(f"{v['tu']} đến {v['den']} ({v['khach']})" for v in x["lich"])
         ra.append(dong)

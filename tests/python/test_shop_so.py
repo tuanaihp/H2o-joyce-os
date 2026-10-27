@@ -361,7 +361,7 @@ check("phiếu ghi số hợp đồng và đã có phiếu thu", phieu["so_hd"] 
 
 # chống thuê trùng
 tr = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC211", "ten_khach": "Người Khác", "sdt": "0911000111", "ngay_thue": hom_nay, "ngay_tra": mai}, "Chủ")
-check("thuê trùng ngày bị chặn, nêu ai đang giữ và phiếu nào", not tr["ok"] and "đã có người đang thuê" in tr["loi"][0]["loi"] and phieu["key"] in tr["loi"][0]["loi"])
+check("thuê trùng ngày bị chặn, nêu ai đang giữ và phiếu nào", not tr["ok"] and "vì trùng lịch" in tr["loi"][0]["loi"] and phieu["key"] in tr["loi"][0]["loi"])
 tr2 = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC209", "ten_khach": "Cô Khác", "sdt": "0911000222", "ngay_thue": shop_so._cong_ngay(hom_nay, 10), "ngay_tra": shop_so._cong_ngay(hom_nay, 10)}, "Chủ")
 check("đồ đã giữ chỗ ngày 10-11 thì ngày 10 bị chặn", not tr2["ok"] and "giữ chỗ" in tr2["loi"][0]["loi"])
 tr3 = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC209", "ten_khach": "Cô Sau", "sdt": "0911000333", "ngay_thue": shop_so._cong_ngay(hom_nay, 20), "ngay_tra": shop_so._cong_ngay(hom_nay, 21)}, "Chủ")
@@ -378,7 +378,7 @@ check("đồ tạm ngưng không cho thuê", "tạm ngưng" in shop_so.xu_ly({"l
 
 # trả đồ
 tra = shop_so.xu_ly({"loai": "tra_do", "ma_do": "VAY-CC211"}, "Chủ")
-check("trả đồ: đúng hạn, Sales Váy Cưới nhận, đồ về sẵn sàng", tra["ok"] and "đúng hạn" in tra["ket_qua"][0]["tom_tat"] and {d["ma_do"]: d for d in shop_so.ds_do()}["VAY-CC211"]["tinh_trang"] == "san_sang")
+check("trả đồ: đúng hạn, Sales Váy Cưới nhận, đồ vào giặt phơi", tra["ok"] and "đúng hạn" in tra["ket_qua"][0]["tom_tat"] and {d["ma_do"]: d for d in shop_so.ds_do()}["VAY-CC211"]["tinh_trang"] == "dang_giat")
 check("trả hai lần không ghi lại", shop_so.xu_ly({"loai": "tra_do", "key": phieu["key"]}, "Chủ")["ket_qua"][0].get("da_co"))
 check("đếm số lần thuê tăng lên 2", {d["ma_do"]: d for d in shop_so.ds_do()}["VAY-CC211"]["so_lan_thue"] == 2)
 check("trả đồ chưa từng thuê báo lỗi", "Không có phiếu" in shop_so.xu_ly({"loai": "tra_do", "ma_do": "ADCD-05"}, "Chủ")["loi"][0]["loi"])
@@ -443,6 +443,27 @@ check("HTTP: nhân viên thường không đụng được đồ", http2.get("/s
 vai["staff"] = None
 shop_so.xoa_mau_do()
 
+# ---------------- thời gian giặt phơi giữa hai lần thuê
+shop_so.luu_do({"ma_do": "KB-01", "ma_dv": "KB", "nhom": "Váy cưới test", "co": "M", "mau_sac": "Trắng", "don_gia": 3000000})
+_kb = lambda: {d["ma_do"]: d for d in shop_so.ds_do()}["KB-01"]
+_thue_kb = lambda ten, sdt, tu, den: shop_so.xu_ly({"loai": "thue_do", "ma_do": "KB-01", "ten_khach": ten, "sdt": sdt, "ngay_thue": tu, "ngay_tra": den}, "Chủ")
+a_kb = _thue_kb("Cô dâu A", "0911100001", "2099-11-10", "2099-11-12")
+check("giữ chỗ 10/11 đến 12/11 được", a_kb["ok"])
+b_kb = _thue_kb("Cô dâu B", "0911100002", "2099-11-11", "2099-11-13")
+check("thuê trùng 11/11 bị chặn và nêu ngày sẵn sàng 15/11", not b_kb["ok"] and "sẵn sàng lại từ 15/11/2099" in b_kb["loi"][0]["loi"])
+c_kb = _thue_kb("Cô dâu C", "0911100003", "2099-11-13", "2099-11-13")
+check("thuê 13/11 (còn trong thời gian của phiếu A, chưa trả) bị chặn", not c_kb["ok"])
+shop_so.doi_trang_thai_thue(a_kb["ket_qua"][0]["id"], "dang_thue", "Chủ")
+shop_so.xu_ly({"loai": "tra_do", "key": a_kb["ket_qua"][0]["key"], "ngay": "2099-11-12"}, "Chủ")
+check("A trả ngày 12/11: đồ hiện Đang giặt, sẵn sàng từ 15/11", _kb()["tinh_trang"] == "dang_giat" and _kb()["san_lai"] == "2099-11-15")
+b2 = _thue_kb("Cô dâu B", "0911100002", "2099-11-13", "2099-11-13")
+check("sau khi A trả một ngày thì 13/11 vẫn bị chặn vì đang giặt phơi", not b2["ok"] and "đang giặt phơi" in b2["loi"][0]["loi"])
+check("thông báo chỉ rõ lịch A và ngày sẵn sàng", "15/11/2099" in b2["loi"][0]["loi"] and "Cô dâu A thuê 10/11/2099 đến 12/11/2099" in b2["loi"][0]["loi"])
+ok15 = _thue_kb("Cô dâu D", "0911100004", "2099-11-15", "2099-11-16")
+check("thuê đúng ngày sẵn sàng 15/11 được", ok15["ok"] and ok15["ket_qua"][0]["trang_thai"] == "giu_cho")
+check("sau khi có người thuê 15/11 thì tình trạng là giữ chỗ", _kb()["tinh_trang"] == "giu_cho")
+before = _thue_kb("Cô dâu E", "0911100005", "2099-11-01", "2099-11-05")
+check("thuê trước lịch đã đặt mà cách đủ ngày giặt phơi thì được", before["ok"])
 # ---------------- tool joyce_shop (chat gọi)
 import asyncio  # noqa: E402
 import importlib.util  # noqa: E402
