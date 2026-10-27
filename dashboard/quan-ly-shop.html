@@ -216,6 +216,7 @@ document.getElementById('themeBtn').onclick=()=>{document.body.style.filter=docu
 setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 renderSample();renderChat();renderAll();const initialTab=tabSlugs.indexOf(location.hash.slice(1));if(initialTab>0)openTab(initialTab,false);
 </script>
+<script src="quan-ly-shop-so.js"></script>
 <script>
 /* Khi Joyce mở trang này trong khung (?embed=1): bỏ menu trái + thanh trên riêng của bản mẫu (Joyce đã có),
    và thay module "CRM khách hàng" bằng CRM thật của Joyce (window.JoyceCrm của trang cha, API /crm/*). */

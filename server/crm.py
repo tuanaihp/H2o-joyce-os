@@ -366,6 +366,16 @@ def lay_lien_he(cid: int) -> Optional[dict]:
     return _lien_he_public(_row(r)) if r else None
 
 
+def tim_theo_sdt(sdt: str) -> Optional[dict]:
+    """Khách còn sống có đúng số này (viết cách nào cũng về một dạng). Công cụ ghi sổ dùng để không tạo trùng."""
+    n = chuan_sdt(sdt)
+    if not n:
+        return None
+    r = _dung(lambda db: db.execute("SELECT * FROM crm_contacts WHERE phone=? AND deleted=0 ORDER BY id LIMIT 1",
+                                    (n,)).fetchone())
+    return _lien_he_public(_row(r)) if r else None
+
+
 def danh_sach_lien_he(allowed: Optional[set], brain: str = "", q: str = "", tag: str = "",
                       limit: int = 200, offset: int = 0, da_xoa: bool = False) -> List[dict]:
     where, args = ["deleted=?"], [1 if da_xoa else 0]

@@ -13409,6 +13409,10 @@ import shop_state
 
 shop_state.register(app)
 
+import shop_so
+
+shop_so.register(app, lambda: h2o_departments.list_all().get("phong", []), lambda: tasks_feature, _brain_root)
+
 
 @app.get("/work/sweep")
 async def work_sweep(notify: bool = False):

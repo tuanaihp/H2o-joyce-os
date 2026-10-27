@@ -1,0 +1,12 @@
+name: Ghi sổ Quản lý Shop
+name_en: "Shop ledger"
+slug: joyce-shop
+version: 1.0.0
+description: Ghi hợp đồng, báo giá, thu, chi, việc và phân công nhân sự vào sổ Quản lý Shop và CRM từ chat. Mỗi sự kiện đi về đúng phòng (Sales, Thu, Chi, Đối Soát, Nhân Sự), ghi bằng luật cố định, và hiện agent của phòng đó trên văn phòng ảo.
+description_en: "Writes contracts, quotes, income, expenses, tasks and staff assignments into the Shop Manager ledger and the CRM from chat. Each event is routed to the right department, recorded by fixed rules, and shows that department's agent in the virtual office."
+author: Joyce (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - joyce_shop
+hooks: []

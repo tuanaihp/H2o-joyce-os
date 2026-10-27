@@ -1,0 +1,1019 @@
+"""Quản lý Shop: SỔ THẬT (hợp đồng, báo giá, thu chi, nhân sự, việc) và nhật ký agent từng phòng.
+
+Trang `dashboard/quan-ly-shop.html` trước đây vẽ số cứng trong mã trang. Ở đây là kho dữ liệu thật mà
+mọi agent cùng ghi qua MỘT cửa (`xu_ly`), còn trang chỉ đọc.
+
+Luồng một câu của chủ trong chat (ví dụ "hợp đồng Tuấn Thủy 0899252392, gói chụp studio 15 triệu,
+thu 15tr, chi 4tr setup"):
+  1. Joyce (bộ não tổng) chỉ ĐỌC câu và tách thành các sự kiện có cấu trúc, gọi tool `joyce_shop`.
+  2. `xu_ly` định tuyến từng sự kiện về phòng phụ trách (Sales, Thu, Chi, Đối Soát, Nhân Sự), ghi
+     sổ bằng LUẬT CỐ ĐỊNH (không tốn quota model) và ghi một dòng nhật ký mang tên agent của phòng đó,
+     để văn phòng ảo hiện đúng agent đang làm.
+  3. Chỉ khi cần phán đoán (khoản chi của nhân viên vượt hạn mức, hợp đồng hoàn thành cần báo cáo)
+     mới giao một việc Kanban cho agent trưởng phòng, kèm tên skill của phòng.
+
+Hạn mức duyệt chi (mô hình bảng phân quyền duyệt): chi do CHỦ báo thì ghi luôn; chi do nhân viên
+báo mà từ ngưỡng trở lên thì nằm ở "chờ duyệt" cho chủ bấm duyệt. Người ghi khác người duyệt.
+
+Hoa hồng nhân sự tính ĐỘNG từ sổ (lãi gộp = thu đã ghi trừ chi đã ghi của hợp đồng), nên sửa một
+phiếu là lương đổi theo, không có số lưu cũ. Chỉ chủ và quản lý đọc ghi được (có thu chi và lương).
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import sqlite3
+import threading
+import time
+import unicodedata
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
+
+from fastapi import APIRouter, Form, HTTPException, Request
+
+import config as cfgmod
+import crm
+import shop_state
+
+router = APIRouter()
+
+_deps: Dict[str, Callable] = {
+    "phong": lambda: [],            # -> [{"brain":..., "ten":..., "agent":...}]
+    "brain_root": lambda b: "",     # tên brain -> thư mục
+    "tasks": lambda: None,          # -> TasksFeature
+}
+
+NGUONG_CHI_MAC_DINH = 2_000_000
+TY_LE_VAI_MAC_DINH = {"sales": 5.0, "chup": 20.0, "makeup": 15.0, "hotro": 3.0, "khac": 0.0}
+VAI_HOP_LE = tuple(TY_LE_VAI_MAC_DINH)
+CHU = ("ceo", "giam_doc")          # vai trò được coi như chủ khi duyệt chi
+TRANG_THAI_HD = ("bao_gia", "da_ky", "hoan_thanh", "huy")
+TRANG_THAI_VIEC = ("todo", "doing", "review", "done")
+TRUNG_LAP_GIAY = 600               # cùng một sự kiện gửi lại trong 10 phút thì không ghi hai lần
+
+# Phòng phụ trách từng loại việc (tên brain trong sổ phòng ban) và skill của phòng đó.
+VAI_PHONG = {
+    "sales": ("Ban Hang - Sales Hinh Anh", "h2o-studio-sale-lead-triage"),
+    "sales_makeup": ("Ban Hang - Sales Makeup", "h2o-studio-sale-lead-triage"),
+    "sales_vay": ("Ban Hang - Sales Vay Cuoi", "h2o-studio-sale-lead-triage"),
+    "sales_thuyh2o": ("ThuyH2O - Marketing va Bao Gia", ""),
+    "thu": ("Ke Toan - Thu", "h2o-studio-ketoan-thu-cong-no"),
+    "chi": ("Ke Toan - Chi", "h2o-studio-ketoan-chi-kiem-soat"),
+    "doi_soat": ("Ke Toan - Doi Soat va Bao Cao", "h2o-studio-ketoan-doi-soat-bao-cao"),
+    "nhan_su": ("Nhan Su - Van Hanh", "h2o-studio-nhansu-tuyen-danh-gia-van-hanh"),
+    "van_thu": ("Van Thu va Quy Trinh", "h2o-studio-vanthu-quy-trinh"),
+}
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS so_hop_dong(
+  id INTEGER PRIMARY KEY, ma TEXT, contact_id INTEGER, ten_khach TEXT, sdt TEXT, goi TEXT,
+  gia_tri REAL DEFAULT 0, thuong_hieu TEXT DEFAULT 'h2o', brain TEXT DEFAULT '', trang_thai TEXT DEFAULT 'bao_gia',
+  deal_id INTEGER, ngay TEXT, ngay_ky TEXT, nguoi_tao TEXT DEFAULT '', created_at REAL);
+CREATE TABLE IF NOT EXISTS so_quy(
+  id INTEGER PRIMARY KEY, loai TEXT, so_tien REAL, hang_muc TEXT DEFAULT '', dien_giai TEXT DEFAULT '', ngay TEXT,
+  hop_dong_id INTEGER, trang_thai TEXT DEFAULT 'da_ghi', phong TEXT DEFAULT '', agent TEXT DEFAULT '',
+  nguoi_ghi TEXT DEFAULT '', khoa TEXT DEFAULT '', created_at REAL, quyet_boi TEXT DEFAULT '', quyet_luc REAL);
+CREATE INDEX IF NOT EXISTS ix_so_quy_hd ON so_quy(hop_dong_id, trang_thai);
+CREATE TABLE IF NOT EXISTS so_bao_gia(
+  id INTEGER PRIMARY KEY, so TEXT, hop_dong_id INTEGER, ten_khach TEXT DEFAULT '', sdt TEXT DEFAULT '',
+  dong_json TEXT DEFAULT '[]', giam REAL DEFAULT 0, vat REAL DEFAULT 0, tong REAL DEFAULT 0,
+  trang_thai TEXT DEFAULT 'nhap', ghi_chu TEXT DEFAULT '', ngay TEXT, created_at REAL);
+CREATE TABLE IF NOT EXISTS so_nhan_su(
+  id INTEGER PRIMARY KEY, ten TEXT, chuc_vu TEXT DEFAULT '', vai TEXT DEFAULT 'khac', phong_ban TEXT DEFAULT '',
+  sdt TEXT DEFAULT '', luong_cb REAL DEFAULT 0, ty_le REAL, nghi INTEGER DEFAULT 0, mau INTEGER DEFAULT 0, created_at REAL);
+CREATE TABLE IF NOT EXISTS so_phan_cong(
+  hop_dong_id INTEGER, nhan_su_id INTEGER, vai TEXT DEFAULT '', PRIMARY KEY(hop_dong_id, nhan_su_id));
+CREATE TABLE IF NOT EXISTS so_viec(
+  id INTEGER PRIMARY KEY, tieu_de TEXT, du_an TEXT DEFAULT '', giao_cho TEXT DEFAULT '', han TEXT DEFAULT '',
+  uu_tien TEXT DEFAULT '', trang_thai TEXT DEFAULT 'todo', hop_dong_id INTEGER, phong TEXT DEFAULT '', created_at REAL);
+CREATE TABLE IF NOT EXISTS so_hoat_dong(
+  id INTEGER PRIMARY KEY, brain TEXT, phong TEXT, agent TEXT, skill TEXT DEFAULT '', hanh_dong TEXT,
+  loai TEXT DEFAULT '', ref_id INTEGER, trang_thai TEXT DEFAULT 'xong', created_at REAL);
+CREATE INDEX IF NOT EXISTS ix_so_hd_t ON so_hoat_dong(created_at);
+CREATE TABLE IF NOT EXISTS so_cau_hinh(key TEXT PRIMARY KEY, value TEXT);
+"""
+
+_lock = threading.RLock()
+_ready: set = set()
+
+
+def _path():
+    return cfgmod.STATE_DIR / "shop_so.sqlite3"
+
+
+def _db() -> sqlite3.Connection:
+    p = _path()
+    c = sqlite3.connect(str(p), timeout=15)
+    c.row_factory = sqlite3.Row
+    if str(p) not in _ready:
+        c.executescript(_SCHEMA)
+        c.commit()
+        _ready.add(str(p))
+    return c
+
+
+def _dung(f):
+    with _lock:
+        c = _db()
+        try:
+            return f(c)
+        finally:
+            c.close()
+
+
+def _rows(rs) -> List[dict]:
+    return [dict(r) for r in rs]
+
+
+def _ascii(s: Any) -> str:
+    s = unicodedata.normalize("NFD", str(s or "")).replace("đ", "d").replace("Đ", "D")
+    return "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+
+
+def _s(v: Any, n: int = 200) -> str:
+    return re.sub(r"\s+", " ", str(v or "")).strip()[:n]
+
+
+def _homnay() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def _ky(ngay: str = "") -> str:
+    return (ngay or _homnay())[:7]
+
+
+def tien(v: Any) -> float:
+    """15000000, "15.000.000", "15tr", "15 triệu", "1,5 triệu", "500k" -> số đồng. Không hiểu thì 0."""
+    if isinstance(v, bool):
+        return 0.0
+    if isinstance(v, (int, float)):
+        return max(0.0, float(v))
+    m = re.search(r"(\d[\d.,]*)\s*(trieu|tr|nghin|ngan|k|ty)?\b", _ascii(v).lower())
+    if not m:
+        return 0.0
+    num, unit = m.group(1), m.group(2) or ""
+    cham_nhom = re.fullmatch(r"\d{1,3}([.,]\d{3})+", num) is not None   # 15.000.000: dấu là phân nhóm
+    if unit and not cham_nhom:
+        x = float(num.replace(",", "."))
+        return x * {"trieu": 1e6, "tr": 1e6, "nghin": 1e3, "ngan": 1e3, "k": 1e3, "ty": 1e9}[unit]
+    if unit:
+        return float(re.sub(r"[.,]", "", num)) * {"trieu": 1e6, "tr": 1e6, "nghin": 1e3, "ngan": 1e3, "k": 1e3, "ty": 1e9}[unit]
+    return float(re.sub(r"[.,]", "", num))
+
+
+def _vnd(x: Any) -> str:
+    """15000000 -> "15.000.000" (chấm phân nhóm kiểu Việt)."""
+    return f"{int(round(float(x or 0))):,}".replace(",", ".")
+
+
+def _ngay_ok(v: Any) -> str:
+    s = str(v or "").strip()
+    return s if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s) else _homnay()
+
+
+# ---------------------------------------------------------------- cấu hình
+def cau_hinh() -> dict:
+    def f(db):
+        d = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM so_cau_hinh").fetchall()}
+        try:
+            tl = json.loads(d.get("ty_le_vai") or "{}")
+        except Exception:
+            tl = {}
+        ty = dict(TY_LE_VAI_MAC_DINH)
+        ty.update({k: float(v) for k, v in tl.items() if k in VAI_HOP_LE})
+        return {"nguong_chi": float(d.get("nguong_chi") or NGUONG_CHI_MAC_DINH),
+                "co_so_hh": d.get("co_so_hh") if d.get("co_so_hh") in ("lai_gop", "doanh_thu") else "lai_gop",
+                "ty_le_vai": ty}
+    return _dung(f)
+
+
+def luu_cau_hinh(data: dict) -> dict:
+    def f(db):
+        if "nguong_chi" in data:
+            db.execute("INSERT OR REPLACE INTO so_cau_hinh(key,value) VALUES('nguong_chi',?)",
+                       (str(max(0.0, tien(data["nguong_chi"]))),))
+        if data.get("co_so_hh") in ("lai_gop", "doanh_thu"):
+            db.execute("INSERT OR REPLACE INTO so_cau_hinh(key,value) VALUES('co_so_hh',?)", (data["co_so_hh"],))
+        if isinstance(data.get("ty_le_vai"), dict):
+            cur = cau_hinh()["ty_le_vai"]
+            for k, v in data["ty_le_vai"].items():
+                if k in VAI_HOP_LE:
+                    cur[k] = max(0.0, min(100.0, float(v)))
+            db.execute("INSERT OR REPLACE INTO so_cau_hinh(key,value) VALUES('ty_le_vai',?)", (json.dumps(cur),))
+        db.commit()
+    _dung(f)
+    return cau_hinh()
+
+
+# ---------------------------------------------------------------- phòng và nhật ký agent
+def _phong(brain: str) -> dict:
+    for p in (_deps["phong"]() or []):
+        if p.get("brain") == brain:
+            return {"brain": brain, "ten": p.get("ten") or brain, "agent": p.get("agent") or ""}
+    return {"brain": brain, "ten": brain, "agent": ""}
+
+
+def phong_sales(dich_vu: str = "", thuong_hieu: str = "h2o") -> str:
+    t = _ascii(dich_vu).lower()
+    if thuong_hieu == "thuyh2o":
+        return VAI_PHONG["sales_thuyh2o"][0]
+    if "makeup" in t or "trang diem" in t:
+        return VAI_PHONG["sales_makeup"][0]
+    if re.search(r"\bvay\b", t):          # "chụp cưới" là Hình Ảnh, chỉ "váy" mới về Sales Váy Cưới
+        return VAI_PHONG["sales_vay"][0]
+    return VAI_PHONG["sales"][0]
+
+
+def ghi_hoat_dong(brain: str, hanh_dong: str, loai: str = "", ref_id: int = 0, trang_thai: str = "xong",
+                  skill: str = "") -> dict:
+    """Một dòng 'agent của phòng này vừa làm gì'. Văn phòng ảo đọc bảng này để hiện bong bóng."""
+    p = _phong(brain)
+    if not skill:
+        skill = next((s for b, s in VAI_PHONG.values() if b == brain), "")
+    now = time.time()
+
+    def f(db):
+        cur = db.execute("INSERT INTO so_hoat_dong(brain, phong, agent, skill, hanh_dong, loai, ref_id, trang_thai, created_at)"
+                         " VALUES(?,?,?,?,?,?,?,?,?)",
+                         (brain, p["ten"], p["agent"], skill, _s(hanh_dong, 240), loai, int(ref_id or 0), trang_thai, now))
+        db.commit()
+        return int(cur.lastrowid)
+    i = _dung(f)
+    return {"id": i, "brain": brain, "phong": p["ten"], "agent": p["agent"], "skill": skill,
+            "hanh_dong": hanh_dong, "trang_thai": trang_thai, "created_at": now}
+
+
+def hoat_dong(phut: int = 180, limit: int = 60) -> List[dict]:
+    moc = time.time() - max(1, int(phut)) * 60
+    return _dung(lambda db: _rows(db.execute(
+        "SELECT * FROM so_hoat_dong WHERE created_at>=? ORDER BY id DESC LIMIT ?", (moc, int(limit))).fetchall()))
+
+
+def _giao_agent(brain: str, tieu_de: str, intent: str, chat_id: str = "") -> str:
+    """Giao một việc Kanban cho agent trưởng phòng. Trả câu nói thật về việc đó có tự chạy không."""
+    f = _deps["tasks"]()
+    root = _deps["brain_root"](brain) if f else ""
+    if f is None or not root:
+        return "Chưa giao được cho agent (hàng đợi việc chưa sẵn sàng); khoản này nằm chờ duyệt ở trang Thu chi."
+    try:
+        tid = f.enqueue(root, tieu_de, intent, "auto", 2, [], False, "chat", chat_id, "auto", "suggest", "")
+    except Exception as e:
+        return f"Chưa giao được cho agent ({type(e).__name__}: {e})."
+    muc = "off"
+    try:
+        muc = f.board_view(root).get("orchestration") or "off"
+    except Exception:
+        pass
+    p = _phong(brain)
+    if str(muc).lower() == "auto":
+        return f"Đã giao việc {tid} cho {p['agent'] or p['ten']}, kết quả tự về chat."
+    return (f"Đã xếp việc {tid} cho {p['agent'] or p['ten']} nhưng điều phối của phòng \"{p['ten']}\" đang "
+            f"\"{muc}\" nên việc KHÔNG tự chạy; bật \"AI tự vận hành\" ở trang Việc của phòng đó.")
+
+
+# ---------------------------------------------------------------- tìm hợp đồng
+def lay_hop_dong(hid: int) -> Optional[dict]:
+    r = _dung(lambda db: db.execute("SELECT * FROM so_hop_dong WHERE id=?", (int(hid),)).fetchone())
+    return dict(r) if r else None
+
+
+def tim_hop_dong(ref: Any) -> tuple:
+    """(hợp đồng|None, cảnh báo). ref: mã HD0001, số điện thoại, hoặc một phần tên khách."""
+    ref = _s(ref, 120)
+    if not ref:
+        return None, ""
+    ma = re.fullmatch(r"(?i)hd\s*0*(\d+)", ref)
+    if ma:
+        hd = lay_hop_dong(int(ma.group(1)))
+        return hd, "" if hd else f"Không có hợp đồng {ref}."
+    n = crm.chuan_sdt(ref)
+    ds = _dung(lambda db: _rows(db.execute("SELECT * FROM so_hop_dong WHERE trang_thai!='huy' ORDER BY id DESC").fetchall()))
+    if n:
+        kq = [h for h in ds if h["sdt"] == n]
+    else:
+        t = _ascii(ref).lower()
+        kq = [h for h in ds if t in _ascii(h["ten_khach"]).lower()]
+    if not kq:
+        return None, f"Không thấy hợp đồng nào của \"{ref}\"."
+    if len(kq) > 1:
+        return kq[0], f"\"{ref}\" có {len(kq)} hợp đồng, đã gắn vào mới nhất ({kq[0]['ma']})."
+    return kq[0], ""
+
+
+# ---------------------------------------------------------------- ghi sổ (một cửa)
+def _khoa(*parts) -> str:
+    return hashlib.sha1("|".join(_ascii(p).lower() for p in parts).encode("utf-8")).hexdigest()[:16]
+
+
+def _ma(db, bang: str, tiep_dau: str) -> str:
+    n = db.execute(f"SELECT COALESCE(MAX(id),0)+1 FROM {bang}").fetchone()[0]
+    return f"{tiep_dau}{int(n):04d}"
+
+
+def _la_chu(by_info: dict) -> bool:
+    return not by_info or str(by_info.get("role") or "") in CHU
+
+
+def _su_kien_hop_dong(sk: dict, by: str, chat_id: str) -> dict:
+    ten = _s(sk.get("ten") or sk.get("khach"), 120)
+    sdt = crm.chuan_sdt(sk.get("sdt") or "")
+    goi = _s(sk.get("goi") or sk.get("dich_vu"), 160) or "Hợp đồng"
+    gia = tien(sk.get("gia_tri", sk.get("so_tien", 0)))
+    th = "thuyh2o" if _ascii(sk.get("thuong_hieu")).lower().startswith("thuy") else "h2o"
+    if not (ten or sdt):
+        raise ValueError("Hợp đồng cần ít nhất tên khách hoặc số điện thoại")
+    brain = phong_sales(goi, th)
+    # Gửi lại cùng hợp đồng thì trả hợp đồng cũ, đừng tạo bản thứ hai.
+    cu = _dung(lambda db: db.execute(
+        "SELECT * FROM so_hop_dong WHERE trang_thai!='huy' AND gia_tri=? ORDER BY id DESC", (gia,)).fetchall())
+    cu = [dict(r) for r in cu if _ascii(r["goi"]).lower() == _ascii(goi).lower()
+          and (r["sdt"] == sdt if sdt else _ascii(r["ten_khach"]).lower() == _ascii(ten).lower())]
+    if cu:
+        return {"loai": "hop_dong", "id": cu[0]["id"], "ma": cu[0]["ma"], "da_co": True, "phong": _phong(brain)["ten"],
+                "tom_tat": f"Hợp đồng {cu[0]['ma']} của {cu[0]['ten_khach']} đã có từ trước, không tạo lại."}
+    # CRM: tìm khách theo số điện thoại trước khi tạo.
+    kh = crm.tim_theo_sdt(sdt) if sdt else None
+    if kh:
+        if brain not in (kh.get("depts") or []):
+            crm.gan_phong(kh["id"], brain, True, None, by)
+    else:
+        kh = crm.luu_lien_he({"name": ten or sdt, "phone": sdt, "source": "Chat Joyce", "depts": [brain]}, None, by, brain)
+    trang_thai = sk.get("trang_thai") if sk.get("trang_thai") in TRANG_THAI_HD else "bao_gia"
+    ds_gd = {g["key"]: g for g in crm.giai_doan(brain)}
+    stage = "da_chot" if trang_thai in ("da_ky", "hoan_thanh") and "da_chot" in ds_gd else ("cho_chot" if "cho_chot" in ds_gd else list(ds_gd)[0])
+    deal = crm.luu_deal({"contact_id": kh["id"], "brain": brain, "title": goi, "value": str(int(gia)), "stage": stage}, None, by)
+    if deal and deal.get("stage") != stage:
+        crm.chuyen_buoc(deal["id"], stage, None, by)
+    if trang_thai == "bao_gia":
+        crm.them_viec({"contact_id": kh["id"], "brain": brain, "title": f"Gửi báo giá cho {ten or sdt}"}, None, by)
+
+    now = time.time()
+    ngay = _ngay_ok(sk.get("ngay"))
+
+    def f(db):
+        ma = _ma(db, "so_hop_dong", "HD")
+        cur = db.execute("INSERT INTO so_hop_dong(ma, contact_id, ten_khach, sdt, goi, gia_tri, thuong_hieu, brain, trang_thai,"
+                         " deal_id, ngay, ngay_ky, nguoi_tao, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                         (ma, kh["id"], ten or kh.get("name") or sdt, sdt, goi, gia, th, brain, trang_thai,
+                          deal["id"] if deal else None, ngay, ngay if trang_thai != "bao_gia" else "", by, now))
+        hid = int(cur.lastrowid)
+        bg = ""
+        if trang_thai == "bao_gia":
+            bg = _ma(db, "so_bao_gia", "BG")
+            dong = [{"ten": goi, "sl": 1, "don_gia": gia}]
+            db.execute("INSERT INTO so_bao_gia(so, hop_dong_id, ten_khach, sdt, dong_json, giam, vat, tong, trang_thai, ghi_chu, ngay,"
+                       " created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                       (bg, hid, ten or sdt, sdt, json.dumps(dong, ensure_ascii=False), 0, 0, gia, "nhap",
+                        "Báo giá có hiệu lực trong 7 ngày.", ngay, now))
+        db.commit()
+        return hid, ma, bg
+    hid, ma, bg = _dung(f)
+    for pc in (sk.get("phan_cong") or []):
+        try:
+            phan_cong(hid, pc.get("ten") or pc.get("nhan_su"), pc.get("vai") or "")
+        except Exception:
+            pass
+    hd = ghi_hoat_dong(brain, f"Nhận khách {ten or sdt}, lập {('báo giá ' + bg) if bg else 'hợp đồng'} {_vnd(gia)}đ ({goi}), ghi CRM", "hop_dong", hid, skill=VAI_PHONG["sales"][1])
+    return {"loai": "hop_dong", "id": hid, "ma": ma, "bao_gia": bg, "contact_id": kh["id"], "deal_id": deal["id"] if deal else None,
+            "phong": hd["phong"], "agent": hd["agent"], "gia_tri": gia,
+            "tom_tat": f"{hd['agent'] or hd['phong']}: khách {ten or sdt} vào CRM ({hd['phong']}), cơ hội {_vnd(gia)}đ ở bước chờ chốt, "
+                       f"hợp đồng {ma}"  + (f", báo giá {bg}" if bg else "") + "."}
+
+
+def _su_kien_quy(sk: dict, by: str, chat_id: str, by_info: dict, loai: str) -> dict:
+    so_tien = tien(sk.get("so_tien", sk.get("gia_tri", 0)))
+    if so_tien <= 0:
+        raise ValueError("Phiếu " + ("thu" if loai == "thu" else "chi") + " cần số tiền lớn hơn 0")
+    dien_giai = _s(sk.get("dien_giai") or sk.get("noi_dung") or sk.get("ghi_chu"), 240)
+    hang_muc = _s(sk.get("hang_muc"), 60) or ("Thu khác" if loai == "thu" else "Chi khác")
+    ngay = _ngay_ok(sk.get("ngay"))
+    hd, canh_bao = (None, "")
+    ref = sk.get("hop_dong") or sk.get("sdt") or sk.get("khach")
+    if ref:
+        hd, canh_bao = tim_hop_dong(ref)
+    khoa = _khoa(loai, so_tien, dien_giai, hd["id"] if hd else 0, ngay)
+    brain = VAI_PHONG[loai][0]
+    cu = _dung(lambda db: db.execute("SELECT * FROM so_quy WHERE khoa=? AND created_at>?", (khoa, time.time() - TRUNG_LAP_GIAY)).fetchone())
+    if cu:
+        return {"loai": loai, "id": cu["id"], "da_co": True, "phong": _phong(brain)["ten"],
+                "tom_tat": f"Phiếu {loai} {_vnd(so_tien)}đ này vừa được ghi, không ghi lại lần hai."}
+    cfg = cau_hinh()
+    cho_duyet = loai == "chi" and not _la_chu(by_info) and so_tien >= cfg["nguong_chi"]
+    trang_thai = "cho_duyet" if cho_duyet else "da_ghi"
+    p = _phong(brain)
+
+    def f(db):
+        cur = db.execute("INSERT INTO so_quy(loai, so_tien, hang_muc, dien_giai, ngay, hop_dong_id, trang_thai, phong, agent, nguoi_ghi,"
+                         " khoa, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                         (loai, so_tien, hang_muc, dien_giai, ngay, hd["id"] if hd else None, trang_thai, p["ten"], p["agent"],
+                          by, khoa, time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    qid = _dung(f)
+    note = []
+    if hd:
+        note.append(f"gắn hợp đồng {hd['ma']} ({hd['ten_khach']})")
+        if loai == "thu" and hd["trang_thai"] == "bao_gia":
+            doi_trang_thai_hd(hd["id"], "da_ky", by)
+            note.append("hợp đồng chuyển sang Đã ký")
+    elif ref:
+        note.append(canh_bao or "chưa gắn được hợp đồng")
+    elif loai == "thu":
+        note.append("chưa gắn hợp đồng nào")
+    if canh_bao and hd:
+        note.append(canh_bao)
+    hanh = (f"Ghi {'thu' if loai == 'thu' else 'chi'} {_vnd(so_tien)}đ ({hang_muc})"
+            + (f", {dien_giai}" if dien_giai else "") + (", CHỜ DUYỆT" if cho_duyet else ""))
+    ghi_hoat_dong(brain, hanh, loai, qid, "cho_duyet" if cho_duyet else "xong")
+    ra = {"loai": loai, "id": qid, "so_tien": so_tien, "trang_thai": trang_thai, "phong": p["ten"], "agent": p["agent"],
+          "hop_dong": hd["ma"] if hd else "", "canh_bao": canh_bao,
+          "tom_tat": f"{p['agent'] or p['ten']}: {'thu' if loai == 'thu' else 'chi'} {_vnd(so_tien)}đ"
+                     + (" - " + "; ".join(note) if note else "") + (". CHỜ CHỦ DUYỆT (vượt hạn mức)" if cho_duyet else ". Đã ghi sổ.")}
+    if cho_duyet:
+        ra["giao_agent"] = _giao_agent(brain, f"[Kiểm chi] {dien_giai or hang_muc} {_vnd(so_tien)}đ",
+                                       f"Khoản chi {_vnd(so_tien)}đ ({hang_muc}) '{dien_giai}' do {by} báo, vượt hạn mức "
+                                       f"{_vnd(cfg['nguong_chi'])}đ nên đang chờ chủ duyệt (phiếu số {qid} ở trang Thu chi). "
+                                       f"Dùng skill {VAI_PHONG['chi'][1]}: kiểm chứng từ, phân loại COGS hay vận hành, gắn đúng hợp đồng, "
+                                       "nêu rủi ro. Không tự duyệt.", chat_id)
+    return ra
+
+
+def _su_kien_viec(sk: dict, by: str) -> dict:
+    tieu_de = _s(sk.get("tieu_de") or sk.get("ten"), 200)
+    if not tieu_de:
+        raise ValueError("Việc cần tiêu đề")
+    hd = tim_hop_dong(sk.get("hop_dong"))[0] if sk.get("hop_dong") else None
+    uu = sk.get("uu_tien") if sk.get("uu_tien") in ("Gấp", "Cao", "") else ""
+    brain = VAI_PHONG["van_thu"][0]
+
+    def f(db):
+        cur = db.execute("INSERT INTO so_viec(tieu_de, du_an, giao_cho, han, uu_tien, trang_thai, hop_dong_id, phong, created_at)"
+                         " VALUES(?,?,?,?,?,?,?,?,?)",
+                         (tieu_de, _s(sk.get("du_an"), 80) or (hd["ma"] if hd else "Việc chung"), _s(sk.get("giao_cho"), 80),
+                          _s(sk.get("han"), 10), uu, "todo", hd["id"] if hd else None, _phong(brain)["ten"], time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    vid = _dung(f)
+    h = ghi_hoat_dong(brain, f"Tạo việc: {tieu_de}", "viec", vid)
+    return {"loai": "viec", "id": vid, "phong": h["phong"], "agent": h["agent"],
+            "tom_tat": f"{h['agent'] or h['phong']}: tạo việc \"{tieu_de}\"."}
+
+
+def xu_ly(events: Any, by: str = "Joyce", chat_id: str = "", by_info: Optional[dict] = None) -> dict:
+    """Cửa duy nhất để ghi sổ. `events`: một sự kiện hoặc danh sách; mỗi sự kiện có `loai`:
+    hop_dong | thu | chi | viec | phan_cong. Lỗi một sự kiện không làm hỏng các sự kiện khác."""
+    if isinstance(events, dict):
+        events = [events]
+    by_info = by_info or {}
+    kq, loi = [], []
+    for i, sk in enumerate(events or []):
+        if not isinstance(sk, dict):
+            loi.append({"stt": i + 1, "loi": "Sự kiện phải là một object"})
+            continue
+        loai = _ascii(sk.get("loai")).lower().strip()
+        try:
+            if loai in ("hop_dong", "bao_gia", "khach"):
+                kq.append(_su_kien_hop_dong(sk, by, chat_id))
+            elif loai in ("thu", "chi"):
+                kq.append(_su_kien_quy(sk, by, chat_id, by_info, loai))
+            elif loai == "viec":
+                kq.append(_su_kien_viec(sk, by))
+            elif loai == "phan_cong":
+                hd = tim_hop_dong(sk.get("hop_dong"))[0]
+                if not hd:
+                    raise ValueError("Không thấy hợp đồng để phân công")
+                kq.append(phan_cong(hd["id"], sk.get("ten") or sk.get("nhan_su"), sk.get("vai") or ""))
+            else:
+                raise ValueError("loai phải là hop_dong, thu, chi, viec hoặc phan_cong")
+        except (ValueError, PermissionError) as e:
+            loi.append({"stt": i + 1, "loai": loai, "loi": str(e)})
+    return {"ok": not loi, "ket_qua": kq, "loi": loi}
+
+
+# ---------------------------------------------------------------- hợp đồng, báo giá
+def doi_trang_thai_hd(hid: int, ts: str, by: str = "") -> dict:
+    if ts not in TRANG_THAI_HD:
+        raise ValueError("Trạng thái hợp đồng không hợp lệ")
+    hd = lay_hop_dong(hid)
+    if not hd:
+        raise ValueError("Không thấy hợp đồng")
+
+    def f(db):
+        db.execute("UPDATE so_hop_dong SET trang_thai=?, ngay_ky=CASE WHEN ?='da_ky' AND COALESCE(ngay_ky,'')='' THEN ? ELSE ngay_ky END WHERE id=?",
+                   (ts, ts, _homnay(), int(hid)))
+        if ts == "da_ky":
+            db.execute("UPDATE so_bao_gia SET trang_thai='chap_nhan' WHERE hop_dong_id=? AND trang_thai IN ('nhap','da_gui')", (int(hid),))
+        if ts == "huy":
+            db.execute("UPDATE so_bao_gia SET trang_thai='huy' WHERE hop_dong_id=? AND trang_thai IN ('nhap','da_gui')", (int(hid),))
+        db.commit()
+    _dung(f)
+    try:
+        if hd.get("deal_id") and hd.get("brain"):
+            ds = {g["key"]: g for g in crm.giai_doan(hd["brain"])}
+            muc = {"da_ky": "da_chot", "hoan_thanh": "da_chot", "huy": "mat", "bao_gia": "cho_chot"}[ts]
+            if muc in ds:
+                crm.chuyen_buoc(hd["deal_id"], muc, None, by or "Joyce")
+    except Exception:
+        pass
+    ten = {"da_ky": "đã ký", "hoan_thanh": "hoàn thành", "huy": "hủy", "bao_gia": "báo giá"}[ts]
+    ghi_hoat_dong(hd.get("brain") or VAI_PHONG["sales"][0], f"Hợp đồng {hd['ma']} ({hd['ten_khach']}) chuyển sang {ten}", "hop_dong", hid)
+    if ts == "hoan_thanh":
+        giao_bao_cao(hid)
+    return lay_hop_dong(hid)
+
+
+def giao_bao_cao(hid: int, chat_id: str = "") -> str:
+    """Hợp đồng xong: phòng Đối Soát (agent + skill của phòng) lập báo cáo lãi lỗ. Đây là chỗ MỘT lượt model có giá trị."""
+    hd = lay_hop_dong(hid)
+    if not hd:
+        return "Không thấy hợp đồng."
+    ct = chi_tiet_hop_dong(hid)
+    brain = VAI_PHONG["doi_soat"][0]
+    ghi_hoat_dong(brain, f"Đối soát hợp đồng {hd['ma']}: thu {_vnd(ct['thu'])}đ, chi {_vnd(ct['chi'])}đ, lãi gộp {_vnd(ct['lai_gop'])}đ",
+                  "doi_soat", hid)
+    return _giao_agent(brain, f"[Đối soát] Hợp đồng {hd['ma']} {hd['ten_khach']}",
+                       f"Hợp đồng {hd['ma']} ({hd['goi']}) của {hd['ten_khach']} đã hoàn thành. Giá trị {_vnd(hd['gia_tri'])}đ, đã thu "
+                       f"{_vnd(ct['thu'])}đ, đã chi {_vnd(ct['chi'])}đ, còn nợ {_vnd(ct['con_no'])}đ, lãi gộp {_vnd(ct['lai_gop'])}đ. "
+                       f"Dùng skill {VAI_PHONG['doi_soat'][1]}: kết luận đủ/nợ/hoàn, nêu chênh lệch và 1 đến 3 việc cần làm.",
+                       chat_id)
+
+
+def chi_tiet_hop_dong(hid: int) -> dict:
+    def f(db):
+        t = db.execute("SELECT COALESCE(SUM(so_tien),0) FROM so_quy WHERE hop_dong_id=? AND loai='thu' AND trang_thai='da_ghi'", (int(hid),)).fetchone()[0]
+        c = db.execute("SELECT COALESCE(SUM(so_tien),0) FROM so_quy WHERE hop_dong_id=? AND loai='chi' AND trang_thai='da_ghi'", (int(hid),)).fetchone()[0]
+        g = db.execute("SELECT gia_tri FROM so_hop_dong WHERE id=?", (int(hid),)).fetchone()
+        return float(t), float(c), float(g[0] if g else 0)
+    t, c, g = _dung(f)
+    return {"thu": t, "chi": c, "lai_gop": t - c, "con_no": max(0.0, g - t)}
+
+
+def ds_hop_dong(trang_thai: str = "", q: str = "") -> List[dict]:
+    rows = _dung(lambda db: _rows(db.execute("SELECT * FROM so_hop_dong ORDER BY id DESC").fetchall()))
+    out = []
+    t = _ascii(q).lower()
+    for h in rows:
+        if trang_thai and h["trang_thai"] != trang_thai:
+            continue
+        if t and t not in _ascii(h["ten_khach"] + " " + h["goi"] + " " + h["ma"] + " " + h["sdt"]).lower():
+            continue
+        h.update(chi_tiet_hop_dong(h["id"]))
+        out.append(h)
+    return out
+
+
+def luu_bao_gia(data: dict, by: str = "") -> dict:
+    bid = int(data.get("id") or 0)
+    dong = []
+    for x in (data.get("dong") or []):
+        ten = _s(x.get("ten"), 160)
+        if ten:
+            dong.append({"ten": ten, "sl": max(0.0, float(x.get("sl") or 1)), "don_gia": tien(x.get("don_gia", 0))})
+    if not dong:
+        raise ValueError("Báo giá cần ít nhất một dòng hàng hóa hoặc dịch vụ")
+    giam = max(0.0, min(100.0, float(data.get("giam") or 0)))
+    vat = max(0.0, min(30.0, float(data.get("vat") or 0)))
+    tong = sum(d["sl"] * d["don_gia"] for d in dong) * (1 - giam / 100) * (1 + vat / 100)
+    ten_khach, sdt = _s(data.get("ten_khach"), 120), crm.chuan_sdt(data.get("sdt") or "")
+    ts = data.get("trang_thai") if data.get("trang_thai") in ("nhap", "da_gui", "chap_nhan", "huy") else "nhap"
+    hd = None
+    if data.get("hop_dong"):
+        hd = tim_hop_dong(data["hop_dong"])[0]
+    hid = hd["id"] if hd else (int(data.get("hop_dong_id") or 0) or None)
+
+    def f(db):
+        if bid:
+            db.execute("UPDATE so_bao_gia SET ten_khach=?, sdt=?, dong_json=?, giam=?, vat=?, tong=?, trang_thai=?, ghi_chu=?, hop_dong_id=? WHERE id=?",
+                       (ten_khach, sdt, json.dumps(dong, ensure_ascii=False), giam, vat, tong, ts, _s(data.get("ghi_chu"), 400), hid, bid))
+            db.commit()
+            return bid
+        so = _ma(db, "so_bao_gia", "BG")
+        cur = db.execute("INSERT INTO so_bao_gia(so, hop_dong_id, ten_khach, sdt, dong_json, giam, vat, tong, trang_thai, ghi_chu, ngay, created_at)"
+                         " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                         (so, hid, ten_khach, sdt, json.dumps(dong, ensure_ascii=False), giam, vat, tong, ts,
+                          _s(data.get("ghi_chu"), 400), _homnay(), time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    i = _dung(f)
+    ghi_hoat_dong(hd["brain"] if hd and hd.get("brain") else VAI_PHONG["sales"][0],
+                  f"{'Sửa' if bid else 'Lập'} báo giá cho {ten_khach or 'khách'} {_vnd(tong)}đ", "bao_gia", i,
+                  skill=VAI_PHONG["sales"][1])
+    return lay_bao_gia(i)
+
+
+def lay_bao_gia(bid: int) -> Optional[dict]:
+    r = _dung(lambda db: db.execute("SELECT * FROM so_bao_gia WHERE id=?", (int(bid),)).fetchone())
+    if not r:
+        return None
+    d = dict(r)
+    d["dong"] = json.loads(d.pop("dong_json") or "[]")
+    return d
+
+
+def ds_bao_gia() -> List[dict]:
+    ids = _dung(lambda db: [r[0] for r in db.execute("SELECT id FROM so_bao_gia ORDER BY id DESC").fetchall()])
+    return [lay_bao_gia(i) for i in ids]
+
+
+def doi_trang_thai_bg(bid: int, ts: str, by: str = "") -> dict:
+    if ts not in ("nhap", "da_gui", "chap_nhan", "huy"):
+        raise ValueError("Trạng thái báo giá không hợp lệ")
+    bg = lay_bao_gia(bid)
+    if not bg:
+        raise ValueError("Không thấy báo giá")
+    _dung(lambda db: (db.execute("UPDATE so_bao_gia SET trang_thai=? WHERE id=?", (ts, int(bid))), db.commit()))
+    if ts == "chap_nhan" and bg.get("hop_dong_id"):
+        doi_trang_thai_hd(bg["hop_dong_id"], "da_ky", by)
+    return lay_bao_gia(bid)
+
+
+# ---------------------------------------------------------------- duyệt chi, sổ quỹ
+def duyet_quy(qid: int, quyet: str, by: str) -> dict:
+    if quyet not in ("duyet", "tu_choi"):
+        raise ValueError("quyet phải là duyet hoặc tu_choi")
+    r = _dung(lambda db: db.execute("SELECT * FROM so_quy WHERE id=?", (int(qid),)).fetchone())
+    if not r:
+        raise ValueError("Không thấy phiếu")
+    if r["trang_thai"] != "cho_duyet":
+        raise ValueError("Phiếu này không ở trạng thái chờ duyệt")
+    ts = "da_ghi" if quyet == "duyet" else "tu_choi"
+    _dung(lambda db: (db.execute("UPDATE so_quy SET trang_thai=?, quyet_boi=?, quyet_luc=? WHERE id=?", (ts, by, time.time(), int(qid))), db.commit()))
+    ghi_hoat_dong(VAI_PHONG["chi"][0], f"{'Chủ duyệt' if quyet == 'duyet' else 'Chủ từ chối'} phiếu chi {_vnd(r['so_tien'])}đ ({r['dien_giai'] or r['hang_muc']})",
+                  "chi", qid)
+    return dict(_dung(lambda db: db.execute("SELECT * FROM so_quy WHERE id=?", (int(qid),)).fetchone()))
+
+
+def ds_quy(ky: str = "", loai: str = "", trang_thai: str = "", limit: int = 300) -> List[dict]:
+    where, args = ["1=1"], []
+    if ky and ky != "all":
+        where.append("q.ngay LIKE ?")
+        args.append(ky + "%")
+    if loai in ("thu", "chi"):
+        where.append("q.loai=?")
+        args.append(loai)
+    if trang_thai:
+        where.append("q.trang_thai=?")
+        args.append(trang_thai)
+    sql = ("SELECT q.*, h.ma AS hop_dong_ma, h.ten_khach AS hop_dong_khach FROM so_quy q LEFT JOIN so_hop_dong h ON h.id=q.hop_dong_id"
+           " WHERE " + " AND ".join(where) + " ORDER BY q.ngay DESC, q.id DESC LIMIT ?")
+    return _dung(lambda db: _rows(db.execute(sql, args + [int(limit)]).fetchall()))
+
+
+def xoa_quy(qid: int) -> bool:
+    return bool(_dung(lambda db: (db.execute("DELETE FROM so_quy WHERE id=?", (int(qid),)), db.commit())))
+
+
+# ---------------------------------------------------------------- nhân sự, lương
+def luu_nhan_su(data: dict) -> dict:
+    nid = int(data.get("id") or 0)
+    ten = _s(data.get("ten"), 120)
+    if not ten:
+        raise ValueError("Nhân sự cần họ tên")
+    vai = data.get("vai") if data.get("vai") in VAI_HOP_LE else "khac"
+    ty = data.get("ty_le")
+    ty = None if ty in (None, "") else max(0.0, min(100.0, float(ty)))
+    luong = tien(data.get("luong_cb", 0))
+
+    def f(db):
+        if nid:
+            db.execute("UPDATE so_nhan_su SET ten=?, chuc_vu=?, vai=?, phong_ban=?, sdt=?, luong_cb=?, ty_le=?, nghi=? WHERE id=?",
+                       (ten, _s(data.get("chuc_vu"), 80), vai, _s(data.get("phong_ban"), 80), crm.chuan_sdt(data.get("sdt") or ""),
+                        luong, ty, 1 if data.get("nghi") else 0, nid))
+            db.commit()
+            return nid
+        cur = db.execute("INSERT INTO so_nhan_su(ten, chuc_vu, vai, phong_ban, sdt, luong_cb, ty_le, nghi, mau, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                         (ten, _s(data.get("chuc_vu"), 80), vai, _s(data.get("phong_ban"), 80), crm.chuan_sdt(data.get("sdt") or ""),
+                          luong, ty, 1 if data.get("nghi") else 0, 1 if data.get("mau") else 0, time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    i = _dung(f)
+    return dict(_dung(lambda db: db.execute("SELECT * FROM so_nhan_su WHERE id=?", (i,)).fetchone()))
+
+
+def ds_nhan_su() -> List[dict]:
+    return _dung(lambda db: _rows(db.execute("SELECT * FROM so_nhan_su ORDER BY nghi, id").fetchall()))
+
+
+def xoa_nhan_su(nid: int) -> None:
+    def f(db):
+        db.execute("DELETE FROM so_phan_cong WHERE nhan_su_id=?", (int(nid),))
+        db.execute("DELETE FROM so_nhan_su WHERE id=?", (int(nid),))
+        db.commit()
+    _dung(f)
+
+
+def phan_cong(hid: int, ten: Any, vai: str = "") -> dict:
+    t = _ascii(ten).lower().strip()
+    if not t:
+        raise ValueError("Phân công cần tên nhân sự")
+    ns = [n for n in ds_nhan_su() if not n["nghi"] and t in _ascii(n["ten"]).lower()]
+    if not ns:
+        raise ValueError(f"Không thấy nhân sự \"{ten}\"")
+    n = ns[0]
+    v = vai if vai in VAI_HOP_LE else n["vai"]
+    _dung(lambda db: (db.execute("INSERT OR REPLACE INTO so_phan_cong(hop_dong_id, nhan_su_id, vai) VALUES(?,?,?)", (int(hid), n["id"], v)), db.commit()))
+    hd = lay_hop_dong(hid) or {}
+    ghi_hoat_dong(VAI_PHONG["nhan_su"][0], f"Phân công {n['ten']} ({v}) vào hợp đồng {hd.get('ma', hid)}", "phan_cong", hid)
+    return {"loai": "phan_cong", "hop_dong": hd.get("ma"), "nhan_su": n["ten"], "vai": v,
+            "tom_tat": f"Phân công {n['ten']} ({v}) vào hợp đồng {hd.get('ma', hid)}."}
+
+
+def go_phan_cong(hid: int, nid: int) -> None:
+    _dung(lambda db: (db.execute("DELETE FROM so_phan_cong WHERE hop_dong_id=? AND nhan_su_id=?", (int(hid), int(nid))), db.commit()))
+
+
+def hoa_hong(ky: str = "") -> List[dict]:
+    """Hoa hồng tạm tính theo kỳ (tháng ký hợp đồng). Chỉ hợp đồng Đã ký hoặc Hoàn thành mới có hoa hồng."""
+    cfg = cau_hinh()
+    ky = ky or _ky()
+    pcs = _dung(lambda db: _rows(db.execute(
+        "SELECT p.hop_dong_id, p.nhan_su_id, p.vai, n.ten, n.ty_le, h.ma, h.ten_khach, h.gia_tri, h.ngay_ky, h.ngay, h.trang_thai"
+        " FROM so_phan_cong p JOIN so_nhan_su n ON n.id=p.nhan_su_id JOIN so_hop_dong h ON h.id=p.hop_dong_id"
+        " WHERE h.trang_thai IN ('da_ky','hoan_thanh')").fetchall()))
+    out = []
+    for p in pcs:
+        if ky != "all" and _ky(p["ngay_ky"] or p["ngay"]) != ky:
+            continue
+        ct = chi_tiet_hop_dong(p["hop_dong_id"])
+        co_so = max(0.0, ct["lai_gop"]) if cfg["co_so_hh"] == "lai_gop" else ct["thu"]
+        ty = p["ty_le"] if p["ty_le"] is not None else cfg["ty_le_vai"].get(p["vai"], 0.0)
+        out.append({"hop_dong_id": p["hop_dong_id"], "ma": p["ma"], "ten_khach": p["ten_khach"], "nhan_su_id": p["nhan_su_id"],
+                    "ten": p["ten"], "vai": p["vai"], "co_so": co_so, "co_so_loai": cfg["co_so_hh"], "ty_le": ty,
+                    "so_tien": round(co_so * ty / 100.0), "trang_thai": p["trang_thai"]})
+    return out
+
+
+def bang_luong(ky: str = "") -> dict:
+    ky = ky or _ky()
+    hh = hoa_hong(ky)
+    dong = []
+    for n in ds_nhan_su():
+        if n["nghi"]:
+            continue
+        mine = [x for x in hh if x["nhan_su_id"] == n["id"]]
+        tong_hh = sum(x["so_tien"] for x in mine)
+        dong.append({"nhan_su_id": n["id"], "ten": n["ten"], "chuc_vu": n["chuc_vu"], "vai": n["vai"], "luong_cb": n["luong_cb"],
+                     "hoa_hong": tong_hh, "so_hop_dong": len(mine), "tong": n["luong_cb"] + tong_hh, "chi_tiet": mine})
+    return {"ky": ky, "co_so_hh": cau_hinh()["co_so_hh"], "dong": dong, "tong_luong": sum(d["tong"] for d in dong),
+            "tong_hoa_hong": sum(d["hoa_hong"] for d in dong)}
+
+
+NHAN_SU_MAU = [
+    ("Trần Minh Anh", "Sales", "sales", "Bán hàng", 7_000_000),
+    ("Lê Quốc Huy", "Thợ chụp chính", "chup", "Sản xuất", 8_000_000),
+    ("Phạm Thu Hà", "Hậu kỳ và hỗ trợ", "hotro", "Sản xuất", 6_000_000),
+]
+
+
+def nap_mau() -> int:
+    if any(n["mau"] for n in ds_nhan_su()):
+        return 0
+    for ten, cv, vai, pb, luong in NHAN_SU_MAU:
+        luu_nhan_su({"ten": ten, "chuc_vu": cv, "vai": vai, "phong_ban": pb, "luong_cb": luong, "mau": True})
+    ghi_hoat_dong(VAI_PHONG["nhan_su"][0], f"Nạp {len(NHAN_SU_MAU)} nhân sự mẫu để thử tính lương", "nhan_su", 0)
+    return len(NHAN_SU_MAU)
+
+
+def xoa_mau() -> int:
+    ids = [n["id"] for n in ds_nhan_su() if n["mau"]]
+    for i in ids:
+        xoa_nhan_su(i)
+    return len(ids)
+
+
+# ---------------------------------------------------------------- việc
+def ds_viec() -> List[dict]:
+    return _dung(lambda db: _rows(db.execute(
+        "SELECT v.*, h.ma AS hop_dong_ma FROM so_viec v LEFT JOIN so_hop_dong h ON h.id=v.hop_dong_id ORDER BY v.id DESC").fetchall()))
+
+
+def doi_buoc_viec(vid: int, ts: str) -> None:
+    if ts not in TRANG_THAI_VIEC:
+        raise ValueError("Trạng thái việc không hợp lệ")
+    _dung(lambda db: (db.execute("UPDATE so_viec SET trang_thai=? WHERE id=?", (ts, int(vid))), db.commit()))
+
+
+def xoa_viec(vid: int) -> None:
+    _dung(lambda db: (db.execute("DELETE FROM so_viec WHERE id=?", (int(vid),)), db.commit()))
+
+
+# ---------------------------------------------------------------- tổng quan
+def tong_quan(ky: str = "") -> dict:
+    ky = ky or _ky()
+    like = "%" if ky == "all" else ky + "%"
+
+    def f(db):
+        s = lambda sql, a=(): float(db.execute(sql, a).fetchone()[0] or 0)
+        thu = s("SELECT SUM(so_tien) FROM so_quy WHERE loai='thu' AND trang_thai='da_ghi' AND ngay LIKE ?", (like,))
+        chi = s("SELECT SUM(so_tien) FROM so_quy WHERE loai='chi' AND trang_thai='da_ghi' AND ngay LIKE ?", (like,))
+        cho = db.execute("SELECT COUNT(*), COALESCE(SUM(so_tien),0) FROM so_quy WHERE trang_thai='cho_duyet'").fetchone()
+        hd = {r[0]: r[1] for r in db.execute("SELECT trang_thai, COUNT(*) FROM so_hop_dong GROUP BY trang_thai").fetchall()}
+        pipe = s("SELECT SUM(gia_tri) FROM so_hop_dong WHERE trang_thai='bao_gia'")
+        qua_han = int(s("SELECT COUNT(*) FROM so_viec WHERE trang_thai!='done' AND han!='' AND han<?", (_homnay(),)))
+        viec_mo = int(s("SELECT COUNT(*) FROM so_viec WHERE trang_thai!='done'"))
+        return thu, chi, cho, hd, pipe, qua_han, viec_mo
+    thu, chi, cho, hd, pipe, qua_han, viec_mo = _dung(f)
+    no = sum(h["con_no"] for h in ds_hop_dong() if h["trang_thai"] in ("da_ky", "hoan_thanh"))
+    return {"ky": ky, "thu": thu, "chi": chi, "lai_gop": thu - chi, "cho_duyet": int(cho[0]), "cho_duyet_tien": float(cho[1]),
+            "hop_dong": {k: hd.get(k, 0) for k in TRANG_THAI_HD}, "pipeline": pipe, "cong_no": no,
+            "viec_qua_han": qua_han, "viec_mo": viec_mo, "luong": bang_luong(ky if ky != "all" else "")["tong_luong"]}
+
+
+# ---------------------------------------------------------------- HTTP (chỉ chủ và quản lý)
+def _ten(request: Request) -> str:
+    st = getattr(request.state, "staff", None) or {}
+    return str(st.get("ten") or "Chủ")
+
+
+def _loi(f):
+    import functools
+
+    @functools.wraps(f)
+    async def w(*a, **k):
+        try:
+            return await f(*a, **k)
+        except (ValueError, PermissionError) as e:
+            raise HTTPException(400, str(e))
+    return w
+
+
+def _json(data: str) -> Any:
+    try:
+        return json.loads(data)
+    except Exception:
+        raise HTTPException(400, "Dữ liệu không phải JSON")
+
+
+@router.get("/shop/so/tong-quan")
+async def r_tong_quan(request: Request, ky: str = ""):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, **tong_quan(ky)}
+
+
+@router.get("/shop/so/quy")
+async def r_quy(request: Request, ky: str = "", loai: str = "", trang_thai: str = ""):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_quy(ky, loai, trang_thai)}
+
+
+@router.post("/shop/so/su-kien")
+@_loi
+async def r_su_kien(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    st = getattr(request.state, "staff", None) or {}
+    return xu_ly(_json(data), _ten(request), "", st)
+
+
+@router.post("/shop/so/quy/duyet")
+@_loi
+async def r_duyet(request: Request, id: int = Form(...), quyet: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    st = getattr(request.state, "staff", None) or {}
+    if not _la_chu(st):
+        raise HTTPException(403, "Chỉ chủ hoặc giám đốc duyệt chi")
+    return {"ok": True, "phieu": duyet_quy(id, quyet, _ten(request))}
+
+
+@router.post("/shop/so/quy/xoa")
+@_loi
+async def r_xoa_quy(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    st = getattr(request.state, "staff", None) or {}
+    if not _la_chu(st):
+        raise HTTPException(403, "Chỉ chủ hoặc giám đốc xóa phiếu")
+    return {"ok": xoa_quy(id)}
+
+
+@router.get("/shop/so/hop-dong")
+async def r_hd(request: Request, trang_thai: str = "", q: str = ""):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_hop_dong(trang_thai, q)}
+
+
+@router.post("/shop/so/hop-dong/trang-thai")
+@_loi
+async def r_hd_ts(request: Request, id: int = Form(...), trang_thai: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "hop_dong": doi_trang_thai_hd(id, trang_thai, _ten(request))}
+
+
+@router.post("/shop/so/hop-dong/bao-cao")
+@_loi
+async def r_hd_bao_cao(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "ket_qua": giao_bao_cao(id)}
+
+
+@router.get("/shop/so/bao-gia")
+async def r_bg(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_bao_gia()}
+
+
+@router.post("/shop/so/bao-gia")
+@_loi
+async def r_bg_luu(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "bao_gia": luu_bao_gia(_json(data), _ten(request))}
+
+
+@router.post("/shop/so/bao-gia/trang-thai")
+@_loi
+async def r_bg_ts(request: Request, id: int = Form(...), trang_thai: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "bao_gia": doi_trang_thai_bg(id, trang_thai, _ten(request))}
+
+
+@router.get("/shop/so/nhan-su")
+async def r_ns(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_nhan_su(), "cau_hinh": cau_hinh()}
+
+
+@router.post("/shop/so/nhan-su")
+@_loi
+async def r_ns_luu(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "nhan_su": luu_nhan_su(_json(data))}
+
+
+@router.post("/shop/so/nhan-su/xoa")
+@_loi
+async def r_ns_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    xoa_nhan_su(id)
+    return {"ok": True}
+
+
+@router.post("/shop/so/phan-cong")
+@_loi
+async def r_pc(request: Request, hop_dong_id: int = Form(...), ten: str = Form(...), vai: str = Form("")):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, **phan_cong(hop_dong_id, ten, vai)}
+
+
+@router.post("/shop/so/phan-cong/go")
+@_loi
+async def r_pc_go(request: Request, hop_dong_id: int = Form(...), nhan_su_id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    go_phan_cong(hop_dong_id, nhan_su_id)
+    return {"ok": True}
+
+
+@router.get("/shop/so/luong")
+async def r_luong(request: Request, ky: str = ""):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, **bang_luong(ky)}
+
+
+@router.post("/shop/so/cau-hinh")
+@_loi
+async def r_cfg(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "cau_hinh": luu_cau_hinh(_json(data))}
+
+
+@router.get("/shop/so/viec")
+async def r_viec(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_viec()}
+
+
+@router.post("/shop/so/viec/buoc")
+@_loi
+async def r_viec_buoc(request: Request, id: int = Form(...), trang_thai: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    doi_buoc_viec(id, trang_thai)
+    return {"ok": True}
+
+
+@router.post("/shop/so/viec/xoa")
+@_loi
+async def r_viec_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    xoa_viec(id)
+    return {"ok": True}
+
+
+@router.get("/shop/so/hoat-dong")
+async def r_hoat_dong(request: Request, phut: int = 180):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": hoat_dong(phut), "ts": time.time()}
+
+
+@router.post("/shop/so/mau")
+async def r_mau(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "da_nap": nap_mau()}
+
+
+@router.post("/shop/so/mau/xoa")
+async def r_mau_xoa(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "da_xoa": xoa_mau()}
+
+
+def register(app, phong_fn, tasks_fn, brain_root_fn) -> None:
+    _deps.update(phong=phong_fn, tasks=tasks_fn, brain_root=brain_root_fn)
+    app.include_router(router)
