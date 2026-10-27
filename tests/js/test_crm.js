@@ -83,5 +83,10 @@ const chua = [...bien].filter((v) => style.indexOf(v + ":") < 0 && v !== "--dang
 check("moi bien CSS dung deu da dinh nghia trong style.css" + (chua.length ? ": " + chua.join() : ""), chua.length === 0);
 check("van tieng Viet khong nam trong chuoi cua ma (chu qua tw)", !/["'`][^"'`\n]*[À-ỹ][^"'`\n]*["'`]/.test(src.split("\n").filter((l) => !/^\s*(\/\*|\*|\/\/)/.test(l)).join("\n")));
 
+// Menu ben: nhom dang mo khong duoc bi cat o chieu cao co dinh (tung giau CRM tren dien thoai)
+const _css = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "console.css"), "utf8");
+const _m = /\.rail-group\.open > \.rail-grp-items \{[^}]*max-height:\s*(\d+)px/.exec(_css);
+check("menu ben: tran chieu cao nhom mo du cho nhom Nang luc 10 muc + muc con (>= 1200px)", !!_m && Number(_m[1]) >= 1200);
+
 if (fails.length) { console.log("\n" + fails.length + " FAIL"); process.exit(1); }
 console.log("\nTAT CA OK");

@@ -74,7 +74,10 @@ body.in-console .hud-actions { display: none; }
   max-height: 0; overflow: hidden; opacity: 0;
   transition: max-height var(--rail-anim), opacity var(--rail-anim);
 }
-.rail-group.open > .rail-grp-items { max-height: 340px; opacity: 1; padding: 2px 0 4px; }
+/* Trần chỉ để có cái mà trượt, KHÔNG được là giới hạn chiều cao thật: 340px từng cắt cụt nhóm Năng lực
+   (10 mục, thêm mục con Cẩm nang và Kinh doanh đang bung trên điện thoại) nên CRM vận hành biến mất.
+   Rail tự cuộn (.rail-nav overflow-y:auto) nên để trần rất cao là đủ. */
+.rail-group.open > .rail-grp-items { max-height: 2400px; opacity: 1; padding: 2px 0 4px; }
 .rail-brand {
   height: 42px; display: flex; align-items: center; justify-content: center; gap: 9px;
   color: var(--accent); font-size: 22px;
