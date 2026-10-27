@@ -33,7 +33,7 @@
 
   const view = () => document.getElementById('moduleView');
   let cur = 0, seq = 0;
-  const ui = { fin: 'quy', hr: 'ns', cv: 'gia', dvLoai: '', cvPhong: '', ky: kyNay(), luong: kyNay() };
+  const ui = { fin: 'quy', hr: 'ns', cv: 'gia', dvLoai: '', doNhom: '', thueTs: '', cvPhong: '', ky: kyNay(), luong: kyNay() };
 
   const css = document.createElement('style');
   css.textContent = [
@@ -54,6 +54,9 @@
     '.so-cols h4{margin:0 0 9px;font-size:12px;color:#58645d}',
     '.so-mini{border:0;background:#eef1ef;border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer;margin:6px 4px 0 0}',
     '.so-note{font-size:11px;color:#707b74;margin:8px 0}',
+    '.so-st{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap}',
+    '.so-st-ok{background:#e3f6ea;color:#15955a}.so-st-wait{background:#fff4dd;color:#bc7518}.so-st-out{background:#efe7ff;color:#6c4bd4}',
+    '.so-st-late{background:#fde7ea;color:#e33150}.so-st-off{background:#eef1ef;color:#707b74}',
     '#chatBox,.deploy{display:none!important}',
     '@media(max-width:680px){.so-strip{grid-template-columns:1fr 1fr}.so-cols{grid-template-columns:1fr}}'
   ].join('');
@@ -383,6 +386,95 @@
       }, 'Chia việc');
   };
 
+  /* ---------------- Danh mục đồ và lịch sử thuê đồ ---------------- */
+  const ST_DO = { san_sang: ['Sẵn sàng', 'ok'], giu_cho: ['Giữ chỗ', 'wait'], dang_thue: ['Đang thuê', 'out'], qua_han: ['Quá hạn', 'late'], tam_ngung: ['Tạm ngưng', 'off'] };
+  const ST_THUE = { giu_cho: '1. Giữ chỗ', dang_thue: '2. Đang thuê', da_tra: '4. Đã trả', huy: 'Hủy' };
+  const dmy = d => d ? String(d).split('-').reverse().join('/') : '';
+  async function mDo() {
+    const [dr] = await Promise.all([get('/shop/so/do'), taiDv()]);
+    const ds = dr.items; window.__soDo = ds;
+    const nhoms = []; ds.forEach(d => { if (d.nhom && nhoms.indexOf(d.nhom) < 0) nhoms.push(d.nhom); });
+    const hien = ds.filter(d => !ui.doNhom || d.nhom === ui.doNhom);
+    const dem = k => ds.filter(d => d.tinh_trang === k).length;
+    const coMau = ds.some(d => d.la_mau);
+    const rows = hien.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>MÃ ĐỒ</th><th>NHÓM</th><th>CỠ</th><th>ĐƠN GIÁ THUÊ</th><th>TÌNH TRẠNG</th><th>SỐ LẦN THUÊ</th><th>MÔ TẢ</th><th></th></tr></thead><tbody>' +
+      hien.map(d => {
+        const st = ST_DO[d.tinh_trang];
+        const lich = d.lich.map(v => '<small style="display:block;color:#707b74">' + esc(dmy(v.tu) + (v.den !== v.tu ? ' - ' + dmy(v.den) : '') + ' · ' + v.khach) + '</small>').join('');
+        return '<tr' + (d.ap_dung ? '' : ' style="opacity:.55"') + '><td><b>' + esc(d.ten_do) + '</b>' + (d.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '<small style="display:block;color:#707b74">' + esc(d.ma_dv) + (d.pb ? ' · ' + esc(d.pb) : '') + '</small></td><td>' + esc(d.nhom) + '</td><td>' + esc(d.co) + '</td><td>' + (d.don_gia ? vnd(d.don_gia) : '<span style="color:#bc7518">Chưa có giá</span>') + '</td><td><span class="so-st so-st-' + st[1] + '">' + st[0] + '</span>' + lich + '</td><td>' + d.so_lan_thue + '</td><td style="max-width:220px">' + esc(d.mo_ta) + '</td><td><button class="so-mini" onclick="soThue(\'' + esc(d.ma_do) + '\')">Cho thuê</button><button class="so-mini" onclick="soDo(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDoXoa(' + d.id + ')">×</button></td></tr>';
+      }).join('') + '</tbody></table></div>' :
+      '<div class="so-empty"><b>Chưa có món đồ nào</b>Bấm "+ Đồ" để thêm, hoặc "Nạp đồ mẫu" để thử luồng thuê và trả. Anh có thể tự nhập dữ liệu thật vào bất cứ lúc nào.</div>';
+    return moduleHead('♛', 'Danh mục đồ', 'Váy, vest, áo dài cho thuê. Tình trạng tự tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê hay quá hạn chưa trả.') +
+      kpis([['▤', 'Tổng số đồ', String(ds.length), ds.filter(d => d.ap_dung).length + ' đang cho thuê'], ['✓', 'Sẵn sàng', String(dem('san_sang'))], ['◷', 'Đang thuê', String(dem('dang_thue') + dem('qua_han')), dem('qua_han') + ' quá hạn'], ['▭', 'Giữ chỗ', String(dem('giu_cho'))]]) +
+      '<div class="panel"><div class="toolbar"><button class="primary" onclick="soDo(0)">＋ Đồ</button><button class="outline" onclick="soThue(\'\')">Cho thuê</button>' +
+      (coMau ? '<button class="outline" onclick="soDoMauXoa()">Xóa dữ liệu mẫu</button>' : '<button class="outline" onclick="soDoMau()">Nạp đồ mẫu để thử</button>') +
+      '<select class="field" onchange="soDoLoc(this.value)" style="margin-left:auto"><option value="">Tất cả nhóm</option>' + nhoms.map(n => '<option value="' + esc(n) + '"' + (n === ui.doNhom ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div>' + rows + '</div>';
+  }
+  window.soDoLoc = v => { ui.doNhom = v; rerender(); };
+  window.soDoMau = async () => { try { const r = await post('/shop/so/do/mau', {}); toast(r.do || r.phieu ? 'Đã nạp ' + r.do + ' đồ và ' + r.phieu + ' phiếu thuê mẫu' : 'Không có gì mới để nạp'); rerender(); } catch (e) { loi(e); } };
+  window.soDoMauXoa = async () => { try { const r = await post('/shop/so/do/mau/xoa', {}); toast('Đã xóa ' + r.phieu + ' phiếu và ' + r.do + ' đồ mẫu'); rerender(); } catch (e) { loi(e); } };
+  window.soDoXoa = async id => { if (!confirm('Xóa món đồ này khỏi danh mục?')) return; try { await post('/shop/so/do/xoa', { id }); rerender(); } catch (e) { loi(e); } };
+  window.soDo = id => {
+    const d = id ? (window.__soDo || []).find(x => x.id === id) : null;
+    modal(d ? 'Sửa đồ ' + d.ma_do : 'Đồ mới',
+      dvList() + '<div class="form-grid"><label>Mã đồ dùng *<input class="field" id="oMa" value="' + esc(d ? d.ma_do : '') + '" placeholder="VAY-CC209"></label>' +
+      '<label>Mã dịch vụ (nhóm)<input class="field" id="oDv" value="' + esc(d ? d.ma_dv : '') + '" placeholder="VAY-CC, tự lấy từ mã đồ"></label>' +
+      '<label>Nhóm đồ<input class="field" id="oNhom" list="soDvList" value="' + esc(d ? d.nhom : '') + '" placeholder="Váy cao cấp"></label>' +
+      '<label>Phòng ban phụ trách<input class="field" id="oPb" value="' + esc(d ? d.pb : 'Tư vấn váy') + '"></label>' +
+      '<label>Cỡ<input class="field" id="oCo" value="' + esc(d ? d.co : '') + '"></label><label>Màu<input class="field" id="oMau" value="' + esc(d ? d.mau_sac : '') + '"></label>' +
+      '<label>Đơn giá thuê (đồng)<input class="field" id="oGia" type="number" min="0" value="' + (d ? d.don_gia : 0) + '"></label>' +
+      '<label>Hình ảnh (đường dẫn)<input class="field" id="oHinh" value="' + esc(d ? d.hinh : '') + '"></label>' +
+      '<label style="grid-column:1/-1">Ghi chú, mô tả<input class="field" id="oMoTa" value="' + esc(d ? d.mo_ta : '') + '"></label>' +
+      '<label><input id="oAp" type="checkbox"' + (!d || d.ap_dung ? ' checked' : '') + '> Đang cho thuê</label></div>' +
+      '<p class="so-note">Tên đồ hiển thị là mã--màu, ví dụ VAY-CC209--Trắng. Nhóm tự lấy từ Bảng giá dịch vụ nếu mã dịch vụ khớp.</p>',
+      async () => { await post('/shop/so/do', { data: { id: d ? d.id : 0, ma_do: val('oMa'), ma_dv: val('oDv'), nhom: val('oNhom'), pb: val('oPb'), co: val('oCo'), mau_sac: val('oMau'), don_gia: val('oGia'), hinh: val('oHinh'), mo_ta: val('oMoTa'), ap_dung: document.getElementById('oAp').checked ? 1 : 0 } }); toast('Đã lưu đồ'); });
+  };
+  window.soThue = async ma => {
+    let ds = [], hds = [];
+    try { [ds, hds] = await Promise.all([get('/shop/so/do'), get('/shop/so/hop-dong')]); } catch (e) { return loi(e); }
+    ds = ds.items.filter(d => d.ap_dung); hds = hds.items;
+    if (!ds.length) return toast('Chưa có món đồ nào. Vào Danh mục đồ thêm đồ hoặc nạp đồ mẫu trước.');
+    modal('Cho thuê đồ',
+      '<div class="form-grid"><label style="grid-column:1/-1">Đồ *<select class="field" id="tDo">' + ds.map(d => '<option value="' + esc(d.ma_do) + '"' + (d.ma_do === ma ? ' selected' : '') + '>' + esc(d.ten_do + ' · ' + d.nhom + ' · ' + vnd(d.don_gia) + ' · ' + ST_DO[d.tinh_trang][0]) + '</option>').join('') + '</select></label>' +
+      '<label style="grid-column:1/-1">Gắn hợp đồng<select class="field" id="tHd">' + hdOptions(hds, '') + '</select></label>' +
+      '<label>Tên khách (nếu chưa có hợp đồng)<input class="field" id="tKh"></label><label>Số điện thoại<input class="field" id="tSdt"></label>' +
+      '<label>Ngày thuê<input class="field" id="tTu" type="date" value="' + homNay() + '"></label><label>Ngày dự kiến trả<input class="field" id="tDen" type="date" value="' + homNay() + '"></label>' +
+      '<label>Khuyến mại (đồng)<input class="field" id="tKm" type="number" min="0" value="0"></label>' +
+      '<label style="align-self:end"><input id="tThu" type="checkbox"> Ghi thu luôn phần còn lại</label></div>' +
+      '<p class="so-note">Còn lại = đơn giá trừ khuyến mại. Đồ đã có người thuê hoặc giữ chỗ trùng ngày thì không cho thuê. Ngày thuê sau hôm nay là giữ chỗ.</p>',
+      async () => {
+        const r = await post('/shop/so/su-kien', { data: { loai: 'thue_do', ma_do: val('tDo'), hop_dong: val('tHd'), ten_khach: val('tKh'), sdt: val('tSdt'), ngay_thue: val('tTu'), ngay_tra: val('tDen'), khuyen_mai: val('tKm'), thu_ngay: document.getElementById('tThu').checked } });
+        if (!r.ok) throw new Error(r.loi.map(x => x.loi).join('; '));
+        toast(r.ket_qua[0].tom_tat);
+      }, 'Cho thuê');
+  };
+  async function mThue() {
+    const tr = await get('/shop/so/thue-do' + (ui.thueTs ? '?trang_thai=' + ui.thueTs : ''));
+    const all = ui.thueTs ? (await get('/shop/so/thue-do')).items : tr.items;
+    const ds = tr.items;
+    const rows = ds.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>PHIẾU</th><th>HỢP ĐỒNG / KHÁCH</th><th>ĐỒ</th><th>ĐƠN GIÁ</th><th>KHUYẾN MẠI</th><th>CÒN LẠI</th><th>NGÀY THUÊ → DỰ KIẾN TRẢ</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>' +
+      ds.map(t => {
+        const nut = [];
+        if (t.trang_thai === 'giu_cho') nut.push('<button class="so-mini" onclick="soThueTs(' + t.id + ',\'dang_thue\')">Giao đồ</button>');
+        if (t.trang_thai === 'dang_thue') nut.push('<button class="so-mini" onclick="soThueTs(' + t.id + ',\'da_tra\')">Nhận trả</button>');
+        if (t.trang_thai === 'giu_cho' || t.trang_thai === 'dang_thue') nut.push('<button class="so-mini" onclick="soThueTs(' + t.id + ',\'huy\')">Hủy</button>');
+        if (t.trang_thai === 'huy' || t.la_mau) nut.push('<button class="so-mini" onclick="soThueXoa(' + t.id + ')">×</button>');
+        const thu = t.trang_thai === 'huy' ? '' : (t.quy_id ? '<small style="display:block;color:#15955a">đã ghi thu</small>' : (t.gia_con_lai > 0 ? '<div><button class="so-mini" onclick="soThueThu(' + t.id + ')">Ghi thu</button></div>' : ''));
+        return '<tr><td><b>' + esc(t.key) + '</b>' + (t.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '</td><td>' + (t.so_hd ? '<b>' + esc(t.so_hd) + '</b> · ' : '') + esc(t.khach) + '<small style="display:block;color:#707b74">' + esc(t.sdt) + '</small></td><td>' + esc(t.ma_do) + '<small style="display:block;color:#707b74">' + esc(t.nhom) + '</small></td><td>' + vnd(t.don_gia) + '</td><td>' + (t.khuyen_mai ? vnd(t.khuyen_mai) : '<span style="color:#9aa39e">0</span>') + '</td><td><b>' + vnd(t.gia_con_lai) + '</b>' + thu + '</td><td>' + esc(dmy(t.ngay_thue) + ' → ' + dmy(t.ngay_tra_du_kien)) + (t.ngay_tra_thuc ? '<small style="display:block;color:#707b74">trả thực ' + esc(dmy(t.ngay_tra_thuc)) + '</small>' : '') + '</td><td>' + (t.qua_han ? '<span class="so-st so-st-late">Quá hạn ' + t.tre_ngay + ' ngày</span>' : '<span class="so-st so-st-' + ({ giu_cho: 'wait', dang_thue: 'out', da_tra: 'ok', huy: 'off' }[t.trang_thai]) + '">' + ST_THUE[t.trang_thai] + '</span>') + '</td><td>' + nut.join('') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' :
+      '<div class="so-empty"><b>Chưa có phiếu thuê nào</b>Bấm "+ Cho thuê", hoặc nhắn Joyce: "cho Lan thuê VAY-CC209 ngày 20/11, trả 21/11". Anh cũng có thể nạp đồ mẫu ở Danh mục đồ để thử.</div>';
+    const dem = k => all.filter(t => t.trang_thai === k).length;
+    const chuaThu = all.filter(t => !t.quy_id && t.trang_thai !== 'huy').reduce((s, t) => s + t.gia_con_lai, 0);
+    return moduleHead('↺', 'Lịch sử thuê đồ', 'Mỗi phiếu là một lần thuê: khách, đồ, giá còn lại sau khuyến mại, ngày thuê và hạn trả. Gắn hợp đồng và ghi thu thẳng vào sổ quỹ.') +
+      kpis([['▤', 'Tổng phiếu', String(all.length)], ['◷', 'Đang thuê', String(dem('dang_thue')), all.filter(t => t.qua_han).length + ' quá hạn'], ['▭', 'Giữ chỗ', String(dem('giu_cho'))], ['⊕', 'Chưa ghi thu', vnd(chuaThu)]]) +
+      '<div class="panel"><div class="toolbar"><button class="primary" onclick="soThue(\'\')">＋ Cho thuê</button>' +
+      '<select class="field" onchange="soThueLoc(this.value)" style="margin-left:auto"><option value="">Tất cả trạng thái</option>' + Object.keys(ST_THUE).map(k => '<option value="' + k + '"' + (k === ui.thueTs ? ' selected' : '') + '>' + ST_THUE[k] + '</option>').join('') + '</select></div>' + rows + '</div>';
+  }
+  window.soThueLoc = v => { ui.thueTs = v; rerender(); };
+  window.soThueTs = async (id, ts) => { try { await post('/shop/so/thue-do/buoc', { id, trang_thai: ts }); toast(ts === 'da_tra' ? 'Đã nhận trả, đồ sẵn sàng cho thuê lại' : ts === 'dang_thue' ? 'Đã giao đồ' : 'Đã hủy phiếu'); rerender(); } catch (e) { loi(e); } };
+  window.soThueThu = async id => { try { const r = await post('/shop/so/thue-do/ghi-thu', { id }); toast(r.phieu_thu.tom_tat); rerender(); } catch (e) { loi(e); } };
+  window.soThueXoa = async id => { if (!confirm('Xóa phiếu này?')) return; try { await post('/shop/so/thue-do/xoa', { id }); rerender(); } catch (e) { loi(e); } };
+
   /* ---------------- Công việc ---------------- */
   async function mTasks() {
     const vs = (await get('/shop/so/viec')).items;
@@ -434,7 +526,7 @@
     9: ['Ảnh AI', 'Banner, ảnh sản phẩm.', 'Chưa nối vào Shop. Tạo ảnh bằng cách nhắn Joyce trong chat (công cụ tạo ảnh có sẵn).']
   };
   const goc = typeof renderModule === 'function' ? renderModule : null;
-  const MODS = { 1: mSales, 2: mOrders, 3: mQuotes, 10: mFinance, 11: mHr, 12: mTasks, 13: mAssistant, 14: mCommission };
+  const MODS = { 1: mSales, 2: mOrders, 3: mQuotes, 10: mFinance, 11: mHr, 12: mTasks, 13: mAssistant, 14: mCommission, 15: mDo, 16: mThue };
   renderModule = function (i) {
     if (MODS[i]) { guard(i, MODS[i]); return; }
     if (CHUA[i]) { cur = 0; ++seq; view().innerHTML = empty(i, CHUA[i][0], CHUA[i][1], CHUA[i][2]); return; }

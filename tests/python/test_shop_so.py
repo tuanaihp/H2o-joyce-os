@@ -43,6 +43,7 @@ if _STATE not in str(cs.DB_PATH) or _STATE not in str(shop_so._path()):
 PHONG = [
     {"brain": "Ban Hang - Sales Hinh Anh", "ten": "Sales Hình Ảnh", "agent": "Agent Trưởng Sales Hình Ảnh"},
     {"brain": "Ban Hang - Sales Makeup", "ten": "Sales Makeup", "agent": "Agent Trưởng Sales Makeup"},
+    {"brain": "Ban Hang - Sales Vay Cuoi", "ten": "Sales Váy Cưới", "agent": "Agent Trưởng Sales Váy Cưới"},
     {"brain": "Ke Toan - Thu", "ten": "Phòng Thu", "agent": "Agent Trưởng Phòng Thu"},
     {"brain": "Ke Toan - Chi", "ten": "Phòng Chi", "agent": "Agent Trưởng Phòng Chi"},
     {"brain": "Ke Toan - Doi Soat va Bao Cao", "ten": "Đối Soát & Báo Cáo", "agent": "Agent Trưởng Phòng Đối Soát"},
@@ -334,6 +335,114 @@ vai["staff"] = {"ten": "Lan", "role": "nhan_vien"}
 check("HTTP: nhân viên thường không đụng được bảng giá", http2.get("/shop/so/dich-vu").status_code == 403 and http2.post("/shop/so/dich-vu/xoa", data={"id": 1}).status_code == 403)
 vai["staff"] = None
 
+# ---------------- danh mục đồ và lịch sử thuê đồ
+check("danh mục đồ trống lúc đầu, không số giả", shop_so.ds_do() == [] and shop_so.ds_thue_do() == [])
+r_mau = shop_so.nap_mau_do()
+check("nạp mẫu: 5 đồ và 5 phiếu, nạp lần hai không nhân đôi", r_mau == {"do": 5, "phieu": 5} and shop_so.nap_mau_do() == {"do": 0, "phieu": 0})
+dd = {d["ma_do"]: d for d in shop_so.ds_do()}
+check("nhóm tự lấy từ bảng giá dịch vụ, tên đồ như sheet (mã--màu)", dd["VAY-CC209"]["nhom"] == "Váy cao cấp" and dd["VAY-CC209"]["ten_do"] == "VAY-CC209--Trắng" and dd["VAY-CC209"]["ma_dv"] == "VAY-CC")
+check("tình trạng tính từ lịch sử: đã trả = sẵn sàng/giữ chỗ, đang thuê, số lần thuê đúng",
+      dd["VAY-CC211"]["tinh_trang"] == "san_sang" and dd["VAY-TK67"]["tinh_trang"] == "dang_thue" and dd["VAY-CC209"]["tinh_trang"] == "giu_cho"
+      and dd["VAY-CC209"]["so_lan_thue"] == 1 and dd["VAY-TK67"]["so_lan_thue"] == 1 and dd["ADCD-05"]["so_lan_thue"] == 0)
+mm = {t["key"]: t for t in shop_so.ds_thue_do()}
+check("giá còn lại = đơn giá trừ khuyến mại như sheet (7tr - 3,15tr = 3,85tr)", mm["mau0001"]["gia_con_lai"] == 3850000 and mm["mau0001"]["trang_thai"] == "da_tra")
+
+hom_nay = shop_so._homnay()
+mai = shop_so._cong_ngay(hom_nay, 1)
+# thuê gắn hợp đồng thật, thu ngay
+hd_do = shop_so.tim_hop_dong("0966555444")[0]
+thu0 = shop_so.tong_quan()["thu"]
+kq = shop_so.xu_ly({"loai": "thue_do", "ma_do": "vay-cc211--trắng", "hop_dong": hd_do["ma"], "ngay_thue": hom_nay, "ngay_tra": mai, "khuyen_mai": "1tr", "thu_ngay": True}, "Chủ")
+check("thuê đồ gắn hợp đồng: nhận mã--tên, khách lấy từ hợp đồng, Sales Váy Cưới làm", kq["ok"] and "Khách Bảng Giá" in kq["ket_qua"][0]["tom_tat"] and "Agent Trưởng Sales Váy Cưới" in kq["ket_qua"][0]["tom_tat"] and kq["ket_qua"][0]["trang_thai"] == "dang_thue")
+check("thu ngay: ghi thu đúng 6.000.000 vào hợp đồng qua Phòng Thu, tổng thu tăng", kq["ket_qua"][0]["gia_con_lai"] == 6000000 and "Phòng Thu" in kq["ket_qua"][0]["thu"] and shop_so.tong_quan()["thu"] == thu0 + 6000000)
+check("đồ vừa thuê chuyển sang Đang thuê trong danh mục", {d["ma_do"]: d for d in shop_so.ds_do()}["VAY-CC211"]["tinh_trang"] == "dang_thue")
+phieu = next(t for t in shop_so.ds_thue_do() if t["ma_do"] == "VAY-CC211" and t["trang_thai"] == "dang_thue")
+check("phiếu ghi số hợp đồng và đã có phiếu thu", phieu["so_hd"] == hd_do["ma"] and phieu["quy_id"])
+
+# chống thuê trùng
+tr = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC211", "ten_khach": "Người Khác", "sdt": "0911000111", "ngay_thue": hom_nay, "ngay_tra": mai}, "Chủ")
+check("thuê trùng ngày bị chặn, nêu ai đang giữ và phiếu nào", not tr["ok"] and "đã có người đang thuê" in tr["loi"][0]["loi"] and phieu["key"] in tr["loi"][0]["loi"])
+tr2 = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC209", "ten_khach": "Cô Khác", "sdt": "0911000222", "ngay_thue": shop_so._cong_ngay(hom_nay, 10), "ngay_tra": shop_so._cong_ngay(hom_nay, 10)}, "Chủ")
+check("đồ đã giữ chỗ ngày 10-11 thì ngày 10 bị chặn", not tr2["ok"] and "giữ chỗ" in tr2["loi"][0]["loi"])
+tr3 = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC209", "ten_khach": "Cô Sau", "sdt": "0911000333", "ngay_thue": shop_so._cong_ngay(hom_nay, 20), "ngay_tra": shop_so._cong_ngay(hom_nay, 21)}, "Chủ")
+check("ngày khác không trùng thì giữ chỗ được", tr3["ok"] and tr3["ket_qua"][0]["trang_thai"] == "giu_cho" and "Chưa ghi thu" in tr3["ket_qua"][0]["tom_tat"])
+lap = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CC209", "ten_khach": "Cô Sau", "sdt": "0911000333", "ngay_thue": shop_so._cong_ngay(hom_nay, 20), "ngay_tra": shop_so._cong_ngay(hom_nay, 21)}, "Chủ")
+check("gửi lại cùng câu không tạo phiếu thứ hai", lap["ok"] and lap["ket_qua"][0].get("da_co") and len([t for t in shop_so.ds_thue_do() if t["sdt"] == "0911000333"]) == 1)
+for sai, msg in ((({"loai": "thue_do", "ma_do": "KHONG-CO", "ten_khach": "A"}), "Không thấy đồ"), (({"loai": "thue_do", "ma_do": "VEST-01"}), "cần biết khách"),
+                 (({"loai": "thue_do", "ma_do": "VEST-01", "ten_khach": "A", "ngay_thue": mai, "ngay_tra": hom_nay}), "trước ngày thuê")):
+    check("lỗi rõ: " + msg, msg in (shop_so.xu_ly(sai, "Chủ")["loi"] or [{"loi": ""}])[0]["loi"])
+g0 = shop_so.luu_do({"ma_do": "VAY-CB1", "don_gia": 0})
+check("đồ chưa có giá thuê thì không cho thuê, báo nói giá", "chưa có giá thuê" in shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CB1", "ten_khach": "A"}, "Chủ")["loi"][0]["loi"])
+shop_so.luu_do({"id": g0["id"], "ma_do": "VAY-CB1", "don_gia": 1500000, "ap_dung": 0})
+check("đồ tạm ngưng không cho thuê", "tạm ngưng" in shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-CB1", "ten_khach": "A"}, "Chủ")["loi"][0]["loi"])
+
+# trả đồ
+tra = shop_so.xu_ly({"loai": "tra_do", "ma_do": "VAY-CC211"}, "Chủ")
+check("trả đồ: đúng hạn, Sales Váy Cưới nhận, đồ về sẵn sàng", tra["ok"] and "đúng hạn" in tra["ket_qua"][0]["tom_tat"] and {d["ma_do"]: d for d in shop_so.ds_do()}["VAY-CC211"]["tinh_trang"] == "san_sang")
+check("trả hai lần không ghi lại", shop_so.xu_ly({"loai": "tra_do", "key": phieu["key"]}, "Chủ")["ket_qua"][0].get("da_co"))
+check("đếm số lần thuê tăng lên 2", {d["ma_do"]: d for d in shop_so.ds_do()}["VAY-CC211"]["so_lan_thue"] == 2)
+check("trả đồ chưa từng thuê báo lỗi", "Không có phiếu" in shop_so.xu_ly({"loai": "tra_do", "ma_do": "ADCD-05"}, "Chủ")["loi"][0]["loi"])
+check("trả khi mới giữ chỗ (chưa giao) bị từ chối", "chưa có gì để trả" in shop_so.xu_ly({"loai": "tra_do", "key": [t for t in shop_so.ds_thue_do() if t["sdt"] == "0911000333"][0]["key"]}, "Chủ")["loi"][0]["loi"])
+
+# trễ hạn: phiếu mẫu Dung Tính hạn hôm qua + 2 => chỉnh ngày qua API nội bộ
+tre = shop_so.xu_ly({"loai": "thue_do", "ma_do": "ADCD-05", "ten_khach": "Khách Trễ", "sdt": "0911000444", "ngay_thue": shop_so._cong_ngay(hom_nay, -5), "ngay_tra": shop_so._cong_ngay(hom_nay, -3)}, "Chủ")
+check("thuê lùi ngày: đang thuê và hiện Quá hạn trong danh mục", tre["ok"] and {d["ma_do"]: d for d in shop_so.ds_do()}["ADCD-05"]["tinh_trang"] == "qua_han" and any(t["qua_han"] and t["tre_ngay"] == 3 for t in shop_so.ds_thue_do()))
+check("đồ quá hạn chưa trả thì không cho thuê tiếp từ hôm nay", "chưa được trả" in shop_so.xu_ly({"loai": "thue_do", "ma_do": "ADCD-05", "ten_khach": "B", "ngay_thue": hom_nay}, "Chủ")["loi"][0]["loi"])
+t_tre = shop_so.xu_ly({"loai": "tra_do", "ma_do": "ADCD-05"}, "Chủ")["ket_qua"][0]
+check("trả trễ báo đúng 3 ngày", t_tre["tre_ngay"] == 3 and "TRỄ 3 ngày" in t_tre["tom_tat"])
+
+# thao tác tay: giao đồ, hủy, ghi thu bù
+gi = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VEST-01", "ten_khach": "Khách Tay", "sdt": "0911000555", "ngay_thue": mai, "ngay_tra": mai}, "Chủ")["ket_qua"][0]
+check("thuê ngày mai thì là giữ chỗ", gi["trang_thai"] == "giu_cho")
+shop_so.doi_trang_thai_thue(gi["id"], "dang_thue", "Chủ")
+check("giao đồ chuyển sang Đang thuê", shop_so.lay_thue(gi["id"])["trang_thai"] == "dang_thue")
+sau = shop_so.xu_ly({"loai": "thue_do", "ma_do": "VAY-TK67", "ten_khach": "Khách Sau", "sdt": "0911000666", "ngay_thue": shop_so._cong_ngay(hom_nay, 40), "ngay_tra": shop_so._cong_ngay(hom_nay, 40)}, "Chủ")["ket_qua"][0]
+try:
+    shop_so.doi_trang_thai_thue(sau["id"], "dang_thue", "Chủ")
+    check("không giao lần hai khi đồ đang ở phiếu khác chưa trả", False)
+except ValueError as e:
+    check("không giao lần hai khi đồ đang ở phiếu khác chưa trả", "chưa trả" in str(e))
+q = shop_so.ghi_thu_thue(gi["id"], "Chủ")
+check("ghi thu bù từ phiếu: vào sổ quỹ đúng 500.000, phiếu lưu số phiếu thu", q["so_tien"] == 500000 and shop_so.lay_thue(gi["id"])["quy_id"])
+try:
+    shop_so.ghi_thu_thue(gi["id"], "Chủ")
+    check("ghi thu lần hai bị từ chối", False)
+except ValueError:
+    check("ghi thu lần hai bị từ chối", True)
+shop_so.doi_trang_thai_thue(gi["id"], "huy", "Chủ")
+check("hủy phiếu: đồ không còn bị giữ", {d["ma_do"]: d for d in shop_so.ds_do()}["VEST-01"]["tinh_trang"] == "san_sang")
+try:
+    shop_so.xoa_thue_do(next(t["id"] for t in shop_so.ds_thue_do() if t["key"] == phieu["key"]))
+    check("phiếu thật chưa hủy không xóa được", False)
+except ValueError:
+    check("phiếu thật chưa hủy không xóa được", True)
+try:
+    shop_so.xoa_do(next(d["id"] for d in shop_so.ds_do() if d["ma_do"] == "VAY-CC211"))
+    check("đồ đã có lịch sử thật không xóa được", False)
+except ValueError:
+    check("đồ đã có lịch sử thật không xóa được", True)
+try:
+    shop_so.luu_do({"ma_do": "vay-cc209"})
+    check("thêm đồ trùng mã bị từ chối", False)
+except ValueError:
+    check("thêm đồ trùng mã bị từ chối", True)
+
+# xóa mẫu: bỏ phiếu và đồ mẫu, giữ đồ đã có phiếu thật
+xm = shop_so.xoa_mau_do()
+con = {d["ma_do"] for d in shop_so.ds_do()}
+check("xóa mẫu: bỏ 5 phiếu mẫu, giữ cả 5 món đồ vì đều đã có phiếu thật, bỏ nhãn mẫu",
+      xm["phieu"] == 5 and xm["do"] == 0 and {"VAY-CC211", "VAY-CC209", "ADCD-05", "VEST-01", "VAY-TK67"} <= con and not any(t["la_mau"] for t in shop_so.ds_thue_do()) and not any(d["la_mau"] for d in shop_so.ds_do()))
+check("sau xóa mẫu nạp lại không đè món đã có và không báo lỗi trùng", shop_so.nap_mau_do() == {"do": 0, "phieu": 0})
+
+# HTTP
+check("HTTP: đọc danh mục đồ và lịch sử", http2.get("/shop/so/do").json()["ok"] and http2.get("/shop/so/thue-do").json()["ok"])
+check("HTTP: thêm đồ trùng mã trả 400", http2.post("/shop/so/do", data={"data": json.dumps({"ma_do": "VEST-01"})}).status_code == 400)
+check("HTTP: đổi trạng thái phiếu sai trả 400", http2.post("/shop/so/thue-do/buoc", data={"id": 1, "trang_thai": "bay"}).status_code == 400)
+vai["staff"] = {"ten": "Lan", "role": "nhan_vien"}
+check("HTTP: nhân viên thường không đụng được đồ", http2.get("/shop/so/do").status_code == 403 and http2.post("/shop/so/thue-do/xoa", data={"id": 1}).status_code == 403 and http2.post("/shop/so/do/mau").status_code == 403)
+vai["staff"] = None
+shop_so.xoa_mau_do()
+
 # ---------------- tool joyce_shop (chat gọi)
 import asyncio  # noqa: E402
 import importlib.util  # noqa: E402
@@ -364,6 +473,14 @@ check("tool nhận su_kien dạng chuỗi JSON", "Phòng Chi" in _goi({"op": "gh
 check("tool báo lỗi rõ khi thiếu số tiền", "LỖI" in _goi({"op": "ghi", "su_kien": [{"loai": "thu"}]}))
 check("tool xem trả số kỳ này", "lãi gộp" in _goi({"op": "xem"}))
 check("tool op lạ bị từ chối", _goi({"op": "xoa"}).startswith("ERROR"))
+shop_so.nap_mau_do()
+_do_out = _goi({"op": "do", "tu_khoa": "váy cao cấp"})
+check("tool tra đồ: nêu tình trạng và giá", "VAY-CC209--Trắng" in _do_out and "7.000.000đ/lần" in _do_out and "lịch" in _do_out)
+check("tool tra đồ: từ khóa lạ báo không có", "không có món nào khớp" in _goi({"op": "do", "tu_khoa": "zzzz"}))
+_thue = _goi({"op": "ghi", "su_kien": [{"loai": "thue_do", "ma_do": "VEST-01", "ten_khach": "Khách Qua Chat", "sdt": "0966555998", "ngay_thue": shop_so._cong_ngay(shop_so._homnay(), 30), "ngay_tra": shop_so._cong_ngay(shop_so._homnay(), 30)}]})
+check("tool cho thuê qua chat: giữ chỗ thành công, nêu Sales Váy Cưới", "LỖI" not in _thue and "giữ chỗ" in _thue and "Agent Trưởng Sales Váy Cưới" in _thue)
+check("tool thuê trùng báo lỗi rõ để hỏi lại chủ", "LỖI" in _goi({"op": "ghi", "su_kien": [{"loai": "thue_do", "ma_do": "VEST-01", "ten_khach": "Người Khác", "ngay_thue": shop_so._cong_ngay(shop_so._homnay(), 30)}]}))
+shop_so.xoa_mau_do()
 _gia_out = _goi({"op": "gia", "tu_khoa": "PRW-STCB"})
 check("tool tra giá đọc đúng số trong bảng, kèm cọc", "4.960.000đ" in _gia_out and "cọc lần 1 496.000đ" in _gia_out and "thanh toán cuối 2.232.000đ" in _gia_out)
 check("tool tra giá: gói chưa có giá nói thẳng, từ khóa lạ báo không có", "báo giá theo yêu cầu" in _goi({"op": "gia", "tu_khoa": "VAY-CB"}) and "không có gói nào khớp" in _goi({"op": "gia", "tu_khoa": "zzzz"}))

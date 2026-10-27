@@ -27,6 +27,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
@@ -99,6 +100,16 @@ CREATE TABLE IF NOT EXISTS so_cong_viec(
 CREATE TABLE IF NOT EXISTS so_dich_vu(
   id INTEGER PRIMARY KEY, ma TEXT UNIQUE, loai TEXT DEFAULT '', goi TEXT, don_gia REAL DEFAULT 0,
   coc1_pct REAL DEFAULT 0, coc2_pct REAL DEFAULT 0, ap_dung INTEGER DEFAULT 1, created_at REAL);
+CREATE TABLE IF NOT EXISTS so_do(
+  id INTEGER PRIMARY KEY, ma_dv TEXT DEFAULT '', pb TEXT DEFAULT '', ma_do TEXT UNIQUE, nhom TEXT DEFAULT '', co TEXT DEFAULT '',
+  mau_sac TEXT DEFAULT '', mo_ta TEXT DEFAULT '', hinh TEXT DEFAULT '', don_gia REAL DEFAULT 0, ap_dung INTEGER DEFAULT 1,
+  la_mau INTEGER DEFAULT 0, created_at REAL);
+CREATE TABLE IF NOT EXISTS so_thue_do(
+  id INTEGER PRIMARY KEY, key TEXT UNIQUE, hop_dong_id INTEGER, so_hd TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '', ma_do TEXT,
+  nhom TEXT DEFAULT '', ghi_chu TEXT DEFAULT '', don_gia REAL DEFAULT 0, khuyen_mai REAL DEFAULT 0, gia_con_lai REAL DEFAULT 0,
+  trang_thai TEXT DEFAULT 'giu_cho', ngay_thue TEXT, ngay_tra_du_kien TEXT, ngay_tra_thuc TEXT DEFAULT '', khach TEXT DEFAULT '',
+  sdt TEXT DEFAULT '', quy_id INTEGER, la_mau INTEGER DEFAULT 0, created_at REAL);
+CREATE INDEX IF NOT EXISTS ix_so_thue_do ON so_thue_do(ma_do, trang_thai);
 CREATE TABLE IF NOT EXISTS so_giao_viec(
   id INTEGER PRIMARY KEY, hop_dong_id INTEGER, cong_viec_id INTEGER, nhan_su_id INTEGER, ten TEXT, ma_phong TEXT DEFAULT '',
   hoa_hong REAL DEFAULT 0, phi_them REAL DEFAULT 0, so_luong REAL DEFAULT 1, han TEXT DEFAULT '',
@@ -562,7 +573,7 @@ def _su_kien_viec(sk: dict, by: str) -> dict:
 
 def xu_ly(events: Any, by: str = "Joyce", chat_id: str = "", by_info: Optional[dict] = None) -> dict:
     """Cửa duy nhất để ghi sổ. `events`: một sự kiện hoặc danh sách; mỗi sự kiện có `loai`:
-    hop_dong | thu | chi | viec | phan_cong | giao_viec. Lỗi một sự kiện không làm hỏng các sự kiện khác."""
+    hop_dong | thu | chi | viec | phan_cong | giao_viec | thue_do | tra_do. Lỗi một sự kiện không làm hỏng các sự kiện khác."""
     if isinstance(events, dict):
         events = [events]
     by_info = by_info or {}
@@ -584,6 +595,10 @@ def xu_ly(events: Any, by: str = "Joyce", chat_id: str = "", by_info: Optional[d
                 if not hd:
                     raise ValueError("Không thấy hợp đồng để phân công")
                 kq.append(phan_cong(hd["id"], sk.get("ten") or sk.get("nhan_su"), sk.get("vai") or ""))
+            elif loai == "thue_do":
+                kq.append(_su_kien_thue_do(sk, by, chat_id, by_info))
+            elif loai == "tra_do":
+                kq.append(_su_kien_tra_do(sk, by))
             elif loai == "giao_viec":
                 hd = tim_hop_dong(sk.get("hop_dong"))[0]
                 if not hd:
@@ -591,7 +606,7 @@ def xu_ly(events: Any, by: str = "Joyce", chat_id: str = "", by_info: Optional[d
                 kq.append(giao_viec(hd["id"], sk.get("cong_viec") or sk.get("viec"), sk.get("ten") or sk.get("nhan_su"),
                                     sk.get("so_luong") or 1, sk.get("han") or "", sk.get("ma_phong") or ""))
             else:
-                raise ValueError("loai phải là hop_dong, thu, chi, viec, phan_cong hoặc giao_viec")
+                raise ValueError("loai phải là hop_dong, thu, chi, viec, phan_cong, giao_viec, thue_do hoặc tra_do")
         except (ValueError, PermissionError) as e:
             loi.append({"stt": i + 1, "loai": loai, "loi": str(e)})
     return {"ok": not loi, "ket_qua": kq, "loi": loi}
@@ -1176,6 +1191,328 @@ def xoa_mau() -> int:
     return len(ids)
 
 
+# ---------------------------------------------------------------- danh mục đồ, lịch sử thuê đồ
+TRANG_THAI_THUE = ("giu_cho", "dang_thue", "da_tra", "huy")      # 1. Giữ chỗ, 2. Đang thuê, 4. Đã trả (như sheet của chủ), Hủy
+_VAI_THUE_DO = "sales_vay"                                       # phòng nhận việc cho thuê và nhận trả đồ
+
+
+def _ngay_hop_le(v: Any) -> str:
+    x = str(v or "").strip()
+    return x if re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) else ""
+
+
+def _cong_ngay(ngay: str, n: int) -> str:
+    return (datetime.strptime(ngay, "%Y-%m-%d") + timedelta(days=n)).strftime("%Y-%m-%d")
+
+
+def _chuan_ma_do(v: Any) -> str:
+    x = _ascii(v).upper().strip()
+    x = x.split("--")[0]            # "VAY-CC209--Trắng" (tên đồ trong sheet) -> mã đồ
+    return re.sub(r"\s+", "", x)[:40]
+
+
+def ds_do() -> List[dict]:
+    """Danh mục đồ kèm tình trạng tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê, quá hạn, tạm ngưng."""
+    hn = _homnay()
+
+    def f(db):
+        it = _rows(db.execute("SELECT * FROM so_do ORDER BY id").fetchall())
+        act = _rows(db.execute("SELECT key, ma_do, trang_thai, ngay_thue, ngay_tra_du_kien, khach FROM so_thue_do"
+                               " WHERE trang_thai IN ('giu_cho','dang_thue') ORDER BY ngay_thue").fetchall())
+        dem = {r[0]: r[1] for r in db.execute("SELECT ma_do, COUNT(*) FROM so_thue_do WHERE trang_thai IN ('dang_thue','da_tra') GROUP BY ma_do").fetchall()}
+        return it, act, dem
+    it, act, dem = _dung(f)
+    for r in it:
+        mine = [a for a in act if a["ma_do"] == r["ma_do"]]
+        dang = next((a for a in mine if a["trang_thai"] == "dang_thue"), None)
+        r["ten_do"] = f"{r['ma_do']}--{r['mau_sac']}" if r["mau_sac"] else r["ma_do"]
+        r["so_lan_thue"] = int(dem.get(r["ma_do"], 0))
+        r["lich"] = [{"key": a["key"], "trang_thai": a["trang_thai"], "tu": a["ngay_thue"], "den": a["ngay_tra_du_kien"], "khach": a["khach"]} for a in mine]
+        r["hien_tai"] = (dang or (mine[0] if mine else {})).get("key", "")
+        if not r["ap_dung"]:
+            r["tinh_trang"] = "tam_ngung"
+        elif dang:
+            r["tinh_trang"] = "qua_han" if dang["ngay_tra_du_kien"] < hn else "dang_thue"
+        elif mine:
+            r["tinh_trang"] = "giu_cho"
+        else:
+            r["tinh_trang"] = "san_sang"
+    return it
+
+
+def luu_do(data: dict) -> dict:
+    did = int(data.get("id") or 0)
+    ma = _chuan_ma_do(data.get("ma_do"))
+    if not ma:
+        raise ValueError("Đồ cần mã đồ dùng")
+    ma_dv = re.sub(r"\s+", "", _ascii(data.get("ma_dv")).upper())[:30] or re.sub(r"\d.*$", "", ma).rstrip("-")
+    dv = next((d for d in ds_dich_vu() if d["ma"] == ma_dv), None)
+    nhom = _s(data.get("nhom"), 100) or (dv["goi"] if dv else "")
+    gia = tien(data.get("don_gia", 0))
+    ap = 0 if data.get("ap_dung") in (0, "0", False, "false") else 1
+    vals = (ma_dv, _s(data.get("pb"), 80), ma, nhom, _s(data.get("co"), 20), _s(data.get("mau_sac"), 40),
+            _s(data.get("mo_ta"), 300), _s(data.get("hinh"), 400), gia, ap)
+
+    def f(db):
+        if did:
+            cu = db.execute("SELECT ma_do FROM so_do WHERE id=?", (did,)).fetchone()
+            if cu and cu["ma_do"] != ma and db.execute("SELECT 1 FROM so_thue_do WHERE ma_do=?", (cu["ma_do"],)).fetchone():
+                raise ValueError("Đồ đã có lịch sử thuê nên không đổi mã được; tạo đồ mới và tạm ngưng đồ cũ")
+            db.execute("UPDATE so_do SET ma_dv=?, pb=?, ma_do=?, nhom=?, co=?, mau_sac=?, mo_ta=?, hinh=?, don_gia=?, ap_dung=? WHERE id=?", vals + (did,))
+            db.commit()
+            return did
+        cur = db.execute("INSERT INTO so_do(ma_dv, pb, ma_do, nhom, co, mau_sac, mo_ta, hinh, don_gia, ap_dung, la_mau, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,?)",
+                         vals + (time.time(),))
+        db.commit()
+        return int(cur.lastrowid)
+    try:
+        i = _dung(f)
+    except sqlite3.IntegrityError:
+        raise ValueError(f"Mã đồ {ma} đã có trong danh mục")
+    return next(d for d in ds_do() if d["id"] == i)
+
+
+def xoa_do(did: int) -> None:
+    def f(db):
+        r = db.execute("SELECT ma_do FROM so_do WHERE id=?", (int(did),)).fetchone()
+        if not r:
+            return
+        if db.execute("SELECT 1 FROM so_thue_do WHERE ma_do=? AND la_mau=0", (r["ma_do"],)).fetchone():
+            raise ValueError("Đồ đã có lịch sử thuê thật nên không xóa được; chuyển sang Tạm ngưng")
+        db.execute("DELETE FROM so_thue_do WHERE ma_do=?", (r["ma_do"],))
+        db.execute("DELETE FROM so_do WHERE id=?", (int(did),))
+        db.commit()
+    _dung(f)
+
+
+def _tim_do(x: Any) -> Optional[dict]:
+    ma = _chuan_ma_do(x)
+    if not ma:
+        return None
+    ds = ds_do()
+    kq = [d for d in ds if d["ma_do"] == ma]
+    return kq[0] if kq else None
+
+
+def _log_thue(brain_vai: str, hanh: str, ref: int, loai: str = "thue_do") -> dict:
+    return ghi_hoat_dong(VAI_PHONG[brain_vai][0], hanh, loai, ref)
+
+
+def _su_kien_thue_do(sk: dict, by: str, chat_id: str, by_info: dict) -> dict:
+    it = _tim_do(sk.get("ma_do") or sk.get("do"))
+    if not it:
+        raise ValueError(f"Không thấy đồ \"{sk.get('ma_do') or sk.get('do') or ''}\" trong danh mục đồ")
+    if not it["ap_dung"]:
+        raise ValueError(f"Đồ {it['ma_do']} đang tạm ngưng, chưa cho thuê được")
+    ref = sk.get("hop_dong") or sk.get("khach_ref") or ""
+    hd, canh_bao = tim_hop_dong(ref) if ref else (None, "")
+    ten = _s(sk.get("ten_khach") or sk.get("khach") or (hd["ten_khach"] if hd else ""), 120)
+    sdt = crm.chuan_sdt(sk.get("sdt") or (hd["sdt"] if hd else "") or "")
+    if not (ten or sdt):
+        raise ValueError("Cho thuê cần biết khách: hợp đồng, tên hoặc số điện thoại")
+    hn = _homnay()
+    tu = _ngay_hop_le(sk.get("ngay_thue") or sk.get("ngay")) or hn
+    den = _ngay_hop_le(sk.get("ngay_tra") or sk.get("ngay_tra_du_kien")) or tu
+    if den < tu:
+        raise ValueError("Ngày trả không được trước ngày thuê")
+    gia = tien(sk.get("don_gia", 0)) or it["don_gia"]
+    if gia <= 0:
+        raise ValueError(f"Đồ {it['ma_do']} chưa có giá thuê; nói giá thuê hoặc điền ở Danh mục đồ")
+    km = min(tien(sk.get("khuyen_mai", 0)), gia)
+    con = gia - km
+    ts = sk.get("trang_thai") if sk.get("trang_thai") in ("giu_cho", "dang_thue") else ("dang_thue" if tu <= hn else "giu_cho")
+    thu_ngay = sk.get("thu_ngay") in (True, 1, "1", "true", "co", "có")
+    key = uuid.uuid4().hex[:8]
+
+    def f(db):
+        va = _rows(db.execute("SELECT * FROM so_thue_do WHERE ma_do=? AND trang_thai IN ('giu_cho','dang_thue')"
+                              " AND NOT (ngay_tra_du_kien < ? OR ngay_thue > ?)", (it["ma_do"], tu, den)).fetchall())
+        if va:
+            v = va[0]
+            if v["ngay_thue"] == tu and ((sdt and v["sdt"] == sdt) or (not sdt and _ascii(v["khach"]).lower() == _ascii(ten).lower())):
+                return {"da_co": v}
+            raise ValueError(f"Đồ {it['ma_do']} đã có {'người đang thuê' if v['trang_thai'] == 'dang_thue' else 'người giữ chỗ'} "
+                             f"từ {v['ngay_thue']} đến {v['ngay_tra_du_kien']} (phiếu {v['key']}, khách {v['khach']}); chọn đồ hoặc ngày khác")
+        qh = db.execute("SELECT * FROM so_thue_do WHERE ma_do=? AND trang_thai='dang_thue' AND ngay_tra_du_kien<? AND ngay_thue<=?", (it["ma_do"], hn, tu)).fetchone()
+        if qh and tu <= hn:
+            raise ValueError(f"Đồ {it['ma_do']} chưa được trả: phiếu {qh['key']} của {qh['khach']} đã quá hạn từ {qh['ngay_tra_du_kien']}")
+        cur = db.execute("INSERT INTO so_thue_do(key, hop_dong_id, so_hd, nguoi_tao, ma_do, nhom, ghi_chu, don_gia, khuyen_mai, gia_con_lai, trang_thai,"
+                         " ngay_thue, ngay_tra_du_kien, khach, sdt, la_mau, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)",
+                         (key, hd["id"] if hd else None, hd["ma"] if hd else _s(sk.get("so_hd"), 40), by, it["ma_do"], it["nhom"],
+                          _s(sk.get("ghi_chu"), 300), gia, km, con, ts, tu, den, ten, sdt, time.time()))
+        db.commit()
+        return {"id": int(cur.lastrowid)}
+    r = _dung(f)
+    if "da_co" in r:
+        v = r["da_co"]
+        return {"loai": "thue_do", "id": v["id"], "key": v["key"], "da_co": True,
+                "tom_tat": f"Phiếu thuê {it['ma_do']} của {v['khach']} ({v['ngay_thue']}) đã có từ trước, không tạo lại."}
+    tid = r["id"]
+    h = _log_thue(_VAI_THUE_DO, f"Cho thuê {it['ma_do']} ({it['nhom']}) cho {ten or sdt}, {tu} đến {den}, còn lại {_vnd(con)}đ", tid)
+    tom = (f"{h['agent'] or h['phong']}: {'giữ chỗ' if ts == 'giu_cho' else 'cho thuê'} {it['ma_do']} ({it['nhom']}) cho {ten or sdt} "
+           f"từ {tu} đến {den}, giá {_vnd(gia)}đ" + (f" giảm {_vnd(km)}đ" if km else "") + f", còn lại {_vnd(con)}đ (phiếu {key})")
+    if hd:
+        tom += f", gắn hợp đồng {hd['ma']}"
+    elif ref:
+        tom += f" ({canh_bao or 'chưa gắn được hợp đồng'})"
+    ra = {"loai": "thue_do", "id": tid, "key": key, "ma_do": it["ma_do"], "gia_con_lai": con, "trang_thai": ts, "phong": h["phong"], "agent": h["agent"],
+          "hop_dong": hd["ma"] if hd else ""}
+    if thu_ngay and con > 0:
+        q = _su_kien_quy({"loai": "thu", "so_tien": con, "hop_dong": hd["ma"] if hd else sdt, "hang_muc": "Thuê đồ",
+                          "dien_giai": f"Thuê {it['ma_do']} phiếu {key}"}, by, chat_id, by_info, "thu")
+        _dung(lambda db: (db.execute("UPDATE so_thue_do SET quy_id=? WHERE id=?", (q["id"], tid)), db.commit()))
+        ra["thu"] = q["tom_tat"]
+        tom += ". " + q["tom_tat"]
+    else:
+        tom += f". Chưa ghi thu {_vnd(con)}đ."
+    ra["tom_tat"] = tom
+    return ra
+
+
+def _phieu_dang_thue(sk: dict) -> dict:
+    key = _s(sk.get("key") or sk.get("phieu"), 20).lower()
+    ma = _chuan_ma_do(sk.get("ma_do") or sk.get("do"))
+    if not key and not ma:
+        raise ValueError("Trả đồ cần mã đồ hoặc mã phiếu")
+    r = _dung(lambda db: db.execute(
+        "SELECT * FROM so_thue_do WHERE " + ("key=?" if key else "ma_do=? AND trang_thai IN ('dang_thue','giu_cho')") + " ORDER BY id DESC",
+        (key or ma,)).fetchone())
+    if not r:
+        raise ValueError(f"Không có phiếu thuê {'mã ' + key if key else 'đang mở của đồ ' + ma}")
+    return dict(r)
+
+
+def _su_kien_tra_do(sk: dict, by: str) -> dict:
+    r = _phieu_dang_thue(sk)
+    if r["trang_thai"] == "da_tra":
+        return {"loai": "tra_do", "id": r["id"], "key": r["key"], "da_co": True, "tom_tat": f"Phiếu {r['key']} ({r['ma_do']}) đã trả từ {r['ngay_tra_thuc']}, không ghi lại."}
+    if r["trang_thai"] != "dang_thue":
+        raise ValueError(f"Phiếu {r['key']} đang ở trạng thái {'giữ chỗ (chưa giao đồ)' if r['trang_thai'] == 'giu_cho' else 'đã hủy'}, chưa có gì để trả")
+    ngay = _ngay_hop_le(sk.get("ngay")) or _homnay()
+    _dung(lambda db: (db.execute("UPDATE so_thue_do SET trang_thai='da_tra', ngay_tra_thuc=? WHERE id=?", (ngay, r["id"])), db.commit()))
+    tre = (datetime.strptime(ngay, "%Y-%m-%d") - datetime.strptime(r["ngay_tra_du_kien"], "%Y-%m-%d")).days
+    h = _log_thue(_VAI_THUE_DO, f"Nhận trả {r['ma_do']} từ {r['khach']}" + (f", trễ {tre} ngày" if tre > 0 else ""), r["id"], "tra_do")
+    return {"loai": "tra_do", "id": r["id"], "key": r["key"], "ma_do": r["ma_do"], "tre_ngay": max(0, tre), "phong": h["phong"], "agent": h["agent"],
+            "tom_tat": f"{h['agent'] or h['phong']}: nhận trả {r['ma_do']} từ {r['khach']} ngày {ngay}" + (f", TRỄ {tre} ngày so với hạn {r['ngay_tra_du_kien']}" if tre > 0 else ", đúng hạn") + ". Đồ sẵn sàng cho thuê lại."}
+
+
+def ds_thue_do(trang_thai: str = "") -> List[dict]:
+    hn = _homnay()
+    sql = ("SELECT t.*, d.mau_sac, d.co FROM so_thue_do t LEFT JOIN so_do d ON d.ma_do=t.ma_do"
+           + (" WHERE t.trang_thai=?" if trang_thai else "") + " ORDER BY t.id DESC LIMIT 500")
+    out = _dung(lambda db: _rows(db.execute(sql, (trang_thai,) if trang_thai else ()).fetchall()))
+    for r in out:
+        r["qua_han"] = r["trang_thai"] == "dang_thue" and r["ngay_tra_du_kien"] < hn
+        r["tre_ngay"] = (datetime.strptime(hn, "%Y-%m-%d") - datetime.strptime(r["ngay_tra_du_kien"], "%Y-%m-%d")).days if r["qua_han"] else 0
+    return out
+
+
+def doi_trang_thai_thue(tid: int, ts: str, by: str = "") -> dict:
+    if ts not in TRANG_THAI_THUE:
+        raise ValueError("Trạng thái phiếu thuê không hợp lệ")
+    r = _dung(lambda db: db.execute("SELECT * FROM so_thue_do WHERE id=?", (int(tid),)).fetchone())
+    if not r:
+        raise ValueError("Không thấy phiếu thuê")
+    r = dict(r)
+    if r["trang_thai"] == ts:
+        return r
+    if ts == "da_tra":
+        return _su_kien_tra_do({"key": r["key"]}, by) and (lay_thue(tid) or {})
+    if ts == "dang_thue":
+        kt = _dung(lambda db: db.execute("SELECT key, khach FROM so_thue_do WHERE ma_do=? AND trang_thai='dang_thue' AND id!=?", (r["ma_do"], r["id"])).fetchone())
+        if kt:
+            raise ValueError(f"Đồ {r['ma_do']} đang ở phiếu {kt['key']} của {kt['khach']}, chưa trả nên chưa giao tiếp được")
+    _dung(lambda db: (db.execute("UPDATE so_thue_do SET trang_thai=? WHERE id=?", (ts, r["id"])), db.commit()))
+    _log_thue(_VAI_THUE_DO, {"dang_thue": f"Giao {r['ma_do']} cho {r['khach']}", "huy": f"Hủy phiếu thuê {r['key']} ({r['ma_do']}, {r['khach']})",
+                             "giu_cho": f"Chuyển phiếu {r['key']} về giữ chỗ"}[ts], r["id"])
+    return lay_thue(tid) or {}
+
+
+def lay_thue(tid: int) -> Optional[dict]:
+    r = _dung(lambda db: db.execute("SELECT * FROM so_thue_do WHERE id=?", (int(tid),)).fetchone())
+    return dict(r) if r else None
+
+
+def ghi_thu_thue(tid: int, by: str, by_info: Optional[dict] = None) -> dict:
+    r = lay_thue(tid)
+    if not r:
+        raise ValueError("Không thấy phiếu thuê")
+    if r["quy_id"]:
+        raise ValueError("Phiếu này đã ghi thu rồi")
+    if r["trang_thai"] == "huy" or r["gia_con_lai"] <= 0:
+        raise ValueError("Phiếu đã hủy hoặc không còn tiền cần thu")
+    q = _su_kien_quy({"loai": "thu", "so_tien": r["gia_con_lai"], "hop_dong": r["so_hd"] or r["sdt"], "hang_muc": "Thuê đồ",
+                      "dien_giai": f"Thuê {r['ma_do']} phiếu {r['key']}"}, by, "", by_info or {}, "thu")
+    _dung(lambda db: (db.execute("UPDATE so_thue_do SET quy_id=? WHERE id=?", (q["id"], int(tid))), db.commit()))
+    return q
+
+
+def xoa_thue_do(tid: int) -> None:
+    r = lay_thue(tid)
+    if r and not r["la_mau"] and r["trang_thai"] != "huy":
+        raise ValueError("Chỉ xóa được phiếu đã hủy hoặc dữ liệu mẫu; phiếu thật hãy chuyển sang Hủy")
+    _dung(lambda db: (db.execute("DELETE FROM so_thue_do WHERE id=?", (int(tid),)), db.commit()))
+
+
+def goi_y_do(tu_khoa: str = "", limit: int = 10) -> List[dict]:
+    t = _ascii(tu_khoa).lower().split()
+    ds = ds_do()
+    if t:
+        ds = [d for d in ds if all(x in _ascii(d["ma_do"] + " " + d["nhom"] + " " + d["mau_sac"] + " " + d["co"] + " " + d["ma_dv"]).lower() for x in t)]
+    return ds[:limit]
+
+
+def _mau_do_ngay(n: int) -> str:
+    return _cong_ngay(_homnay(), n)
+
+
+def nap_mau_do() -> dict:
+    """5 món đồ và 5 phiếu thuê MẪU (đánh dấu để xóa gọn), dùng thử luồng thuê và trả."""
+    if any(d["la_mau"] for d in ds_do()):
+        return {"do": 0, "phieu": 0}
+    co_san = {d["ma_do"] for d in ds_do()}
+    items = [("VAY-CC", "VAY-CC209", "Váy cao cấp", "M", "Trắng", 7000000), ("VAY-CC", "VAY-CC211", "Váy cao cấp", "S", "Trắng", 7000000),
+             ("VAY-TK", "VAY-TK67", "Váy thiết kế", "M", "Trắng", 2450000), ("VEST", "VEST-01", "Áo vest cao cấp", "L", "Đen", 500000),
+             ("ADCD", "ADCD-05", "Áo dài cô dâu", "M", "Đỏ", 500000)]
+    items = [x for x in items if x[1] not in co_san]       # món đã có (kể cả đã thuê thật) thì giữ nguyên, không đè
+    for ma_dv, ma, nhom, co, mau, gia in items:
+        d = luu_do({"ma_dv": ma_dv, "pb": "Tư vấn váy", "ma_do": ma, "nhom": nhom, "co": co, "mau_sac": mau, "don_gia": gia, "mo_ta": "Đồ mẫu để thử luồng thuê và trả"})
+        _dung(lambda db, i=d["id"]: (db.execute("UPDATE so_do SET la_mau=1 WHERE id=?", (i,)), db.commit()))
+    ph = [("VAY-CC209", "Nguyễn Thảo Vân", "0900000001", -20, -19, 3150000, "da_tra", -19), ("VAY-CC211", "Lan Anh Chung", "0900000002", -12, -11, 0, "da_tra", -11),
+          ("VEST-01", "Quỳnh Anh", "0900000003", -6, -5, 0, "da_tra", -4), ("VAY-TK67", "Dung Tính", "0900000004", -1, 1, 0, "dang_thue", None),
+          ("VAY-CC209", "Hoa Thành", "0900000005", 10, 11, 1000000, "giu_cho", None)]
+    ph = [x for x in ph if x[0] not in co_san]
+    gia = {m: g for _, m, _, _, _, g in items}
+    nhom = {m: n for _, m, n, _, _, _ in items}
+
+    def f(db):
+        for i, (ma, ten, sdt, a, b, km, ts, tra) in enumerate(ph, 1):
+            db.execute("INSERT INTO so_thue_do(key, hop_dong_id, so_hd, nguoi_tao, ma_do, nhom, ghi_chu, don_gia, khuyen_mai, gia_con_lai, trang_thai,"
+                       " ngay_thue, ngay_tra_du_kien, ngay_tra_thuc, khach, sdt, la_mau, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+                       (f"mau{i:04d}", None, f"MẪU-{i:02d}", "Joyce (mẫu)", ma, nhom[ma], "", gia[ma], km, gia[ma] - km, ts, _mau_do_ngay(a), _mau_do_ngay(b),
+                        _mau_do_ngay(tra) if tra is not None else "", ten, sdt, time.time()))
+        db.commit()
+    _dung(f)
+    _log_thue(_VAI_THUE_DO, f"Nạp {len(items)} món đồ và {len(ph)} phiếu thuê mẫu để thử luồng", 0)
+    return {"do": len(items), "phieu": len(ph)}
+
+
+def xoa_mau_do() -> dict:
+    def f(db):
+        p = db.execute("DELETE FROM so_thue_do WHERE la_mau=1").rowcount
+        mau = [r["ma_do"] for r in db.execute("SELECT ma_do FROM so_do WHERE la_mau=1").fetchall()]
+        d = 0
+        for ma in mau:
+            if db.execute("SELECT 1 FROM so_thue_do WHERE ma_do=?", (ma,)).fetchone():     # đã có phiếu thật: giữ lại, bỏ nhãn mẫu
+                db.execute("UPDATE so_do SET la_mau=0 WHERE ma_do=?", (ma,))
+            else:
+                db.execute("DELETE FROM so_do WHERE ma_do=?", (ma,))
+                d += 1
+        db.commit()
+        return {"do": d, "phieu": p}
+    return _dung(f)
+
+
 # ---------------------------------------------------------------- việc
 def ds_viec() -> List[dict]:
     return _dung(lambda db: _rows(db.execute(
@@ -1482,6 +1819,68 @@ async def r_dv_xoa(request: Request, id: int = Form(...)):
 async def r_dv_nap(request: Request):
     shop_state._kiem_quyen(request)
     return {"ok": True, "da_nap": nap_dich_vu_h2o()}
+
+
+@router.get("/shop/so/do")
+async def r_do(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_do()}
+
+
+@router.post("/shop/so/do")
+@_loi
+async def r_do_luu(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "do": luu_do(_json(data))}
+
+
+@router.post("/shop/so/do/xoa")
+@_loi
+async def r_do_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    xoa_do(id)
+    return {"ok": True}
+
+
+@router.post("/shop/so/do/mau")
+async def r_do_mau(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, **nap_mau_do()}
+
+
+@router.post("/shop/so/do/mau/xoa")
+async def r_do_mau_xoa(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, **xoa_mau_do()}
+
+
+@router.get("/shop/so/thue-do")
+async def r_thue(request: Request, trang_thai: str = ""):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_thue_do(trang_thai)}
+
+
+@router.post("/shop/so/thue-do/buoc")
+@_loi
+async def r_thue_buoc(request: Request, id: int = Form(...), trang_thai: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "phieu": doi_trang_thai_thue(id, trang_thai, _ten(request))}
+
+
+@router.post("/shop/so/thue-do/ghi-thu")
+@_loi
+async def r_thue_thu(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    st = getattr(request.state, "staff", None) or {}
+    return {"ok": True, "phieu_thu": ghi_thu_thue(id, _ten(request), st)}
+
+
+@router.post("/shop/so/thue-do/xoa")
+@_loi
+async def r_thue_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    xoa_thue_do(id)
+    return {"ok": True}
 
 
 def register(app, phong_fn, tasks_fn, brain_root_fn) -> None:

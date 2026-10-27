@@ -21,7 +21,7 @@ try:
 except Exception:          # chạy ngoài máy chủ
     luot_dang_chay = None
 
-_LOAI = ("hop_dong", "thu", "chi", "viec", "phan_cong", "giao_viec")
+_LOAI = ("hop_dong", "thu", "chi", "viec", "phan_cong", "giao_viec", "thue_do", "tra_do")
 
 
 def _la_nhan_vien() -> bool:
@@ -43,7 +43,7 @@ def _ghi(args, ctx) -> str:
     if isinstance(ev, dict):
         ev = [ev]
     if not isinstance(ev, list) or not ev:
-        return ("ERROR: thiếu su_kien. Mỗi sự kiện là một object có `loai` (hop_dong | thu | chi | viec | phan_cong | giao_viec). "
+        return ("ERROR: thiếu su_kien. Mỗi sự kiện là một object có `loai` (hop_dong | thu | chi | viec | phan_cong | giao_viec | thue_do | tra_do). "
                 "Ví dụ: [{loai:'hop_dong', ten:'Tuấn Thủy', sdt:'0899252392', goi:'Gói chụp ảnh studio', gia_tri:15000000}, "
                 "{loai:'thu', so_tien:15000000, khach:'0899252392'}, {loai:'chi', so_tien:4000000, dien_giai:'Setup', khach:'0899252392'}]")
     chat_id = str((args or {}).get("chat_id") or "").strip()
@@ -88,6 +88,22 @@ def _bao_cao(args, ctx) -> str:
     return shop_so.giao_bao_cao(hd["id"], str((args or {}).get("chat_id") or "").strip())
 
 
+def _do(args, ctx) -> str:
+    """Tra danh mục đồ: đồ còn trống hay đang thuê, giữ chỗ những ngày nào."""
+    d = shop_so._vnd
+    ten = {"san_sang": "sẵn sàng", "giu_cho": "có người giữ chỗ", "dang_thue": "ĐANG THUÊ", "qua_han": "QUÁ HẠN chưa trả", "tam_ngung": "tạm ngưng"}
+    ds = shop_so.goi_y_do(str((args or {}).get("tu_khoa") or ""))
+    if not ds:
+        return "Danh mục đồ không có món nào khớp. Nói rõ hơn mã hoặc loại đồ, hoặc xem tab Danh mục đồ."
+    ra = []
+    for x in ds:
+        dong = f"- {x['ten_do']} ({x['nhom']}{', cỡ ' + x['co'] if x['co'] else ''}) {d(x['don_gia'])}đ/lần, thuê {x['so_lan_thue']} lần: {ten[x['tinh_trang']]}"
+        if x["lich"]:
+            dong += "; lịch " + ", ".join(f"{v['tu']} đến {v['den']} ({v['khach']})" for v in x["lich"])
+        ra.append(dong)
+    return "\n".join(ra)
+
+
 def _gia(args, ctx) -> str:
     """Tra bảng giá dịch vụ: khách hỏi giá một gói thì đọc đúng số trong bảng, không tự bịa."""
     d = shop_so._vnd
@@ -117,9 +133,11 @@ async def _chay(args, ctx) -> str:
             return _bao_cao(args, ctx)
         if op == "gia":
             return _gia(args, ctx)
+        if op == "do":
+            return _do(args, ctx)
     except Exception as e:
         return f"ERROR: không ghi được ({type(e).__name__}: {e})."
-    return "ERROR: op phải là 'ghi' (ghi sự kiện), 'xem' (số liệu kỳ này), 'bao_cao' (giao Đối Soát báo cáo một hợp đồng) hoặc 'gia' (tra bảng giá dịch vụ)."
+    return "ERROR: op phải là 'ghi' (ghi sự kiện), 'xem' (số liệu kỳ này), 'bao_cao' (giao Đối Soát báo cáo một hợp đồng) 'gia' (tra bảng giá dịch vụ) hoặc 'do' (tra đồ còn trống hay đang thuê)."
 
 
 def register(ctx):
@@ -142,6 +160,10 @@ def register(ctx):
         "không bị ghi hai lần. Khoản chi nhân viên báo từ hạn mức trở lên nằm 'chờ duyệt' cho chủ; chủ báo thì ghi luôn. "
         "op=xem: số liệu thu chi, hợp đồng, công nợ của kỳ (ky=YYYY-MM hoặc all). "
         "op=bao_cao: giao phòng Đối Soát lập báo cáo lãi lỗ một hợp đồng (hop_dong). "
+        "thue_do {ma_do (như VAY-CC209), hop_dong (mã/sđt/tên để gắn khách) hoặc ten_khach+sdt, ngay_thue, ngay_tra, khuyen_mai, thu_ngay (true = ghi luôn khoản thu còn lại)}: "
+        "cho khách thuê hoặc giữ chỗ một món đồ, tự chặn nếu đồ đã có người thuê hay giữ chỗ trùng ngày; "
+        "tra_do {ma_do hoặc key}: nhận đồ trả về, báo nếu trễ hạn. "
+        "op=do: tra danh mục ĐỒ theo tu_khoa (mã, loại, màu): còn trống hay đang thuê, lịch giữ chỗ. "
         "op=gia: tra BẢNG GIÁ dịch vụ theo tu_khoa (mã như PRW-STCB hoặc tên/loại gói); khách hỏi giá thì đọc đúng số này, không tự bịa. "
         "Khi lập hop_dong, goi là đúng MÃ hoặc đúng TÊN gói trong bảng giá thì không cần nói gia_tri, sổ tự lấy giá và cọc theo bảng; "
         "chủ nói giá khác (thương lượng) thì dùng giá chủ nói. "
@@ -150,8 +172,8 @@ def register(ctx):
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["ghi", "xem", "bao_cao", "gia"]},
-                "tu_khoa": {"type": "string", "description": "Mã, tên hoặc loại gói cần tra giá (op=gia)"},
+                "op": {"type": "string", "enum": ["ghi", "xem", "bao_cao", "gia", "do"]},
+                "tu_khoa": {"type": "string", "description": "Mã, tên hoặc loại gói/đồ cần tra (op=gia hoặc op=do)"},
                 "su_kien": {"type": "array", "items": {"type": "object", "properties": {
                     "loai": {"type": "string", "enum": list(_LOAI)}}, "required": ["loai"]},
                     "description": "Danh sách sự kiện kinh doanh (op=ghi)"},
