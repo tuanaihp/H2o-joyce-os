@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.38] - 2026-10-27
+### Added
+- **New tab "Commission & job price list".** Enter the job list per department (Makeup, Photo, Photoshop, Dress consulting...) with a fixed commission per job, an extra customer fee and the number of days.
+- **Split jobs per contract.** Each contract hands every job to a person; the commission in payroll is computed from the amount of each job, not only from a percentage.
+
 ## [1.3.37] - 2026-10-27
 ### Added
 - **Say one sentence in chat and Joyce writes the ledger and hands each part to the right department.** For example "contract Tuan Thuy 0899252392, studio photo package 15 million, income 15m, expense 4m setup": Sales records the customer, deal and quote in the CRM, the Income department books the income, the Expense department books the expense. A customer with the same phone number is never created twice, and repeating the sentence does not book it twice.

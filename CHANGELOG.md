@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.38] - 2026-10-27
+### Thêm
+- **Tab mới "Hoa hồng & bảng giá công việc".** Nhập danh sách đầu việc theo phòng (Makeup, Chụp ảnh, Photoshop, Tư vấn váy...) kèm hoa hồng cố định mỗi việc, phí thu thêm khách và số ngày.
+- **Chia việc theo hợp đồng.** Mỗi hợp đồng giao từng đầu việc cho từng người; hoa hồng vào bảng lương tự tính theo số tiền của từng việc, không còn chỉ theo phần trăm.
+
 ## [1.3.37] - 2026-10-27
 ### Thêm
 - **Báo một câu trong chat, Joyce ghi sổ và giao đúng phòng.** Ví dụ "hợp đồng Tuấn Thủy 0899252392, gói chụp studio 15 triệu, thu 15tr, chi 4tr setup": Sales ghi khách, cơ hội và báo giá vào CRM, Phòng Thu ghi thu, Phòng Chi ghi chi. Khách trùng số điện thoại không bị tạo hai lần, gửi lại cùng câu không ghi hai lần.
