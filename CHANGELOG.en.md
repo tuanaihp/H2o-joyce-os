@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.34] - 2026-10-27
+### Added
+- **Shop management page** under Capabilities, following the `JOYCE_QUAN_LY_SHOP_PROTOTYPE_V2.html` design: 14 module tabs (Overview, CRM, Sales, Orders, Stock, Cash flow, Staff, Executive assistant, Quotes, Customer inbox, Care, Marketing, AI images, Tasks), department map, department cards and the internal chat room. Its Customer CRM tab runs the real Joyce CRM; the other modules keep data in the browser like the design.
+### Changed
+- The Operations CRM uses the latest `crm.js` from the handoff bundle (sync notice, guide, money format).
+
 ## [1.3.33] - 2026-10-27
 ### Changed
 - **The Operations CRM matches the HTML design more closely**: the left column holds Quick add with AI, search and the contact list (with phone and closed revenue), the right column holds the profile. Tabs have icons and counts, a collapsible "How to use the CRM" line, and Back up and Import customer (.json or .csv) buttons on the right of the tab bar. Pipeline column names are uppercase like the design.

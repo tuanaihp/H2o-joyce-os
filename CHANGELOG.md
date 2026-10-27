@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.34] - 2026-10-27
+### Thêm
+- **Trang Quản lý Shop** trong mục Năng lực, theo đúng bản mẫu `JOYCE_QUAN_LY_SHOP_PROTOTYPE_V2.html`: thanh 14 module (Tổng quan bộ, CRM, Bán hàng, Đơn bán, Kho, Thu chi, Nhân sự, Trợ lý điều hành, Báo giá, Hộp chat, Chăm sóc, Marketing, Ảnh AI, Công việc), sơ đồ phòng ban, thẻ phòng và phòng chat nội bộ. Tab CRM khách hàng trong trang dùng CRM thật của Joyce; các module còn lại lưu dữ liệu trên trình duyệt như bản mẫu.
+### Đổi
+- CRM vận hành dùng bản `crm.js` mới nhất trong bộ bàn giao (thanh thông báo đồng bộ, hướng dẫn, định dạng tiền).
+
 ## [1.3.33] - 2026-10-27
 ### Đổi
 - **CRM vận hành khớp bản HTML mẫu hơn**: cột trái gồm Thêm nhanh bằng AI, ô tìm và danh sách khách (kèm số điện thoại và số tiền đã chốt), cột phải là hồ sơ. Tab có icon và số đếm, có thêm dòng "Hướng dẫn dùng CRM" thu gọn, nút Sao lưu và Nhập khách (file .json hoặc .csv) ở góc phải thanh tab. Tên cột Pipeline viết hoa như mẫu.

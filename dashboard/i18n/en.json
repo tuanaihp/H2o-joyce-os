@@ -6806,5 +6806,12 @@
   "crm.messages": "messages",
   "crm.mode.off": "Off",
   "crm.mode.review": "Review first",
-  "crm.mode.auto": "Apply automatically"
+  "crm.mode.auto": "Apply automatically",
+  "crm.sync_notice": "Data is synchronized from Joyce CRM and refreshed for the selected department.",
+  "crm.guide": "CRM quick guide (2 minutes)",
+  "crm.guide_text": "Use Contacts for customer profiles, Pipeline for opportunities, and Tasks for follow-ups.",
+  "crm.money": "VND {value}",
+  "page.quanlyshop.label": "Shop management",
+  "page.quanlyshop.title": "Shop management",
+  "page.quanlyshop.sub": "Sales, customers, marketing, stock, cash flow, staff and the AI team in one workspace"
 }

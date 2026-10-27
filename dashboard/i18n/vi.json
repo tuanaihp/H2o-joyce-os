@@ -6806,5 +6806,12 @@
   "crm.messages": "tin nhắn",
   "crm.mode.off": "Tắt",
   "crm.mode.review": "Chờ duyệt",
-  "crm.mode.auto": "Tự áp"
+  "crm.mode.auto": "Tự áp",
+  "crm.sync_notice": "Dữ liệu được đồng bộ từ Joyce CRM và cập nhật theo phòng đang chọn.",
+  "crm.guide": "Hướng dẫn dùng CRM (đọc 2 phút)",
+  "crm.guide_text": "Dùng Danh bạ để lưu hồ sơ, Pipeline để theo dõi cơ hội và Việc cần làm để không bỏ lỡ lịch chăm sóc.",
+  "crm.money": "{value} đ",
+  "page.quanlyshop.label": "Quản lý Shop",
+  "page.quanlyshop.title": "Quản lý Shop",
+  "page.quanlyshop.sub": "Bán hàng, khách hàng, marketing, kho, thu chi, nhân sự và đội ngũ AI trong một không gian"
 }

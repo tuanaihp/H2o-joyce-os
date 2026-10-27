@@ -5038,3 +5038,4 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 }
 .jm-vol { width: 64px; accent-color: rgba(103, 232, 249, .7); flex: none; }
 .jm-close { color: rgba(150, 190, 220, .5); }
+.qls-frame { display: block; width: 100%; height: calc(100dvh - 120px); min-height: 560px; border: 0; border-radius: 12px; background: #f3f6f3; }
