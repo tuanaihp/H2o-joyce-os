@@ -84,8 +84,8 @@ check("Kinh doanh nằm trong nhóm Năng lực", /"nang_luc"[^\n]*ids:\s*\[[^\]
 
 // Vận hành kinh doanh (27/10): 6 trang vận hành gom thành mục con của Kinh doanh, mỗi mục con mang `page`
 const pageIds = JSON.parse((CON.match(/const KD_PAGE_IDS = (\[[^\]]*\])/) || [])[1] || "[]");
-check("Kinh doanh gom đúng 6 trang: Nghiên cứu, Lộ trình, Cộng sự, Team, Chatbot, CRM vận hành",
-  JSON.stringify(pageIds) === '["nghiencuu","lotrinh","workspace","teams","conversations","crm"]', pageIds.join(","));
+check("Kinh doanh gom đúng 7 trang: Nghiên cứu, Lộ trình, Cộng sự, Team, Chatbot, CRM vận hành, Quản lý Shop",
+  JSON.stringify(pageIds) === '["nghiencuu","lotrinh","workspace","teams","conversations","crm","quanlyshop"]', pageIds.join(","));
 check("các trang gom vẫn nằm trong ids nhóm Năng lực (lệnh bằng lời và groupLabelOf không gãy)",
   pageIds.every((id) => new RegExp(String.raw`"nang_luc"[^\n]*ids:\s*\[[^\]]*"` + id + '"').test(CON)));
 check("mục con kiểu trang: bấm mở trang thật (s.page ? go(s.page) : goSub)", /s\.page \? \$store\.nav\.go\(s\.page\) : \$store\.nav\.goSub\(it\.id, s\.id\)/.test(HTML));

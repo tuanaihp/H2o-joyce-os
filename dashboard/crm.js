@@ -185,7 +185,7 @@
     .jcrm-tab{border:0;background:transparent;color:var(--text2);border-radius:8px;padding:8px 11px;white-space:nowrap;font-size:12px}
     .jcrm-tab.is-active{background:var(--card);color:var(--text);font-weight:750;box-shadow:0 1px 3px color-mix(in srgb,var(--text) 10%,transparent)}
     .jcrm-panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;min-width:0}
-    .jcrm-panel h3,.jcrm-panel h4{margin:0 0 12px}
+    .jcrm-panel h3,.jcrm-panel h4{font-size:14px;margin:0 0 12px}
     .jcrm-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
     .jcrm-grow{flex:1 1 220px}
     .jcrm-grid-two{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,.9fr);gap:14px;align-items:start}
@@ -634,6 +634,16 @@
       state.me = meResult;
       state.brain = meResult.mac_dinh || (meResult.phong && meResult.phong[0] ? meResult.phong[0].brain : "");
       if (meResult.admin && !state.brain) state.brain = "";
+      // Phòng mặc định có thể chưa có khách nào (màn trống, KPI bằng 0): chuyển sang phòng đang có nhiều khách nhất.
+      try {
+        const all = await apiGet("/crm/lien-he", { brain: "", limit: 500 });
+        const known = {};
+        (meResult.phong || []).forEach(function (p) { known[p.brain] = true; });
+        const dem = {};
+        (all.items || []).forEach(function (c) { (c.depts || []).forEach(function (d) { if (known[d]) dem[d] = (dem[d] || 0) + 1; }); });
+        const tot = Object.keys(dem).sort(function (a, b) { return dem[b] - dem[a]; })[0];
+        if (tot && !dem[state.brain]) state.brain = tot;
+      } catch (e) { /* không chọn được thì giữ phòng mặc định */ }
       state.error = null;
       await loadCurrent(true);
     } catch (error) {

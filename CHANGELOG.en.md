@@ -2,6 +2,13 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.35] - 2026-10-27
+### Added
+- **Shop management is now shared across devices**: the data of its 12 modules (orders, stock, cash book, staff, quotes, internal team chat...) used to live only in each browser; it is now stored on the Joyce server, so phone and computer see the same copy. Only the owner and managers (CEO, director, department head, lead) see this page because it holds cash flow and staff data. If two devices edit at once, the last save wins.
+### Changed
+- Shop management sits under **Business operations** with Research, Career path, Partners, Teams, Chatbot and Operations CRM.
+- Operations CRM picks the department with the most customers by default (it could land on an empty department, so every number read 0 and the profile column was empty). Small card headings are 14px as in the mockup.
+
 ## [1.3.34] - 2026-10-27
 ### Added
 - **Shop management page** under Capabilities, following the `JOYCE_QUAN_LY_SHOP_PROTOTYPE_V2.html` design: 14 module tabs (Overview, CRM, Sales, Orders, Stock, Cash flow, Staff, Executive assistant, Quotes, Customer inbox, Care, Marketing, AI images, Tasks), department map, department cards and the internal chat room. Its Customer CRM tab runs the real Joyce CRM; the other modules keep data in the browser like the design.

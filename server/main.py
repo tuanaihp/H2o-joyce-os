@@ -13405,6 +13405,10 @@ import crm
 crm.register(app, lambda: h2o_departments.list_all().get("phong", []),
              lambda: _STAFF_SCOPE.get() or (), lambda: tasks_feature, _brain_root)
 
+import shop_state
+
+shop_state.register(app)
+
 
 @app.get("/work/sweep")
 async def work_sweep(notify: bool = False):

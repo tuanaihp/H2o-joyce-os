@@ -157,7 +157,7 @@
   // điện thoại cắt cụt). Mục con loại này mang `page` = id trang thật: bấm là mở trang đó, không phải
   // một tab trong trang Kinh doanh. Vẫn nằm trong `ids` của nhóm Năng lực để groupLabelOf và lệnh bằng
   // lời (mở trang theo id) chạy như cũ; chỉ riêng lúc vẽ rail mới được gom lại (xem railGroups).
-  const KD_PAGE_IDS = ["nghiencuu", "lotrinh", "workspace", "teams", "conversations", "crm"];
+  const KD_PAGE_IDS = ["nghiencuu", "lotrinh", "workspace", "teams", "conversations", "crm", "quanlyshop"];
   const KD_PAGE_SUBS = KD_PAGE_IDS.map(id => ({
     id, page: id,
     get icon() { const it = RAIL_ITEMS.find(i => i.id === id); return it ? it.icon : ""; },
@@ -244,7 +244,7 @@
     const an = (id) => RAIL_AN.has(id) || (nv && RAIL_AN_NHAN_VIEN.has(id))
       || (nv && !quanLy && RAIL_AN_KHONG_QUAN_LY.has(id))
       || (nv && id === "crm" && !_coQuyenCrm())
-      || (nv && id === "quanlyshop" && !_coQuyenCrm());
+      || (nv && id === "quanlyshop" && _quyenNV() !== "quan_ly");   // có thu chi và nhân sự: chỉ quản lý thấy, khớp /shop/state
     const groups = RAIL_GROUPS.map(g => {
       let items = (g.ids || [])
         .map(id => { seen.add(id); return an(id) ? null : RAIL_BY_ID[id]; })
@@ -891,7 +891,41 @@
 
   // Trang Quản lý Shop: bộ giao diện quan-ly-shop.html chạy trong khung; tab CRM bên trong
   // gọi lại window.JoyceCrm của trang này nên vẫn dùng dữ liệu CRM thật.
-  function renderQuanLyShop(el) {
+  //
+  // Trang mẫu giữ dữ liệu ở localStorage (cùng origin với trang này). Để nhiều máy dùng chung một bản, trước
+  // khi dựng khung ta kéo bản trên máy chủ xuống localStorage, và mỗi lần khung ghi lại (sự kiện `storage`
+  // bắn sang cửa sổ cha) ta đẩy bản mới lên máy chủ. Lỗi mạng hay 403 thì trang vẫn chạy bằng localStorage.
+  const QLS_KEYS = ["joyce-shop-org", "joyce-shop-sample", "joyce-shop-business", "joyce-shop-chat"];
+  let _qlsWatch = false, _qlsTimer = 0;
+  async function _qlsPull() {
+    try {
+      const r = await (await fetch("/shop/state")).json();
+      const k = (r && r.keys) || {};
+      if (Object.keys(k).length) QLS_KEYS.forEach(n => { if (typeof k[n] === "string") localStorage.setItem(n, k[n]); else localStorage.removeItem(n); });
+      else _qlsPush();   // máy chủ chưa có gì: đẩy dữ liệu sẵn có của trình duyệt lên làm bản đầu
+    } catch (e) {}
+  }
+  function _qlsPush() {
+    const keys = {};
+    QLS_KEYS.forEach(n => { const v = localStorage.getItem(n); if (v != null) keys[n] = v; });
+    if (!Object.keys(keys).length) return;
+    const fd = new FormData(); fd.append("data", JSON.stringify(keys));
+    fetch("/shop/state", { method: "POST", body: fd }).catch(() => {});
+  }
+  function _qlsTheoDoi() {
+    if (_qlsWatch) return;
+    _qlsWatch = true;
+    window.addEventListener("storage", (ev) => {
+      if (!ev.key || QLS_KEYS.indexOf(ev.key) < 0) return;
+      clearTimeout(_qlsTimer);
+      _qlsTimer = setTimeout(_qlsPush, 800);
+    });
+  }
+  async function renderQuanLyShop(el) {
+    const gen = _renderGen;
+    _qlsTheoDoi();
+    await _qlsPull();
+    if (gen !== _renderGen) return;
     el.innerHTML = `<iframe class="qls-frame" title="${esc(t("page.quanlyshop.title"))}" src="/static/quan-ly-shop.html?embed=1&lang=${encodeURIComponent(document.documentElement.lang || "vi")}"></iframe>`;
   }
 

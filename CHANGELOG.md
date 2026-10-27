@@ -2,6 +2,13 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.35] - 2026-10-27
+### Thêm
+- **Quản lý Shop dùng chung nhiều máy**: dữ liệu của 12 module (đơn bán, kho, thu chi, nhân sự, báo giá, phòng chat nội bộ...) trước chỉ nằm trong trình duyệt từng máy, nay được lưu lên máy chủ Joyce nên điện thoại và máy tính thấy cùng một bản. Chỉ chủ và quản lý (CEO, giám đốc, trưởng phòng, lead) thấy trang này vì có thu chi và nhân sự. Hai máy sửa cùng lúc thì bản lưu sau cùng thắng.
+### Đổi
+- Quản lý Shop nằm trong mục con của **Vận hành kinh doanh** cùng Nghiên cứu, Lộ trình, Cộng sự, Team, Chatbot, CRM vận hành.
+- CRM vận hành tự chọn phòng đang có nhiều khách nhất (trước đây có thể rơi vào phòng trống nên mọi số liệu bằng 0 và cột hồ sơ trống). Tiêu đề các khung nhỏ về 14px như bản mẫu.
+
 ## [1.3.34] - 2026-10-27
 ### Thêm
 - **Trang Quản lý Shop** trong mục Năng lực, theo đúng bản mẫu `JOYCE_QUAN_LY_SHOP_PROTOTYPE_V2.html`: thanh 14 module (Tổng quan bộ, CRM, Bán hàng, Đơn bán, Kho, Thu chi, Nhân sự, Trợ lý điều hành, Báo giá, Hộp chat, Chăm sóc, Marketing, Ảnh AI, Công việc), sơ đồ phòng ban, thẻ phòng và phòng chat nội bộ. Tab CRM khách hàng trong trang dùng CRM thật của Joyce; các module còn lại lưu dữ liệu trên trình duyệt như bản mẫu.
