@@ -53,6 +53,7 @@
     '.so-cols h4{margin:0 0 9px;font-size:12px;color:#58645d}',
     '.so-mini{border:0;background:#eef1ef;border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer;margin:6px 4px 0 0}',
     '.so-note{font-size:11px;color:#707b74;margin:8px 0}',
+    '#chatBox,.deploy{display:none!important}',
     '@media(max-width:680px){.so-strip{grid-template-columns:1fr 1fr}.so-cols{grid-template-columns:1fr}}'
   ].join('');
   document.head.appendChild(css);

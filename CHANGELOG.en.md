@@ -4,7 +4,11 @@
 
 ## [1.3.37] - 2026-10-27
 ### Added
-- **Shop Manager keeps a real ledger, written by each department's agent** (in progress): say one sentence in chat and Joyce splits it into contract, income and expense, then hands each to the right department.
+- **Say one sentence in chat and Joyce writes the ledger and hands each part to the right department.** For example "contract Tuan Thuy 0899252392, studio photo package 15 million, income 15m, expense 4m setup": Sales records the customer, deal and quote in the CRM, the Income department books the income, the Expense department books the expense. A customer with the same phone number is never created twice, and repeating the sentence does not book it twice.
+- **The Shop Manager ledger is real.** Cash book, sales orders (contracts), quotes, staff and payroll, and tasks all read from one shared ledger; the "Tiệm bánh Mây" sample numbers are gone; Stock, Customer chat, Care, Marketing and AI Images say "not connected to real data yet". Payroll includes percentage commission computed automatically from the gross profit of signed contracts.
+- **The virtual office shows which agent is working.** The department that just handled something lights up, with a log of "which agent, which skill, what".
+### Changed
+- **Large expenses reported by staff wait for the owner's approval** (limit is configurable, default 2 million); the owner's own reports are booked immediately. A completed contract has the Reconciliation department write a profit and loss report.
 
 ## [1.3.36] - 2026-10-27
 ### Added

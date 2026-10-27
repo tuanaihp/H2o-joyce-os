@@ -4,7 +4,11 @@
 
 ## [1.3.37] - 2026-10-27
 ### Thêm
-- **Quản lý Shop ghi sổ thật, do agent từng phòng làm** (đang làm): báo một câu trong chat, Joyce tách thành hợp đồng, thu, chi rồi giao đúng phòng Sales, Thu, Chi, Đối Soát, Nhân Sự.
+- **Báo một câu trong chat, Joyce ghi sổ và giao đúng phòng.** Ví dụ "hợp đồng Tuấn Thủy 0899252392, gói chụp studio 15 triệu, thu 15tr, chi 4tr setup": Sales ghi khách, cơ hội và báo giá vào CRM, Phòng Thu ghi thu, Phòng Chi ghi chi. Khách trùng số điện thoại không bị tạo hai lần, gửi lại cùng câu không ghi hai lần.
+- **Sổ Quản lý Shop là số thật.** Thu chi, đơn bán (hợp đồng), báo giá, nhân sự và lương, công việc đều đọc từ sổ chung; số mẫu "Tiệm bánh Mây" đã bỏ; Kho, Hộp chat, Chăm sóc, Marketing và Ảnh AI ghi rõ "chưa nối dữ liệu thật". Lương có hoa hồng phần trăm tính tự động từ lãi gộp của hợp đồng đã ký.
+- **Văn phòng ảo hiện agent đang làm.** Phòng nào vừa xử lý việc thì sáng lên, kèm nhật ký "agent nào, skill nào, làm gì".
+### Đổi
+- **Chi lớn của nhân viên chờ chủ duyệt** (hạn mức đặt được, mặc định 2 triệu); chủ báo thì ghi luôn. Hợp đồng hoàn thành thì Đối Soát lập báo cáo lãi lỗ.
 
 ## [1.3.36] - 2026-10-27
 ### Thêm
