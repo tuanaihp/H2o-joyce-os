@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.33] - 2026-10-27
+### Đổi
+- **CRM vận hành khớp bản HTML mẫu hơn**: cột trái gồm Thêm nhanh bằng AI, ô tìm và danh sách khách (kèm số điện thoại và số tiền đã chốt), cột phải là hồ sơ. Tab có icon và số đếm, có thêm dòng "Hướng dẫn dùng CRM" thu gọn, nút Sao lưu và Nhập khách (file .json hoặc .csv) ở góc phải thanh tab. Tên cột Pipeline viết hoa như mẫu.
+### Sửa
+- Nút và ô nhập trong CRM không còn bị to quá khổ so với thiết kế.
+
 ## [1.3.32] - 2026-10-27
 ### Đổi
 - **CRM vận hành dùng bộ giao diện mới**: thêm nhanh khách bằng AI, hồ sơ 6 mục Joyce tự thu thập (có khoá từng mục), giao khách cho nhiều phòng, chọn từng mục đề xuất trước khi duyệt, quản lý giai đoạn pipeline và việc cần làm có bộ lọc.

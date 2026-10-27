@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.33] - 2026-10-27
+### Changed
+- **The Operations CRM matches the HTML design more closely**: the left column holds Quick add with AI, search and the contact list (with phone and closed revenue), the right column holds the profile. Tabs have icons and counts, a collapsible "How to use the CRM" line, and Back up and Import customer (.json or .csv) buttons on the right of the tab bar. Pipeline column names are uppercase like the design.
+### Fixed
+- CRM buttons and inputs are no longer oversized compared with the design.
+
 ## [1.3.32] - 2026-10-27
 ### Changed
 - **The Operations CRM uses the new interface**: quick add with AI, a six-field profile Joyce collects (each field can be locked), customers assigned to several departments, pick each proposed field before approving, manage pipeline stages, and filtered to-dos.

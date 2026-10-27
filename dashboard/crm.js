@@ -125,7 +125,12 @@
     messages: "crm.messages",
     modeOff: "crm.mode.off",
     modeReview: "crm.mode.review",
-    modeAuto: "crm.mode.auto"
+    modeAuto: "crm.mode.auto",
+    guideTitle: "crm.guide_title",
+    guideBody: "crm.guide_body",
+    backup: "crm.backup",
+    importedCount: "crm.imported_count",
+    importBad: "crm.import_bad"
   });
 
   const PROFILE_KEYS = Object.freeze({
@@ -140,7 +145,8 @@
   const CSS = `
     .jcrm{color:var(--text);min-width:0;font:inherit}
     .jcrm *{box-sizing:border-box}
-    .jcrm button,.jcrm input,.jcrm select,.jcrm textarea{font:inherit}
+    .jcrm :where(button,input,select,textarea){font-family:inherit;line-height:1.3}
+    .jcrm-field,.jcrm-select,.jcrm-textarea{font-size:12px}
     .jcrm button{cursor:pointer}
     .jcrm-head{display:flex;align-items:flex-start;gap:12px;margin:4px 0 18px}
     .jcrm-head-icon{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--accent-wash);color:var(--accent);flex:0 0 auto}
@@ -170,14 +176,22 @@
     .jcrm-kpi small{display:block;color:var(--text2);font-size:11px}
     .jcrm-kpi strong{display:block;font-size:19px;margin:2px 0;overflow-wrap:anywhere}
     .jcrm-kpi em{font-style:normal;color:var(--text3);font-size:10px}
-    .jcrm-tabs{display:flex;gap:5px;background:var(--wash);border-radius:11px;padding:4px;margin:2px 0 16px;overflow:auto;max-width:100%}
+    .jcrm-tabs{display:flex;gap:5px;align-items:center;background:var(--wash);border-radius:11px;padding:4px;margin:2px 0 12px;overflow:auto;max-width:100%}
+    .jcrm-tab{display:inline-flex;align-items:center;gap:6px}
+    .jcrm-tab svg{width:13px;height:13px}
+    .jcrm-tab-count{font-weight:750;color:var(--text)}
+    .jcrm-tabs-tools{margin-left:auto;display:flex;gap:4px;flex:0 0 auto}
+    .jcrm-guide{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 14px;margin-bottom:12px;font-size:12px}
+    .jcrm-guide summary{cursor:pointer;color:var(--green);font-weight:650}
+    .jcrm-guide p{margin:8px 0 0;color:var(--text2);line-height:1.55}
+    .jcrm-contact-value{font-weight:750;font-size:12px;white-space:nowrap}
     .jcrm-tab{border:0;background:transparent;color:var(--text2);border-radius:8px;padding:8px 11px;white-space:nowrap;font-size:12px}
     .jcrm-tab.is-active{background:var(--card);color:var(--text);font-weight:750;box-shadow:0 1px 3px color-mix(in srgb,var(--text) 10%,transparent)}
     .jcrm-panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;min-width:0}
     .jcrm-panel h3,.jcrm-panel h4{margin:0 0 12px}
     .jcrm-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
     .jcrm-grow{flex:1 1 220px}
-    .jcrm-grid-two{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(0,1.5fr);gap:14px;align-items:start}
+    .jcrm-grid-two{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(320px,1fr);gap:14px;align-items:start}
     .jcrm-ai{margin-bottom:12px}
     .jcrm-ai p{margin:3px 0 10px;color:var(--text2);font-size:11px}
     .jcrm-contact-list{border:1px solid var(--line);border-radius:13px;overflow:hidden}
@@ -214,7 +228,7 @@
     .jcrm-lane{background:var(--wash);border:1px solid var(--line);border-radius:13px;padding:10px;min-height:330px;max-width:320px}
     .jcrm-lane.is-over{border-color:var(--accent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
     .jcrm-lane-head{display:flex;gap:7px;align-items:center;margin-bottom:9px}
-    .jcrm-lane-head b{font-size:11px;flex:1}
+    .jcrm-lane-head b{font-size:11px;flex:1;text-transform:uppercase;letter-spacing:.03em}
     .jcrm-lane-total{font-size:10px;color:var(--text2)}
     .jcrm-deal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;font-size:11px}
     .jcrm-deal[draggable=true]{cursor:grab}
@@ -444,7 +458,54 @@
     const roomControl = `<select class="jcrm-select" data-action="change-room" aria-label="${esc(tw(K.room))}">${roomOptions(state.brain, true)}</select>`;
     const enable = isAdmin() && state.brain ? `<label class="jcrm-chip"><input type="checkbox" data-action="enable-room" ${currentRoomEnabled() ? "checked" : ""}>${esc(tw(K.enableRoom))}</label>` : "";
     const totals = state.summary || {};
-    main.innerHTML = `<div class="jcrm-head"><div class="jcrm-head-icon jcrm-icon">${icon("users")}</div><div><h1 class="jcrm-title">${esc(tw(K.title))}</h1><p class="jcrm-subtitle">${esc(tw(K.subtitle))}</p></div><div class="jcrm-head-actions">${state.me.chi_xem ? `<span class="jcrm-chip jcrm-chip-warn">${esc(tw(K.readonly))}</span>` : ""}${roomControl}${enable}${canManage() ? button(K.autoExtract, "open-settings", "", "", "sparkles") : ""}</div></div>${state.error ? `<div class="jcrm-alert jcrm-alert-danger">${esc(tw(state.error))}</div>` : ""}${summaryCards()}<div class="jcrm-tabs" role="tablist"><button class="jcrm-tab ${state.mode === "contacts" ? "is-active" : ""}" data-action="mode" data-mode="contacts">${esc(tw(K.contacts))} ${esc(dinhDangTien(totals.lien_he))}</button><button class="jcrm-tab ${state.mode === "pipeline" ? "is-active" : ""}" data-action="mode" data-mode="pipeline">${esc(tw(K.pipeline))} ${esc(dinhDangTien(totals.so_co_hoi))}</button><button class="jcrm-tab ${state.mode === "todos" ? "is-active" : ""}" data-action="mode" data-mode="todos">${esc(tw(K.todos))} ${esc(dinhDangTien(totals.viec_mo))}</button></div><div class="jcrm-view">${viewHtml()}</div>`;
+    main.innerHTML = `<div class="jcrm-head"><div class="jcrm-head-icon jcrm-icon">${icon("users")}</div><div><h1 class="jcrm-title">${esc(tw(K.title))}</h1><p class="jcrm-subtitle">${esc(tw(K.subtitle))}</p></div><div class="jcrm-head-actions">${state.me.chi_xem ? `<span class="jcrm-chip jcrm-chip-warn">${esc(tw(K.readonly))}</span>` : ""}${roomControl}${enable}${canManage() ? button(K.autoExtract, "open-settings", "", "", "sparkles") : ""}</div></div>${state.error ? `<div class="jcrm-alert jcrm-alert-danger">${esc(tw(state.error))}</div>` : ""}${summaryCards()}<div class="jcrm-tabs" role="tablist">${tabHtml("contacts", "users", K.contacts, totals.lien_he)}${tabHtml("pipeline", "target", K.pipeline, totals.so_co_hoi)}${tabHtml("todos", "circle-check", K.todos, totals.viec_mo)}<span class="jcrm-tabs-tools">${button(K.backup, "backup-contacts", "jcrm-btn-ghost jcrm-btn-small", "", "download")}${canWrite() ? button(K.import, "import-file", "jcrm-btn-ghost jcrm-btn-small", "", "upload-cloud") : ""}</span></div><details class="jcrm-guide"><summary>${esc(tw(K.guideTitle))}</summary><p>${esc(tw(K.guideBody))}</p></details><input type="file" accept=".json,.csv,application/json,text/csv" data-action="import-chosen" hidden><div class="jcrm-view">${viewHtml()}</div>`;
+  }
+
+  function tabHtml(mode, iconName, labelKey, count) {
+    return `<button class="jcrm-tab ${state.mode === mode ? "is-active" : ""}" data-action="mode" data-mode="${mode}">${icon(iconName)}<span>${esc(tw(labelKey))}</span><span class="jcrm-tab-count">${esc(dinhDangTien(count))}</span></button>`;
+  }
+
+  function backupContacts() {
+    const data = JSON.stringify({ joyce_crm: 1, brain: state.brain, contacts: state.contacts }, null, 2);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    link.download = "joyce-crm-" + (state.brain || "all") + "-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 0);
+  }
+
+  function parseImport(text) {
+    const trimmed = String(text || "").trim();
+    if (trimmed.charAt(0) === "{" || trimmed.charAt(0) === "[") {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : (parsed.contacts || []);
+    }
+    const lines = trimmed.split(/\r?\n/).filter(Boolean);
+    const cells = function (line) { return line.split(",").map(function (c) { return c.trim().replace(/^"|"$/g, ""); }); };
+    const head = cells(lines.shift() || "").map(function (h) { return h.toLowerCase(); });
+    return lines.map(function (line) {
+      const row = {};
+      cells(line).forEach(function (value, i) { if (head[i]) row[head[i]] = value; });
+      return row;
+    });
+  }
+
+  async function importContacts(file) {
+    let rows;
+    try { rows = parseImport(await file.text()).filter(function (row) { return row && row.name; }); } catch (e) { rows = null; }
+    if (!rows || !rows.length) { toast(K.importBad); return; }
+    let count = 0;
+    try {
+      for (const row of rows) {
+        const depts = Array.isArray(row.depts) ? row.depts.join(",") : (row.depts || state.brain || "");
+        const tags = Array.isArray(row.tags) ? row.tags.join(",") : (row.tags || "");
+        await apiPost("/crm/lien-he", { name: row.name, phone: row.phone || "", email: row.email || "", company: row.company || "", source: row.source || "", note: row.note || "", tags: tags, depts: depts });
+        count += 1;
+      }
+    } catch (error) { showError(error); }
+    toast(K.importedCount, { count: count });
+    await loadCurrent(false);
   }
 
   function currentRoomEnabled() {
@@ -461,15 +522,17 @@
 
   function contactsView() {
     const writeTools = canWrite() ? `${button(K.manualEntry, "new-contact", "")}` : "";
-    const manageTools = canManage() ? `${button(K.importInbox, "open-inbox", "")}${button(K.deletedContacts, "toggle-deleted", state.showDeleted ? "jcrm-btn-primary" : "")}` : "";
-    return `<div class="jcrm-ai jcrm-panel"><h3>${esc(tw(K.quickAi))}</h3><p>${esc(tw(K.quickAiHint))}</p><textarea class="jcrm-textarea" data-role="quick-text" placeholder="${esc(tw(K.pasteChat))}" ${canWrite() ? "" : "disabled"}></textarea><div class="jcrm-toolbar" style="margin-top:8px;margin-bottom:0">${canWrite() ? button(K.readInfo, "read-quick", "jcrm-btn-primary", "", "sparkles") : ""}${writeTools}</div></div><div class="jcrm-toolbar"><input class="jcrm-field jcrm-grow" data-role="contact-search" value="${esc(state.search)}" placeholder="${esc(tw(K.search))}">${manageTools}${canWrite() ? button(K.newContact, "new-contact", "jcrm-btn-primary") : ""}${button(K.segments, "open-segments", "")}</div><div class="jcrm-grid-two"><section class="jcrm-contact-panel">${contactListHtml()}</section><section class="jcrm-detail-panel jcrm-panel">${contactDetailHtml()}</section></div>`;
+    const manageTools = canManage() ? `${button(K.importInbox, "open-inbox", "jcrm-btn-small")}${button(K.deletedContacts, "toggle-deleted", state.showDeleted ? "jcrm-btn-primary jcrm-btn-small" : "jcrm-btn-small")}` : "";
+    const aiBox = `<div class="jcrm-ai jcrm-panel"><h3>${esc(tw(K.quickAi))}</h3><p>${esc(tw(K.quickAiHint))}</p><textarea class="jcrm-textarea" data-role="quick-text" placeholder="${esc(tw(K.pasteChat))}" ${canWrite() ? "" : "disabled"}></textarea><div class="jcrm-toolbar" style="margin-top:8px;margin-bottom:0">${canWrite() ? button(K.readInfo, "read-quick", "jcrm-btn-primary", "", "sparkles") : ""}${writeTools}</div></div>`;
+    const tools = `<div class="jcrm-toolbar"><input class="jcrm-field jcrm-grow" data-role="contact-search" value="${esc(state.search)}" placeholder="${esc(tw(K.search))}"></div><div class="jcrm-toolbar">${manageTools}${button(K.segments, "open-segments", "jcrm-btn-small")}<span class="jcrm-grow"></span>${canWrite() ? button(K.newContact, "new-contact", "jcrm-btn-primary jcrm-btn-small") : ""}</div>`;
+    return `<div class="jcrm-grid-two"><section class="jcrm-contact-panel">${aiBox}${tools}${contactListHtml()}</section><section class="jcrm-detail-panel jcrm-panel">${contactDetailHtml()}</section></div>`;
   }
 
   function contactListHtml() {
     if (!state.contacts.length) return `<div class="jcrm-empty">${esc(tw(K.emptyContacts))}</div>`;
     return `<div class="jcrm-contact-list">${state.contacts.map(function (contact) {
-      const meta = [contact.company, contact.source].filter(Boolean).join(" · ");
-      return `<button type="button" class="jcrm-contact-row ${String(state.selectedId) === String(contact.id) ? "is-active" : ""}" data-action="select-contact" data-id="${esc(contact.id)}"><span class="jcrm-avatar">${esc(chuCaiDau(contact.name))}</span><span><b>${esc(contact.name || tw(K.untitled))}</b><small>${esc(meta)}</small></span><span>${contact.da_chot ? `<span class="jcrm-chip jcrm-chip-accent">${esc(tw(K.done))}</span>` : ""}</span></button>`;
+      const meta = [contact.company, contact.phone].filter(Boolean).join(" · ");
+      return `<button type="button" class="jcrm-contact-row ${String(state.selectedId) === String(contact.id) ? "is-active" : ""}" data-action="select-contact" data-id="${esc(contact.id)}"><span class="jcrm-avatar">${esc(chuCaiDau(contact.name))}</span><span><b>${esc(contact.name || tw(K.untitled))}</b><small>${esc(meta)}</small></span><span class="jcrm-contact-value">${Number(contact.da_chot) > 0 ? esc(dinhDangTien(contact.da_chot)) : ""}</span></button>`;
     }).join("")}</div>`;
   }
 
@@ -746,6 +809,8 @@
     if (action === "search-inbox") return searchInbox();
     if (action === "import-inbox") return importInbox(target.dataset.id);
     if (action === "open-segments") return segmentsModal();
+    if (action === "backup-contacts") return backupContacts();
+    if (action === "import-file") { const input = state.root.querySelector("[data-action=import-chosen]"); if (input) { input.value = ""; input.click(); } return; }
   }
 
   async function handleChange(event) {
@@ -756,6 +821,7 @@
     if (action === "enable-room") return perform(function () { return apiPost("/crm/cau-hinh/phong", { brain: state.brain, bat: target.checked ? 1 : 0 }).then(function () { const room = state.me.phong.find(function (item) { return item.brain === state.brain; }); if (room) room.bat = target.checked; }); }, K.roomUpdated);
     if (action === "add-contact-room" && target.value) return perform(function () { return apiPost("/crm/lien-he/phong", { id: state.selectedId, brain: target.value, bat: 1 }).then(function () { return loadDetail(state.selectedId, false); }); }, K.roomUpdated);
     if (action === "move-deal") return perform(function () { return apiPost("/crm/deal/buoc", { id: target.dataset.id, stage: target.value }); }, K.moved);
+    if (action === "import-chosen" && target.files && target.files[0]) return importContacts(target.files[0]);
     if (action === "todo-filter") { state.todoDone = target.value; return loadCurrent(false); }
     if (action === "toggle-todo") return perform(function () { return apiPost("/crm/viec/xong", { id: target.dataset.id, xong: target.checked ? 1 : 0 }); }, K.saved);
   }
