@@ -272,6 +272,68 @@ vai["staff"] = {"ten": "Lan", "role": "nhan_vien"}
 check("HTTP: nhân viên thường không đụng được bảng hoa hồng", http2.get("/shop/so/cong-viec").status_code == 403 and http2.post("/shop/so/cong-viec/xoa", data={"id": 1}).status_code == 403)
 vai["staff"] = None
 
+# ---------------- bảng giá dịch vụ
+dvs = shop_so.ds_dich_vu()
+dm = {d["ma"]: d for d in dvs}
+check("bảng giá của chủ tự nạp 46 gói một lần, 38 gói đã có giá", len(dvs) == 46 and len(shop_so.ds_dich_vu()) == 46 and sum(1 for d in dvs if d["don_gia"] > 0) == 38)
+check("cọc đúng công thức sheet: PRW-STCB 496.000 / 2.232.000 / 2.232.000",
+      (dm["PRW-STCB"]["coc1"], dm["PRW-STCB"]["coc2"], dm["PRW-STCB"]["con_lai"]) == (496000, 2232000, 2232000))
+check("cọc đúng: full luxury 13,8tr -> 1.380.000 / 6.210.000 / 6.210.000", (dm["PRE-FULLUX"]["coc1"], dm["PRE-FULLUX"]["coc2"], dm["PRE-FULLUX"]["con_lai"]) == (1380000, 6210000, 6210000))
+check("gói thuê lẻ không cọc, trả hết; gói chưa có giá là 0", dm["THUE-LE"]["coc1"] == 0 and dm["THUE-LE"]["con_lai"] == 500000 and dm["VAY-CB"]["don_gia"] == 0 and dm["PRW-LUX"]["don_gia"] == 24000000)
+check("tìm gói chỉ khớp chính xác mã hoặc tên, không đoán", shop_so.tim_dich_vu("prw-stcb")["ma"] == "PRW-STCB" and shop_so.tim_dich_vu("Trọn gói studio cơ bản")["ma"] == "PRW-STCB"
+      and shop_so.tim_dich_vu("studio") is None and shop_so.tim_dich_vu("Gói chụp ảnh studio") is None)
+check("tra giá theo từ khóa", {d["ma"] for d in shop_so.goi_y_dich_vu("pre-wedding studio")} >= {"PRW-STCB", "PRW-STV"})
+
+rg = shop_so.xu_ly({"loai": "hop_dong", "ten": "Khách Bảng Giá", "sdt": "0966555444", "goi": "PRW-STCB"}, "Chủ")
+hg = shop_so.tim_hop_dong("0966555444")[0]
+check("báo đúng mã gói, không nói giá: sổ tự lấy 4.960.000 và tên chuẩn", rg["ok"] and hg["gia_tri"] == 4960000 and hg["goi"] == "Trọn gói studio cơ bản" and hg["dv_ma"] == "PRW-STCB")
+check("báo giá nháp mang đúng giá bảng", any(b["hop_dong_id"] == hg["id"] and b["tong"] == 4960000 for b in shop_so.ds_bao_gia()))
+rn = shop_so.xu_ly({"loai": "hop_dong", "ten": "Khách Thương Lượng", "sdt": "0966555445", "goi": "Trọn gói vip studio", "gia_tri": "6 triệu"}, "Chủ")
+check("giá chủ nói (thương lượng) được giữ, vẫn gắn mã gói", shop_so.tim_hop_dong("0966555445")[0]["gia_tri"] == 6000000 and shop_so.tim_hop_dong("0966555445")[0]["dv_ma"] == "PRW-STV")
+shop_so.xu_ly({"loai": "hop_dong", "ten": "Khách Lạ", "sdt": "0966555446", "goi": "Gói tự đặt", "gia_tri": "2tr"}, "Chủ")
+check("gói không có trong bảng vẫn lập bình thường, không gắn mã", shop_so.tim_hop_dong("0966555446")[0]["dv_ma"] == "")
+shop_so.xu_ly({"loai": "hop_dong", "ten": "Khách Chưa Giá", "sdt": "0966555447", "goi": "VAY-CB"}, "Chủ")
+check("gói chưa có giá trong bảng: giá 0, báo cần báo giá theo yêu cầu", shop_so.tim_hop_dong("0966555447")[0]["gia_tri"] == 0)
+
+
+def _lich(sdt):
+    return next(h for h in shop_so.ds_hop_dong() if h["sdt"] == sdt)["lich"]
+
+
+check("lịch thanh toán: chưa thu gì thì chờ cọc lần 1 đủ 496.000", _lich("0966555444")["buoc_tiep"] == "Cọc lần 1" and _lich("0966555444")["can_thu"] == 496000)
+shop_so.xu_ly({"loai": "thu", "so_tien": 496000, "khach": "0966555444", "hang_muc": "Cọc lần 1"}, "Chủ")
+check("thu đủ cọc 1 thì chờ cọc lần 2 (còn 2.232.000)", _lich("0966555444")["buoc_tiep"] == "Cọc lần 2" and _lich("0966555444")["can_thu"] == 2232000)
+shop_so.xu_ly({"loai": "thu", "so_tien": 2232000, "khach": "0966555444", "hang_muc": "Cọc lần 2"}, "Chủ")
+check("thu đủ cọc 2 thì chờ thanh toán cuối 2.232.000", _lich("0966555444")["buoc_tiep"] == "Thanh toán" and _lich("0966555444")["can_thu"] == 2232000)
+shop_so.xu_ly({"loai": "thu", "so_tien": 2232000, "khach": "0966555444", "hang_muc": "Thanh toán"}, "Chủ")
+check("thu đủ thì hết bước chờ", _lich("0966555444")["buoc_tiep"] == "")
+check("hợp đồng gói không cọc thì không có lịch", next(h for h in shop_so.ds_hop_dong() if h["sdt"] == "0966555446")["lich"] is None)
+
+try:
+    shop_so.luu_dich_vu({"ma": "prw-stcb", "goi": "Trùng mã"})
+    check("thêm trùng mã bị từ chối", False)
+except ValueError:
+    check("thêm trùng mã bị từ chối", True)
+mdv = shop_so.luu_dich_vu({"ma": "tmp 1", "loai": "Thử", "goi": "Gói thử", "don_gia": "2 triệu", "coc1_pct": 20, "coc2_pct": 0})
+check("thêm gói mới: mã chuẩn hóa, hiểu '2 triệu', cọc 20% = 400.000", mdv["ma"] == "TMP1" and mdv["don_gia"] == 2000000 and mdv["coc1"] == 400000 and mdv["con_lai"] == 1600000)
+shop_so.xoa_dich_vu(mdv["id"])
+check("xóa gói rồi không bị tự nạp lại; nạp bổ sung không thêm trùng", all(d["ma"] != "TMP1" for d in shop_so.ds_dich_vu()) and shop_so.nap_dich_vu_h2o() == 0)
+shop_so.luu_dich_vu({"id": dm["PS-1SEC"]["id"], "ma": "PS-1SEC", "loai": "Ảnh phóng sự", "goi": "Chụp ảnh phóng sự 1 sec", "don_gia": 2000000})
+check("đổi giá trong bảng không đổi hợp đồng đã lập", shop_so.nap_dich_vu_h2o() == 0 and {d["ma"]: d for d in shop_so.ds_dich_vu()}["PS-1SEC"]["don_gia"] == 2000000 and shop_so.tim_hop_dong("0966555444")[0]["gia_tri"] == 4960000)
+import sqlite3 as _sq  # noqa: E402
+_old = Path(_STATE) / "old_so.sqlite3"
+_c = _sq.connect(str(_old)); _c.execute("CREATE TABLE so_hop_dong(id INTEGER PRIMARY KEY, ma TEXT, ten_khach TEXT)"); _c.commit(); _c.close()
+_orig = shop_so._path
+shop_so._path = lambda: _old
+_cols = {r[1] for r in shop_so._dung(lambda db: db.execute("PRAGMA table_info(so_hop_dong)").fetchall())}
+shop_so._path = _orig
+check("sổ tạo từ bản cũ tự thêm cột dv_ma", "dv_ma" in _cols)
+check("HTTP: chủ đọc bảng giá 46 gói", len(http2.get("/shop/so/dich-vu").json()["items"]) == 46)
+check("HTTP: thêm trùng mã trả 400", http2.post("/shop/so/dich-vu", data={"data": json.dumps({"ma": "GD-CB", "goi": "x"})}).status_code == 400)
+vai["staff"] = {"ten": "Lan", "role": "nhan_vien"}
+check("HTTP: nhân viên thường không đụng được bảng giá", http2.get("/shop/so/dich-vu").status_code == 403 and http2.post("/shop/so/dich-vu/xoa", data={"id": 1}).status_code == 403)
+vai["staff"] = None
+
 # ---------------- tool joyce_shop (chat gọi)
 import asyncio  # noqa: E402
 import importlib.util  # noqa: E402
@@ -302,6 +364,11 @@ check("tool nhận su_kien dạng chuỗi JSON", "Phòng Chi" in _goi({"op": "gh
 check("tool báo lỗi rõ khi thiếu số tiền", "LỖI" in _goi({"op": "ghi", "su_kien": [{"loai": "thu"}]}))
 check("tool xem trả số kỳ này", "lãi gộp" in _goi({"op": "xem"}))
 check("tool op lạ bị từ chối", _goi({"op": "xoa"}).startswith("ERROR"))
+_gia_out = _goi({"op": "gia", "tu_khoa": "PRW-STCB"})
+check("tool tra giá đọc đúng số trong bảng, kèm cọc", "4.960.000đ" in _gia_out and "cọc lần 1 496.000đ" in _gia_out and "thanh toán cuối 2.232.000đ" in _gia_out)
+check("tool tra giá: gói chưa có giá nói thẳng, từ khóa lạ báo không có", "báo giá theo yêu cầu" in _goi({"op": "gia", "tu_khoa": "VAY-CB"}) and "không có gói nào khớp" in _goi({"op": "gia", "tu_khoa": "zzzz"}))
+check("tool lập hợp đồng bằng mã gói: tự lấy giá", "LỖI" not in _goi({"op": "ghi", "su_kien": [{"loai": "hop_dong", "ten": "Khách Qua Chat", "sdt": "0966555999", "goi": "GD-CB"}]})
+      and shop_so.tim_hop_dong("0966555999")[0]["gia_tri"] == 1250000)
 
 if _fails:
     print("\nTHẤT BẠI %d: %s" % (len(_fails), _fails))

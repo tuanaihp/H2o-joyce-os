@@ -33,7 +33,7 @@
 
   const view = () => document.getElementById('moduleView');
   let cur = 0, seq = 0;
-  const ui = { fin: 'quy', hr: 'ns', cv: 'bang', cvPhong: '', ky: kyNay(), luong: kyNay() };
+  const ui = { fin: 'quy', hr: 'ns', cv: 'gia', dvLoai: '', cvPhong: '', ky: kyNay(), luong: kyNay() };
 
   const css = document.createElement('style');
   css.textContent = [
@@ -136,12 +136,31 @@
       }, 'Ghi phiếu');
   };
 
+  /* ---------------- gợi ý từ bảng giá dịch vụ ---------------- */
+  const dvList = () => '<datalist id="soDvList">' + (window.__soDv || []).filter(d => d.ap_dung).map(d => '<option value="' + esc(d.goi) + '">' + esc(d.ma + (d.don_gia ? ' · ' + vnd(d.don_gia) : '')) + '</option>').join('') + '</datalist>';
+  const dvTim = v => { v = String(v || '').trim().toLowerCase(); return v ? (window.__soDv || []).find(d => d.ap_dung && (d.goi.toLowerCase() === v || d.ma.toLowerCase() === v)) : null; };
+  const taiDv = () => get('/shop/so/dich-vu').then(r => { window.__soDv = r.items; }).catch(() => {});
+  window.soDvFill = el => {
+    const d = dvTim(el.value); if (!d) return;
+    if (el.value.trim().toLowerCase() === d.ma.toLowerCase()) el.value = d.goi;
+    const g = el.closest('.soDong').querySelector('.q-gia');
+    if (d.don_gia > 0 && (!g.value || g.dataset.auto === '1')) { g.value = d.don_gia; g.dataset.auto = '1'; }
+  };
+  window.soDvFillHd = el => {
+    const d = dvTim(el.value); if (!d) return;
+    if (el.value.trim().toLowerCase() === d.ma.toLowerCase()) el.value = d.goi;
+    const g = document.getElementById('soGia');
+    if (d.don_gia > 0 && (!g.value || g.dataset.auto === '1')) { g.value = d.don_gia; g.dataset.auto = '1'; }
+    const note = document.getElementById('soDvNote');
+    if (note) note.textContent = d.don_gia > 0 ? (d.coc1_pct || d.coc2_pct ? 'Theo bảng giá: cọc lần 1 ' + vnd(d.coc1) + ', cọc lần 2 ' + vnd(d.coc2) + ', thanh toán cuối ' + vnd(d.con_lai) + '.' : 'Theo bảng giá: trả một lần.') : 'Gói này chưa có giá trong bảng, nhập giá thương lượng.';
+  };
+
   /* ---------------- Đơn bán hàng = hợp đồng ---------------- */
   async function mOrders() {
-    const [hds, tq] = await Promise.all([get('/shop/so/hop-dong'), get('/shop/so/tong-quan?ky=all')]);
+    const [hds, tq] = await Promise.all([get('/shop/so/hop-dong'), get('/shop/so/tong-quan?ky=all'), taiDv()]);
     const ds = hds.items;
     const rows = ds.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>MÃ</th><th>KHÁCH</th><th>GÓI</th><th>GIÁ TRỊ</th><th>ĐÃ THU</th><th>ĐÃ CHI</th><th>LÃI GỘP</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>' +
-      ds.map(h => '<tr><td><b>' + esc(h.ma) + '</b><small style="display:block;color:#707b74">' + esc(h.ngay) + '</small></td><td>' + esc(h.ten_khach) + '<small style="display:block;color:#707b74">' + esc(h.sdt) + '</small></td><td>' + esc(h.goi) + '</td><td>' + vnd(h.gia_tri) + '</td><td>' + vnd(h.thu) + '</td><td>' + vnd(h.chi) + '</td><td><b style="color:' + (h.lai_gop >= 0 ? '#15955a' : '#e33150') + '">' + vnd(h.lai_gop) + '</b></td><td><select class="field" onchange="soHdTs(' + h.id + ',this.value)">' +
+      ds.map(h => '<tr><td><b>' + esc(h.ma) + '</b><small style="display:block;color:#707b74">' + esc(h.ngay) + '</small></td><td>' + esc(h.ten_khach) + '<small style="display:block;color:#707b74">' + esc(h.sdt) + '</small></td><td>' + esc(h.goi) + (h.lich && h.lich.buoc_tiep ? '<small style="display:block;color:#bc7518">Chờ ' + esc(h.lich.buoc_tiep) + ' · cần thu thêm ' + vnd(h.lich.can_thu) + '</small>' : '') + '</td><td>' + vnd(h.gia_tri) + '</td><td>' + vnd(h.thu) + '</td><td>' + vnd(h.chi) + '</td><td><b style="color:' + (h.lai_gop >= 0 ? '#15955a' : '#e33150') + '">' + vnd(h.lai_gop) + '</b></td><td><select class="field" onchange="soHdTs(' + h.id + ',this.value)">' +
         Object.keys(HD).map(k => '<option value="' + k + '"' + (k === h.trang_thai ? ' selected' : '') + '>' + HD[k] + '</option>').join('') + '</select></td><td><button class="so-mini" onclick="soPhanCong(' + h.id + ',\'' + esc(h.ma) + '\')">Phân công</button><button class="so-mini" onclick="soChiaViec(' + h.id + ')">Chia việc</button><button class="so-mini" onclick="soBaoCao(' + h.id + ')">Đối soát</button></td></tr>').join('') + '</tbody></table></div>' :
       '<div class="so-empty"><b>Chưa có hợp đồng nào</b>Nhắn cho Joyce: "thêm hợp đồng Tuấn Thủy 0899252392, gói chụp ảnh studio 15 triệu" hoặc bấm "+ Hợp đồng".</div>';
     return moduleHead('🛒', 'Đơn bán hàng', 'Mỗi hợp đồng là một đơn: báo giá, ký, thu tiền, chi phí và lãi gộp. Khách lấy từ CRM, Sales ghi.') +
@@ -150,9 +169,9 @@
   }
   window.soHopDong = () => modal('Hợp đồng mới',
     '<div class="form-grid"><label>Tên khách *<input class="field" id="soTen" autofocus></label><label>Số điện thoại<input class="field" id="soSdt"></label>' +
-    '<label style="grid-column:1/-1">Gói / dịch vụ *<input class="field" id="soGoi" placeholder="Gói chụp ảnh studio"></label>' +
+    dvList() + '<label style="grid-column:1/-1">Gói / dịch vụ * (gõ mã hoặc tên trong bảng giá)<input class="field" id="soGoi" list="soDvList" oninput="soDvFillHd(this)" placeholder="PRW-STCB hoặc Trọn gói studio cơ bản"></label>' +
     '<label>Giá trị (đồng) *<input class="field" id="soGia" type="number" min="0"></label><label>Trạng thái<select class="field" id="soTs"><option value="bao_gia">Báo giá</option><option value="da_ky">Đã ký</option></select></label></div>' +
-    '<p class="so-note">Khách tự vào CRM của phòng Sales (không tạo trùng nếu số điện thoại đã có).</p>',
+    '<p class="so-note" id="soDvNote">Chọn gói trong bảng giá thì giá tự điền, vẫn sửa được nếu thương lượng.</p><p class="so-note">Khách tự vào CRM của phòng Sales (không tạo trùng nếu số điện thoại đã có).</p>',
     async () => {
       const r = await post('/shop/so/su-kien', { data: { loai: 'hop_dong', ten: val('soTen'), sdt: val('soSdt'), goi: val('soGoi'), gia_tri: val('soGia'), trang_thai: val('soTs') } });
       if (!r.ok) throw new Error(r.loi.map(x => x.loi).join('; '));
@@ -172,7 +191,7 @@
 
   /* ---------------- Báo giá ---------------- */
   async function mQuotes() {
-    const [bg, hds] = await Promise.all([get('/shop/so/bao-gia'), get('/shop/so/hop-dong')]);
+    const [bg, hds] = await Promise.all([get('/shop/so/bao-gia'), get('/shop/so/hop-dong'), taiDv()]);
     window.__soHd = hds.items;
     const rows = bg.items.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>SỐ</th><th>KHÁCH</th><th>NỘI DUNG</th><th>TỔNG</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>' +
       bg.items.map(b => '<tr><td><b>' + esc(b.so) + '</b><small style="display:block;color:#707b74">' + esc(b.ngay) + '</small></td><td>' + esc(b.ten_khach) + '<small style="display:block;color:#707b74">' + esc(b.sdt) + '</small></td><td>' +
@@ -186,12 +205,12 @@
       '<div class="panel"><div class="toolbar"><button class="primary" onclick="soBgSua(0)">＋ Báo giá</button></div>' + rows + '</div>';
   }
   window.soBgTs = async (id, ts) => { try { await post('/shop/so/bao-gia/trang-thai', { id, trang_thai: ts }); toast('Báo giá: ' + BG[ts]); rerender(); } catch (e) { loi(e); } };
-  const dongRow = (d = {}) => '<div class="form-grid soDong" style="grid-template-columns:3fr 1fr 2fr;margin-bottom:6px"><input class="field q-ten" placeholder="Hàng hóa / dịch vụ" value="' + esc(d.ten || '') + '"><input class="field q-sl" type="number" min="0" step="any" value="' + (d.sl || 1) + '"><input class="field q-gia" type="number" min="0" placeholder="Đơn giá" value="' + (d.don_gia || '') + '"></div>';
+  const dongRow = (d = {}) => '<div class="form-grid soDong" style="grid-template-columns:3fr 1fr 2fr;margin-bottom:6px"><input class="field q-ten" list="soDvList" oninput="soDvFill(this)" placeholder="Hàng hóa / dịch vụ (gõ mã hoặc tên gói)" value="' + esc(d.ten || '') + '"><input class="field q-sl" type="number" min="0" step="any" value="' + (d.sl || 1) + '"><input class="field q-gia" type="number" min="0" placeholder="Đơn giá" value="' + (d.don_gia || '') + '"></div>';
   window.soBgThemDong = () => document.getElementById('soDongs').insertAdjacentHTML('beforeend', dongRow());
   window.soBgSua = id => {
     const b = id ? (window.__soBg || []).find(x => x.id === id) : null;
     modal(b ? 'Sửa báo giá ' + b.so : 'Báo giá mới',
-      '<div class="form-grid"><label>Tên khách<input class="field" id="soKh" value="' + esc(b ? b.ten_khach : '') + '"></label><label>Số điện thoại<input class="field" id="soKs" value="' + esc(b ? b.sdt : '') + '"></label>' +
+      dvList() + '<div class="form-grid"><label>Tên khách<input class="field" id="soKh" value="' + esc(b ? b.ten_khach : '') + '"></label><label>Số điện thoại<input class="field" id="soKs" value="' + esc(b ? b.sdt : '') + '"></label>' +
       '<label style="grid-column:1/-1">Gắn hợp đồng<select class="field" id="soBh">' + hdOptions(window.__soHd || [], '') + '</select></label></div><h4 style="margin:12px 0 6px">Hàng hóa / dịch vụ</h4><div id="soDongs">' +
       (b ? b.dong : [{}]).map(dongRow).join('') + '</div><button class="outline" type="button" onclick="soBgThemDong()">＋ Thêm dòng</button>' +
       '<div class="form-grid" style="margin-top:10px"><label>Giảm giá (%)<input class="field" id="soGiam" type="number" min="0" max="100" value="' + (b ? b.giam : 0) + '"></label><label>VAT (%)<input class="field" id="soVat" type="number" min="0" max="30" value="' + (b ? b.vat : 0) + '"></label>' +
@@ -219,7 +238,7 @@
     const tab = (k, t) => '<button class="' + (ui.hr === k ? 'active' : '') + '" onclick="soHr(\'' + k + '\')">' + t + '</button>';
     let body = '';
     if (ui.hr === 'luong') {
-      body = '<div class="toolbar"><select class="field" onchange="soLuongKy(this.value)">' + kyOptions(ui.luong) + '</select><span class="so-note" style="margin-left:auto">Hoa hồng theo từng đầu việc đã chia (tab Hoa hồng & việc); người chưa được chia việc thì tính ' + (lg.co_so_hh === 'lai_gop' ? 'phần trăm trên LÃI GỘP' : 'phần trăm trên DOANH THU ĐÃ THU') + ' của hợp đồng Đã ký.</span></div>' +
+      body = '<div class="toolbar"><select class="field" onchange="soLuongKy(this.value)">' + kyOptions(ui.luong) + '</select><span class="so-note" style="margin-left:auto">Hoa hồng theo từng đầu việc đã chia (tab Bảng giá & hoa hồng); người chưa được chia việc thì tính ' + (lg.co_so_hh === 'lai_gop' ? 'phần trăm trên LÃI GỘP' : 'phần trăm trên DOANH THU ĐÃ THU') + ' của hợp đồng Đã ký.</span></div>' +
         (lg.dong.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>NHÂN SỰ</th><th>LƯƠNG CƠ BẢN</th><th>HỢP ĐỒNG</th><th>HOA HỒNG</th><th>TỔNG NHẬN</th></tr></thead><tbody>' +
           lg.dong.map(d => '<tr><td><b>' + esc(d.ten) + '</b><small style="display:block;color:#707b74">' + esc(d.chuc_vu) + '</small></td><td>' + vnd(d.luong_cb) + '</td><td>' +
             (d.chi_tiet.length ? d.chi_tiet.map(c => '<small style="display:block">' + esc(c.ma + ' · ' + c.ten_khach + ' · ' + (c.loai === 'cong_viec' ? c.cong_viec + (c.so_luong > 1 ? ' x' + c.so_luong : '') + ' · ' + vnd(c.so_tien) : c.ty_le + '% x ' + vnd(c.co_so))) + '</small>').join('') : '<small>chưa có</small>') + '</td><td>' + vnd(d.hoa_hong) + '</td><td><b>' + vnd(d.tong) + '</b></td></tr>').join('') +
@@ -263,12 +282,23 @@
 
   /* ---------------- Hoa hồng & việc ---------------- */
   async function mCommission() {
-    const [cv, gv, lg] = await Promise.all([get('/shop/so/cong-viec'), get('/shop/so/giao-viec'), get('/shop/so/luong?ky=' + ui.luong)]);
+    const [cv, gv, lg, dvr] = await Promise.all([get('/shop/so/cong-viec'), get('/shop/so/giao-viec'), get('/shop/so/luong?ky=' + ui.luong), get('/shop/so/dich-vu')]);
+    window.__soDv = dvr.items;
     window.__soCv = cv.items;
     const tab = (k, t) => '<button class="' + (ui.cv === k ? 'active' : '') + '" onclick="soCvTab(\'' + k + '\')">' + t + '</button>';
     const phongTen = ma => cv.phong[ma] || ma;
     let body = '';
-    if (ui.cv === 'chia') {
+    if (ui.cv === 'gia') {
+      const loais = []; dvr.items.forEach(d => { if (loais.indexOf(d.loai) < 0) loais.push(d.loai); });
+      const ds = dvr.items.filter(d => !ui.dvLoai || d.loai === ui.dvLoai);
+      const tien = (pct, so) => pct ? pct + '% · <b>' + vnd(so) + '</b>' : '<span style="color:#9aa39e">không cọc</span>';
+      body = '<div class="toolbar"><button class="primary" onclick="soDv(0)">＋ Dịch vụ</button><button class="outline" onclick="soDvNap()">Bổ sung các gói còn thiếu từ bảng H2O</button>' +
+        '<select class="field" onchange="soDvLoc(this.value)" style="margin-left:auto"><option value="">Tất cả loại dịch vụ</option>' + loais.map(l => '<option value="' + esc(l) + '"' + (l === ui.dvLoai ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>' +
+        (ds.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>MÃ</th><th>LOẠI</th><th>GÓI DỊCH VỤ</th><th>ĐƠN GIÁ</th><th>CỌC LẦN 1</th><th>CỌC LẦN 2</th><th>THANH TOÁN CUỐI</th><th></th></tr></thead><tbody>' +
+          ds.map(d => '<tr' + (d.ap_dung ? '' : ' style="opacity:.5"') + '><td><b>' + esc(d.ma) + '</b></td><td>' + esc(d.loai) + '</td><td>' + esc(d.goi) + (d.ap_dung ? '' : '<span class="so-pill">tạm ngưng</span>') + '</td><td>' + (d.don_gia > 0 ? '<b>' + vnd(d.don_gia) + '</b>' : '<span style="color:#bc7518">Theo yêu cầu</span>') + '</td><td>' + (d.don_gia > 0 ? tien(d.coc1_pct, d.coc1) : '') + '</td><td>' + (d.don_gia > 0 ? tien(d.coc2_pct, d.coc2) : '') + '</td><td>' + (d.don_gia > 0 ? vnd(d.con_lai) : '') + '</td><td><button class="so-mini" onclick="soDv(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDvXoa(' + d.id + ')">×</button></td></tr>').join('') + '</tbody></table></div>' :
+          '<div class="so-empty"><b>Chưa có gói dịch vụ nào</b>Bấm "+ Dịch vụ" hoặc "Bổ sung các gói còn thiếu từ bảng H2O".</div>') +
+        '<p class="so-note">Gói đã có giá thì khi lập hợp đồng hoặc báo giá chỉ cần gõ mã hoặc tên, giá tự điền. Nhắn Joyce "giá gói PRW-STCB" để tra nhanh.</p>';
+    } else if (ui.cv === 'chia') {
       body = '<div class="toolbar"><button class="primary" onclick="soChiaViec(0)">＋ Chia việc</button><span class="so-note" style="margin-left:auto">Hợp đồng còn ở "Báo giá" thì chưa tính hoa hồng, ký xong mới vào bảng lương.</span></div>' +
         (gv.items.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>HỢP ĐỒNG</th><th>VIỆC</th><th>NGƯỜI LÀM</th><th>SL</th><th>HOA HỒNG</th><th>HẠN</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>' +
           gv.items.map(g => '<tr><td><b>' + esc(g.hop_dong_ma || '') + '</b><small style="display:block;color:#707b74">' + esc(g.ten_khach || '') + (g.hd_trang_thai === 'bao_gia' ? ' · chờ ký' : '') + '</small></td><td>' + esc(g.ten) + '<small style="display:block;color:#707b74">' + esc(phongTen(g.ma_phong)) + '</small></td><td>' + esc(g.nhan_su_ten || '') + '</td><td>' + g.so_luong + '</td><td><b>' + vnd(g.hoa_hong * g.so_luong) + '</b>' + (g.phi_them ? '<small style="display:block;color:#707b74">thu thêm khách ' + vnd(g.phi_them * g.so_luong) + '</small>' : '') + '</td><td>' + esc(g.han || '') + '</td><td><select class="field" onchange="soGvTs(' + g.id + ',this.value)">' +
@@ -291,10 +321,26 @@
           '<div class="so-empty"><b>Chưa có đầu việc nào</b>Bấm "+ Đầu việc" hoặc "Bổ sung các việc còn thiếu từ bảng H2O".</div>');
     }
     const mo = gv.items.filter(g => g.trang_thai !== 'done').length;
-    return moduleHead('％', 'Hoa hồng & việc', 'Bảng đầu việc theo phòng kèm hoa hồng cố định mỗi việc. Chia việc cho từng hợp đồng, hoa hồng tự vào bảng lương.') +
-      kpis([['▤', 'Đầu việc trong bảng', String(cv.items.length), cv.items.filter(c => c.hoa_hong > 0).length + ' việc có hoa hồng'], ['☑', 'Việc đã chia', String(gv.items.length), mo + ' chưa xong'], ['⊕', 'Hoa hồng kỳ ' + lg.ky, vnd(lg.tong_hoa_hong)], ['◉', 'Người được tính', String(lg.dong.filter(d => d.hoa_hong > 0).length)]]) +
-      '<div class="subnav">' + tab('bang', '▤ Bảng việc & hoa hồng') + tab('chia', '☑ Việc đã chia') + tab('tong', '％ Hoa hồng từng người') + '</div><div class="panel">' + body + '</div>';
+    return moduleHead('％', 'Bảng giá & hoa hồng', 'Bảng giá dịch vụ có lịch cọc, bảng đầu việc kèm hoa hồng cố định mỗi việc, chia việc theo hợp đồng. Hoa hồng tự vào bảng lương.') +
+      kpis([['▤', 'Gói dịch vụ', String(dvr.items.length), dvr.items.filter(d => d.don_gia > 0).length + ' gói đã có giá'], ['☰', 'Đầu việc trong bảng', String(cv.items.length), cv.items.filter(c => c.hoa_hong > 0).length + ' việc có hoa hồng'], ['☑', 'Việc đã chia', String(gv.items.length), mo + ' chưa xong'], ['⊕', 'Hoa hồng kỳ ' + lg.ky, vnd(lg.tong_hoa_hong), lg.dong.filter(d => d.hoa_hong > 0).length + ' người được tính']]) +
+      '<div class="subnav">' + tab('gia', '▤ Bảng giá dịch vụ') + tab('bang', '☰ Bảng việc & hoa hồng') + tab('chia', '☑ Việc đã chia') + tab('tong', '％ Hoa hồng từng người') + '</div><div class="panel">' + body + '</div>';
   }
+  window.soDvLoc = v => { ui.dvLoai = v; rerender(); };
+  window.soDvNap = async () => { try { const r = await post('/shop/so/dich-vu/nap-h2o', {}); toast(r.da_nap ? 'Đã bổ sung ' + r.da_nap + ' gói' : 'Bảng giá đã đủ, không thiếu gói nào'); rerender(); } catch (e) { loi(e); } };
+  window.soDvXoa = async id => { if (!confirm('Xóa gói khỏi bảng giá? Hợp đồng đã lập vẫn giữ giá cũ.')) return; try { await post('/shop/so/dich-vu/xoa', { id }); rerender(); } catch (e) { loi(e); } };
+  window.soDv = id => {
+    const d = id ? (window.__soDv || []).find(x => x.id === id) : null;
+    modal(d ? 'Sửa gói dịch vụ' : 'Gói dịch vụ mới',
+      '<div class="form-grid"><label>Mã gói *<input class="field" id="dMa" value="' + esc(d ? d.ma : '') + '" placeholder="PRW-STCB"></label>' +
+      '<label>Loại dịch vụ<input class="field" id="dLoai" value="' + esc(d ? d.loai : ui.dvLoai) + '" placeholder="Pre-wedding"></label>' +
+      '<label style="grid-column:1/-1">Tên gói *<input class="field" id="dGoi" value="' + esc(d ? d.goi : '') + '"></label>' +
+      '<label>Đơn giá (đồng, 0 = theo yêu cầu)<input class="field" id="dGia" type="number" min="0" value="' + (d ? d.don_gia : 0) + '"></label>' +
+      '<label>Cọc lần 1 (% đơn giá)<input class="field" id="dC1" type="number" min="0" max="100" step="any" value="' + (d ? d.coc1_pct : 0) + '"></label>' +
+      '<label>Cọc lần 2 (% phần còn lại)<input class="field" id="dC2" type="number" min="0" max="100" step="any" value="' + (d ? d.coc2_pct : 0) + '"></label>' +
+      '<label><input id="dAp" type="checkbox"' + (!d || d.ap_dung ? ' checked' : '') + '> Đang bán</label></div>' +
+      '<p class="so-note">Cọc lần 1 = đơn giá x %. Cọc lần 2 = phần còn lại sau cọc 1 x %. Thanh toán cuối là phần còn lại. Đổi giá chỉ áp dụng cho hợp đồng lập từ nay.</p>',
+      async () => { await post('/shop/so/dich-vu', { data: { id: d ? d.id : 0, ma: val('dMa'), loai: val('dLoai'), goi: val('dGoi'), don_gia: val('dGia'), coc1_pct: val('dC1'), coc2_pct: val('dC2'), ap_dung: document.getElementById('dAp').checked ? 1 : 0 } }); toast('Đã lưu gói dịch vụ'); });
+  };
   window.soCvTab = k => { ui.cv = k; rerender(); };
   window.soCvLoc = v => { ui.cvPhong = v; rerender(); };
   window.soCvNap = async () => { try { const r = await post('/shop/so/cong-viec/nap-h2o', {}); toast(r.da_nap ? 'Đã bổ sung ' + r.da_nap + ' việc' : 'Bảng đã đủ, không thiếu việc nào'); rerender(); } catch (e) { loi(e); } };

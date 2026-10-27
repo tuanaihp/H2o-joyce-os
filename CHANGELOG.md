@@ -4,7 +4,8 @@
 
 ## [1.3.38] - 2026-10-27
 ### Thêm
-- **Tab mới "Hoa hồng & bảng giá công việc".** Nhập danh sách đầu việc theo phòng (Makeup, Chụp ảnh, Photoshop, Tư vấn váy...) kèm hoa hồng cố định mỗi việc, phí thu thêm khách và số ngày.
+- **Tab mới "Bảng giá & hoa hồng".** Bảng giá 46 gói dịch vụ kèm lịch cọc lần 1, lần 2 và thanh toán cuối; bảng đầu việc theo phòng (Makeup, Chụp ảnh, Photoshop, Tư vấn váy...) kèm hoa hồng cố định mỗi việc. Cả hai nạp sẵn từ sheet của H2O, sửa được ngay trên màn hình.
+- **Gõ mã gói là có giá.** Lập hợp đồng hoặc báo giá chỉ cần gõ mã hay tên gói, giá tự điền; đơn bán hàng nhắc khách còn phải trả cọc nào. Hỏi Joyce "giá gói PRW-STCB" là tra được ngay.
 - **Chia việc theo hợp đồng.** Mỗi hợp đồng giao từng đầu việc cho từng người; hoa hồng vào bảng lương tự tính theo số tiền của từng việc, không còn chỉ theo phần trăm.
 
 ## [1.3.37] - 2026-10-27

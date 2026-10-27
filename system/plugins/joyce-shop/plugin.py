@@ -88,6 +88,24 @@ def _bao_cao(args, ctx) -> str:
     return shop_so.giao_bao_cao(hd["id"], str((args or {}).get("chat_id") or "").strip())
 
 
+def _gia(args, ctx) -> str:
+    """Tra bảng giá dịch vụ: khách hỏi giá một gói thì đọc đúng số trong bảng, không tự bịa."""
+    d = shop_so._vnd
+    ds = shop_so.goi_y_dich_vu(str((args or {}).get("tu_khoa") or ""))
+    if not ds:
+        return "Bảng giá không có gói nào khớp. Nói rõ hơn tên gói hoặc loại dịch vụ, hoặc xem tab Bảng giá & hoa hồng."
+    ra = []
+    for v in ds:
+        if v["don_gia"] <= 0:
+            ra.append(f"- {v['ma']} ({v['loai']}) {v['goi']}: chưa có giá trong bảng, báo giá theo yêu cầu.")
+            continue
+        dong = f"- {v['ma']} ({v['loai']}) {v['goi']}: {d(v['don_gia'])}đ"
+        if v["coc1_pct"] or v["coc2_pct"]:
+            dong += f"; cọc lần 1 {d(v['coc1'])}đ ({v['coc1_pct']:g}%), cọc lần 2 {d(v['coc2'])}đ ({v['coc2_pct']:g}%), thanh toán cuối {d(v['con_lai'])}đ"
+        ra.append(dong)
+    return "\n".join(ra)
+
+
 async def _chay(args, ctx) -> str:
     op = str((args or {}).get("op") or "").strip().lower()
     try:
@@ -97,9 +115,11 @@ async def _chay(args, ctx) -> str:
             return _xem(args, ctx)
         if op == "bao_cao":
             return _bao_cao(args, ctx)
+        if op == "gia":
+            return _gia(args, ctx)
     except Exception as e:
         return f"ERROR: không ghi được ({type(e).__name__}: {e})."
-    return "ERROR: op phải là 'ghi' (ghi sự kiện), 'xem' (số liệu kỳ này) hoặc 'bao_cao' (giao Đối Soát báo cáo một hợp đồng)."
+    return "ERROR: op phải là 'ghi' (ghi sự kiện), 'xem' (số liệu kỳ này), 'bao_cao' (giao Đối Soát báo cáo một hợp đồng) hoặc 'gia' (tra bảng giá dịch vụ)."
 
 
 def register(ctx):
@@ -122,12 +142,16 @@ def register(ctx):
         "không bị ghi hai lần. Khoản chi nhân viên báo từ hạn mức trở lên nằm 'chờ duyệt' cho chủ; chủ báo thì ghi luôn. "
         "op=xem: số liệu thu chi, hợp đồng, công nợ của kỳ (ky=YYYY-MM hoặc all). "
         "op=bao_cao: giao phòng Đối Soát lập báo cáo lãi lỗ một hợp đồng (hop_dong). "
+        "op=gia: tra BẢNG GIÁ dịch vụ theo tu_khoa (mã như PRW-STCB hoặc tên/loại gói); khách hỏi giá thì đọc đúng số này, không tự bịa. "
+        "Khi lập hop_dong, goi là đúng MÃ hoặc đúng TÊN gói trong bảng giá thì không cần nói gia_tri, sổ tự lấy giá và cọc theo bảng; "
+        "chủ nói giá khác (thương lượng) thì dùng giá chủ nói. "
         "Kết quả chỉ nói việc ĐÃ ghi; nếu có dòng 'điều phối đang off' thì nói thẳng với chủ, đừng hứa agent đang chạy.",
         _chay,
         schema={
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["ghi", "xem", "bao_cao"]},
+                "op": {"type": "string", "enum": ["ghi", "xem", "bao_cao", "gia"]},
+                "tu_khoa": {"type": "string", "description": "Mã, tên hoặc loại gói cần tra giá (op=gia)"},
                 "su_kien": {"type": "array", "items": {"type": "object", "properties": {
                     "loai": {"type": "string", "enum": list(_LOAI)}}, "required": ["loai"]},
                     "description": "Danh sách sự kiện kinh doanh (op=ghi)"},

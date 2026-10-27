@@ -4,7 +4,8 @@
 
 ## [1.3.38] - 2026-10-27
 ### Added
-- **New tab "Commission & job price list".** Enter the job list per department (Makeup, Photo, Photoshop, Dress consulting...) with a fixed commission per job, an extra customer fee and the number of days.
+- **New tab "Price list & commission".** A price list of 46 service packages with the first deposit, second deposit and final payment schedule, plus the job list per department (Makeup, Photo, Photoshop, Dress consulting...) with a fixed commission per job. Both are preloaded from the H2O sheet and editable on screen.
+- **Type a package code and the price fills in.** When creating a contract or quote, just type the package code or name and the price fills itself; the sales order shows which deposit the customer still owes. Ask Joyce "price of package PRW-STCB" for a quick lookup.
 - **Split jobs per contract.** Each contract hands every job to a person; the commission in payroll is computed from the amount of each job, not only from a percentage.
 
 ## [1.3.37] - 2026-10-27

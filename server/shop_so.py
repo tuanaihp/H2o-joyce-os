@@ -69,7 +69,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS so_hop_dong(
   id INTEGER PRIMARY KEY, ma TEXT, contact_id INTEGER, ten_khach TEXT, sdt TEXT, goi TEXT,
   gia_tri REAL DEFAULT 0, thuong_hieu TEXT DEFAULT 'h2o', brain TEXT DEFAULT '', trang_thai TEXT DEFAULT 'bao_gia',
-  deal_id INTEGER, ngay TEXT, ngay_ky TEXT, nguoi_tao TEXT DEFAULT '', created_at REAL);
+  deal_id INTEGER, ngay TEXT, ngay_ky TEXT, nguoi_tao TEXT DEFAULT '', created_at REAL, dv_ma TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS so_quy(
   id INTEGER PRIMARY KEY, loai TEXT, so_tien REAL, hang_muc TEXT DEFAULT '', dien_giai TEXT DEFAULT '', ngay TEXT,
   hop_dong_id INTEGER, trang_thai TEXT DEFAULT 'da_ghi', phong TEXT DEFAULT '', agent TEXT DEFAULT '',
@@ -96,11 +96,65 @@ CREATE TABLE IF NOT EXISTS so_cong_viec(
   id INTEGER PRIMARY KEY, ma_phong TEXT, nhom TEXT DEFAULT '', ten TEXT, phi_them REAL DEFAULT 0,
   hoa_hong REAL DEFAULT 0, so_ngay INTEGER DEFAULT 1, ap_dung INTEGER DEFAULT 1, created_at REAL,
   UNIQUE(ma_phong, ten));
+CREATE TABLE IF NOT EXISTS so_dich_vu(
+  id INTEGER PRIMARY KEY, ma TEXT UNIQUE, loai TEXT DEFAULT '', goi TEXT, don_gia REAL DEFAULT 0,
+  coc1_pct REAL DEFAULT 0, coc2_pct REAL DEFAULT 0, ap_dung INTEGER DEFAULT 1, created_at REAL);
 CREATE TABLE IF NOT EXISTS so_giao_viec(
   id INTEGER PRIMARY KEY, hop_dong_id INTEGER, cong_viec_id INTEGER, nhan_su_id INTEGER, ten TEXT, ma_phong TEXT DEFAULT '',
   hoa_hong REAL DEFAULT 0, phi_them REAL DEFAULT 0, so_luong REAL DEFAULT 1, han TEXT DEFAULT '',
   trang_thai TEXT DEFAULT 'todo', created_at REAL, UNIQUE(hop_dong_id, cong_viec_id, nhan_su_id));
 """
+
+# Bảng giá dịch vụ: (mã, loại, gói, đơn giá, % cọc lần 1, % cọc lần 2) - chép nguyên từ tab "3_DM dịch vụ" của chủ ngày 27/10/2026.
+# Cọc lần 1 = đơn giá x %; cọc lần 2 = phần còn lại x %; thanh toán = phần còn lại cuối cùng. Đơn giá 0 nghĩa là sheet chưa điền giá (báo giá theo yêu cầu).
+DICH_VU_H2O = [
+    ('PRW-STCB', 'Pre-wedding', 'Trọn gói studio cơ bản', 4960000, 10, 50),
+    ('PRW-GOL', 'Pre-wedding', 'Trọn gói cơ bản studio', 5600000, 10, 50),
+    ('PRW-STV', 'Pre-wedding', 'Trọn gói vip studio', 6300000, 10, 50),
+    ('PRW-SNT', 'Pre-wedding', 'Trọn gói studio nội thành', 8600000, 10, 50),
+    ('PRW-STNT', 'Pre-wedding', 'Trọn gói studio nội thành vip', 9600000, 10, 50),
+    ('PRW-PT', 'Pre-wedding', 'Trọn gói ngoại cảnh phim trường', 8600000, 10, 50),
+    ('PRW-PTV', 'Pre-wedding', 'Trọn gói phim trường vip', 9500000, 10, 50),
+    ('PRW-STNC', 'Pre-wedding', 'Trọn gói studio ngoại cảnh vip', 9600000, 10, 50),
+    ('PRW-PTHN', 'Pre-wedding', 'Trọn gói phim trường vip Hà Nội', 11600000, 10, 50),
+    ('PRW-HLV', 'Pre-wedding', 'Trọn gói vip tuần châu Hạ Long', 11600000, 10, 50),
+    ('PRW-LUX', 'Pre-wedding', 'Trọn gói ngoại cảnh full luxury', 24000000, 10, 50),
+    ('MUCD-CB1', 'Trọn gói makeup', 'Combo một ngày cưới', 0, 0, 0),
+    ('MUCD-CB2', 'Trọn gói makeup', 'Combo hai ngày cưới', 0, 0, 0),
+    ('MUCD-LUX', 'Trọn gói makeup', 'Combo hai ngày cưới luxury', 0, 0, 0),
+    ('MUCD-CB3', 'Trọn gói makeup', 'Combo ăn hỏi', 0, 0, 0),
+    ('MUA-DVLE', 'Trọn gói makeup', 'Makeup lẽ', 0, 0, 0),
+    ('PS-1SEC', 'Ảnh phóng sự', 'Chụp ảnh phóng sự 1 sec', 1800000, 0, 0),
+    ('PS-2SEC', 'Ảnh phóng sự', 'Chụp ảnh phóng sự 2 sec', 2800000, 0, 0),
+    ('PS-3SEC', 'Ảnh phóng sự', 'Chụp ảnh phóng sự 3 sec', 3500000, 0, 0),
+    ('QP-TT', 'Quay phim', 'Quay truyền thống', 3500000, 0, 0),
+    ('QP-PRW', 'Quay phim', 'Quay pre-wedding', 2500000, 0, 0),
+    ('QP-FLY', 'Quay phim', 'Quay flycam', 1000000, 0, 0),
+    ('BEA-CB', 'Beauty', 'Chụp ảnh beauty cơ bản', 1500000, 0, 0),
+    ('BEA-VP', 'Beauty', 'Chụp ảnh beauty Vip', 2500000, 0, 0),
+    ('GD-CB', 'Gia đình', 'Trọn gói gia đình cơ bản', 1250000, 0, 0),
+    ('GD-NC', 'Gia đình', 'Trọn gói gia đình nâng cấp', 1750000, 0, 0),
+    ('GD-CC', 'Gia đình', 'Trọn gói gia đình cao cấp', 2650000, 0, 0),
+    ('GD-LUX', 'Gia đình', 'Trọn gói gia đình luxury', 3560000, 0, 0),
+    ('KID-CB', 'Baby', 'Trọn gói baby cơ bản', 550000, 0, 0),
+    ('KID-VP', 'Baby', 'Trọn gói baby vip', 1200000, 0, 0),
+    ('IN-3045', 'In ấn', 'Ảnh in cỡ 30x45', 350000, 0, 0),
+    ('IN-4060', 'In ấn', 'Ảnh in cỡ 40x60', 600000, 0, 0),
+    ('IN-5075', 'In ấn', 'Ảnh in cỡ 50x75', 800000, 0, 0),
+    ('IN-6090', 'In ấn', 'Ảnh in cỡ 60x90', 1000000, 0, 0),
+    ('IN-70110', 'In ấn', 'Ảnh in cỡ 70x110', 2500000, 0, 0),
+    ('IN-80112', 'In ấn', 'Ảnh in cỡ 80x120', 3500000, 0, 0),
+    ('IN-1150', 'In ấn', 'Ảnh in cỡ 100x150', 5500000, 0, 0),
+    ('VAY-CB', 'Thuê váy', 'Váy combo', 0, 0, 0),
+    ('VAY-TK', 'Thuê váy', 'Váy thiết kế', 0, 0, 0),
+    ('VAY-CC', 'Thuê váy', 'Váy cao cấp', 0, 0, 0),
+    ('VEST', 'Thuê vest', 'Áo vest cao cấp', 500000, 0, 0),
+    ('ADCD', 'Thuê áo dài cô dâu', 'Thuê áo dài cô dâu', 500000, 0, 0),
+    ('PRE-FULLUX', 'Pre-wedding', 'Trọn gói full luxury studio', 13800000, 10, 50),
+    ('THUE-LE', 'Thuê lễ', 'Gói dịch vụ thuê lễ', 500000, 0, 0),
+    ('ADM', 'Thuê áo dài mẹ', 'Thuê áo dài mẹ', 500000, 0, 0),
+    ('PRW-STV2', 'Pre-wedding', 'Trọn gói vip studio 2', 7600000, 10, 50),
+]
 
 # Mã phòng trong bảng "5_DS chia việc" của H2O: tên hiển thị và vai nhân sự hay gặp ở phòng đó.
 MA_PHONG = {
@@ -143,6 +197,8 @@ def _db() -> sqlite3.Connection:
     c.row_factory = sqlite3.Row
     if str(p) not in _ready:
         c.executescript(_SCHEMA)
+        if "dv_ma" not in {r[1] for r in c.execute("PRAGMA table_info(so_hop_dong)").fetchall()}:   # sổ tạo từ bản cũ
+            c.execute("ALTER TABLE so_hop_dong ADD COLUMN dv_ma TEXT DEFAULT ''")
         c.commit()
         _ready.add(str(p))
     return c
@@ -355,6 +411,13 @@ def _su_kien_hop_dong(sk: dict, by: str, chat_id: str) -> dict:
     sdt = crm.chuan_sdt(sk.get("sdt") or "")
     goi = _s(sk.get("goi") or sk.get("dich_vu"), 160) or "Hợp đồng"
     gia = tien(sk.get("gia_tri", sk.get("so_tien", 0)))
+    dv = tim_dich_vu(sk.get("dich_vu_ma") or goi)
+    if dv:
+        # Báo đúng mã hoặc đúng tên gói trong bảng giá: lấy tên chuẩn, và giá nếu chủ không nói giá khác (giá thương lượng được giữ).
+        if _ascii(goi).lower() == _ascii(dv["ma"]).lower():
+            goi = dv["goi"]
+        if gia <= 0:
+            gia = dv["don_gia"]
     th = "thuyh2o" if _ascii(sk.get("thuong_hieu")).lower().startswith("thuy") else "h2o"
     if not (ten or sdt):
         raise ValueError("Hợp đồng cần ít nhất tên khách hoặc số điện thoại")
@@ -389,9 +452,9 @@ def _su_kien_hop_dong(sk: dict, by: str, chat_id: str) -> dict:
     def f(db):
         ma = _ma(db, "so_hop_dong", "HD")
         cur = db.execute("INSERT INTO so_hop_dong(ma, contact_id, ten_khach, sdt, goi, gia_tri, thuong_hieu, brain, trang_thai,"
-                         " deal_id, ngay, ngay_ky, nguoi_tao, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                         " deal_id, ngay, ngay_ky, nguoi_tao, created_at, dv_ma) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                          (ma, kh["id"], ten or kh.get("name") or sdt, sdt, goi, gia, th, brain, trang_thai,
-                          deal["id"] if deal else None, ngay, ngay if trang_thai != "bao_gia" else "", by, now))
+                          deal["id"] if deal else None, ngay, ngay if trang_thai != "bao_gia" else "", by, now, dv["ma"] if dv else ""))
         hid = int(cur.lastrowid)
         bg = ""
         if trang_thai == "bao_gia":
@@ -411,9 +474,11 @@ def _su_kien_hop_dong(sk: dict, by: str, chat_id: str) -> dict:
             pass
     hd = ghi_hoat_dong(brain, f"Nhận khách {ten or sdt}, lập {('báo giá ' + bg) if bg else 'hợp đồng'} {_vnd(gia)}đ ({goi}), ghi CRM", "hop_dong", hid, skill=VAI_PHONG["sales"][1])
     return {"loai": "hop_dong", "id": hid, "ma": ma, "bao_gia": bg, "contact_id": kh["id"], "deal_id": deal["id"] if deal else None,
-            "phong": hd["phong"], "agent": hd["agent"], "gia_tri": gia,
+            "phong": hd["phong"], "agent": hd["agent"], "gia_tri": gia, "dich_vu": dv["ma"] if dv else "",
             "tom_tat": f"{hd['agent'] or hd['phong']}: khách {ten or sdt} vào CRM ({hd['phong']}), cơ hội {_vnd(gia)}đ ở bước chờ chốt, "
-                       f"hợp đồng {ma}"  + (f", báo giá {bg}" if bg else "") + "."}
+                       f"hợp đồng {ma}"  + (f", báo giá {bg}" if bg else "") + "."
+                       + (f" Gói {dv['ma']} theo bảng giá." if dv and dv["don_gia"] > 0 else "")
+                       + (f" Gói {dv['ma']} chưa có giá trong bảng, cần báo giá theo yêu cầu." if dv and dv["don_gia"] <= 0 and gia <= 0 else "")}
 
 
 def _su_kien_quy(sk: dict, by: str, chat_id: str, by_info: dict, loai: str) -> dict:
@@ -427,7 +492,7 @@ def _su_kien_quy(sk: dict, by: str, chat_id: str, by_info: dict, loai: str) -> d
     ref = sk.get("hop_dong") or sk.get("sdt") or sk.get("khach")
     if ref:
         hd, canh_bao = tim_hop_dong(ref)
-    khoa = _khoa(loai, so_tien, dien_giai, hd["id"] if hd else 0, ngay)
+    khoa = _khoa(loai, so_tien, hang_muc, dien_giai, hd["id"] if hd else 0, ngay)
     brain = VAI_PHONG[loai][0]
     cu = _dung(lambda db: db.execute("SELECT * FROM so_quy WHERE khoa=? AND created_at>?", (khoa, time.time() - TRUNG_LAP_GIAY)).fetchone())
     if cu:
@@ -600,6 +665,7 @@ def ds_hop_dong(trang_thai: str = "", q: str = "") -> List[dict]:
         if t and t not in _ascii(h["ten_khach"] + " " + h["goi"] + " " + h["ma"] + " " + h["sdt"]).lower():
             continue
         h.update(chi_tiet_hop_dong(h["id"]))
+        h["lich"] = _lich_hop_dong(h)
         out.append(h)
     return out
 
@@ -854,6 +920,128 @@ def tim_cong_viec(ten: Any, ma_phong: str = "") -> dict:
     if not kq:
         raise ValueError(f"Không thấy đầu việc \"{ten}\" trong bảng hoa hồng")
     raise ValueError("Có nhiều việc khớp \"" + str(ten) + "\": " + "; ".join(f"{c['ten']} ({c['ma_phong']})" for c in kq[:6]) + ". Nói rõ hơn hoặc kèm mã phòng.")
+
+
+# ---------------------------------------------------------------- bảng giá dịch vụ
+def lich_thanh_toan(gia: float, coc1_pct: float = 0, coc2_pct: float = 0) -> dict:
+    """Cọc lần 1, cọc lần 2 và phần thanh toán cuối của một khoản `gia`, cùng cách sheet của chủ tính."""
+    gia = max(0.0, float(gia or 0))
+    c1 = round(gia * max(0.0, min(100.0, float(coc1_pct or 0))) / 100.0)
+    c2 = round((gia - c1) * max(0.0, min(100.0, float(coc2_pct or 0))) / 100.0)
+    return {"coc1": c1, "coc2": c2, "con_lai": gia - c1 - c2}
+
+
+def _nap_dv(db, ghi_de: bool = False) -> int:
+    n = 0
+    for ma, loai, goi, gia, c1, c2 in DICH_VU_H2O:
+        cur = db.execute("SELECT id FROM so_dich_vu WHERE ma=?", (ma,)).fetchone()
+        if cur and not ghi_de:
+            continue
+        if cur:
+            db.execute("UPDATE so_dich_vu SET loai=?, goi=?, don_gia=?, coc1_pct=?, coc2_pct=? WHERE id=?", (loai, goi, gia, c1, c2, cur["id"]))
+        else:
+            db.execute("INSERT INTO so_dich_vu(ma, loai, goi, don_gia, coc1_pct, coc2_pct, ap_dung, created_at) VALUES(?,?,?,?,?,?,1,?)",
+                       (ma, loai, goi, gia, c1, c2, time.time()))
+        n += 1
+    db.commit()
+    return n
+
+
+def nap_dich_vu_h2o(ghi_de: bool = False) -> int:
+    """Nạp bảng giá H2O. Mặc định chỉ thêm mã còn thiếu, không đè giá chủ đã sửa."""
+    return _dung(lambda db: _nap_dv(db, ghi_de))
+
+
+def ds_dich_vu() -> List[dict]:
+    def f(db):
+        # Lần đầu dùng thì tự nạp bảng giá của chủ một lần; xóa hết sau đó sẽ không bị nạp lại.
+        if not db.execute("SELECT 1 FROM so_cau_hinh WHERE key='dv_da_nap'").fetchone():
+            _nap_dv(db)
+            db.execute("INSERT OR REPLACE INTO so_cau_hinh(key,value) VALUES('dv_da_nap','1')")
+            db.commit()
+        return _rows(db.execute("SELECT * FROM so_dich_vu ORDER BY id").fetchall())
+    out = _dung(f)
+    for r in out:
+        r.update(lich_thanh_toan(r["don_gia"], r["coc1_pct"], r["coc2_pct"]))
+    return out
+
+
+def luu_dich_vu(data: dict) -> dict:
+    did = int(data.get("id") or 0)
+    ma = re.sub(r"\s+", "", _ascii(data.get("ma")).upper())[:30]
+    goi = _s(data.get("goi"), 160)
+    if not ma or not goi:
+        raise ValueError("Dịch vụ cần mã và tên gói")
+    loai = _s(data.get("loai"), 80)
+    gia = tien(data.get("don_gia", 0))
+    c1 = max(0.0, min(100.0, float(data.get("coc1_pct") or 0)))
+    c2 = max(0.0, min(100.0, float(data.get("coc2_pct") or 0)))
+    ap = 0 if data.get("ap_dung") in (0, "0", False, "false") else 1
+
+    def f(db):
+        if did:
+            db.execute("UPDATE so_dich_vu SET ma=?, loai=?, goi=?, don_gia=?, coc1_pct=?, coc2_pct=?, ap_dung=? WHERE id=?", (ma, loai, goi, gia, c1, c2, ap, did))
+            db.commit()
+            return did
+        cur = db.execute("INSERT INTO so_dich_vu(ma, loai, goi, don_gia, coc1_pct, coc2_pct, ap_dung, created_at) VALUES(?,?,?,?,?,?,?,?)",
+                         (ma, loai, goi, gia, c1, c2, ap, time.time()))
+        db.commit()
+        return int(cur.lastrowid)
+    try:
+        i = _dung(f)
+    except sqlite3.IntegrityError:
+        raise ValueError(f"Mã {ma} đã có trong bảng giá")
+    return next(d for d in ds_dich_vu() if d["id"] == i)
+
+
+def xoa_dich_vu(did: int) -> None:
+    """Xóa khỏi bảng giá; hợp đồng đã lập giữ nguyên giá trị."""
+    _dung(lambda db: (db.execute("DELETE FROM so_dich_vu WHERE id=?", (int(did),)), db.commit()))
+
+
+def tim_dich_vu(ten: Any) -> Optional[dict]:
+    """Khớp CHÍNH XÁC theo mã hoặc tên gói (không phân biệt hoa thường, dấu). Không đoán gần đúng để khỏi báo nhầm giá."""
+    t = _ascii(ten).lower().strip()
+    if not t:
+        return None
+    ds = [d for d in ds_dich_vu() if d["ap_dung"]]
+    for d in ds:
+        if _ascii(d["ma"]).lower() == t:
+            return d
+    kq = [d for d in ds if _ascii(d["goi"]).lower() == t]
+    return kq[0] if len(kq) == 1 else None
+
+
+def goi_y_dich_vu(tu_khoa: str = "", limit: int = 12) -> List[dict]:
+    """Tìm theo từ khóa trong mã, loại, tên gói (Joyce dùng khi khách hỏi giá)."""
+    t = _ascii(tu_khoa).lower().strip()
+    ds = [d for d in ds_dich_vu() if d["ap_dung"]]
+    if not t:
+        return ds[:limit]
+    tu = t.split()
+    return [d for d in ds if all(x in _ascii(d["ma"] + " " + d["loai"] + " " + d["goi"]).lower() for x in tu)][:limit]
+
+
+def _lich_hop_dong(h: dict) -> Optional[dict]:
+    """Lịch cọc/thanh toán của hợp đồng đặt từ bảng giá, và bước đang chờ khách trả."""
+    if not h.get("dv_ma"):
+        return None
+    dv = next((d for d in ds_dich_vu() if d["ma"] == h["dv_ma"]), None)
+    if not dv or (not dv["coc1_pct"] and not dv["coc2_pct"]):
+        return None
+    lich = lich_thanh_toan(h["gia_tri"], dv["coc1_pct"], dv["coc2_pct"])
+    thu = h.get("thu", 0)
+    if thu >= h["gia_tri"] > 0:
+        buoc = ""
+    elif thu < lich["coc1"]:
+        buoc = "Cọc lần 1"
+    elif thu < lich["coc1"] + lich["coc2"]:
+        buoc = "Cọc lần 2"
+    else:
+        buoc = "Thanh toán"
+    lich["buoc_tiep"] = buoc
+    lich["can_thu"] = {"Cọc lần 1": lich["coc1"], "Cọc lần 2": lich["coc1"] + lich["coc2"], "Thanh toán": h["gia_tri"]}.get(buoc, 0) - thu if buoc else 0
+    return lich
 
 
 def giao_viec(hid: int, cong_viec: Any, ten: Any, so_luong: Any = 1, han: str = "", ma_phong: str = "") -> dict:
@@ -1267,6 +1455,33 @@ async def r_gv_xoa(request: Request, id: int = Form(...)):
     shop_state._kiem_quyen(request)
     go_giao_viec(id)
     return {"ok": True}
+
+
+@router.get("/shop/so/dich-vu")
+async def r_dv(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "items": ds_dich_vu()}
+
+
+@router.post("/shop/so/dich-vu")
+@_loi
+async def r_dv_luu(request: Request, data: str = Form(...)):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "dich_vu": luu_dich_vu(_json(data))}
+
+
+@router.post("/shop/so/dich-vu/xoa")
+@_loi
+async def r_dv_xoa(request: Request, id: int = Form(...)):
+    shop_state._kiem_quyen(request)
+    xoa_dich_vu(id)
+    return {"ok": True}
+
+
+@router.post("/shop/so/dich-vu/nap-h2o")
+async def r_dv_nap(request: Request):
+    shop_state._kiem_quyen(request)
+    return {"ok": True, "da_nap": nap_dich_vu_h2o()}
 
 
 def register(app, phong_fn, tasks_fn, brain_root_fn) -> None:
