@@ -32,6 +32,10 @@
     search: "crm.search",
     deletedContacts: "crm.deleted_contacts",
     importInbox: "crm.import_inbox",
+    loadSample: "crm.load_sample",
+    clearSample: "crm.clear_sample",
+    sampleLoaded: "crm.sample_loaded",
+    sampleCleared: "crm.sample_cleared",
     newContact: "crm.new_contact",
     emptyContacts: "crm.empty_contacts",
     contactDetails: "crm.contact_details",
@@ -462,7 +466,11 @@
 
   function contactsView() {
     const writeTools = canWrite() ? `${button(K.manualEntry, "new-contact", "")}` : "";
-    const manageTools = canManage() ? `${button(K.importInbox, "open-inbox", "jcrm-btn-small")}${button(K.deletedContacts, "toggle-deleted", state.showDeleted ? "jcrm-btn-primary jcrm-btn-small" : "jcrm-btn-small")}` : "";
+    // Nạp/xoá khách mẫu: chỉ hiện khi phòng đang trống (nạp) hoặc đang có khách mẫu (xoá), để xem giao diện có dữ liệu.
+    const coMau = state.contacts.some(function (c) { return c.mau; });
+    const sampleTools = state.showDeleted ? "" : coMau ? button(K.clearSample, "clear-sample", "jcrm-btn-small")
+      : (!state.contacts.length && !state.search ? button(K.loadSample, "load-sample", "jcrm-btn-small") : "");
+    const manageTools = canManage() ? `${button(K.importInbox, "open-inbox", "jcrm-btn-small")}${button(K.deletedContacts, "toggle-deleted", state.showDeleted ? "jcrm-btn-primary jcrm-btn-small" : "jcrm-btn-small")}${sampleTools}` : "";
     return `<details class="jcrm-guide jcrm-panel"><summary>${esc(tw(K.guide))}</summary><p>${esc(tw(K.guideText))}</p></details><div class="jcrm-grid-two"><section class="jcrm-contact-panel"><div class="jcrm-ai jcrm-panel"><h3>${esc(tw(K.quickAi))}</h3><p>${esc(tw(K.quickAiHint))}</p><textarea class="jcrm-textarea" data-role="quick-text" placeholder="${esc(tw(K.pasteChat))}" ${canWrite() ? "" : "disabled"}></textarea><div class="jcrm-toolbar" style="margin-top:8px;margin-bottom:0">${canWrite() ? button(K.readInfo, "read-quick", "jcrm-btn-primary", "", "sparkles") : ""}${writeTools}</div></div><div class="jcrm-toolbar"><input class="jcrm-field jcrm-grow" data-role="contact-search" value="${esc(state.search)}" placeholder="${esc(tw(K.search))}">${canWrite() ? button(K.newContact, "new-contact", "jcrm-btn-primary") : ""}</div><div class="jcrm-toolbar">${manageTools}${button(K.segments, "open-segments", "")}</div>${contactListHtml()}</section><section class="jcrm-detail-panel jcrm-panel">${contactDetailHtml()}</section></div>`;
   }
 
@@ -730,6 +738,8 @@
     if (action === "edit-contact") return contactForm(state.detail && state.detail.contact, null);
     if (action === "read-quick") return readQuickDraft();
     if (action === "save-contact") return saveContact();
+    if (action === "load-sample") return perform(function () { return apiPost("/crm/mau", { brain: state.brain }); }, K.sampleLoaded);
+    if (action === "clear-sample") return perform(function () { return apiPost("/crm/mau/xoa", { brain: state.brain }); }, K.sampleCleared);
     if (action === "toggle-deleted") { state.showDeleted = !state.showDeleted; state.selectedId = null; state.detail = null; return loadCurrent(true); }
     if (action === "delete-contact") return removeContact(target.dataset.id, false);
     if (action === "restore-contact") return removeContact(target.dataset.id, true);

@@ -6813,5 +6813,9 @@
   "crm.money": "VND {value}",
   "page.quanlyshop.label": "Shop management",
   "page.quanlyshop.title": "Shop management",
-  "page.quanlyshop.sub": "Sales, customers, marketing, stock, cash flow, staff and the AI team in one workspace"
+  "page.quanlyshop.sub": "Sales, customers, marketing, stock, cash flow, staff and the AI team in one workspace",
+  "crm.load_sample": "Load sample data",
+  "crm.clear_sample": "Clear sample data",
+  "crm.sample_loaded": "Loaded 4 sample customers. Press Clear sample data to remove them any time.",
+  "crm.sample_cleared": "Sample data cleared."
 }

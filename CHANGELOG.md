@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.36] - 2026-10-27
+### Thêm
+- **Nút "Nạp dữ liệu mẫu" trong CRM vận hành** (chủ và quản lý, khi phòng đang chưa có khách): tạo 4 khách mẫu kèm cơ hội và việc để xem giao diện có dữ liệu. Khách mẫu mang nguồn "Dữ liệu mẫu"; nút "Xóa dữ liệu mẫu" dọn sạch chúng, khách thật không bị đụng.
+
 ## [1.3.35] - 2026-10-27
 ### Thêm
 - **Quản lý Shop dùng chung nhiều máy**: dữ liệu của 12 module (đơn bán, kho, thu chi, nhân sự, báo giá, phòng chat nội bộ...) trước chỉ nằm trong trình duyệt từng máy, nay được lưu lên máy chủ Joyce nên điện thoại và máy tính thấy cùng một bản. Chỉ chủ và quản lý (CEO, giám đốc, trưởng phòng, lead) thấy trang này vì có thu chi và nhân sự. Hai máy sửa cùng lúc thì bản lưu sau cùng thắng.

@@ -6813,5 +6813,9 @@
   "crm.money": "{value} đ",
   "page.quanlyshop.label": "Quản lý Shop",
   "page.quanlyshop.title": "Quản lý Shop",
-  "page.quanlyshop.sub": "Bán hàng, khách hàng, marketing, kho, thu chi, nhân sự và đội ngũ AI trong một không gian"
+  "page.quanlyshop.sub": "Bán hàng, khách hàng, marketing, kho, thu chi, nhân sự và đội ngũ AI trong một không gian",
+  "crm.load_sample": "Nạp dữ liệu mẫu",
+  "crm.clear_sample": "Xóa dữ liệu mẫu",
+  "crm.sample_loaded": "Đã nạp 4 khách mẫu. Bấm Xóa dữ liệu mẫu để dọn sạch bất cứ lúc nào.",
+  "crm.sample_cleared": "Đã xóa dữ liệu mẫu."
 }

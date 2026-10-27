@@ -523,6 +523,60 @@ def xoa_lien_he(cid: int, allowed: Optional[set], by: str, khoi_phuc: bool = Fal
     return True
 
 
+# ------------------------------------------------------------------ dữ liệu mẫu
+NGUON_MAU = "Dữ liệu mẫu"
+# (tên, điện thoại, công ty, nhãn, [(cơ hội, giá trị, giai đoạn)], [(việc, số ngày tới hạn so với hôm nay)])
+_MAU = [
+    ("Chị Lan Anh", "0901234567", "Quán cà phê Lan Anh", ["vip", "b2b"],
+     [("Tiệc sinh nhật công ty", 12000000, "tu_van")], [("Gọi lại chị Lan Anh", 0)]),
+    ("Anh Minh Tuấn", "0912888321", "Công ty Tuấn Minh", [],
+     [("Đơn bánh hội nghị", 25000000, "moi")], [("Gửi báo giá cho anh Minh Tuấn", 2)]),
+    ("Chị Hồng Nhung", "0987456123", "", ["thân thiết"],
+     [("Bánh sinh nhật", 4000000, "cho_chot")], []),
+    ("Anh Quốc Bảo", "0933000111", "", [],
+     [("Đơn bánh tháng 10", 390000, "da_chot")], []),
+]
+
+
+def nap_mau(brain: str, allowed: Optional[set], by: str) -> int:
+    """Nạp bốn khách mẫu (kèm cơ hội, việc) vào một phòng để xem giao diện có dữ liệu. Gắn nguồn "Dữ liệu mẫu"
+    để xoá sạch được; phòng đã có khách mẫu thì không nạp thêm (trả 0)."""
+    if not brain or (allowed is not None and brain not in allowed):
+        raise PermissionError("Phòng ngoài phạm vi của bạn")
+    if any(c.get("source") == NGUON_MAU for c in danh_sach_lien_he(allowed, brain=brain, limit=1000)):
+        return 0
+    from datetime import timedelta
+    hom_nay = date.today()
+    for ten, sdt, cty, nhan, deals, viec in _MAU:
+        c = luu_lien_he({"name": ten, "phone": sdt, "company": cty, "tags": nhan, "source": NGUON_MAU,
+                         "depts": [brain]}, allowed, by, brain)
+        for tieu_de, gia_tri, gd in deals:
+            luu_deal({"contact_id": c["id"], "brain": brain, "title": tieu_de, "value": str(gia_tri), "stage": gd}, allowed, by)
+        for tieu_de, ngay in viec:
+            them_viec({"contact_id": c["id"], "brain": brain, "title": tieu_de,
+                       "due": (hom_nay + timedelta(days=ngay)).isoformat()}, allowed, by)
+    return len(_MAU)
+
+
+def xoa_mau(brain: str, allowed: Optional[set]) -> int:
+    """Xoá HẲN các khách mẫu (và cơ hội, việc, sự kiện, đề xuất của họ) trong một phòng. Khách thật không bị đụng."""
+    if not brain or (allowed is not None and brain not in allowed):
+        raise PermissionError("Phòng ngoài phạm vi của bạn")
+    ids = [c["id"] for c in danh_sach_lien_he(allowed, brain=brain, limit=1000) if c.get("source") == NGUON_MAU]
+    ids += [c["id"] for c in danh_sach_lien_he(allowed, brain=brain, limit=1000, da_xoa=True) if c.get("source") == NGUON_MAU]
+    if not ids:
+        return 0
+
+    def f(db):
+        q = ",".join("?" * len(ids))
+        for bang in ("crm_deals", "crm_todos", "crm_events", "crm_proposals"):
+            db.execute("DELETE FROM %s WHERE contact_id IN (%s)" % (bang, q), ids)
+        db.execute("DELETE FROM crm_contacts WHERE id IN (%s)" % q, ids)
+        db.commit()
+    _dung(f)
+    return len(ids)
+
+
 # ------------------------------------------------------------------ cơ hội
 def _deal_public(r: dict) -> dict:
     return dict(r)
@@ -1206,6 +1260,7 @@ async def crm_list(request: Request, brain: str = Query(""), q: str = Query(""),
     chot = tong_da_chot([c["id"] for c in items], allowed)
     for c in items:
         c["da_chot"] = chot.get(c["id"], 0)
+        c["mau"] = c.get("source") == NGUON_MAU
     return {"ok": True, "items": items}
 
 
@@ -1253,6 +1308,24 @@ async def crm_save(request: Request, id: int = Form(0), name: str = Form(""), ph
                      "tags": [x.strip() for x in re.split(r"[,\n]", tags or "") if x.strip()], "depts": ds},
                     allowed, ten, _phong_chinh(allowed, request))
     return {"ok": True, "contact": c}
+
+
+@router.post("/crm/mau")
+@_loi
+async def crm_mau_nap(request: Request, brain: str = Form(...)):
+    ten, allowed, ql = _nguoi(request)
+    if allowed is not None and not ql:
+        raise HTTPException(403, "Chỉ chủ hoặc quản lý nạp được dữ liệu mẫu")
+    return {"ok": True, "da_nap": nap_mau(brain.strip(), allowed, ten)}
+
+
+@router.post("/crm/mau/xoa")
+@_loi
+async def crm_mau_xoa(request: Request, brain: str = Form(...)):
+    _, allowed, ql = _nguoi(request)
+    if allowed is not None and not ql:
+        raise HTTPException(403, "Chỉ chủ hoặc quản lý xoá được dữ liệu mẫu")
+    return {"ok": True, "da_xoa": xoa_mau(brain.strip(), allowed)}
 
 
 @router.post("/crm/lien-he/phong")

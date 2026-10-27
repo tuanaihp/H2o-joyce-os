@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.36] - 2026-10-27
+### Added
+- **"Load sample data" button in the Operations CRM** (owner and managers, while the department has no customers): creates 4 sample customers with deals and tasks so you can see the page with data. Sample customers carry the source "Dữ liệu mẫu"; "Clear sample data" removes them and never touches real customers.
+
 ## [1.3.35] - 2026-10-27
 ### Added
 - **Shop management is now shared across devices**: the data of its 12 modules (orders, stock, cash book, staff, quotes, internal team chat...) used to live only in each browser; it is now stored on the Joyce server, so phone and computer see the same copy. Only the owner and managers (CEO, director, department head, lead) see this page because it holds cash flow and staff data. If two devices edit at once, the last save wins.

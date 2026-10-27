@@ -269,6 +269,26 @@ check("tổng quan Tất cả phòng chỉ cộng phòng người xem được t
 check("cột giá trị đã chốt của danh bạ: khách chốt 12 triệu, khách chưa chốt không có mục",
       crm.tong_da_chot([c1["id"], lh["id"]], {BAN}) == {c1["id"]: 12000000}
       and crm.tong_da_chot([c1["id"]], {CS}) == {} and crm.tong_da_chot([], None) == {})
+
+# ---------------- dữ liệu mẫu (nút Nạp/Xóa dữ liệu mẫu)
+that_truoc = [c["id"] for c in crm.danh_sach_lien_he(None, brain=CS, limit=1000) if c["source"] != crm.NGUON_MAU]
+check("nạp mẫu tạo 4 khách mang nguồn Dữ liệu mẫu", crm.nap_mau(CS, None, "Chủ") == 4
+      and sum(1 for c in crm.danh_sach_lien_he(None, brain=CS, limit=1000) if c["source"] == crm.NGUON_MAU) == 4)
+check("nạp lần hai không nhân đôi", crm.nap_mau(CS, None, "Chủ") == 0)
+check("khách mẫu có cơ hội đã chốt và việc tới hạn hôm nay",
+      crm.pipeline(CS, {CS})["da_chot"] >= 390000 and any(t["hom_nay"] for t in crm.danh_sach_viec({CS}, brain=CS)))
+try:
+    crm.nap_mau(BAN, {CS}, "NV CSKH")
+    check("phòng ngoài phạm vi không nạp mẫu được", False)
+except PermissionError:
+    check("phòng ngoài phạm vi không nạp mẫu được", True)
+check("xoá mẫu: dọn đủ 4 khách và khách thật còn nguyên",
+      crm.xoa_mau(CS, None) == 4
+      and not any(c["source"] == crm.NGUON_MAU for c in crm.danh_sach_lien_he(None, brain=CS, limit=1000))
+      and [c["id"] for c in crm.danh_sach_lien_he(None, brain=CS, limit=1000)
+           if c["source"] != crm.NGUON_MAU] == that_truoc)
+check("xoá mẫu xong không còn việc mẫu nào treo", not any("anh Minh Tuấn" in t["title"] for t in crm.danh_sach_viec({CS}, brain=CS)))
+check("xoá lần hai trả 0, nạp lại được", crm.xoa_mau(CS, None) == 0 and crm.nap_mau(CS, None, "Chủ") == 4 and crm.xoa_mau(CS, None) == 4)
 crm.xoa_lien_he(c3["id"], {BAN}, "Lan NV")
 check("xoá khách là xoá mềm: biến khỏi danh sách nhưng khôi phục được", c3["id"] not in [c["id"] for c in crm.danh_sach_lien_he({BAN})]
       and c3["id"] in [c["id"] for c in crm.danh_sach_lien_he({BAN}, da_xoa=True)])
