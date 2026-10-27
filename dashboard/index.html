@@ -644,7 +644,7 @@
     <!-- GIỮA cuộn được - gom theo nhóm; nhóm foot (Hệ thống) tự ghim xuống đáy -->
     <div class="rail-nav">
       <template x-for="g in $store.nav.groups" :key="g.label">
-        <div class="rail-group" :class="{ foot: g.foot, open: $store.nav.isOpen(g.label), 'has-active': g.items.some(it => it.id === $store.nav.active) }">
+        <div class="rail-group" :class="{ foot: g.foot, open: $store.nav.isOpen(g.label), 'has-active': g.items.some(it => it.id === $store.nav.active || (it.subs && it.subs.some(s => s.page === $store.nav.active))) }">
           <button class="rail-grp-lbl" @click="$store.nav.toggleGroup(g.label)" :title="g.label">
             <span class="rail-grp-ico" x-html="g.icon"></span>
             <span class="grp-name" x-text="g.label"></span>
@@ -655,7 +655,7 @@
                    phần tử gốc ĐẦU TIÊN, hai gốc thì khối mục con bị bỏ qua (0.65.45: mục con Cẩm nang
                    từng không hiện ra vì vậy). display: contents nên bố cục rail không đổi. -->
               <div class="rail-item-wrap">
-              <button class="rail-item" :class="{ active: $store.nav.active === it.id && (!it.subs || $store.nav.activeSub(it.id) === $store.nav.subDefault(it.id)), 'has-sub-active': $store.nav.active === it.id && it.subs && $store.nav.activeSub(it.id) !== $store.nav.subDefault(it.id) }"
+              <button class="rail-item" :class="{ active: $store.nav.active === it.id && (!it.subs || $store.nav.activeSub(it.id) === $store.nav.subDefault(it.id)), 'has-sub-active': ($store.nav.active === it.id && it.subs && $store.nav.activeSub(it.id) !== $store.nav.subDefault(it.id)) || (it.subs && it.subs.some(s => s.page && s.page === $store.nav.active)) }"
                       @click="$store.nav.go(it.id)" :title="it.label">
                 <span class="rail-ico" x-html="it.icon"></span>
                 <span class="rail-lbl" x-text="it.label"></span>
@@ -672,8 +672,8 @@
               <template x-if="it.subs && it.subs.length">
                 <div class="rail-subs" x-show="$store.nav.subOpen(it.id)">
                   <template x-for="s in it.subs" :key="s.id">
-                    <button class="rail-sub" :class="{ active: $store.nav.active === it.id && $store.nav.activeSub(it.id) === s.id }"
-                            @click.stop="$store.nav.goSub(it.id, s.id)" :title="s.label">
+                    <button class="rail-sub" :class="{ active: s.page ? $store.nav.active === s.page : ($store.nav.active === it.id && $store.nav.activeSub(it.id) === s.id) }"
+                            @click.stop="s.page ? $store.nav.go(s.page) : $store.nav.goSub(it.id, s.id)" :title="s.label">
                       <span class="rail-ico" x-html="s.icon"></span>
                       <span class="rail-lbl" x-text="s.label"></span>
                     </button>

@@ -82,6 +82,18 @@ const kdIds = JSON.parse(kdSubs).map((x) => x[0]);
 check("Kinh doanh có mục con Xưởng content AI", kdIds[0] === "xuongcontent", kdIds.join(","));
 check("Kinh doanh nằm trong nhóm Năng lực", /"nang_luc"[^\n]*ids:\s*\[[^\]]*"kinhdoanh"/.test(CON));
 
+// Vận hành kinh doanh (27/10): 6 trang vận hành gom thành mục con của Kinh doanh, mỗi mục con mang `page`
+const pageIds = JSON.parse((CON.match(/const KD_PAGE_IDS = (\[[^\]]*\])/) || [])[1] || "[]");
+check("Kinh doanh gom đúng 6 trang: Nghiên cứu, Lộ trình, Cộng sự, Team, Chatbot, CRM vận hành",
+  JSON.stringify(pageIds) === '["nghiencuu","lotrinh","workspace","teams","conversations","crm"]', pageIds.join(","));
+check("các trang gom vẫn nằm trong ids nhóm Năng lực (lệnh bằng lời và groupLabelOf không gãy)",
+  pageIds.every((id) => new RegExp(String.raw`"nang_luc"[^\n]*ids:\s*\[[^\]]*"` + id + '"').test(CON)));
+check("mục con kiểu trang: bấm mở trang thật (s.page ? go(s.page) : goSub)", /s\.page \? \$store\.nav\.go\(s\.page\) : \$store\.nav\.goSub\(it\.id, s\.id\)/.test(HTML));
+check("nhóm sáng khi đang đứng ở một mục con kiểu trang", /it\.subs && it\.subs\.some\(s => s\.page === \$store\.nav\.active\)/.test(HTML));
+check("bản sao mục Kinh doanh ghi subs writable+configurable (proxy Alpine ném TypeError nếu chỉ đọc)",
+  /Object\.create\(it, \{ subs: \{[^}]*writable: true[^}]*configurable: true/.test(CON));
+check("rail lọc mục con theo quyền như mục thường (nhân viên không thấy trang bị ẩn)", /KD_PAGE_SUBS\.filter\(s => !an\(s\.id\)\)/.test(CON));
+
 // go("camnang") chạy thật: từ trang khác phải ghi rõ tab con cần mở
 const start = CON.search(/ {6}go\(id\) \{\r?\n\s*const item = RAIL_ITEMS\.find/);   // go() của store nav (không phải bản một dòng cùng tên)
 const goSrc = CON.slice(start, CON.indexOf("\n      },", start) + 9).replace(/^\s*go\(id\) \{/, "function go(id) {").replace(/\},\s*$/, "}");

@@ -151,6 +151,18 @@
   const _kdRailItem = RAIL_ITEMS.find(i => i.id === "kinhdoanh");
   if (_kdRailItem) _kdRailItem.subs = KD_SUBS;
 
+  // "Vận hành kinh doanh" (chủ duyệt 27/10): các trang vận hành hằng ngày gom thành mục con của mục
+  // Kinh doanh thay vì mỗi trang một dòng ngang hàng trong Năng lực (nhóm này dài tới 10 mục, đến mức
+  // điện thoại cắt cụt). Mục con loại này mang `page` = id trang thật: bấm là mở trang đó, không phải
+  // một tab trong trang Kinh doanh. Vẫn nằm trong `ids` của nhóm Năng lực để groupLabelOf và lệnh bằng
+  // lời (mở trang theo id) chạy như cũ; chỉ riêng lúc vẽ rail mới được gom lại (xem railGroups).
+  const KD_PAGE_IDS = ["nghiencuu", "lotrinh", "workspace", "teams", "conversations", "crm"];
+  const KD_PAGE_SUBS = KD_PAGE_IDS.map(id => ({
+    id, page: id,
+    get icon() { const it = RAIL_ITEMS.find(i => i.id === id); return it ? it.icon : ""; },
+    get label() { return t(`page.${id}.label`); },
+  }));
+
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
   // Nhóm cuối (foot:true) được ghim xuống ĐÁY rail; các nhóm còn lại cuộn ở giữa.
   // Thứ tự & thành viên đổi ở đây; RAIL_ITEMS vẫn là nguồn icon/label + tra cứu cho go().
@@ -232,9 +244,16 @@
       || (nv && !quanLy && RAIL_AN_KHONG_QUAN_LY.has(id))
       || (nv && id === "crm" && !_coQuyenCrm());
     const groups = RAIL_GROUPS.map(g => {
-      const items = (g.ids || [])
+      let items = (g.ids || [])
         .map(id => { seen.add(id); return an(id) ? null : RAIL_BY_ID[id]; })
         .filter(Boolean);
+      // Gom các trang vận hành vào mục con của Kinh doanh. Object.create giữ getter label/icon của mục gốc
+      // và chỉ ghi đè `subs` bằng danh sách đã lọc theo quyền (phải writable+configurable, nếu không proxy của Alpine ném TypeError) (nhân viên chỉ thấy trang mình được phép).
+      if (items.some(it => it.id === "kinhdoanh")) {
+        const them = KD_PAGE_SUBS.filter(s => !an(s.id));
+        items = items.filter(it => !KD_PAGE_IDS.includes(it.id)).map(it =>
+          it.id === "kinhdoanh" ? Object.create(it, { subs: { value: (it.subs || []).concat(them), writable: true, configurable: true, enumerable: true } }) : it);
+      }
       return { label: g.label, icon: g.icon || "", foot: !!g.foot, items };
     }).filter(g => g.items.length);
     // Mục chưa xếp nhóm cũng phải đi qua RAIL_AN. Thiếu chỗ này là một lỗi thật, sống từ
