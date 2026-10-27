@@ -43,15 +43,19 @@ check("nhan vien an muc CRM tru khi duoc cap quyen (_coQuyenCrm)", /nv && id ===
 check("form nhan vien co o chon quyen CRM (khong / chi xem / day du) va gui quyen", /id="stFCrm"/.test(con) && /value="crm_xem"/.test(con)
   && /quyen: el\.querySelector\("#stFCrm"\)\.value \|\| "-"/.test(con));
 check("nhan vien chi xem cung thay muc CRM", /quyen\.indexOf\("crm_xem"\) >= 0/.test(con));
-check("che do chi xem khoa moi dieu khien ghi", /function khoaGhi\(\)/.test(src) && /S\.me\.chi_xem\) khoaGhi\(\)/.test(src));
-check("nut xoa va khach da xoa chi hien cho quan ly hoac admin", /S\.me\.admin \|\| S\.me\.quan_ly\) \? '<button class="crm-btn dng" data-a="delete"/.test(src)
-  && /S\.me\.admin \|\| S\.me\.quan_ly\) \? '<button class="crm-btn" data-a="trash"/.test(src));
-check("bo lang nghe gan tren goc rieng, khong gan len khung dung chung", /document\.createElement\("div"\)/.test(src) && /el\.addEventListener\("click"/.test(src)
-  && !/host\.addEventListener/.test(src));
+check("che do chi xem an moi dieu khien ghi (canWrite) va hien chip Chi xem", /function canWrite\(\) \{ return !!\(state\.me && !state\.me\.chi_xem\)/.test(src)
+  && /state\.me\.chi_xem \? `<span class="jcrm-chip jcrm-chip-warn">/.test(src));
+check("nut xoa va khach da xoa chi hien cho quan ly hoac admin", /function canManage\(\) \{ return !!\(state\.me && !state\.me\.chi_xem && \(state\.me\.admin \|\| state\.me\.quan_ly\)\)/.test(src)
+  && /canManage\(\) \? button\(state\.showDeleted \? K\.restore : K\.delete/.test(src)
+  && /const manageTools = canManage\(\) \? `\$\{button\(K\.importInbox, "open-inbox", ""\)\}\$\{button\(K\.deletedContacts, "toggle-deleted"/.test(src));
+check("bo lang nghe gan tren goc rieng, khong gan len khung dung chung", /document\.createElement\("div"\)/.test(src) && /root\.addEventListener\("click"/.test(src)
+  && !/\bel\.addEventListener/.test(src) && !/document\.addEventListener/.test(src));
+check("moi POST gui FormData", /new FormData\(\)/.test(src) && !/JSON\.stringify/.test(src));
 
 // ---- i18n
 const dung = new Set();
-src.replace(/tw\("(crm\.[a-z_0-9]+)"/g, (m, k) => { dung.add(k); return m; });
+src.replace(/tw\("(crm\.[a-z_0-9.]+)"/g, (m, k) => { dung.add(k); return m; });
+src.replace(/:\s*"(crm\.[a-z_0-9.]+)"/g, (m, k) => { dung.add(k); return m; });
 const dong = {
   "crm.tab_": ["contacts", "pipeline", "todos", "proposals", "segments"],
   "crm.mode_": ["off", "duyet", "auto"],
@@ -74,7 +78,7 @@ check("khong dung gach dai o file ma, vi, en", src.indexOf(dau) < 0 && !co(vi) &
 check("tham so {path} cua crm.remembered co o ca hai ngon ngu", vi["crm.remembered"].indexOf("{path}") >= 0 && en["crm.remembered"].indexOf("{path}") >= 0);
 
 // ---- CSS
-const css = (src.match(/s\.textContent = \[([\s\S]*?)\]\.join/) || [])[1] || "";
+const css = (src.match(/const CSS = `([\s\S]*?)`;/) || [])[1] || "";
 check("co doan CSS de soi", css.length > 1500);
 check("CSS chi dung token theme, khong to cung #hex hay white/black", !/#[0-9a-fA-F]{3,8}\b/.test(css) && !/(?<![-\w])(white|black)(?![-\w])/.test(css));
 const bien = new Set((css.match(/var\(--[a-z0-9-]+/g) || []).map((x) => x.slice(4)));

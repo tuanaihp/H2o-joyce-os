@@ -260,6 +260,15 @@ check("phân khúc: 'Cần chăm hôm nay' gồm khách có việc trễ, 'Chưa
       and lh["id"] in [c["id"] for c in seg["chua_co_co_hoi"]["contacts"]])
 tq = crm.tong_quan(BAN, {BAN})
 check("tổng quan: việc trễ 1, đã chốt 12 triệu", tq["viec_tre"] == 1 and tq["da_chot"] == 12000000)
+check("tổng quan: 1 khách đã mua, số cơ hội đang theo là số nguyên, tỉ lệ thắng 100%",
+      tq["da_mua"] == 1 and isinstance(tq["so_co_hoi"], int) and tq["ti_le_thang"] == 1.0)
+tq_all = crm.tong_quan("", None)
+check("tổng quan Tất cả phòng cộng dồn các phòng (trước đây luôn 0): đã chốt >= phòng Bán hàng, thấy cả khách đã mua",
+      tq_all["da_chot"] >= 12000000 and tq_all["da_mua"] >= 1)
+check("tổng quan Tất cả phòng chỉ cộng phòng người xem được thấy", crm.tong_quan("", {CS})["da_chot"] == 0)
+check("cột giá trị đã chốt của danh bạ: khách chốt 12 triệu, khách chưa chốt không có mục",
+      crm.tong_da_chot([c1["id"], lh["id"]], {BAN}) == {c1["id"]: 12000000}
+      and crm.tong_da_chot([c1["id"]], {CS}) == {} and crm.tong_da_chot([], None) == {})
 crm.xoa_lien_he(c3["id"], {BAN}, "Lan NV")
 check("xoá khách là xoá mềm: biến khỏi danh sách nhưng khôi phục được", c3["id"] not in [c["id"] for c in crm.danh_sach_lien_he({BAN})]
       and c3["id"] in [c["id"] for c in crm.danh_sach_lien_he({BAN}, da_xoa=True)])
