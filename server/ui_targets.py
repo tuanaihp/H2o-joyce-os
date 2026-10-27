@@ -19,7 +19,7 @@ import unicodedata
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
     "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
-    "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "crm", "files", "terminal", "coding", "projects",
+    "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files", "terminal", "coding", "projects",
     "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
     "staff", "usage", "pet", "share",
 )
@@ -78,6 +78,7 @@ ALIASES = {
     # Tab đổi tên "Tài khoản bot" -> "Kênh của bot" (0.64.80); tên cũ giữ để lệnh quen tay không chết.
     "kenh cua bot": "conversations", "kenh bot": "conversations",
     "tao chatbot": "chatbots",
+    "quan ly shop": "quanlyshop", "quanlyshop": "quanlyshop",
     "crm": "crm", "crm van hanh": "crm", "quan ly khach hang": "crm", "khach hang crm": "crm",
     # Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0, bí danh cũ giữ để lệnh nói quen tay
     # không chết.

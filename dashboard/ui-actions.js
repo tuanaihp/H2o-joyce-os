@@ -15,7 +15,7 @@
 
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin joyce-ui.
   var PAGES = ["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
-               "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "crm", "files", "terminal", "coding", "projects",
+               "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files", "terminal", "coding", "projects",
                "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
                "staff", "usage", "pet", "share"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS

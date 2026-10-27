@@ -42,6 +42,7 @@
     lotrinh: "clipboard-check",
     chatbots: "headset",
     conversations: "messages-square",
+    quanlyshop: "package",
     crm: "users",
     skills: "puzzle",
     files: "folder-tree",
@@ -126,7 +127,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
-    "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "conversations", "crm", "files",
+    "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files",
     "terminal", "coding", "projects", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
     "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -187,7 +188,7 @@
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal", "coding", "projects"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "conversations", "crm", "skills", "plugins"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "quanlyshop", "conversations", "crm", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "sodo", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
@@ -242,7 +243,8 @@
     const quanLy = nv && _quyenNV() === "quan_ly";
     const an = (id) => RAIL_AN.has(id) || (nv && RAIL_AN_NHAN_VIEN.has(id))
       || (nv && !quanLy && RAIL_AN_KHONG_QUAN_LY.has(id))
-      || (nv && id === "crm" && !_coQuyenCrm());
+      || (nv && id === "crm" && !_coQuyenCrm())
+      || (nv && id === "quanlyshop" && !_coQuyenCrm());
     const groups = RAIL_GROUPS.map(g => {
       let items = (g.ids || [])
         .map(id => { seen.add(id); return an(id) ? null : RAIL_BY_ID[id]; })
@@ -282,7 +284,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "quanlyshop", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -762,6 +764,7 @@
     }
     if (id === "conversations") return renderConversations(el);
     if (id === "crm") return renderCrm(el);
+    if (id === "quanlyshop") return renderQuanLyShop(el);
     if (id === "learn")    return renderLearn(el);
     // Nhóm Tổng quan: bốn trang con do overview.js vẽ (cùng kiểu uỷ quyền như camnang.js).
     if (["command", "departments", "calendar", "reports", "chungcat"].includes(id)) {
@@ -884,6 +887,12 @@
     const fn = window.JoyceConversations && window.JoyceConversations.render;
     if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("conversations", window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder("conversations", window.t("cs.mod_not_ready", { ten: "conversations.js" }));
+  }
+
+  // Trang Quản lý Shop: bộ giao diện quan-ly-shop.html chạy trong khung; tab CRM bên trong
+  // gọi lại window.JoyceCrm của trang này nên vẫn dùng dữ liệu CRM thật.
+  function renderQuanLyShop(el) {
+    el.innerHTML = `<iframe class="qls-frame" title="${esc(t("page.quanlyshop.title"))}" src="/static/quan-ly-shop.html?embed=1&lang=${encodeURIComponent(document.documentElement.lang || "vi")}"></iframe>`;
   }
 
   // Trang CRM vận hành do crm.js dựng - cùng kiểu uỷ quyền.
