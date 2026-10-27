@@ -232,7 +232,7 @@
     .jcrm-alert-danger{background:var(--danger-wash);color:var(--danger-ink);border-color:color-mix(in srgb,var(--danger-ink) 25%,transparent)}
     .jcrm-toast{position:fixed;right:20px;bottom:20px;z-index:1000;background:var(--text);color:var(--card);border-radius:10px;padding:10px 13px;font-size:12px;box-shadow:0 12px 32px color-mix(in srgb,var(--text) 25%,transparent)}
     .jcrm-modal-backdrop{position:fixed;inset:0;z-index:999;background:color-mix(in srgb,var(--text) 58%,transparent);display:grid;place-items:center;padding:18px}
-    .jcrm-modal{width:min(620px,100%);max-height:min(820px,92vh);overflow:auto;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 24px 70px color-mix(in srgb,var(--text) 35%,transparent)}
+    .jcrm-modal{width:min(620px,100%);max-height:min(820px,92vh);overflow:auto;background:linear-gradient(var(--card),var(--card)),var(--bg);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 24px 70px color-mix(in srgb,var(--text) 35%,transparent)}
     .jcrm-modal-head{display:flex;align-items:center;gap:8px;margin-bottom:14px}
     .jcrm-modal-head h3{margin:0;flex:1}
     .jcrm-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -245,7 +245,7 @@
     .jcrm-mobile-only{display:none}
     @media(max-width:1000px){.jcrm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:820px){.jcrm-head{flex-wrap:wrap}.jcrm-head-actions{margin-left:56px;justify-content:flex-start}.jcrm-grid-two{grid-template-columns:1fr}.jcrm-detail-panel{display:none}.jcrm.is-mobile-detail .jcrm-contact-panel{display:none}.jcrm.is-mobile-detail .jcrm-detail-panel{display:block}.jcrm-mobile-only{display:inline-flex}.jcrm-profile{grid-template-columns:1fr}.jcrm-form-grid{grid-template-columns:1fr}.jcrm-form-grid label.is-wide{grid-column:auto}.jcrm-pipeline{grid-auto-columns:minmax(235px,82vw)}}
-    @media(max-width:520px){.jcrm-kpis{grid-template-columns:1fr 1fr;gap:8px}.jcrm-kpi{padding:10px;min-height:78px}.jcrm-kpi-icon{width:34px;height:34px}.jcrm-kpi strong{font-size:15px}.jcrm-head-actions{margin-left:0;width:100%}.jcrm-head-actions .jcrm-select{flex:1}.jcrm-toolbar>*{max-width:100%}}
+    @media(max-width:520px){.jcrm-kpis{grid-template-columns:1fr 1fr;gap:8px}.jcrm-kpi{padding:10px;min-height:78px}.jcrm-kpi-icon{width:34px;height:34px}.jcrm-kpi strong{font-size:15px}.jcrm-head-actions{margin-left:0;width:100%}.jcrm-head-actions .jcrm-select{flex:1 1 140px;min-width:140px}.jcrm-toolbar>*{max-width:100%}}
   `;
 
   function esc(value) {
@@ -325,7 +325,7 @@
     const qs = new URLSearchParams();
     Object.keys(params || {}).forEach(function (key) {
       const value = params[key];
-      if (value !== undefined && value !== null) qs.set(key, value);
+      if (value !== undefined && value !== null && value !== "") qs.set(key, value);
     });
     const text = qs.toString();
     return text ? "?" + text : "";
@@ -654,6 +654,7 @@
     state.contacts = result.items || [];
     const currentExists = state.contacts.some(function (item) { return String(item.id) === String(state.selectedId); });
     if (!currentExists) { state.selectedId = null; state.detail = null; }
+    else if (state.selectedId && state.mode === "contacts") await loadDetail(state.selectedId, false);
     if (autoSelect && !state.selectedId && state.contacts.length && !(host.matchMedia && host.matchMedia("(max-width: 820px)").matches)) {
       state.selectedId = state.contacts[0].id;
       await loadDetail(state.selectedId, false);
@@ -676,8 +677,9 @@
   }
 
   async function loadTodos() {
-    const result = await apiGet("/crm/viec", { brain: state.brain, contact_id: "", xong: state.todoDone });
-    state.todos = result.items || [];
+    const flags = state.todoDone === "" ? ["0", "1"] : [state.todoDone];
+    const results = await Promise.all(flags.map(function (xong) { return apiGet("/crm/viec", { brain: state.brain, xong: xong }); }));
+    state.todos = results.reduce(function (all, result) { return all.concat(result.items || []); }, []);
   }
 
   async function loadCurrent(autoSelect) {
@@ -909,6 +911,13 @@
     root.addEventListener("drop", handleDrop);
     renderShell();
     init();
+    if (typeof MutationObserver === "function") {
+      const langObserver = new MutationObserver(function () {
+        if (!root.isConnected) { langObserver.disconnect(); return; }
+        if (state.root === root) renderBody();
+      });
+      langObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+    }
   }
 
   const publicApi = { render: render, dinhDangTien: dinhDangTien, trangThaiHan: trangThaiHan, chiaTheoGiaiDoan: chiaTheoGiaiDoan, chuCaiDau: chuCaiDau, nhanSuKien: nhanSuKien };
