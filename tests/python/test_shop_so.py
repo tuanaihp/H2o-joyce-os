@@ -464,6 +464,14 @@ check("thuê đúng ngày sẵn sàng 15/11 được", ok15["ok"] and ok15["ket_
 check("sau khi có người thuê 15/11 thì tình trạng là giữ chỗ", _kb()["tinh_trang"] == "giu_cho")
 before = _thue_kb("Cô dâu E", "0911100005", "2099-11-01", "2099-11-05")
 check("thuê trước lịch đã đặt mà cách đủ ngày giặt phơi thì được", before["ok"])
+shop_so.luu_do({"ma_do": "KB-05", "ma_dv": "KB", "nhom": "Áo dài test", "co": "M", "mau_sac": "Đỏ", "don_gia": 500000, "ngay_giat": 5})
+check("món có số ngày giặt riêng: danh mục hiện 5 ngày", {d["ma_do"]: d for d in shop_so.ds_do()}["KB-05"]["ngay_giat_hl"] == 5)
+x5 = shop_so.xu_ly({"loai": "thue_do", "ma_do": "KB-05", "ten_khach": "Khách X", "sdt": "0911100010", "ngay_thue": "2099-12-10", "ngay_tra": "2099-12-12"}, "Chủ")
+check("món 5 ngày: thuê lúc 16/12 bị chặn, sẵn sàng lại 17/12", x5["ok"] and shop_so.xu_ly({"loai": "thue_do", "ma_do": "KB-05", "ten_khach": "Khách Y", "sdt": "0911100011", "ngay_thue": "2099-12-16", "ngay_tra": "2099-12-16"}, "Chủ")["ok"] is False)
+check("món 5 ngày: thông báo nêu đúng 5 ngày và ngày 17/12", "17/12/2099" in shop_so.xu_ly({"loai": "thue_do", "ma_do": "KB-05", "ten_khach": "Khách Z", "sdt": "0911100012", "ngay_thue": "2099-12-14", "ngay_tra": "2099-12-14"}, "Chủ")["loi"][0]["loi"] and "5 ngày giặt" in shop_so.xu_ly({"loai": "thue_do", "ma_do": "KB-05", "ten_khach": "Khách Z", "sdt": "0911100012", "ngay_thue": "2099-12-14", "ngay_tra": "2099-12-14"}, "Chủ")["loi"][0]["loi"])
+kb5 = shop_so.luu_do({"id": next(d["id"] for d in shop_so.ds_do() if d["ma_do"] == "KB-05"), "ma_do": "KB-05", "ngay_giat": ""})
+check("để trống số ngày giặt thì quay về mặc định 3", kb5["ngay_giat_hl"] == 3 and kb5["ngay_giat"] is None)
+check("số ngày giặt quá lớn bị giới hạn ở 30", shop_so.luu_do({"ma_do": "KB-06", "don_gia": 1, "ngay_giat": 99})["ngay_giat_hl"] == 30)
 # ---------------- tool joyce_shop (chat gọi)
 import asyncio  # noqa: E402
 import importlib.util  # noqa: E402

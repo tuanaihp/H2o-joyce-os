@@ -401,7 +401,7 @@
       hien.map(d => {
         const st = ST_DO[d.tinh_trang];
         const lich = d.lich.map(v => '<small style="display:block;color:#707b74">' + esc(dmy(v.tu) + (v.den !== v.tu ? ' - ' + dmy(v.den) : '') + ' · ' + v.khach) + '</small>').join('');
-        return '<tr' + (d.ap_dung ? '' : ' style="opacity:.55"') + '><td><b>' + esc(d.ten_do) + '</b>' + (d.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '<small style="display:block;color:#707b74">' + esc(d.ma_dv) + (d.pb ? ' · ' + esc(d.pb) : '') + '</small></td><td>' + esc(d.nhom) + '</td><td>' + esc(d.co) + '</td><td>' + (d.don_gia ? vnd(d.don_gia) : '<span style="color:#bc7518">Chưa có giá</span>') + '</td><td><span class="so-st so-st-' + st[1] + '">' + st[0] + (d.san_lai ? ' đến ' + dmy(d.san_lai) : '') + '</span>' + lich + '</td><td>' + d.so_lan_thue + '</td><td style="max-width:220px">' + esc(d.mo_ta) + '</td><td><button class="so-mini" onclick="soThue(\'' + esc(d.ma_do) + '\')">Cho thuê</button><button class="so-mini" onclick="soDo(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDoXoa(' + d.id + ')">×</button></td></tr>';
+        return '<tr' + (d.ap_dung ? '' : ' style="opacity:.55"') + '><td><b>' + esc(d.ten_do) + '</b>' + (d.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '<small style="display:block;color:#707b74">' + esc(d.ma_dv) + (d.pb ? ' · ' + esc(d.pb) : '') + '</small></td><td>' + esc(d.nhom) + '<small style="display:block;color:#707b74">giặt ' + d.ngay_giat_hl + ' ngày</small></td><td>' + esc(d.co) + '</td><td>' + (d.don_gia ? vnd(d.don_gia) : '<span style="color:#bc7518">Chưa có giá</span>') + '</td><td><span class="so-st so-st-' + st[1] + '">' + st[0] + (d.san_lai ? ' đến ' + dmy(d.san_lai) : '') + '</span>' + lich + '</td><td>' + d.so_lan_thue + '</td><td style="max-width:220px">' + esc(d.mo_ta) + '</td><td><button class="so-mini" onclick="soThue(\'' + esc(d.ma_do) + '\')">Cho thuê</button><button class="so-mini" onclick="soDo(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDoXoa(' + d.id + ')">×</button></td></tr>';
       }).join('') + '</tbody></table></div>' :
       '<div class="so-empty"><b>Chưa có món đồ nào</b>Bấm "+ Đồ" để thêm, hoặc "Nạp đồ mẫu" để thử luồng thuê và trả. Anh có thể tự nhập dữ liệu thật vào bất cứ lúc nào.</div>';
     return moduleHead('♛', 'Danh mục đồ', 'Váy, vest, áo dài cho thuê. Tình trạng tự tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê hay quá hạn chưa trả.') +
@@ -423,11 +423,12 @@
       '<label>Phòng ban phụ trách<input class="field" id="oPb" value="' + esc(d ? d.pb : 'Tư vấn váy') + '"></label>' +
       '<label>Cỡ<input class="field" id="oCo" value="' + esc(d ? d.co : '') + '"></label><label>Màu<input class="field" id="oMau" value="' + esc(d ? d.mau_sac : '') + '"></label>' +
       '<label>Đơn giá thuê (đồng)<input class="field" id="oGia" type="number" min="0" value="' + (d ? d.don_gia : 0) + '"></label>' +
+      '<label>Số ngày giặt phơi sau khi trả (để trống = 3 ngày)<input class="field" id="oGiat" type="number" min="0" max="30" placeholder="3" value="' + (d && d.ngay_giat != null ? d.ngay_giat : '') + '"></label>' +
       '<label>Hình ảnh (đường dẫn)<input class="field" id="oHinh" value="' + esc(d ? d.hinh : '') + '"></label>' +
       '<label style="grid-column:1/-1">Ghi chú, mô tả<input class="field" id="oMoTa" value="' + esc(d ? d.mo_ta : '') + '"></label>' +
       '<label><input id="oAp" type="checkbox"' + (!d || d.ap_dung ? ' checked' : '') + '> Đang cho thuê</label></div>' +
       '<p class="so-note">Tên đồ hiển thị là mã--màu, ví dụ VAY-CC209--Trắng. Nhóm tự lấy từ Bảng giá dịch vụ nếu mã dịch vụ khớp.</p>',
-      async () => { await post('/shop/so/do', { data: { id: d ? d.id : 0, ma_do: val('oMa'), ma_dv: val('oDv'), nhom: val('oNhom'), pb: val('oPb'), co: val('oCo'), mau_sac: val('oMau'), don_gia: val('oGia'), hinh: val('oHinh'), mo_ta: val('oMoTa'), ap_dung: document.getElementById('oAp').checked ? 1 : 0 } }); toast('Đã lưu đồ'); });
+      async () => { await post('/shop/so/do', { data: { id: d ? d.id : 0, ma_do: val('oMa'), ma_dv: val('oDv'), nhom: val('oNhom'), pb: val('oPb'), co: val('oCo'), mau_sac: val('oMau'), don_gia: val('oGia'), hinh: val('oHinh'), ngay_giat: val('oGiat'), mo_ta: val('oMoTa'), ap_dung: document.getElementById('oAp').checked ? 1 : 0 } }); toast('Đã lưu đồ'); });
   };
   window.soThue = async ma => {
     let ds = [], hds = [];

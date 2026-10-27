@@ -210,6 +210,8 @@ def _db() -> sqlite3.Connection:
         c.executescript(_SCHEMA)
         if "dv_ma" not in {r[1] for r in c.execute("PRAGMA table_info(so_hop_dong)").fetchall()}:   # sổ tạo từ bản cũ
             c.execute("ALTER TABLE so_hop_dong ADD COLUMN dv_ma TEXT DEFAULT ''")
+        if "ngay_giat" not in {r[1] for r in c.execute("PRAGMA table_info(so_do)").fetchall()}:
+            c.execute("ALTER TABLE so_do ADD COLUMN ngay_giat INTEGER")
         c.commit()
         _ready.add(str(p))
     return c
@@ -1243,6 +1245,21 @@ def _thong_bao_trung(ma: str, dung: list, tu: str, den: str, buf: int) -> str:
             + f". Sau mỗi lần trả cần {buf} ngày giặt phơi, nên đồ sẵn sàng lại từ {_dmy(san)}. Ngày thuê sớm nhất: {_dmy(san)}.")
 
 
+def _ngay_giat_do(db, ma_do: str) -> int:
+    """Số ngày giặt phơi của đúng món đồ: món có số riêng thì dùng số đó, để trống thì dùng mặc định."""
+    r = db.execute("SELECT ngay_giat FROM so_do WHERE ma_do=?", (ma_do,)).fetchone()
+    if r and r[0] is not None:
+        return int(r[0])
+    return _ngay_giat(db)
+
+
+def _ngay_giat_nhap(v: Any) -> Optional[int]:
+    """Ô ngày giặt để trống thì None (dùng mặc định); nhập số thì giữ trong khoảng 0 đến 30 ngày."""
+    if v is None or str(v).strip() == "":
+        return None
+    return max(0, min(30, int(float(str(v).strip()))))
+
+
 def ds_do() -> List[dict]:
     """Danh mục đồ kèm tình trạng tính từ lịch sử thuê: sẵn sàng, đang giặt, giữ chỗ, đang thuê, quá hạn, tạm ngưng."""
     hn = _homnay()
@@ -1254,12 +1271,13 @@ def ds_do() -> List[dict]:
         dem = {r[0]: r[1] for r in db.execute("SELECT ma_do, COUNT(*) FROM so_thue_do WHERE trang_thai IN ('dang_thue','da_tra') GROUP BY ma_do").fetchall()}
         tra = {r[0]: r[1] for r in db.execute("SELECT ma_do, MAX(ngay_tra_thuc) FROM so_thue_do WHERE trang_thai='da_tra' AND ngay_tra_thuc!='' GROUP BY ma_do").fetchall()}
         return it, act, dem, tra, _ngay_giat(db)
-    it, act, dem, tra, buf = _dung(f)
+    it, act, dem, tra, mac_dinh = _dung(f)
     for r in it:
         mine = [a for a in act if a["ma_do"] == r["ma_do"]]
         dang = next((a for a in mine if a["trang_thai"] == "dang_thue"), None)
         r["ten_do"] = f"{r['ma_do']}--{r['mau_sac']}" if r["mau_sac"] else r["ma_do"]
         r["so_lan_thue"] = int(dem.get(r["ma_do"], 0))
+        r["ngay_giat_hl"] = mac_dinh if r["ngay_giat"] is None else int(r["ngay_giat"])
         r["lich"] = [{"key": a["key"], "trang_thai": a["trang_thai"], "tu": a["ngay_thue"], "den": a["ngay_tra_du_kien"], "khach": a["khach"]} for a in mine]
         r["hien_tai"] = (dang or (mine[0] if mine else {})).get("key", "")
         r["san_lai"] = ""
@@ -1269,9 +1287,9 @@ def ds_do() -> List[dict]:
             r["tinh_trang"] = "qua_han" if dang["ngay_tra_du_kien"] < hn else "dang_thue"
         elif mine:
             r["tinh_trang"] = "giu_cho"
-        elif r["ma_do"] in tra and _cong_ngay(tra[r["ma_do"]], buf) > hn:
+        elif r["ma_do"] in tra and _cong_ngay(tra[r["ma_do"]], r["ngay_giat_hl"]) > hn:
             r["tinh_trang"] = "dang_giat"
-            r["san_lai"] = _cong_ngay(tra[r["ma_do"]], buf)
+            r["san_lai"] = _cong_ngay(tra[r["ma_do"]], r["ngay_giat_hl"])
         else:
             r["tinh_trang"] = "san_sang"
     return it
@@ -1287,19 +1305,21 @@ def luu_do(data: dict) -> dict:
     nhom = _s(data.get("nhom"), 100) or (dv["goi"] if dv else "")
     gia = tien(data.get("don_gia", 0))
     ap = 0 if data.get("ap_dung") in (0, "0", False, "false") else 1
+    ngay_giat = _ngay_giat_nhap(data.get("ngay_giat"))
     vals = (ma_dv, _s(data.get("pb"), 80), ma, nhom, _s(data.get("co"), 20), _s(data.get("mau_sac"), 40),
-            _s(data.get("mo_ta"), 300), _s(data.get("hinh"), 400), gia, ap)
+            _s(data.get("mo_ta"), 300), _s(data.get("hinh"), 400), gia, ap, ngay_giat)
 
     def f(db):
         if did:
             cu = db.execute("SELECT ma_do FROM so_do WHERE id=?", (did,)).fetchone()
             if cu and cu["ma_do"] != ma and db.execute("SELECT 1 FROM so_thue_do WHERE ma_do=?", (cu["ma_do"],)).fetchone():
                 raise ValueError("Đồ đã có lịch sử thuê nên không đổi mã được; tạo đồ mới và tạm ngưng đồ cũ")
-            db.execute("UPDATE so_do SET ma_dv=?, pb=?, ma_do=?, nhom=?, co=?, mau_sac=?, mo_ta=?, hinh=?, don_gia=?, ap_dung=? WHERE id=?", vals + (did,))
+            db.execute("UPDATE so_do SET ma_dv=?, pb=?, ma_do=?, nhom=?, co=?, mau_sac=?, mo_ta=?, hinh=?, don_gia=?, ap_dung=?, ngay_giat=? WHERE id=?",
+                       vals + (did,))
             db.commit()
             return did
-        cur = db.execute("INSERT INTO so_do(ma_dv, pb, ma_do, nhom, co, mau_sac, mo_ta, hinh, don_gia, ap_dung, la_mau, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,?)",
-                         vals + (time.time(),))
+        cur = db.execute("INSERT INTO so_do(ma_dv, pb, ma_do, nhom, co, mau_sac, mo_ta, hinh, don_gia, ap_dung, ngay_giat, la_mau, created_at)"
+                         " VALUES(?,?,?,?,?,?,?,?,?,?,?,0,?)", vals + (time.time(),))
         db.commit()
         return int(cur.lastrowid)
     try:
@@ -1362,7 +1382,7 @@ def _su_kien_thue_do(sk: dict, by: str, chat_id: str, by_info: dict) -> dict:
     key = uuid.uuid4().hex[:8]
 
     def f(db):
-        buf = _ngay_giat(db)
+        buf = _ngay_giat_do(db, it["ma_do"])
         dung = []
         for v in _rows(db.execute("SELECT * FROM so_thue_do WHERE ma_do=? AND trang_thai IN ('giu_cho','dang_thue','da_tra')",
                                   (it["ma_do"],)).fetchall()):
