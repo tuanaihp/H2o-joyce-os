@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.37] - 2026-10-27
+### Thêm
+- **Quản lý Shop ghi sổ thật, do agent từng phòng làm** (đang làm): báo một câu trong chat, Joyce tách thành hợp đồng, thu, chi rồi giao đúng phòng Sales, Thu, Chi, Đối Soát, Nhân Sự.
+
 ## [1.3.36] - 2026-10-27
 ### Thêm
 - **Nút "Nạp dữ liệu mẫu" trong CRM vận hành** (chủ và quản lý, khi phòng đang chưa có khách): tạo 4 khách mẫu kèm cơ hội và việc để xem giao diện có dữ liệu. Khách mẫu mang nguồn "Dữ liệu mẫu"; nút "Xóa dữ liệu mẫu" dọn sạch chúng, khách thật không bị đụng.

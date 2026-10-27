@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.37] - 2026-10-27
+### Added
+- **Shop Manager keeps a real ledger, written by each department's agent** (in progress): say one sentence in chat and Joyce splits it into contract, income and expense, then hands each to the right department.
+
 ## [1.3.36] - 2026-10-27
 ### Added
 - **"Load sample data" button in the Operations CRM** (owner and managers, while the department has no customers): creates 4 sample customers with deals and tasks so you can see the page with data. Sample customers carry the source "Dữ liệu mẫu"; "Clear sample data" removes them and never touches real customers.
