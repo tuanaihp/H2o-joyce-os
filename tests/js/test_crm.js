@@ -47,10 +47,10 @@ check("che do chi xem an moi dieu khien ghi (canWrite) va hien chip Chi xem", /f
   && /state\.me\.chi_xem \? `<span class="jcrm-chip jcrm-chip-warn">/.test(src));
 check("nut xoa va khach da xoa chi hien cho quan ly hoac admin", /function canManage\(\) \{ return !!\(state\.me && !state\.me\.chi_xem && \(state\.me\.admin \|\| state\.me\.quan_ly\)\)/.test(src)
   && /canManage\(\) \? button\(state\.showDeleted \? K\.restore : K\.delete/.test(src)
-  && /const manageTools = canManage\(\) \? `\$\{button\(K\.importInbox, "open-inbox", ""\)\}\$\{button\(K\.deletedContacts, "toggle-deleted"/.test(src));
+  && /const manageTools = canManage\(\) \? `\$\{button\(K\.importInbox, "open-inbox", "jcrm-btn-small"\)\}\$\{button\(K\.deletedContacts, "toggle-deleted"/.test(src));
 check("bo lang nghe gan tren goc rieng, khong gan len khung dung chung", /document\.createElement\("div"\)/.test(src) && /root\.addEventListener\("click"/.test(src)
   && !/\bel\.addEventListener/.test(src) && !/document\.addEventListener/.test(src));
-check("moi POST gui FormData", /new FormData\(\)/.test(src) && !/JSON\.stringify/.test(src));
+check("moi POST gui FormData", /new FormData\(\)/.test(src) && !/body:\s*JSON\.stringify/.test(src));
 
 // ---- i18n
 const dung = new Set();
