@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.32] - 2026-10-27
+### Changed
+- **The Operations CRM uses the new interface**: quick add with AI, a six-field profile Joyce collects (each field can be locked), customers assigned to several departments, pick each proposed field before approving, manage pipeline stages, and filtered to-dos.
+- Read-only users no longer see edit buttons; clear messages when you lack permission or the server has not loaded CRM yet.
+
 ## [1.3.31] - 2026-10-27
 ### Changed
 - **The Operations CRM now follows the HTML design closely**: stat cards with icons and a caption (bought, deals, win rate, overdue), a pill tab bar with counts, a left column with the always-open Quick add with AI box (plus Add manually), search and a contact list showing closed revenue, and a right column with the profile that opens the first customer. Colors still follow Joyce's light or dark theme.

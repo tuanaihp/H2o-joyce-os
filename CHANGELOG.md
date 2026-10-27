@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.32] - 2026-10-27
+### Đổi
+- **CRM vận hành dùng bộ giao diện mới**: thêm nhanh khách bằng AI, hồ sơ 6 mục Joyce tự thu thập (có khoá từng mục), giao khách cho nhiều phòng, chọn từng mục đề xuất trước khi duyệt, quản lý giai đoạn pipeline và việc cần làm có bộ lọc.
+- Người chỉ được xem không còn thấy nút sửa; báo lỗi rõ khi không có quyền hoặc máy chủ chưa nạp CRM.
+
 ## [1.3.31] - 2026-10-27
 ### Đổi
 - **CRM vận hành bám sát bản thiết kế HTML**: thẻ số liệu có icon và dòng phụ (đã mua hàng, số cơ hội, tỉ lệ thắng, trễ hạn), thanh tab dạng viên kèm số đếm, cột trái gồm khung Thêm nhanh bằng AI (luôn mở, có nút Nhập tay), ô tìm và danh sách khách kèm số tiền đã chốt, cột phải là hồ sơ và tự mở khách đầu tiên. Màu vẫn theo giao diện sáng hoặc tối của Joyce.
