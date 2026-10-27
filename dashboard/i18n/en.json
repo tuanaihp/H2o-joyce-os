@@ -6696,5 +6696,11 @@
   "crm.no_dept": "None of your departments has CRM switched on. Ask an admin to open it.",
   "crm.need_restart": "The Joyce server has not loaded the CRM. Restart Joyce, then reload the page (Ctrl+F5).",
   "crm.guide_title": "How to use the CRM (1 minute)",
-  "crm.guide_body": "Contacts stores customers and profiles. Pipeline tracks deals by each department's stages (use + and - to add or remove stages). Tasks remind you of follow-ups and land on the Work board when done. Proposals is where you approve what Joyce read from conversations. Segments groups customers who need attention."
+  "crm.guide_body": "Contacts stores customers and profiles. Pipeline tracks deals by each department's stages (use + and - to add or remove stages). Tasks remind you of follow-ups and land on the Work board when done. Proposals is where you approve what Joyce read from conversations. Segments groups customers who need attention.",
+  "crm.win_sub": "win rate {n}%",
+  "crm.kpi_bought": "{n} bought",
+  "crm.kpi_deals": "{n} deals",
+  "crm.kpi_late_sub": "{n} overdue",
+  "crm.add_manual": "Add manually",
+  "crm.win_none": "no closed deals yet"
 }

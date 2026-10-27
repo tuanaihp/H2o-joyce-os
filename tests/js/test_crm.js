@@ -45,7 +45,8 @@ check("form nhan vien co o chon quyen CRM (khong / chi xem / day du) va gui quye
 check("nhan vien chi xem cung thay muc CRM", /quyen\.indexOf\("crm_xem"\) >= 0/.test(con));
 check("che do chi xem khoa moi dieu khien ghi", /function khoaGhi\(\)/.test(src) && /S\.me\.chi_xem\) khoaGhi\(\)/.test(src));
 check("nut xoa va khach da xoa chi hien cho quan ly hoac admin", /S\.me\.admin \|\| S\.me\.quan_ly\) \? '<button class="crm-btn dng" data-a="delete"/.test(src)
-  && /S\.me\.admin \|\| S\.me\.quan_ly\) \? '<button class="crm-btn" data-a="trash"/.test(src));
+  && /var quanLy = S\.me\.admin \|\| S\.me\.quan_ly;/.test(src)
+  && /quanLy \? '<div class="crm-bar"><button class="crm-btn" data-a="inbox">[\s\S]{0,160}data-a="trash"/.test(src));
 check("bo lang nghe gan tren goc rieng, khong gan len khung dung chung", /document\.createElement\("div"\)/.test(src) && /el\.addEventListener\("click"/.test(src)
   && !/host\.addEventListener/.test(src));
 

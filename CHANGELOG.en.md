@@ -2,6 +2,13 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.31] - 2026-10-27
+### Changed
+- **The Operations CRM now follows the HTML design closely**: stat cards with icons and a caption (bought, deals, win rate, overdue), a pill tab bar with counts, a left column with the always-open Quick add with AI box (plus Add manually), search and a contact list showing closed revenue, and a right column with the profile that opens the first customer. Colors still follow Joyce's light or dark theme.
+### Fixed
+- With "All departments" selected, the open-deals and won cards no longer show 0; they add up the departments you can see.
+- Side menu: the Capabilities group is no longer cut off on phones; Research, Career path, Partners, Teams, Chatbot and CRM now sit under Business operations.
+
 ## [1.3.30] - 2026-10-27
 ### Fixed
 - **The Operations CRM now says so when the server has not loaded it** (before it showed a blank page with "Not Found"): restart Joyce after updating. The "Quick add with AI" box is open by default and a one-minute guide sits above Contacts, as designed.

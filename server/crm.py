@@ -390,6 +390,26 @@ def danh_sach_lien_he(allowed: Optional[set], brain: str = "", q: str = "", tag:
     return out[o:o + max(1, min(int(limit or 200), 1000))]
 
 
+def tong_da_chot(ids: list, allowed: Optional[set]) -> dict:
+    """{contact_id: tổng giá trị cơ hội đã chốt} cho cột bên phải danh bạ. Chỉ cộng phòng người xem được thấy."""
+    ids = [int(i) for i in ids]
+    if not ids:
+        return {}
+    rows = _dung(lambda db: db.execute(
+        "SELECT contact_id, brain, stage, value FROM crm_deals WHERE contact_id IN (%s)" % ",".join("?" * len(ids)), ids).fetchall())
+    thang = {}
+    out = {}
+    for r in rows:
+        b = r["brain"]
+        if allowed is not None and b not in allowed:
+            continue
+        if b not in thang:
+            thang[b] = {g["key"] for g in giai_doan(b) if g["kind"] == "won"}
+        if r["stage"] in thang[b]:
+            out[r["contact_id"]] = out.get(r["contact_id"], 0) + (r["value"] or 0)
+    return out
+
+
 def _su_kien(db, cid: int, kind: str, text: str, by: str, brain: str = "") -> None:
     db.execute("INSERT INTO crm_events(contact_id, brain, kind, text, by, created_at) VALUES(?,?,?,?,?,?)",
                (int(cid), brain, kind, _s(text, 600), _s(by, 60), _now()))
@@ -1064,13 +1084,33 @@ def phan_khuc(brain: str, allowed: Optional[set]) -> List[dict]:
 
 def tong_quan(brain: str, allowed: Optional[set]) -> dict:
     lh = danh_sach_lien_he(allowed, brain=brain, limit=1000)
-    pl = pipeline(brain, allowed) if brain else {}
+    # Chọn một phòng thì tính phòng đó; "Tất cả phòng" cộng dồn các phòng đang có cơ hội mà người xem được thấy.
+    if brain:
+        brains = [brain]
+    else:
+        co = _dung(lambda db: [r[0] for r in db.execute("SELECT DISTINCT brain FROM crm_deals").fetchall()])
+        brains = sorted(b for b in co if allowed is None or b in allowed)
+    dang_theo = da_chot = so_mo = thang = dong = 0
+    mua = set()
+    for b in brains:
+        pl = pipeline(b, allowed)
+        dang_theo += pl["dang_theo"]
+        da_chot += pl["da_chot"]
+        for g in pl["stages"]:
+            if g["kind"] == "open":
+                so_mo += g["count"]
+            elif g["kind"] == "won":
+                thang += g["count"]
+                dong += g["count"]
+                mua.update(d["contact_id"] for d in g["deals"])
+            else:
+                dong += g["count"]
     viec = danh_sach_viec(allowed, brain=brain)
     return {"lien_he": len(lh), "viec_mo": len(viec), "viec_tre": sum(1 for t in viec if t["tre_han"]),
             "viec_hom_nay": sum(1 for t in viec if t["hom_nay"]),
             "de_xuat": len(danh_sach_de_xuat(allowed, brain)),
-            "dang_theo": pl.get("dang_theo", 0), "da_chot": pl.get("da_chot", 0),
-            "ti_le_thang": pl.get("ti_le_thang")}
+            "dang_theo": dang_theo, "da_chot": da_chot, "so_co_hoi": so_mo, "da_mua": len(mua),
+            "ti_le_thang": round(thang / dong, 3) if dong else None}
 
 
 # ------------------------------------------------------------------ HTTP
@@ -1162,8 +1202,11 @@ async def crm_list(request: Request, brain: str = Query(""), q: str = Query(""),
                    limit: int = Query(200), offset: int = Query(0), da_xoa: int = Query(0)):
     _, allowed, _ql = _nguoi(request)
     b = _brain_hop_le(brain, allowed, request) if brain else ""
-    return {"ok": True, "items": danh_sach_lien_he(allowed, brain=b, q=q, tag=tag, limit=limit,
-                                                   offset=offset, da_xoa=bool(da_xoa))}
+    items = danh_sach_lien_he(allowed, brain=b, q=q, tag=tag, limit=limit, offset=offset, da_xoa=bool(da_xoa))
+    chot = tong_da_chot([c["id"] for c in items], allowed)
+    for c in items:
+        c["da_chot"] = chot.get(c["id"], 0)
+    return {"ok": True, "items": items}
 
 
 @router.get("/crm/lien-he/{cid}")

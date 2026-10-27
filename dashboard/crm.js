@@ -75,6 +75,13 @@
     });
   }
 
+  function dinhDangTienRutGon(n) {
+      n = Number(n) || 0;
+      if (n >= 1000000) return String(Math.round(n / 100000) / 10).replace(".", ",") + " tr";
+      if (n >= 1000) return Math.round(n / 1000) + "k";
+    return String(n);
+  }
+
   function chuCaiDau(ten) {
     var t = String(ten || "").trim();
     if (!t) return "?";
@@ -119,21 +126,30 @@
       ".crm-ta{resize:vertical;min-height:70px}",
       ".crm-in:focus,.crm-ta:focus,.crm-sel:focus{outline:none;border-color:var(--accent)}",
       ".crm-mode{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)}",
-      ".crm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}",
-      ".crm-kpi{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:8px 12px}",
+      ".crm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}",
+      ".crm-kpi{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:16px;background:var(--card);padding:14px 16px}",
+      ".crm-kpi-ic{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--accent);background:color-mix(in srgb,currentColor 16%,transparent)}",
+      ".crm-kpi-ic svg{width:20px;height:20px}",
+      ".k-open .crm-kpi-ic{color:var(--info)}.k-todo .crm-kpi-ic{color:var(--warn-ink)}.k-ct .crm-kpi-ic{color:var(--green)}",
+      ".crm-kpi-tx{min-width:0;display:flex;flex-direction:column;gap:2px}",
       ".crm-kpi small{display:block;color:var(--text3);font-size:12px}",
-      ".crm-kpi b{font-size:18px}",
-      ".crm-kpi.warn b{color:var(--danger-ink)}",
-      ".crm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}",
-      ".crm-tab{border:0;background:transparent;color:var(--text2);padding:8px 12px;font:inherit;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}",
-      ".crm-tab.on{color:var(--text);border-bottom-color:var(--accent)}",
+      ".crm-kpi b{font-size:22px;line-height:1.15}",
+      ".crm-kpi em{font-style:normal;color:var(--text3);font-size:11px}",
+      ".crm-kpi.warn em{color:var(--danger-ink)}",
+      ".crm-tabs{display:flex;gap:4px;padding:5px;border-radius:14px;background:var(--wash);border:1px solid var(--line);overflow-x:auto}",
+      ".crm-tab{border:0;background:transparent;color:var(--text2);padding:8px 14px;border-radius:10px;font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}",
+      ".crm-tab.on{background:var(--card);color:var(--text);font-weight:700;box-shadow:0 1px 3px color-mix(in srgb,var(--text) 14%,transparent)}",
+      ".crm-tab i{font-style:normal;margin-left:6px;color:var(--text3);font-weight:400;font-size:13px}",
       ".crm-badge{display:inline-block;min-width:18px;text-align:center;margin-left:4px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:11px}",
       ".crm-body{flex:1;min-height:0;overflow:auto}",
-      ".crm-split{display:grid;grid-template-columns:minmax(240px,340px) 1fr;gap:12px;align-items:start}",
+      ".crm-split{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}",
+      ".crm-guide{cursor:pointer;color:var(--green);font-size:13px}",
       ".crm-list{display:flex;flex-direction:column;gap:6px}",
       ".crm-row{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--card);cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}",
       ".crm-row.on,.crm-row:hover{border-color:var(--accent)}",
-      ".crm-av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--wash);color:var(--text2);display:grid;place-items:center;font-size:13px;font-weight:600}",
+      ".crm-row.on{background:var(--accent-wash)}",
+      ".crm-av{flex:none;width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:13px;font-weight:700}",
+      ".crm-val{flex:none;color:var(--text2);font-size:14px}",
       ".crm-rt{min-width:0;flex:1}",
       ".crm-rt b,.crm-rt small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
       ".crm-rt small{color:var(--text3);font-size:12px}",
@@ -157,7 +173,7 @@
       ".crm-muted{color:var(--text3);font-size:13px}",
       ".crm-pipe{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,1fr);gap:10px;overflow-x:auto;padding-bottom:6px}",
       ".crm-col{border:1px solid var(--line);border-radius:14px;background:var(--wash);padding:8px;display:flex;flex-direction:column;gap:8px;min-height:120px}",
-      ".crm-col h4{margin:0;font-size:13px;display:flex;align-items:center;gap:6px}",
+      ".crm-col h4{margin:0;font-size:12px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:6px}",
       ".crm-col h4 span{margin-left:auto;color:var(--text3);font-weight:400}",
       ".crm-col.won h4{color:var(--accent)}",
       ".crm-col.lost h4{color:var(--text3)}",
@@ -174,7 +190,7 @@
       ".crm-back{display:none}",
       ".crm-seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}",
       ".crm-prop label{display:flex;gap:8px;align-items:flex-start;font-size:13px}",
-      "@media (max-width:820px){.crm-split{grid-template-columns:1fr}.crm.det .crm-lst{display:none}.crm:not(.det) .crm-det{display:none}.crm-back{display:inline-block}.crm-grid2{grid-template-columns:1fr}}"
+      "@media (max-width:820px){.crm-split{grid-template-columns:1fr}.crm.det .crm-lst{display:none}.crm:not(.det) .crm-det{display:none}.crm-back{display:inline-block}.crm-grid2{grid-template-columns:1fr}.crm-kpis{grid-template-columns:1fr 1fr;gap:8px}.crm-kpi{padding:10px;gap:8px}.crm-kpi-ic{width:34px;height:34px}.crm-kpi b{font-size:18px}.crm-mode{margin-left:0;flex-wrap:wrap}.crm-mode>span:not(:first-child){white-space:nowrap}}"
     ].join("\n");
     document.head.appendChild(s);
   }
@@ -207,6 +223,8 @@
         if (S.tab === "contacts" && S.sel) tac.push(moChiTiet(S.sel, true));
         if (S.tab === "pipeline" || S.tab === "todos") tac.push(api("GET", "/crm/lien-he?brain=" + b + "&limit=500").then(function (r) { S.ds = r.items; }));
         await Promise.all(tac);
+        if (S.tab === "contacts" && !S.sel && !S.daXoa && S.ds && S.ds.length && typeof window !== "undefined"
+            && window.matchMedia && window.matchMedia("(min-width:821px)").matches) await moChiTiet(S.ds[0].id, true);
         S.loi = "";
       } catch (e) {
         S.loi = e.status === 403 ? tw("crm.no_access") : (e.status === 404 ? tw("crm.need_restart") : (e.message || tw("crm.err_load")));
@@ -252,23 +270,24 @@
         + (coQuyen && S.me.che_do !== "off" ? "<span>" + esc(tw("crm.thr_pre")) + '</span><input class="crm-sel" type="number" min="2" max="100" style="width:64px" data-a="nguong" value="' + esc(S.me.nguong) + '"><span>' + esc(tw("crm.thr_post")) + "</span>" : "")
         + "</div>";
       var q = S.tq || {};
+      var tl = q.ti_le_thang == null ? tw("crm.win_none") : tw("crm.win_sub", { n: Math.round(q.ti_le_thang * 100) });
       var kp = [
-        [tw("crm.kpi_contacts"), q.lien_he || 0, ""],
-        [tw("crm.kpi_open"), dinhDangTien(q.dang_theo), ""],
-        [tw("crm.kpi_won"), dinhDangTien(q.da_chot), ""],
-        [tw("crm.kpi_todo"), q.viec_mo || 0, q.viec_tre ? "warn" : ""],
-        [tw("crm.kpi_late"), q.viec_tre || 0, q.viec_tre ? "warn" : ""]
+        ["users", "k-ct", tw("crm.kpi_contacts"), q.lien_he || 0, tw("crm.kpi_bought", { n: q.da_mua || 0 }), ""],
+        ["target", "k-open", tw("crm.kpi_open"), dinhDangTien(q.dang_theo), tw("crm.kpi_deals", { n: q.so_co_hoi || 0 }), ""],
+        ["heart-handshake", "k-won", tw("crm.kpi_won"), dinhDangTien(q.da_chot), tl, ""],
+        ["circle-check", "k-todo", tw("crm.kpi_todo"), q.viec_mo || 0, tw("crm.kpi_late_sub", { n: q.viec_tre || 0 }), q.viec_tre ? "warn" : ""]
       ];
+      var dem = { contacts: q.lien_he || 0, pipeline: q.so_co_hoi || 0, todos: q.viec_mo || 0, proposals: q.de_xuat || 0, segments: 0 };
       var tabs = TABS.map(function (t) {
-        var n = t === "proposals" ? (q.de_xuat || 0) : (t === "todos" ? (q.viec_mo || 0) : 0);
         return '<button class="crm-tab' + (S.tab === t ? " on" : "") + '" data-a="tab" data-v="' + t + '">' + esc(tw(K_TAB[t]))
-          + (n ? '<span class="crm-badge">' + n + "</span>" : "") + "</button>";
+          + (dem[t] ? "<i>" + dem[t] + "</i>" : "") + "</button>";
       }).join("");
       var bat = banPhong ? '<label class="crm-muted"><input type="checkbox" data-a="phong-bat"' + (banPhong.bat ? " checked" : "") + "> " + esc(tw("crm.dept_on")) + "</label>" : "";
       var ro = S.me.chi_xem ? '<span class="crm-chip">' + esc(tw("crm.read_only")) + "</span>" : "";
       return '<div class="crm-top">' + chon + bat + ro + che + "</div>"
         + '<div class="crm-kpis">' + kp.map(function (k) {
-          return '<div class="crm-kpi ' + k[2] + '"><small>' + esc(k[0]) + "</small><b>" + esc(k[1]) + "</b></div>";
+          return '<div class="crm-kpi ' + k[1] + " " + k[5] + '"><span class="crm-kpi-ic">' + ic(k[0]) + '</span><span class="crm-kpi-tx"><small>' + esc(k[2])
+            + "</small><b>" + esc(k[3]) + "</b><em>" + esc(k[4]) + "</em></span></div>";
         }).join("") + "</div>"
         + '<div class="crm-tabs">' + tabs + "</div>"
         + (S.loi ? '<div class="crm-err">' + esc(S.loi) + "</div>" : "")
@@ -296,6 +315,7 @@
       return '<div class="crm-card"><h3>' + esc(tw("crm.quick_title")) + "</h3>"
         + '<textarea class="crm-ta" data-r="quick" placeholder="' + esc(tw("crm.quick_ph")) + '"></textarea>'
         + '<div class="crm-bar"><button class="crm-btn pri" data-a="quick">' + esc(tw("crm.quick_go")) + "</button>"
+        + (S.me.chi_xem ? "" : '<button class="crm-btn" data-a="add">' + esc(tw("crm.add_manual")) + "</button>")
         + '<span class="crm-muted">' + esc(tw("crm.quick_hint")) + "</span></div>"
         + (n ? (Object.keys(n).length
           ? '<div class="crm-ok">' + esc(tw("crm.quick_found")) + "</div>" + formKhach({ name: n.name, phone: n.phone, email: n.email, company: n.company,
@@ -309,16 +329,17 @@
           + '<button class="crm-btn" data-a="restore" data-id="' + c.id + '">' + esc(tw("crm.restore")) + "</button></div>";
       }).join("") : '<div class="crm-muted">' + esc(tw("crm.trash_empty")) + "</div>") : S.ds.length ? S.ds.map(function (c) {
         return '<button class="crm-row' + (c.id === S.sel ? " on" : "") + '" data-a="open" data-id="' + c.id + '"><span class="crm-av">' + esc(chuCaiDau(c.name || c.phone))
-          + '</span><span class="crm-rt"><b>' + esc(c.name || c.phone || ("#" + c.id)) + "</b><small>" + esc([c.company, c.phone].filter(Boolean).join(" | ")) + "</small></span></button>";
+          + '</span><span class="crm-rt"><b>' + esc(c.name || c.phone || ("#" + c.id)) + "</b><small>" + esc([c.company, c.phone].filter(Boolean).join(" | ")) + "</small></span>" + (c.da_chot ? '<span class="crm-val">' + esc(dinhDangTienRutGon(c.da_chot)) + "</span>" : "") + "</button>";
       }).join("") : '<div class="crm-muted">' + esc(tw("crm.empty_contacts")) + "</div>";
+      // Bố cục theo bản HTML thiết kế: cột trái = khung Thêm nhanh bằng AI, ô tìm, danh sách; cột phải = hồ sơ.
+      var quanLy = S.me.admin || S.me.quan_ly;
       var trai = '<div class="crm-lst"><div class="crm-list">'
-        + '<div class="crm-bar"><input class="crm-in" data-r="search" placeholder="' + esc(tw("crm.search_ph")) + '" value="' + esc(S.q) + '" style="flex:1">'
-        + '<button class="crm-btn pri" data-a="add" title="' + esc(tw("crm.add_contact")) + '">+</button></div>'
-        + '<div class="crm-bar"><button class="crm-btn" data-a="quick-toggle">' + esc(tw("crm.quick_title")) + "</button>"
-        + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="inbox">' + esc(tw("crm.from_inbox")) + "</button>" : "")
-        + ((S.me.admin || S.me.quan_ly) ? '<button class="crm-btn" data-a="trash">' + esc(S.daXoa ? tw("crm.trash_back") : tw("crm.trash")) + "</button>" : "") + "</div>"
-        + (S.hienNhanh ? khungNhanh() : "") + (S.hopThu ? khungHopThu() : "") + (S.hienThem ? formKhach() : "") + dsHtml + "</div></div>";
-      var guide = '<details class="crm-card" style="margin-bottom:10px"><summary style="cursor:pointer">' + esc(tw("crm.guide_title")) + "</summary><p class=\"crm-muted\">" + esc(tw("crm.guide_body")) + "</p></details>";
+        + (S.me.chi_xem ? "" : khungNhanh()) + (S.hopThu ? khungHopThu() : "") + (S.hienThem ? formKhach() : "")
+        + '<input class="crm-in" data-r="search" placeholder="' + esc(tw("crm.search_ph")) + '" value="' + esc(S.q) + '">'
+        + (quanLy ? '<div class="crm-bar"><button class="crm-btn" data-a="inbox">' + esc(tw("crm.from_inbox")) + "</button>"
+          + '<button class="crm-btn" data-a="trash">' + esc(S.daXoa ? tw("crm.trash_back") : tw("crm.trash")) + "</button></div>" : "")
+        + dsHtml + "</div></div>";
+      var guide = '<details class="crm-card" style="margin-bottom:10px"><summary class="crm-guide">' + esc(tw("crm.guide_title")) + "</summary><p class=\"crm-muted\">" + esc(tw("crm.guide_body")) + "</p></details>";
       return guide + '<div class="crm-split">' + trai + '<div class="crm-det">' + (S.chiTiet ? chiTiet(S.chiTiet) : '<div class="crm-muted">' + esc(tw("crm.pick_contact")) + "</div>") + "</div></div>";
     }
 
