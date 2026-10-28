@@ -308,8 +308,8 @@
       '<filter id="bc-ring" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
       '<radialGradient id="bc-amb" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="' + P.gold + '" stop-opacity="0.09"/><stop offset="100%" stop-color="' + P.gold + '" stop-opacity="0"/></radialGradient>';
     var pcbG = mk('g', {}), ringsG = mk('g', {}), fillG = mk('g', {}), meshG = mk('g', {}), spokesG = mk('g', {}),
-        pulsesG = mk('g', {}), nodesG = mk('g', {}), coreG = mk('g', {});
-    this.svg.append(defs, pcbG, ringsG, fillG, meshG, spokesG, pulsesG, nodesG, coreG);
+        flowG = mk('g', {}), pulsesG = mk('g', {}), nodesG = mk('g', {}), coreG = mk('g', {});
+    this.svg.append(defs, pcbG, ringsG, fillG, meshG, spokesG, flowG, pulsesG, nodesG, coreG);
     if (!this.light) [pcbG, meshG, spokesG].forEach(function (g) { g.setAttribute('filter', 'url(#bc-line)'); });
     this.pulsesG = pulsesG;
     var seed = 11, rnd = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
@@ -318,12 +318,37 @@
     [RING + 34, RING + 86, RING + 150].forEach(function (r) {
       ringsG.append(mk('circle', { cx: AX, cy: AY, r: r, fill: 'none', stroke: P.ring, opacity: 0.32, 'stroke-width': 1, 'stroke-dasharray': '1 7' }));
     });
-    if (!narrow) [-1, 1].forEach(function (side) {
+    // Đường sức mềm: từ vầng lõi uốn chữ S ra hai mép, mờ dần như tín hiệu từ trường lan trong không gian
+    // (thay cho nét ngang dọc kiểu mạch in cũ). Hạt sáng trôi dọc đường nhờ CSS .bc-flow.
+    var gradOf = function (id, x1, y1, x2, y2, c, a1, a2) {
+      var g = mk('linearGradient', { id: id, gradientUnits: 'userSpaceOnUse', x1: x1.toFixed(1), y1: y1.toFixed(1), x2: x2.toFixed(1), y2: y2.toFixed(1) });
+      g.append(mk('stop', { offset: '0', 'stop-color': c, 'stop-opacity': a1 }), mk('stop', { offset: '1', 'stop-color': c, 'stop-opacity': a2 }));
+      defs.append(g);
+    };
+    var flowOf = function (d, color, op, dur, delay) {
+      var p = mk('path', { d: d, fill: 'none', stroke: color, 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-dasharray': '1.2 16.8', opacity: op, 'class': 'bc-flow' });
+      p.style.animationDuration = dur.toFixed(2) + 's'; p.style.animationDelay = '-' + delay.toFixed(2) + 's';
+      flowG.append(p);
+    };
+    var arcOf = function (x1, y1, x2, y2, k) {                       // cung cong nhẹ thay cho đoạn thẳng
+      var ddx = x2 - x1, ddy = y2 - y1;
+      return 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Q' + ((x1 + x2) / 2 - ddy * k).toFixed(1) + ' ' + ((y1 + y2) / 2 + ddx * k).toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1);
+    };
+    this.arcOf = arcOf;
+    if (!narrow) [-1, 1].forEach(function (side, si) {
       for (var i = 0; i < 5; i++) {
         var y = AY + (i - 2) * 58 + (rnd() * 16 - 8), sx = AX + side * (RING + 60 + rnd() * 30);
-        var mx = side < 0 ? (40 + rnd() * 56) : (584 + rnd() * 56), y2 = y + (rnd() * 30 - 15), jx = side < 0 ? (10 + rnd() * 18) : (652 + rnd() * 18);
-        pcbG.append(mk('path', { d: 'M' + sx + ' ' + y + ' H' + mx + ' V' + y2 + ' H' + jx, fill: 'none', stroke: P.pcb, opacity: 0.42, 'stroke-width': 1 }));
-        pcbG.append(mk('circle', { cx: jx, cy: y2, r: 2.4, fill: P.pcbDot, opacity: 0.8 }));
+        var ex = side < 0 ? (8 + rnd() * 44) : (628 + rnd() * 44), ey = y + (rnd() * 130 - 65);
+        var span = Math.abs(ex - sx), w1 = (0.35 + rnd() * 0.5) * (rnd() < 0.5 ? -1 : 1) * 80;
+        var d = 'M' + sx.toFixed(1) + ' ' + y.toFixed(1) + ' C' + (sx + side * span * 0.4).toFixed(1) + ' ' + (y + w1).toFixed(1) + ' ' +
+          (ex - side * span * 0.36).toFixed(1) + ' ' + (ey - w1 * 0.85).toFixed(1) + ' ' + ex.toFixed(1) + ' ' + ey.toFixed(1);
+        var gid = 'bc-bg' + si + i;
+        gradOf(gid, sx, y, ex, ey, P.pcbDot, 0.55, 0.03);
+        pcbG.append(mk('path', { d: d, fill: 'none', stroke: 'url(#' + gid + ')', opacity: 0.8, 'stroke-width': 1 }));
+        flowOf(d, P.moteHot, 0.38, 5 + rnd() * 3, rnd() * 6);
+        var jm = mk('circle', { cx: ex, cy: ey, r: 1.6, fill: P.pcbDot, filter: 'url(#bc-glow)', 'class': 'bc-twinkle' });
+        jm.style.animationDelay = (rnd() * 4).toFixed(2) + 's';
+        pcbG.append(jm);
       }
     });
     var fill = [];
@@ -331,7 +356,7 @@
     fill.forEach(function (f) {
       var near = null, nd = 1e9;
       fill.forEach(function (g) { if (g !== f) { var d = Math.hypot(g.x - f.x, g.y - f.y); if (d < nd) { nd = d; near = g; } } });
-      if (near && nd < 110) meshG.append(mk('line', { x1: f.x, y1: f.y, x2: near.x, y2: near.y, stroke: P.fieldMesh, 'stroke-width': 1, opacity: 0.4 }));
+      if (near && nd < 110) meshG.append(mk('path', { d: arcOf(f.x, f.y, near.x, near.y, (rnd() < 0.5 ? -1 : 1) * (0.14 + rnd() * 0.12)), fill: 'none', stroke: P.fieldMesh, 'stroke-width': 1, opacity: 0.4 }));
       var c = mk('circle', { cx: f.x, cy: f.y, r: 1.1, fill: P.fieldDot, 'class': 'bc-twinkle' });
       c.style.animationDelay = (rnd() * 4).toFixed(2) + 's';
       fillG.append(c);
@@ -343,18 +368,42 @@
     pts.forEach(function (n) {
       var o = pts.filter(function (m) { return m !== n; }).map(function (m) { return { m: m, d: Math.hypot(m.x - n.x, m.y - n.y) }; })
         .sort(function (a, b) { return a.d - b.d; })[0];
-      if (o && n.id < o.m.id && o.d < 150) meshG.append(mk('line', { x1: n.x, y1: n.y, x2: o.m.x, y2: o.m.y, stroke: P.mesh, 'stroke-width': 1, opacity: 0.45 }));
+      if (o && n.id < o.m.id && o.d < 150) meshG.append(mk('path', { d: arcOf(n.x, n.y, o.m.x, o.m.y, (strHash(n.id) % 2 ? 1 : -1) * 0.2), fill: 'none', stroke: P.mesh, 'stroke-width': 1, opacity: 0.45 }));
     });
     var nav = this.nav; nav.replaceChildren(); nav.setAttribute('aria-label', tt('tv.nav_aria'));
-    pts.forEach(function (n) {
+    pts.forEach(function (n, ni) {
       n.col = P.col[n.layer];
       var dx = n.x - AX, dy = n.y - AY, l = Math.hypot(dx, dy) || 1;
       // Dây mọc từ MÉP vòng vàng chứ không từ tâm: tâm là quả cầu, vẽ dây xuyên qua là bẩn hình.
-      var sx0 = AX + dx / l * (RING + 5), sy0 = AY + dy / l * (RING + 5), mx = (sx0 + n.x) / 2, my = (sy0 + n.y) / 2;
-      n.spoke = mk('path', { d: 'M' + sx0.toFixed(1) + ' ' + sy0.toFixed(1) + ' Q' + (mx + (-dy / l) * n.bend) + ' ' + (my + (dx / l) * n.bend) + ' ' + n.x + ' ' + n.y,
-                             fill: 'none', stroke: P.spoke, 'stroke-width': 1, opacity: n.live ? 0.72 : 0.36 });
-      if (n.layer === 'mcp' && !n.live) n.spoke.setAttribute('stroke-dasharray', '3 4');
+      // Dạng ĐƯỜNG SỨC: một bó 3 sợi uốn chữ S (cubic), cùng đi ra từ vầng lõi và cùng đổ về nút, độ võng khác nhau;
+      // sợi chính (n.spoke) giữ vai trò cũ cho hạt sáng và hover, hai sợi phụ mờ hơn tạo cảm giác từ trường.
+      var sx0 = AX + dx / l * (RING + 5), sy0 = AY + dy / l * (RING + 5);
+      var px = -dy / l, py = dx / l, LL = Math.hypot(n.x - sx0, n.y - sy0) || 1;
+      var kb = clamp(n.bend / 24, -1, 1);
+      if (Math.abs(kb) < 0.3) kb = (strHash(n.id) % 2 ? 0.34 : -0.34);        // không để dây thẳng đuột
+      var ang0 = Math.atan2(dy, dx);
+      var curve = function (sw, spread) {
+        var a = ang0 + spread, ux = Math.cos(a), uy = Math.sin(a), ax = AX + ux * (RING + 5), ay = AY + uy * (RING + 5), s = sw * 0.3 * LL;
+        return 'M' + ax.toFixed(1) + ' ' + ay.toFixed(1) +
+          ' C' + (ax + ux * LL * 0.34 + px * s * 1.15).toFixed(1) + ' ' + (ay + uy * LL * 0.34 + py * s * 1.15).toFixed(1) +
+          ' ' + (n.x - dx / l * LL * 0.3 - px * s * 0.85).toFixed(1) + ' ' + (n.y - dy / l * LL * 0.3 - py * s * 0.85).toFixed(1) +
+          ' ' + n.x.toFixed(1) + ' ' + n.y.toFixed(1);
+      };
+      var sgid = 'bc-sg' + ni;
+      gradOf(sgid, sx0, sy0, n.x, n.y, P.spokeHot, 0.85, 0.2);
+      var g2 = defs.lastChild;                                              // thêm điểm dừng giữa: sáng ở lõi, dịu ở giữa, ấm màu nút ở cuối
+      g2.insertBefore(mk('stop', { offset: '0.5', 'stop-color': P.spoke, 'stop-opacity': 0.55 }), g2.lastChild);
+      g2.lastChild.setAttribute('stop-color', n.col); g2.lastChild.setAttribute('stop-opacity', 0.85);
+      n.spokeStroke = 'url(#' + sgid + ')'; n.spokeW = n.live ? 1.25 : 0.9;
+      n.spoke = mk('path', { d: curve(kb, 0), fill: 'none', stroke: n.spokeStroke, 'stroke-width': n.spokeW, 'stroke-linecap': 'round', opacity: n.live ? 0.85 : 0.4 });
+      n.fibers = [-0.55, 0.62].map(function (m, fi) {
+        var f = mk('path', { d: curve(kb * m, fi ? 0.07 : -0.07), fill: 'none', stroke: n.spokeStroke, 'stroke-width': 0.8, 'stroke-linecap': 'round', opacity: n.live ? 0.4 : 0.18 });
+        spokesG.append(f);
+        return f;
+      });
+      if (n.layer === 'mcp' && !n.live) n.spoke.setAttribute('stroke-dasharray', '3 5');
       spokesG.append(n.spoke);
+      if (n.live) flowOf(n.spoke.getAttribute('d'), P.moteHot, 0.5, 3.2 + (strHash(n.id) % 17) / 6, (strHash(n.id + 'f') % 40) / 8);
       n.haloR = n.r + 1.5; n.phase = (strHash(n.id) % 628) / 100;
       n.halo = mk('circle', { cx: n.x, cy: n.y, r: n.haloR, fill: n.col, filter: 'url(#bc-glow)', opacity: n.live ? 0.32 : 0.18 });
       n.circ = mk('circle', { cx: n.x, cy: n.y, r: n.r, fill: 'none', stroke: n.col, 'stroke-width': n.live ? 2 : 1.3, opacity: n.live ? 1 : 0.6 });
@@ -428,7 +477,7 @@
     var on = !!n;
     this.nodes.forEach(function (m) {
       var dim = on && m !== n;
-      [m.circ, m.halo, m.spoke].forEach(function (e) { if (e) e.style.opacity = dim ? '0.25' : ''; });
+      [m.circ, m.halo, m.spoke].concat(m.fibers || []).forEach(function (e) { if (e) e.style.opacity = dim ? '0.25' : ''; });
     });
   };
 
@@ -519,10 +568,12 @@
 
   // ---------------------------------------------------------------- hoạt cảnh
   C.spawn = function (spoke, faint) {
-    var P = this.pal(), el = this.mk('circle', { r: faint ? 0.9 : 1.5, fill: faint ? P.mote : P.moteHot, filter: 'url(#bc-glow)' });
-    this.pulsesG.append(el);
+    var P = this.pal(), r0 = faint ? 1.1 : 1.7, el = this.mk('circle', { r: r0, fill: faint ? P.mote : P.moteHot, filter: 'url(#bc-glow)' });
+    // đuôi sao chổi: hai chấm nhỏ dần nối sau đầu hạt, để hạt trông như đang trôi chứ không nhấp nháy
+    var tr = [0.72, 0.46].map(function (k) { return this.mk('circle', { r: r0 * k, fill: faint ? P.mote : P.moteHot }); }, this);
+    this.pulsesG.append(tr[1], tr[0], el);
     var L = 0; try { L = spoke.getTotalLength(); } catch (e) {}
-    this.live.push({ el: el, born: performance.now(), spoke: spoke, L: L, faint: faint });
+    this.live.push({ el: el, tr: tr, born: performance.now(), spoke: spoke, L: L, faint: faint });
   };
   /** Nhánh được dùng thật (Joyce đọc/ghi file, gọi công cụ): dòng hạt chạy từ lõi ra, nút sáng. */
   C.fire = function (ids) {
@@ -538,7 +589,7 @@
         stream();
         setTimeout(function () { n.circ.setAttribute('filter', 'url(#bc-glow)'); n.circ.setAttribute('r', n.r + 3); n.circ.setAttribute('stroke-width', 3); n.circ.setAttribute('opacity', 1); }, 560);
         setTimeout(function () {
-          n.spoke.setAttribute('stroke', P.spoke); n.spoke.setAttribute('stroke-width', 1); n.spoke.setAttribute('opacity', n.live ? 0.72 : 0.36);
+          n.spoke.setAttribute('stroke', n.spokeStroke); n.spoke.setAttribute('stroke-width', n.spokeW); n.spoke.setAttribute('opacity', n.live ? 0.85 : 0.4);
           n.circ.removeAttribute('filter'); n.circ.setAttribute('r', n.r); n.circ.setAttribute('stroke-width', n.live ? 2 : 1.3); n.circ.setAttribute('opacity', n.live ? 1 : 0.6);
         }, 2050);
       }, k * 210);
@@ -546,7 +597,7 @@
       self.coRecent = self.coRecent.filter(function (c) { return now - c.t < 3500 && c.n !== n; });
       var prev = self.coRecent[self.coRecent.length - 1];
       if (prev) {
-        var ln = self.mk('line', { x1: prev.n.x, y1: prev.n.y, x2: n.x, y2: n.y, stroke: P.link, 'stroke-width': 1.3, opacity: 0 });
+        var ln = self.mk('path', { d: self.arcOf(prev.n.x, prev.n.y, n.x, n.y, 0.22), fill: 'none', stroke: P.link, 'stroke-width': 1.3, 'stroke-linecap': 'round', opacity: 0 });
         self.pulsesG.append(ln);
         setTimeout(function () { ln.setAttribute('opacity', 0.6); }, 560);
         setTimeout(function () { ln.remove(); }, 2600);
@@ -605,11 +656,16 @@
       this.nextAmbient = t + (470 - 330 * lv * this.awake) * (0.5 + Math.random() * 0.7);
     }
     for (var q = this.live.length - 1; q >= 0; q--) {
-      var p = this.live[q], pr = (t - p.born) / 620;
-      if (pr >= 1 || !p.L) { p.el.remove(); this.live.splice(q, 1); continue; }
-      var pt = p.spoke.getPointAtLength(pr * p.L);
+      var p = this.live[q], pr = (t - p.born) / (p.faint ? 1250 : 820);        // chậm hơn để thấy tín hiệu chảy dọc đường sức
+      if (pr >= 1 || !p.L) { p.el.remove(); (p.tr || []).forEach(function (e) { e.remove(); }); this.live.splice(q, 1); continue; }
+      var env = Math.sin(pr * Math.PI), base = p.faint ? 0.45 : 0.95, pt = p.spoke.getPointAtLength(pr * p.L);
       p.el.setAttribute('cx', pt.x.toFixed(1)); p.el.setAttribute('cy', pt.y.toFixed(1));
-      p.el.setAttribute('opacity', ((p.faint ? 0.4 : 0.9) * Math.sin(pr * Math.PI)).toFixed(3));
+      p.el.setAttribute('opacity', (base * env).toFixed(3));
+      (p.tr || []).forEach(function (e, ti) {
+        var back = Math.max(0, pr - 0.028 * (ti + 1)), pb = p.spoke.getPointAtLength(back * p.L);
+        e.setAttribute('cx', pb.x.toFixed(1)); e.setAttribute('cy', pb.y.toFixed(1));
+        e.setAttribute('opacity', (base * env * (ti ? 0.22 : 0.42)).toFixed(3));
+      });
     }
     this.drawSphere(t);
   };

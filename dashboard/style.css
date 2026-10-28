@@ -4962,6 +4962,10 @@ select option, select optgroup { background-color: var(--bg2); color: var(--text
 .bc-web .bc-hit { pointer-events: all; cursor: pointer; }
 @keyframes bcTwinkle { 0%, 100% { opacity: .14; } 50% { opacity: .42; } }
 .bc-twinkle { animation: bcTwinkle 4s ease-in-out infinite; }
+/* Hạt sáng trôi dọc đường sức của Tinh vân: nét đứt chấm tròn dịch dần về phía nút (bội của chu kỳ 18 để vòng lặp liền mạch). */
+@keyframes bcFlow { to { stroke-dashoffset: -36; } }
+.bc-flow { animation: bcFlow 3.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .bc-flow { animation: none; opacity: 0; } }
 .hud-center.brain-overlays-hidden .bc-label { display: none; }
 .hud-center.tv-chom #graph2d,
 .hud-center.tv-chom .concept-labels { opacity: 0; visibility: hidden; pointer-events: none; }
