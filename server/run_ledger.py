@@ -253,6 +253,14 @@ def bo(run_id: str) -> bool:
         return _db().execute("DELETE FROM agent_runs WHERE run_id=? AND status='running'", (run_id,)).rowcount == 1
 
 
+def agent_quan_sat_duoc(*, tu: float, toi_thieu: int) -> int:
+    """Số cặp (brain, agent) có ít nhất `toi_thieu` lượt chạy đọc được revision kể từ `tu`."""
+    r = _db().execute(
+        "SELECT COUNT(*) AS n FROM (SELECT brain_id, agent_id FROM agent_runs WHERE started_at>=? AND agent_revision<>'' "
+        "GROUP BY brain_id, agent_id HAVING COUNT(*)>=?)", (float(tu), int(toi_thieu))).fetchone()
+    return int(r["n"] if r else 0)
+
+
 def doc_file_agent(root, slug: str) -> str:
     """Nội dung THÔ của file agent sắp chạy: `<root>/agents/<slug>.md`, rơi về bản dùng chung của hệ thống nếu brain không có bản
     riêng. `agent_revision` là băm đúng chuỗi này nên so được với `candidate_hash` của canary (cùng băm nội dung file). Không đọc

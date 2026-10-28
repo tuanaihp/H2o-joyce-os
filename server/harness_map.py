@@ -25,7 +25,7 @@ def _o(ten, state, **v):
 
 def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: int,
              trim_chars: int, brains_total: int, brains_self_improve: int,
-             agents: list, evals_brain: int, telemetry_ready: bool = False) -> dict:
+             agents: list, evals_brain: int, telemetry_ready: bool = False, telemetry_n: int = 0) -> dict:
     """`agents`: frontmatter (dict) của trợ lý trong brain đang xem, gồm cả trợ lý dùng chung hiện ở đó."""
     sg = stages or {}
     pp = sg.get("proposals") or {}
@@ -74,7 +74,7 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
         _o("runs", "ok" if int(lc.get("logical") or 0) else "off", n=int(lc.get("logical") or 0), v=int(lc.get("verified_pass") or 0),
            u=int(lc.get("chua_kiem") or 0), i=int(lc.get("gian_doan") or 0)),
         # Nguồn bằng chứng để kiểm chứng canary. XÁM khi chưa có (gói B): khi đó file dùng chung không được tự áp.
-        _o("telemetry", "ok" if telemetry_ready else "off", ready=1 if telemetry_ready else 0),
+        _o("telemetry", "ok" if telemetry_ready else "off", ready=1 if telemetry_ready else 0, n=int(telemetry_n)),
         # Đã chốt (28/10/2026) nhưng CHƯA ép trong code: vòng cải tiến chưa đếm token theo lượt.
         _o("budget", "off", n=TOKEN_CAP, m=TOKEN_CAP_MAX),
     ]

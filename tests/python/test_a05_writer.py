@@ -20,6 +20,8 @@ import time
 
 import deploy_writer as dw  # noqa: E402
 import factory  # noqa: E402
+import _so_luot_chay  # noqa: E402
+_so_luot_chay.cai_dat(factory)
 
 fails = []
 

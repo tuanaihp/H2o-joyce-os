@@ -134,13 +134,35 @@ def _migrate_state(d: dict) -> dict:
     return d
 
 
-def telemetry_ready(deps: FactoryDeps, brain: str = "", rel: str = "") -> bool:
-    """Có nguồn bằng chứng đáng tin để kiểm chứng một canary chưa.
+TELEMETRY_MIN_RUNS = 5          # số lượt chạy tối thiểu trong cửa sổ để coi là "quan sát được"
+TELEMETRY_CUA_SO_NGAY = 30
 
-    HIỆN LUÔN False (A01, D1 của plan): chưa có hợp đồng lượt chạy gắn agent và revision (B01), và Kanban thật không có việc
-    nào gắn khoá agent. Canary mới vì thế KHÔNG được tạo và file dùng chung KHÔNG được tự áp. Gói B đổi hàm này thành
-    kiểm thật. Test dùng monkeypatch có chủ ý, không phải cờ cấu hình, để không ai bật nó bằng một dòng JSON."""
-    return False
+
+def telemetry_ready(deps: FactoryDeps, brain: str = "", rel: str = "") -> bool:
+    """Có nguồn bằng chứng đáng tin để kiểm chứng một canary của file này chưa (D1).
+
+    Từ 1.3.43 (B01) là phép kiểm THẬT trên sổ lượt chạy do host ghi: file phải là `agents/<slug>.md` và agent đó phải có ít nhất
+    `TELEMETRY_MIN_RUNS` lượt chạy có revision đọc được trong `TELEMETRY_CUA_SO_NGAY` ngày ở brain này. Có lượt chạy chưa phải là
+    đã đạt: canary vẫn chỉ nhân khi đủ lượt được KIỂM CHỨNG đạt (xem `_canary_evidence`). Hàm này chỉ trả lời "có quan sát được
+    không". Không phải cờ cấu hình; test dùng monkeypatch có chủ ý. Lỗi đọc sổ là False (không biết thì không mở)."""
+    try:
+        m = re.match(r"^agents/([^/]+)\.md$", str(rel or "").replace("\\", "/"))
+        if not m or not brain:
+            return False
+        import run_ledger
+        rs = run_ledger.danh_sach(brain_id=str(brain), agent_id=m.group(1), tu=time.time() - TELEMETRY_CUA_SO_NGAY * 86400, gioi_han=200)
+        return sum(1 for r in rs if r.get("agent_revision")) >= TELEMETRY_MIN_RUNS
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def telemetry_quan_sat_duoc() -> int:
+    """Số trợ lý (theo brain) đang quan sát được: cùng ngưỡng với `telemetry_ready`. Cho đèn tổng ở Sơ đồ; 0 nghĩa là chưa trợ lý nào."""
+    try:
+        import run_ledger
+        return run_ledger.agent_quan_sat_duoc(tu=time.time() - TELEMETRY_CUA_SO_NGAY * 86400, toi_thieu=TELEMETRY_MIN_RUNS)
+    except Exception:  # noqa: BLE001
+        return 0
 
 
 def _dang_tam_dung(deps: FactoryDeps, cfg: Optional[dict] = None) -> bool:
@@ -1615,34 +1637,43 @@ def _doc_file(path: Path) -> Optional[str]:
 
 
 def _canary_evidence(deps: FactoryDeps, c: dict) -> dict:
-    """Bằng chứng của canary: các việc ĐÃ CHẠY trên bản ứng viên ở brain nguồn.
+    """Bằng chứng của canary, đọc từ SỔ LƯỢT CHẠY do host ghi (B02, 1.3.43), không còn đọc Kanban.
 
-    FIX-05 (1.3.41). Một việc chỉ tính khi gắn ĐÚNG agent này qua khoá `idempotency_key = agent:<mã>:<slug>` (không tìm slug
-    trong chữ của tiêu đề hay lý do) và được TẠO sau lúc bản ứng viên được áp (`created_at >= applied_at`), tức là nó chạy
-    trên bản này chứ không phải bản cũ. Chỉ việc đã có kết quả mới tính: done là đạt, blocked là lỗi."""
+    Chỉ tính lượt chạy đúng agent, đúng brain nguồn, đúng `agent_revision` = băm nội dung bản ứng viên (`candidate_hash`) và bắt đầu
+    sau lúc áp. Lượt của bản cũ, của bản khác hay không đọc được revision bị loại và đếm riêng ở `khong_ro_revision`. Đếm theo
+    logical execution: retry nhiều lần chỉ là một. `done` KHÔNG còn nghĩa là đạt: chỉ `verified_pass` mới là đạt; hoàn tất chưa kiểm
+    (`chua_kiem`), chờ duyệt, gián đoạn và lỗi hệ thống được ghi riêng và KHÔNG bao giờ được cộng vào đạt. `ok`, `bad`, `tasks` giữ
+    tên cũ cho chỗ dùng cũ: tasks = ok + bad, bad = lượt đã kiểm là rớt."""
     slug = str(c.get("slug") or "").lower()
     since = float(c.get("applied_at") or 0)
-    out = {"tasks": 0, "ok": 0, "bad": 0, "bad_ids": [], "checked_at": time.time()}
-    if not slug:
+    cand = str(c.get("candidate_hash") or "")
+    out = {"tasks": 0, "ok": 0, "bad": 0, "bad_ids": [], "checked_at": time.time(), "nguon": "run_ledger", "chua_kiem": 0,
+           "gian_doan": 0, "doi_duyet": 0, "loi_he_thong": 0, "thu_lai": 0, "khong_ro_revision": 0}
+    if len(cand) != 64 and c.get("hash"):
+        # Canary tạo trước 1.3.42 chỉ có băm ngắn. Nếu file nguồn HIỆN TẠI vẫn đúng bằng băm ngắn đó thì nội dung file chính là bản
+        # ứng viên và băm đầy đủ của nó là revision cần tìm; còn không thì không có gì để gán bằng chứng.
+        cur = _doc_file(Path(str(c.get("root") or "")) / str(c.get("target") or ""))
+        if cur is not None and _sha(cur) == str(c.get("hash")):
+            cand = _sha256(cur)
+    if not slug or len(cand) != 64:
         return out
     try:
-        for t in deps.store.list_tasks(str(c.get("root")), include_archived=False, limit=400) or []:
-            ik = str(t.get("idempotency_key") or "")
-            if not ik.startswith("agent:"):
-                continue
-            parts = ik[len("agent:"):].split(":")
-            if len(parts) < 2 or parts[1].lower() != slug:
-                continue
-            if float(t.get("created_at") or 0) < since:
-                continue
-            s2 = str(t.get("status") or "")
-            if s2 == "done":
-                out["ok"] += 1
-                out["tasks"] += 1
-            elif s2 == "blocked":
-                out["bad"] += 1
-                out["tasks"] += 1
-                out["bad_ids"].append(str(t.get("id") or ""))
+        import run_ledger
+        brain = Path(str(c.get("root"))).name
+        tat_ca = run_ledger.danh_sach(brain_id=brain, agent_id=slug, tu=since, gioi_han=5000)
+        out["khong_ro_revision"] = sum(1 for r in tat_ca if not r.get("agent_revision"))
+        tk = run_ledger.thong_ke(brain_id=brain, agent_id=slug, agent_revision=cand, tu=since)
+        out["ok"], out["bad"] = tk["verified_pass"], tk["verified_fail"]
+        out["tasks"] = out["ok"] + out["bad"]
+        for k in ("chua_kiem", "gian_doan", "doi_duyet", "loi_he_thong", "thu_lai"):
+            out[k] = tk[k]
+        if out["bad"]:
+            cuoi: dict = {}
+            for r in sorted(run_ledger.danh_sach(brain_id=brain, agent_id=slug, agent_revision=cand, tu=since, gioi_han=5000),
+                            key=lambda x: x["started_at"]):
+                cuoi[r["logical_execution_id"]] = r
+            out["bad_ids"] = [r["run_id"] for r in cuoi.values() if r["verification_status"] == "verified_fail" or r["status"] == "failed"
+                              and r["block_kind"] != "system"][:20]
     except Exception as e:  # noqa: BLE001
         print(f"[factory] canary bằng chứng {c.get('id')}: {type(e).__name__}: {e}", file=sys.stderr)
     return out

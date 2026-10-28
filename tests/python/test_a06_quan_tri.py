@@ -20,6 +20,8 @@ os.environ["JOYCE_STATE_DIR"] = str(STATE)
 os.environ["BRAINS_DIR"] = str(pathlib.Path(tempfile.mkdtemp(prefix="joyce-a06-brains-")))
 
 import factory  # noqa: E402
+import _so_luot_chay  # noqa: E402
+_so_luot_chay.cai_dat(factory)
 import factory_admin as fa  # noqa: E402
 
 fails = []
