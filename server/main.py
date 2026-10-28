@@ -14795,6 +14795,12 @@ async def work_factory(brain: str = ""):
         stages = factory_mod.stages_snapshot(deps)
     except Exception as e:  # noqa: BLE001
         print(f"[factory] stages: {type(e).__name__}: {e}", file=sys.stderr)
+    deployments = {}
+    try:
+        import factory_admin
+        deployments = factory_admin.trang_thai(deps)
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] deployments: {type(e).__name__}: {e}", file=sys.stderr)
     harness = {}
     try:
         harness = _harness_snapshot(deps, brain, stages)
@@ -14812,7 +14818,7 @@ async def work_factory(brain: str = ""):
             "perf_cooldowns": len(st.get("perf_cd") or {}),
             "sev_sent": st.get("sev_sent") or {},
             "stages": stages, "agents": agents,
-            "autonomy": autonomy, "harness": harness}
+            "autonomy": autonomy, "harness": harness, "deployments": deployments}
 
 
 def _harness_snapshot(deps, brain: str, stages: dict) -> dict:
@@ -28948,6 +28954,37 @@ async def model_fast_state():
 import messenger_ops  # noqa: E402
 
 messenger_ops.register(app)
+
+
+# Quản trị triển khai tự cải tiến cho CHỦ (A06, 1.3.42): xem diff, khôi phục từng đích, tạm dừng, đã đọc, yêu cầu nhân. Logic ở
+# factory_admin.py. Mọi route cần đăng nhập (KHÔNG nằm trong _AUTH_PUBLIC_* hay _AUTH_LOCAL_EXACT, nên một công cụ MCP gọi từ
+# localhost không cookie cũng bị 401 khi đã bật mật khẩu) và từ chối tài khoản nhân viên ở chính hàm này, không chỉ ẩn nút.
+def _chi_chu(request: Request):
+    if getattr(request.state, "staff", None):
+        return JSONResponse({"ok": False, "error": "Chỉ chủ mới quản trị triển khai tự cải tiến"}, status_code=403)
+    return None
+
+
+@app.get("/work/factory/diff")
+async def work_factory_diff(request: Request, canary_id: str = "", target_id: str = ""):
+    import factory_admin
+    if (r := _chi_chu(request)) is not None:
+        return r
+    http, kq = factory_admin.diff_dich(_factory_deps(), canary_id, target_id)
+    return JSONResponse(kq, status_code=http)
+
+
+@app.post("/work/factory/action")
+async def work_factory_action(request: Request, action: str = Form(""), canary_id: str = Form(""), target_id: str = Form(""),
+                              expected_revision: str = Form(""), action_id: str = Form(""), reason: str = Form(""),
+                              on: str = Form("")):
+    import factory_admin
+    if (r := _chi_chu(request)) is not None:
+        return r
+    http, kq = factory_admin.thuc_hien(_factory_deps(), action, canary_id=canary_id, target_id=target_id,
+                                       expected_revision=expected_revision, action_id=action_id, reason=reason,
+                                       on=str(on).strip().lower() in ("1", "true", "yes", "on"))
+    return JSONResponse(kq, status_code=http)
 
 
 if __name__ == "__main__":

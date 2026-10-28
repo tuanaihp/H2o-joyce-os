@@ -7074,5 +7074,25 @@
    "POST"
   ],
   "trong": 703
+ },
+ {
+  "order": 712,
+  "type": "APIRoute",
+  "path": "/work/factory/diff",
+  "name": "work_factory_diff",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 713,
+  "type": "APIRoute",
+  "path": "/work/factory/action",
+  "name": "work_factory_action",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

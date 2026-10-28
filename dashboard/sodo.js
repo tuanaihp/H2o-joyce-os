@@ -59,7 +59,7 @@
   ];
 
   // Trạng thái giao diện giữ qua các lần làm mới tự động (bộ lọc phòng ban).
-  const ui = { filter: "all", facNote: "" };
+  const ui = { filter: "all", facNote: "", el: null };
   let timer = null;
 
   let _css = false;
@@ -209,6 +209,19 @@
 .sd-stage-in b{font-size:11.5px;font-weight:650;line-height:1.2}
 .sd-stage-in span{font-size:10.5px;color:var(--text2);line-height:1.3;overflow-wrap:anywhere}
 .sd-fac-cap{display:flex;flex-wrap:wrap;gap:5px}
+/* Triển khai tự cải tiến */
+.sd-dp-list{display:flex;flex-direction:column;gap:8px}
+.sd-dp-r{border:1px solid var(--line);border-radius:10px;background:var(--wash);padding:8px 10px;display:flex;flex-direction:column;gap:5px}
+.sd-dp-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sd-dp-h b{font-size:12.5px}
+.sd-dp-m{font-size:11px;color:var(--text2);line-height:1.4;overflow-wrap:anywhere}
+.sd-dp-tg{display:flex;flex-wrap:wrap;gap:6px}
+.sd-dp-t{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 7px;border-radius:8px;border:1px solid var(--line);background:var(--card)}
+.sd-dp-act{display:flex;gap:6px;flex-wrap:wrap}
+.sd-dp-b{padding:3px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:11px;cursor:pointer}
+.sd-dp-b:hover{border-color:var(--accent);color:var(--accent-ink)}
+.sd-dp-b[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.sd-dp-out{margin:0;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;background:var(--wash);color:var(--text2)}
+.sd-dp-out.bad{border-color:var(--danger-ink);color:var(--danger-ink)}
 /* Chuẩn Joyce Harness: ba cột tầng A/B/C, mỗi dòng một thành phần có đèn */
 .sd-hx-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .sd-hx-col{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -331,6 +344,75 @@
       ${noteHtml}
       <div class="sd-fac-cap">${caps}</div>
     </section>`;
+  }
+
+  // Triển khai tự cải tiến (A06, 1.3.42): chủ nhìn được MỖI canary đang ở đâu, nguồn đang chạy bản nào, từng đích ra sao, và quyết
+  // định được: xem diff, khôi phục từng đích, đã đọc, tạm dừng. Mọi thao tác gọi /work/factory/action; server mới là nơi kiểm quyền
+  // và phiên bản, nút ẩn hay khoá chỉ là gợi ý. Trạng thái "chưa đủ dữ liệu" KHÔNG bao giờ hiện xanh.
+  const DP_STATE = { canary: "info", legacy_review: "warn", promoted: "ok", reverted: "warn", superseded: "off", het_han: "warn",
+                     partial: "warn", conflict: "warn" };
+  const DP_STATE_KEY = { canary: "sodo.dp.s.canary", legacy_review: "sodo.dp.s.legacy_review", promoted: "sodo.dp.s.promoted",
+                         reverted: "sodo.dp.s.reverted", superseded: "sodo.dp.s.superseded", het_han: "sodo.dp.s.het_han",
+                         partial: "sodo.dp.s.partial", conflict: "sodo.dp.s.conflict" };
+  const DP_TG_KEY = { pending: "sodo.dp.t.pending", promoted: "sodo.dp.t.promoted", already: "sodo.dp.t.already", conflict: "sodo.dp.t.conflict",
+                      override: "sodo.dp.t.override", missing: "sodo.dp.t.missing", error: "sodo.dp.t.error", restored: "sodo.dp.t.restored" };
+  const DP_SRC_KEY = { ban_moi: "sodo.dp.src.ban_moi", da_khoi_phuc: "sodo.dp.src.da_khoi_phuc", khong_chac: "sodo.dp.src.khong_chac" };
+  const dpId = () => (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : "a-" + Date.now() + "-" + Math.random().toString(16).slice(2));
+
+  function dpSection(fc) {
+    const dp = fc && fc.deployments;
+    if (!dp || !Array.isArray(dp.canaries)) return "";
+    const ban = dp.canaries.slice().reverse().slice(0, 8);
+    const banner = (dp.tam_dung ? `<div class="sd-fac-note">${esc(t("sodo.dp.paused"))}</div>` : "")
+      + (dp.telemetry_ready ? "" : `<div class="sd-fac-note">${esc(t("sodo.dp.no_telemetry"))}</div>`);
+    const rows = ban.map(c => {
+      const st = DP_STATE[c.state] || "off";
+      const ev = c.evidence && c.evidence.tasks != null ? t("sodo.dp.evidence", { n: so(c.evidence.tasks), m: so(c.min_tasks || 0) }) : "";
+      const tg = (c.dich || []).map(x => {
+        const ts = x.state === "promoted" || x.state === "already" || x.state === "restored" ? "ok" : (x.state === "pending" ? "off" : "warn");
+        const nut = x.co_the_khoi_phuc
+          ? ` <button type="button" class="sd-dp-b" data-dp="diff" data-c="${esc(c.id)}" data-t="${esc(x.target_id)}">${esc(t("sodo.dp.btn.diff"))}</button>`
+            + ` <button type="button" class="sd-dp-b" data-dp="restore" data-c="${esc(c.id)}" data-t="${esc(x.target_id)}" data-rev="${esc(c.revision)}">${esc(t("sodo.dp.btn.restore"))}</button>` : "";
+        return `<span class="sd-dp-t sd-st-${ts}"><i class="sd-dot sd-st-${ts}"></i>${esc(x.brain)}: ${esc(t(DP_TG_KEY[x.state] || "sodo.dp.t.pending"))}${nut}</span>`;
+      }).join("");
+      const can = ["canary", "legacy_review", "partial", "conflict", "het_han"].includes(c.state);
+      const thieu = (c.thieu || []).slice(0, 4);
+      const nutNguon = c.nguon_co_the_khoi_phuc && c.nguon_chay !== "da_khoi_phuc"
+        ? `<button type="button" class="sd-dp-b" data-dp="restore" data-c="${esc(c.id)}" data-t="nguon" data-rev="${esc(c.revision)}">${esc(t("sodo.dp.btn.restore_src"))}</button>` : "";
+      const ack = can && !c.acknowledged ? `<button type="button" class="sd-dp-b" data-dp="ack" data-c="${esc(c.id)}" data-rev="${esc(c.revision)}">${esc(t("sodo.dp.btn.ack"))}</button>` : "";
+      const nhan = can ? `<button type="button" class="sd-dp-b" data-dp="promote" data-c="${esc(c.id)}" data-rev="${esc(c.revision)}" ${thieu.length ? "aria-disabled=\"true\" title=\"" + esc(thieu.join(" · ")) + "\"" : ""}>${esc(t("sodo.dp.btn.promote"))}</button>` : "";
+      return `<div class="sd-dp-r sd-st-${st}"><div class="sd-dp-h"><span class="sd-dot sd-st-${st}" role="img" aria-label="${esc(t(DP_STATE_KEY[c.state] || "sodo.dp.s.canary"))}"></span>
+          <b>${esc(c.file)}</b><span class="sd-dp-m">${esc(c.brain)} · ${esc(t(DP_STATE_KEY[c.state] || "sodo.dp.s.canary"))} · ${esc(t(DP_SRC_KEY[c.nguon_chay] || "sodo.dp.src.khong_chac"))} · ${esc(c.ung_vien)}</span></div>
+        ${ev ? `<div class="sd-dp-m">${esc(ev)}</div>` : ""}${c.ly_do ? `<div class="sd-dp-m">${esc(c.ly_do)}</div>` : ""}
+        ${thieu.length ? `<div class="sd-dp-m">${esc(t("sodo.dp.missing"))}: ${esc(thieu.join("; "))}</div>` : ""}
+        <div class="sd-dp-tg">${tg}</div><div class="sd-dp-act">${nutNguon}${ack}${nhan}</div></div>`;
+    }).join("");
+    return `<section class="sd-fac sd-dp"><div class="sd-fac-h"><span class="sd-t">${esc(t("sodo.dp.title"))}</span><span class="sd-sub">${esc(t("sodo.dp.sub"))}</span>
+        <button type="button" class="sd-dp-b" style="margin-left:auto" data-dp="pause" data-on="${dp.tam_dung ? "0" : "1"}">${esc(t(dp.tam_dung ? "sodo.dp.btn.resume" : "sodo.dp.btn.pause"))}</button></div>
+      ${banner}<div class="sd-dp-list">${rows || `<div class="sd-empty">${esc(t("sodo.dp.none"))}</div>`}</div>
+      <pre class="sd-dp-out" id="sdDpOut" hidden></pre></section>`;
+  }
+
+  async function dpAct(d) {
+    const out = (typeof document !== "undefined" && document.getElementById) ? document.getElementById("sdDpOut") : null;
+    const noi = (txt, loi) => { if (out) { out.hidden = false; out.textContent = txt; out.className = "sd-dp-out" + (loi ? " bad" : ""); } return txt; };
+    if (d.dp === "diff") {
+      const r = await fetch(`/work/factory/diff?canary_id=${encodeURIComponent(d.c)}&target_id=${encodeURIComponent(d.t)}`);
+      let j = {}; try { j = await r.json(); } catch (e) {}
+      return noi(r.ok ? (j.diff || t("sodo.dp.diff_same")) : (j.error || t("sodo.dp.err")), !r.ok);
+    }
+    if (d.dp === "restore" && !window.confirm(t("sodo.dp.confirm_restore"))) return "";
+    if (d.dp === "promote" && !window.confirm(t("sodo.dp.confirm_promote"))) return "";
+    const ly = d.dp === "pause" ? t("sodo.dp.reason_default") : (window.prompt(t("sodo.dp.reason"), t("sodo.dp.reason_default")) || "");
+    if (!ly.trim()) return "";
+    const body = new URLSearchParams({ action: d.dp, canary_id: d.c || "", target_id: d.t || "", expected_revision: d.rev || "", action_id: dpId(), reason: ly,
+                                       on: d.dp === "pause" ? (d.on === "1" ? "1" : "0") : "" });
+    const r = await fetch("/work/factory/action", { method: "POST", body });
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    const msg = r.ok ? t("sodo.dp.done") : (j.dieu_kien_thieu ? t("sodo.dp.not_ready") + ": " + j.dieu_kien_thieu.join("; ") : (j.stale ? t("sodo.dp.stale") : (j.error || t("sodo.dp.err"))));
+    noi(msg, !r.ok);
+    if (r.ok && ui.el) setTimeout(() => render(ui.el, true), 400);
+    return msg;
   }
 
   // Chuẩn Joyce Harness (1.3.39, docs/dev/Joyce-harness.md): ba tầng A lõi chạy, B bề mặt phòng
@@ -659,6 +741,7 @@
       ${hxSection(fc)}
       <div class="sd-sect">${esc(t("sodo.fac.sect"))}</div>
       ${facSection(fc)}
+      ${dpSection(fc)}
       <div class="sd-grid">
         ${card(BLOCKS[0], stat[0], kpi[0], mChips, mRows, dn[0])}
         ${card(BLOCKS[1], stat[1], kpi[1], cChips, cRows, dn[1])}
@@ -687,6 +770,8 @@
         ? `<b>${esc(t(ui.facNote))}</b>: ${esc(t(ui.facNote + ".d"))}`
         : esc(t("sodo.fac.hint"));
     }));
+    ui.el = el;
+    el.querySelectorAll("[data-dp]").forEach(bt => (bt.onclick = () => dpAct(bt.dataset)));
     el.querySelectorAll("[data-act=refresh]").forEach(bt => (bt.onclick = () => {
       bt.classList.add("spin"); render(el, true);
     }));
@@ -702,5 +787,5 @@
     }
   }
 
-  window.JoyceSoDo = { render };
+  window.JoyceSoDo = { render, _dpAct: dpAct, _dpSection: dpSection };   // _dp*: chỉ để test điều khiển được từng thao tác
 })();
