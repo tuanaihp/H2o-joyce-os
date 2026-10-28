@@ -47,6 +47,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import re
 import sys
 import time
@@ -71,6 +72,9 @@ PERF_COOLDOWN_SECONDS = 6 * 3600  # 1 chữ ký không xếp task root-cause qu�
 DISCOVERY_MIN_DONE = 3            # ≥3 lần xong tay cùng việc trong 30 ngày → gợi ý lặp
 DISCOVERY_WINDOW_SECONDS = 30 * 24 * 3600
 CANARY_DEFAULT_HOURS = 24         # file chung: áp 1 brain, canh 24h mới nhân các brain khác
+CANARY_MIN_TASKS = 20              # và phải có đủ ngần ấy việc ĐÃ CHẠY trên bản ứng viên (FIX-05, plan mục 9.1)
+CANARY_HET_HAN_NGAY = 14          # chờ bằng chứng quá lâu thì dừng, báo chủ, KHÔNG nhân
+CANARY_LOI_THU_LAI = 3            # một đích ghi lỗi được thử lại ngần ấy lần rồi bỏ
 PROPOSAL_MAX_GROW = 4.0           # bản nháp không được phình quá 4x file gốc (chống viết đè bừa)
 PROPOSAL_MIN_LEN = 120            # draft dưới mức này coi như rỗng - không tự áp
 PROPOSAL_MAX_BYTES = 400 * 1024   # proposal quá lớn không đọc
@@ -166,6 +170,7 @@ def load_factory_cfg(root: str) -> dict:
         # hành vi cũ cho 61 brain đang chạy, chỉ bộ eval HỎNG mới chặn.
         "eval_bat_buoc": bool(cfg.get("eval_bat_buoc", False)),
         "canary_hours": max(1, min(24 * 14, int(cfg.get("canary_hours", CANARY_DEFAULT_HOURS)))),
+        "canary_min_tasks": max(1, min(200, int(cfg.get("canary_min_tasks", CANARY_MIN_TASKS)))),
     }
 
 
@@ -898,14 +903,21 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
             continue
     mode = "canary" if sharers else "direct"
     if sharers:
+        # FIX-04 (1.3.41): chụp hash TỪNG đích ngay lúc áp. Lúc nhân chỉ ghi đích còn đúng bản này; đích đã bị chủ
+        # sửa riêng kể từ đó là xung đột và được giữ nguyên.
+        targets = []
+        for r in sharers:
+            d = _doc_file(Path(r) / rel)
+            targets.append({"root": r, "base_hash": _sha(d) if d is not None else "", "state": "pending", "tries": 0})
         st["canaries"].append({
             "id": _sha(f"{root}:{rel}:{time.time()}"),
             "brain": brain, "root": str(Path(root)), "target": rel,
-            "slug": target.stem.lower(), "hash": _sha(written),
+            "slug": target.stem.lower(), "hash": _sha(written), "revision": _sha(written),
             "backup": str(bpath), "proposal": fp.name,
             "applied_at": time.time(),
             "promote_at": time.time() + float(cfg.get("canary_hours") or CANARY_DEFAULT_HOURS) * 3600,
-            "sharers": sharers, "state": "canary",
+            "min_tasks": int(cfg.get("canary_min_tasks") or CANARY_MIN_TASKS),
+            "sharers": sharers, "targets": targets, "state": "canary",
         })
         st["canaries"] = st["canaries"][-50:]
         _save_state(deps, st)
@@ -1325,100 +1337,241 @@ def agent_scoreboard(deps: FactoryDeps, root: str) -> list:
 
 # ── #11 Canary rollout: file chung giữ ở 1 brain, canh rồi mới nhân ─────────
 
-def _canary_bad_signals(deps: FactoryDeps, c: dict) -> list:
-    """Task blocked trong cửa sổ canary mà nhắc tới slug file mục tiêu → tín hiệu xấu."""
-    slug = str(c.get("slug") or "").lower()
-    if not slug:
-        return []
-    bad = []
+def _doc_file(path: Path) -> Optional[str]:
+    """Nội dung file, hoặc None khi không có hay không đọc được."""
     try:
-        since = float(c.get("applied_at") or 0)
-        for t in deps.store.list_tasks(str(c.get("root")), include_archived=False) or []:
-            if str(t.get("status") or "") != "blocked":
+        return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _ghi_nguyen_tu(deps: FactoryDeps, path: Path, text: str) -> None:
+    """Ghi file nguyên tử (tệp tạm cùng thư mục rồi đổi tên): người đọc không bao giờ thấy nửa file, lỗi giữa chừng
+    không để lại tệp tạm."""
+    if deps.atomic_write_text:
+        deps.atomic_write_text(path, text)
+        return
+    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}-{int(time.time() * 1000)}")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+
+
+def _canary_evidence(deps: FactoryDeps, c: dict) -> dict:
+    """Bằng chứng của canary: các việc ĐÃ CHẠY trên bản ứng viên ở brain nguồn.
+
+    FIX-05 (1.3.41). Một việc chỉ tính khi gắn ĐÚNG agent này qua khoá `idempotency_key = agent:<mã>:<slug>` (không tìm slug
+    trong chữ của tiêu đề hay lý do) và được TẠO sau lúc bản ứng viên được áp (`created_at >= applied_at`), tức là nó chạy
+    trên bản này chứ không phải bản cũ. Chỉ việc đã có kết quả mới tính: done là đạt, blocked là lỗi."""
+    slug = str(c.get("slug") or "").lower()
+    since = float(c.get("applied_at") or 0)
+    out = {"tasks": 0, "ok": 0, "bad": 0, "bad_ids": [], "checked_at": time.time()}
+    if not slug:
+        return out
+    try:
+        for t in deps.store.list_tasks(str(c.get("root")), include_archived=False, limit=400) or []:
+            ik = str(t.get("idempotency_key") or "")
+            if not ik.startswith("agent:"):
                 continue
-            if float(t.get("updated_at") or 0) < since:
+            parts = ik[len("agent:"):].split(":")
+            if len(parts) < 2 or parts[1].lower() != slug:
                 continue
-            hay = " ".join(str(t.get(k) or "") for k in
-                           ("title", "intent", "block_reason")).lower()
-            if slug in hay:
-                bad.append(str(t.get("id") or ""))
+            if float(t.get("created_at") or 0) < since:
+                continue
+            s2 = str(t.get("status") or "")
+            if s2 == "done":
+                out["ok"] += 1
+                out["tasks"] += 1
+            elif s2 == "blocked":
+                out["bad"] += 1
+                out["tasks"] += 1
+                out["bad_ids"].append(str(t.get("id") or ""))
     except Exception as e:  # noqa: BLE001
-        print(f"[factory] canary scan {c.get('id')}: {type(e).__name__}: {e}", file=sys.stderr)
-    return bad[:5]
+        print(f"[factory] canary bằng chứng {c.get('id')}: {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
+def _canary_bad_signals(deps: FactoryDeps, c: dict) -> list:
+    """Id các việc LỖI đã chạy trên bản ứng viên (gắn qua khoá agent, không qua chữ). Rỗng = chưa thấy lỗi."""
+    return _canary_evidence(deps, c)["bad_ids"][:5]
+
+
+async def _bao(deps: FactoryDeps, text: str, dedup: str) -> None:
+    try:
+        await deps.inbox(text, kind="system", label="self-improve", source="factory", dedup=dedup)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _nhan_mot_dich(deps: FactoryDeps, c: dict, tg: dict, cand_hash: str, cand_text: str) -> None:
+    """Nhân bản ứng viên sang MỘT đích. Chỉ ghi khi đích còn ĐÚNG bản đã chụp lúc áp (so-rồi-ghi); đích đã đổi là xung
+    đột và được giữ nguyên. Sao lưu đích trước khi ghi. Đặt tg['state'] = promoted | already | conflict | missing | error."""
+    rel = str(c.get("target") or "")
+    dst = Path(str(tg.get("root") or "")) / rel
+    d = _doc_file(dst)
+    if d is None:
+        tg["state"] = "missing"        # đích bị xoá: KHÔNG tạo lại
+        return
+    h = _sha(d)
+    if h == cand_hash:
+        tg["state"] = "already"        # đã là bản ứng viên (vd lần chạy trước chết sau khi ghi, trước khi kịp lưu trạng thái)
+        return
+    base = str(tg.get("base_hash") or "")
+    if not base or h != base:
+        tg["state"] = "conflict"       # chủ đã sửa riêng kể từ lúc chụp: nhường
+        return
+    try:
+        bdir = dst.parent.parent / "Joyce" / "proposals" / ".backup"
+        bdir.mkdir(parents=True, exist_ok=True)
+        bp = bdir / f"{dst.stem}-canary-{int(time.time())}.bak"
+        bp.write_text(d, encoding="utf-8")
+        d2 = _doc_file(dst)            # đọc lại sát lúc ghi: đổi trong khoảng này thì thôi
+        if d2 is None or _sha(d2) != base:
+            tg["state"] = "conflict"
+            return
+        _ghi_nguyen_tu(deps, dst, cand_text)
+        tg["state"] = "promoted"
+        tg["backup"] = str(bp)
+    except Exception as e:  # noqa: BLE001
+        tg["tries"] = int(tg.get("tries") or 0) + 1
+        tg["state"] = "error"
+        tg["error"] = f"{type(e).__name__}: {e}"[:140]
+        print(f"[factory] canary nhân {tg.get('root')}: {tg['error']}", file=sys.stderr)
+
+
+def _ten_dich(tg: dict) -> str:
+    return Path(str(tg.get("root") or "")).name or "?"
+
+
+def _dich_dang_do(tgs: list) -> bool:
+    return any(t.get("state") == "pending" or (t.get("state") == "error" and int(t.get("tries") or 0) < CANARY_LOI_THU_LAI)
+               for t in tgs)
 
 
 async def canary_tick(deps: FactoryDeps) -> dict:
-    """Tới hạn promote: file còn nguyên + không tín hiệu xấu → nhân sang các brain khác;
-    có tín hiệu xấu → rollback file về bản backup; chủ đã đổi tay → superseded, nhường."""
-    rep = {"promoted": 0, "reverted": 0, "superseded": 0, "waiting": 0}
+    """Mỗi nhịp, với từng canary đang canh:
+
+    1. File nguồn không còn đúng bản ứng viên (chủ sửa/xoá tay) -> superseded, nhường chủ.
+    2. Có việc LỖI trên bản ứng viên -> lật lại NGAY, không chờ hết giờ (FIX-05). Lật có so-rồi-ghi: chủ vừa sửa tay
+       thì nhường, không đè.
+    3. Chưa hết giờ -> chờ. Hết giờ mà chưa đủ số việc đã chạy -> KHÔNG nhân (không traffic không phải bằng chứng);
+       chờ quá CANARY_HET_HAN_NGAY thì dừng và báo chủ.
+    4. Đủ giờ, đủ việc, không lỗi -> nhân TỪNG đích (FIX-04): đích còn đúng bản đã chụp mới được ghi, đích đã sửa riêng
+       giữ nguyên, trạng thái từng đích lưu ngay nên chết giữa chừng chạy lại không làm lại, báo đúng số đích thành công."""
+    rep = {"promoted": 0, "reverted": 0, "superseded": 0, "waiting": 0, "partial": 0, "conflict": 0,
+           "cho_bang_chung": 0, "het_han": 0}
     st = _load_state(deps)
     now = time.time()
-    changed = False
     for c in st.get("canaries", []):
         if c.get("state") != "canary":
             continue
+        target = Path(str(c.get("root") or "")) / str(c.get("target") or "")
+        cand_hash = str(c.get("hash") or "")
+        cur = _doc_file(target)
+        if not cur or _sha(cur) != cand_hash:
+            c["state"] = "superseded"   # chủ sửa/xoá tay trong cửa sổ canary -> nhường chủ
+            _save_state(deps, st)
+            rep["superseded"] += 1
+            continue
+
+        bad = _canary_bad_signals(deps, c)
+        if bad:
+            goc = _doc_file(Path(str(c.get("backup") or "")))
+            cur2 = _doc_file(target)
+            if cur2 is None or _sha(cur2) != cand_hash:
+                c["state"] = "superseded"      # chủ vừa sửa tay ngay lúc canary sắp lật: không đè
+                _save_state(deps, st)
+                rep["superseded"] += 1
+                continue
+            try:
+                if goc is None:
+                    raise FileNotFoundError("không còn bản sao lưu để lật lại")
+                _ghi_nguyen_tu(deps, target, goc)
+            except Exception as e:  # noqa: BLE001
+                c["rollback_error"] = f"{type(e).__name__}: {e}"[:140]
+                _save_state(deps, st)
+                print(f"[factory] canary rollback {c.get('id')}: {c['rollback_error']}", file=sys.stderr)
+                await _bao(deps, f"🐤 **Canary KHÔNG lật lại được**: `{c.get('target')}` ở {c.get('brain')} có {len(bad)} việc lỗi "
+                                 f"nhưng không trả file về bản cũ được ({c['rollback_error']}). Anh kiểm tra tay giúp.",
+                           f"canaryrevfail:{c.get('id')}")
+                continue
+            c["state"] = "reverted"
+            c["evidence"] = {k: v for k, v in _canary_evidence(deps, c).items() if k != "bad_ids"}
+            _save_state(deps, st)
+            rep["reverted"] += 1
+            await _bao(deps, f"🐤 **Canary lật lại**: `{c.get('target')}` ở {c.get('brain')} có {len(bad)} việc lỗi chạy trên "
+                             f"bản mới (gắn đúng agent `{c.get('slug')}`). Đã trả file về bản cũ - không nhân sang brain khác.",
+                       f"canaryrev:{c.get('id')}")
+            continue
+
         if now < float(c.get("promote_at") or 0):
             rep["waiting"] += 1
             continue
-        target = Path(str(c.get("root") or "")) / str(c.get("target") or "")
-        try:
-            cur = target.read_text(encoding="utf-8", errors="replace") if target.is_file() else ""
-        except Exception:  # noqa: BLE001
-            cur = ""
-        if not cur or _sha(cur) != str(c.get("hash") or ""):
-            c["state"] = "superseded"   # chủ sửa/xoá tay trong cửa sổ canary → nhường chủ
-            changed = True
-            rep["superseded"] += 1
+
+        ev = _canary_evidence(deps, c)
+        c["evidence"] = {k: v for k, v in ev.items() if k != "bad_ids"}
+        can = int(c.get("min_tasks") or CANARY_MIN_TASKS)
+        if ev["tasks"] < can:
+            if now - float(c.get("applied_at") or now) > CANARY_HET_HAN_NGAY * 86400:
+                c["state"] = "het_han"
+                _save_state(deps, st)
+                rep["het_han"] += 1
+                await _bao(deps, f"🐤 **Canary hết hạn**: `{c.get('target')}` ở {c.get('brain')} sau {CANARY_HET_HAN_NGAY} ngày chỉ có "
+                                 f"{ev['tasks']}/{can} việc chạy trên bản mới, chưa đủ bằng chứng nên KHÔNG nhân sang brain khác. "
+                                 f"Bản mới vẫn đang chạy ở {c.get('brain')}; anh quyết định giữ hay lật lại.",
+                           f"canaryexp:{c.get('id')}")
+            else:
+                _save_state(deps, st)
+                rep["cho_bang_chung"] += 1
             continue
-        bad = _canary_bad_signals(deps, c)
-        if bad:
-            try:
-                bp = Path(str(c.get("backup") or ""))
-                if bp.is_file():
-                    target.write_text(bp.read_text(encoding="utf-8", errors="replace"),
-                                      encoding="utf-8")
-            except Exception as e:  # noqa: BLE001
-                print(f"[factory] canary rollback {c.get('id')}: {type(e).__name__}: {e}",
-                      file=sys.stderr)
-            c["state"] = "reverted"
-            changed = True
-            rep["reverted"] += 1
-            try:
-                await deps.inbox(
-                    f"🐤 **Canary lật lại**: `{c.get('target')}` ở {c.get('brain')} làm "
-                    f"{len(bad)} việc vấp ngay sau khi áp (đề cập slug `{c.get('slug')}`). "
-                    f"Đã trả file về bản cũ - không nhân sang brain khác.",
-                    kind="system", label="self-improve", source="factory",
-                    dedup=f"canaryrev:{c.get('id')}")
-            except Exception:  # noqa: BLE001
-                pass
-            continue
-        # Promote: ghi cùng nội dung sang các brain khác đang có file này
-        promoted = 0
-        for r in c.get("sharers") or []:
-            try:
-                dst = Path(r) / str(c.get("target"))
-                if dst.is_file():
-                    dst.write_text(cur, encoding="utf-8")
-                    promoted += 1
-            except Exception as e:  # noqa: BLE001
-                print(f"[factory] canary promote {r}: {type(e).__name__}: {e}",
-                      file=sys.stderr)
-        c["state"] = "promoted"
-        c["promoted_count"] = promoted
-        changed = True
-        rep["promoted"] += 1
-        try:
-            await deps.inbox(
-                f"🐤 **Canary qua**: `{c.get('target')}` chạy ổn "
-                f"{int((now - float(c.get('applied_at') or now)) / 3600)}h ở "
-                f"{c.get('brain')} - đã nhân bản sang {promoted} brain còn lại.",
-                kind="system", label="self-improve", source="factory",
-                dedup=f"canaryok:{c.get('id')}")
-        except Exception:  # noqa: BLE001
-            pass
-    if changed:
+
+        tgs = c.get("targets")
+        if not isinstance(tgs, list):
+            # Canary tạo trước 1.3.41 không có hash từng đích: lấy bản sao lưu của nguồn làm "bản gốc chung". Đích còn
+            # giống hệt bản đó mới được ghi; khác thì coi là đã sửa riêng.
+            goc_chung = _doc_file(Path(str(c.get("backup") or "")))
+            base = _sha(goc_chung) if goc_chung is not None else ""
+            tgs = [{"root": r, "base_hash": base, "state": "pending", "tries": 0} for r in (c.get("sharers") or [])]
+            c["targets"] = tgs
+        for tg in tgs:
+            if tg.get("state") == "pending" or (tg.get("state") == "error" and int(tg.get("tries") or 0) < CANARY_LOI_THU_LAI):
+                _nhan_mot_dich(deps, c, tg, cand_hash, cur)
+                _save_state(deps, st)      # LƯU NGAY từng đích: chết giữa chừng thì lần sau không làm lại đích đã xong
+        if _dich_dang_do(tgs):
+            continue        # đích lỗi tạm thời: thử lại ở nhịp sau
+        dat = [t for t in tgs if t.get("state") in ("promoted", "already")]
+        c["promoted_count"] = len(dat)
+        tong = len(tgs)
+        gio = int((now - float(c.get("applied_at") or now)) / 3600)
+        if len(dat) == tong:
+            c["state"] = "promoted"
+            rep["promoted"] += 1
+            await _bao(deps, f"🐤 **Canary qua**: `{c.get('target')}` chạy ổn {gio}h ở {c.get('brain')} ({ev['ok']}/{ev['tasks']} việc đạt) "
+                             f"- đã nhân bản sang {len(dat)} brain còn lại.", f"canaryok:{c.get('id')}")
+        else:
+            gi = [_ten_dich(t) for t in tgs if t.get("state") == "conflict"]
+            thieu = [_ten_dich(t) for t in tgs if t.get("state") == "missing"]
+            loi = [_ten_dich(t) for t in tgs if t.get("state") == "error"]
+            c["state"] = "partial" if dat else "conflict"
+            rep["partial" if dat else "conflict"] += 1
+            chi_tiet = []
+            if gi:
+                chi_tiet.append(f"{len(gi)} brain đã được sửa riêng nên giữ nguyên bản riêng ({', '.join(gi[:4])})")
+            if thieu:
+                chi_tiet.append(f"{len(thieu)} brain không còn file ({', '.join(thieu[:4])})")
+            if loi:
+                chi_tiet.append(f"{len(loi)} brain ghi lỗi ({', '.join(loi[:4])})")
+            await _bao(deps, f"🐤 **Canary qua MỘT PHẦN**: `{c.get('target')}` ({ev['ok']}/{ev['tasks']} việc đạt) chỉ nhân được "
+                             f"{len(dat)}/{tong} brain; " + "; ".join(chi_tiet) + ". Không ghi đè bản riêng của phòng nào.",
+                       f"canarypart:{c.get('id')}")
         _save_state(deps, st)
+    _save_state(deps, st)
     return rep
 
 

@@ -306,7 +306,14 @@ stf = json.loads((TMP / "factory-state.json").read_text(encoding="utf-8"))
 stf["canaries"][0]["promote_at"] = 0
 (TMP / "factory-state.json").write_text(json.dumps(stf), encoding="utf-8")
 rep = asyncio.run(factory.canary_tick(deps))
-t("canary qua cửa sổ → nhân sang brain2",
+t("canary hết giờ nhưng KHÔNG có việc nào chạy → chưa nhân (FIX-05: không traffic không phải bằng chứng)",
+  rep["promoted"] == 0 and (brain2 / "agents" / "x.md").read_text(encoding="utf-8") == old_text)
+# đủ bằng chứng: 20 việc gắn đúng agent x, tạo sau lúc áp, đã done
+_chay = [{"id": f"ok{i}", "title": f"việc {i}", "status": "done", "idempotency_key": "agent:A1:x",
+          "created_at": NOW + 5, "updated_at": NOW + 6, "metadata": {}} for i in range(20)]
+deps.store = FakeStore({str(brain1): _chay})
+rep = asyncio.run(factory.canary_tick(deps))
+t("canary qua cửa sổ + đủ 20 việc đạt → nhân sang brain2",
   rep["promoted"] == 1
   and "# X mới" in (brain2 / "agents" / "x.md").read_text(encoding="utf-8"))
 
@@ -315,9 +322,10 @@ t("canary qua cửa sổ → nhân sang brain2",
 (brain2 / "agents" / "x.md").write_text(old_text, encoding="utf-8")
 (TMP / "factory-state.json").unlink(missing_ok=True)
 _make_proposal(str(brain1), "2026-10-24-x3.md")
+# FIX-05: lỗi gắn qua KHOÁ agent (idempotency_key), không còn tìm slug trong tiêu đề/lý do
 badstore = FakeStore({str(brain1): [
-    {"id": "b1", "title": "chạy x", "intent": "x", "status": "blocked",
-     "block_reason": "agent x sai", "updated_at": NOW, "metadata": {}}]})
+    {"id": "b1", "title": "chạy việc", "intent": "x", "status": "blocked", "idempotency_key": "agent:A1:x",
+     "block_reason": "sai", "created_at": NOW + 5, "updated_at": NOW + 6, "metadata": {}}]})
 deps, sent, calls = make_deps(tasks=badstore)
 deps.brains = lambda: ["brain", "brain2"]
 deps.task_root = lambda n: str(brain1) if n == "brain" else str(brain2)
@@ -329,7 +337,7 @@ stf["canaries"][0]["promote_at"] = 0
 stf["canaries"][0]["applied_at"] = 0
 (TMP / "factory-state.json").write_text(json.dumps(stf), encoding="utf-8")
 rep = asyncio.run(factory.canary_tick(deps))
-t("canary thấy blocked nhắc slug → rollback, brain2 không đổi",
+t("canary thấy việc lỗi gắn đúng agent → rollback, brain2 không đổi",
   rep["reverted"] == 1
   and (brain1 / "agents" / "x.md").read_text(encoding="utf-8") == old_text
   and (brain2 / "agents" / "x.md").read_text(encoding="utf-8") == old_text)
