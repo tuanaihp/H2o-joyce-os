@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.41] - 2026-10-28
+### Fixed
+- (in progress) Package G1 of the Joyce Harness plan: five foundation fixes (permission diff, broken eval sets, path bypass, canary overwriting your own edits, canary spreading with no traffic).
+
 ## [1.3.40] - 2026-10-28
 ### Added
 - **A Messenger inbox right inside the Fanpage tab.** Turn it on per Page, read customer conversations, press "Suggest a reply" so Joyce drafts and you edit and press Send. By default messages are only saved to the inbox; nothing is sent by itself.

@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.41] - 2026-10-28
+### Sửa
+- (đang làm) Gói G1 của kế hoạch Joyce Harness: vá 5 lỗi nền (so sánh quyền, bộ ca thử hỏng, đường dẫn bị lọt, canary ghi đè bản sửa riêng, canary không có việc vẫn nhân ra).
+
 ## [1.3.40] - 2026-10-28
 ### Thêm
 - **Hộp thư Messenger ngay trong tab Fanpage.** Bật cho từng Trang, xem hội thoại khách, bấm "Gợi ý trả lời" để Joyce soạn nháp rồi anh sửa và bấm Gửi. Mặc định chỉ lưu tin vào hộp thư, không có gì tự gửi đi.
