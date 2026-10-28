@@ -50,8 +50,8 @@
 | Chỗ | Mâu thuẫn | Đã xử lý |
 |---|---|---|
 | Rollout còn chữ `max_effect` | Đặc tả đã bỏ `max_effect` nhưng rollout giai đoạn -1 và 0 vẫn ghi | Đổi sang `allowed_effects` |
-| Thứ tự giai đoạn 0 | Chủ đã chốt (28/10): cache trước, rồi `joyce-guard`, rồi dọn ngữ cảnh. Rollout của Astra xếp cache ở P2, sau schema và enforcement | Giữ quyết định của chủ thành giai đoạn 0A. Phần schema và enforcement của Astra thành giai đoạn 0B, làm song song. Hai lỗ thật B-01 và B-12 đưa lên đầu 0B vì là ranh giới quyền. **Cần chủ xác nhận cách xếp này** |
-| Trần chi phí một lượt cải tiến | Đặc tả mục 13: 500.000 token, 80 lượt gọi, 20 phút, 2 lượt mỗi target mỗi tuần. Audit cũ đề xuất 1.000.000 token, 2 lượt mỗi phòng mỗi tuần | Chủ đã đồng ý có trần nhưng chưa chốt số. Đặc tả tự ghi đây là mặc định pilot. Ghi vào cổng quyết định của rollout |
+| Thứ tự giai đoạn 0 | Chủ đã chốt (28/10): cache trước, rồi `joyce-guard`, rồi dọn ngữ cảnh. Rollout của Astra xếp cache ở P2, sau schema và enforcement | Giữ quyết định của chủ thành giai đoạn 0A. Phần schema và enforcement của Astra thành giai đoạn 0B, làm song song. Hai lỗ thật B-01 và B-12 đưa lên đầu 0B vì là ranh giới quyền. Chủ đã đồng ý cách xếp này (28/10/2026) |
+| Trần chi phí một lượt cải tiến | Đặc tả mục 13: 500.000 token, 80 lượt gọi, 20 phút, 2 lượt mỗi target mỗi tuần. Audit cũ đề xuất 1.000.000 token, 2 lượt mỗi phòng mỗi tuần | Chủ chốt 28/10/2026: trần token mỗi lượt cải tiến mặc định 500.000, nâng tới tối đa 1.000.000 khi việc cần (nhắm agent dùng chung nhiều brain, từ 5 ca thử trở lên, hoặc ca có vòng tool dài như đối soát cả tháng); không bao giờ vượt 1.000.000; mức đã chọn và lý do ghi vào file đề xuất; vẫn 2 lượt mỗi target mỗi tuần. |
 | Tự áp đề xuất rủi ro thấp | Chủ chốt giữ `self_improve` và `low_risk_auto` bật ở 61 brain. Đặc tả mục 14 cấm tin `risk: low` do model ghi | Không trái nhau nếu sửa B-12: vẫn tự áp, nhưng host tự phân loại diff và không tự áp thay đổi grant, effect, budget, policy, hook. Hiện mới có 2 đề xuất trên cả hệ thống nên rủi ro thực tế thấp, nhưng nên sửa trước khi có đề xuất thật |
 
 ## 6. Giới hạn bằng chứng
@@ -65,4 +65,5 @@
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | Ghi hai quyết định của chủ: cách xếp 0A song song 0B, trần token 500.000 đến 1.000.000 theo mức cần |
 | 2026-10-28 | Bản đầu: liệt kê bộ chuẩn, ba lỗi draft đã sửa, các điểm đã khóa, xác minh sáu nhận định trong code, gỡ bốn mâu thuẫn |

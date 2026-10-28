@@ -353,7 +353,7 @@ Chọn thay đổi nhỏ nhất có hiệu quả: prompt -> skill -> script/hook
 
 Sandbox Probe cần bản sao dữ liệu **và** chặn đường ra production: credential tách, egress bị khóa/allowlist test, remote MCP giả, schedule/webhook/notification production bị vô hiệu. Copy brain riêng không đủ.
 
-Mặc định một lượt cải tiến: tối đa 500.000 token, 80 model calls, 20 phút, một candidate hoạt động cùng lúc mỗi target; tối đa hai lượt tự kích hoạt mỗi target/tuần. Đây là cấu hình đề xuất cho pilot, chưa thay các trần chủ từng chốt hoặc config thật. Chạm trần giữ baseline. Lịch poll Factory xử lý đề xuất có sẵn không đồng nghĩa được gọi model để quét nâng cấp hàng loạt.
+Mặc định một lượt cải tiến: tối đa 500.000 token, 80 model calls, 20 phút, một candidate hoạt động cùng lúc mỗi target; tối đa hai lượt tự kích hoạt mỗi target/tuần. Đây là cấu hình đề xuất cho pilot, chưa thay các trần chủ từng chốt hoặc config thật. Chủ chốt 28/10/2026: trần token mỗi lượt cải tiến mặc định 500.000, nâng tới tối đa 1.000.000 khi việc cần (nhắm agent dùng chung nhiều brain, từ 5 ca thử trở lên, hoặc ca có vòng tool dài như đối soát cả tháng); không bao giờ vượt 1.000.000; mức đã chọn và lý do ghi vào file đề xuất; vẫn 2 lượt mỗi target mỗi tuần. Chạm trần giữ baseline. Lịch poll Factory xử lý đề xuất có sẵn không đồng nghĩa được gọi model để quét nâng cấp hàng loạt.
 
 ## 14. Phát hành, canary và rollback
 

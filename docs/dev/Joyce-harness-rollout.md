@@ -41,7 +41,7 @@ Chủ đã chốt thứ tự này. Ba việc đều nhỏ, đo được trước
 2. Plugin hệ thống `joyce-guard` bật sẵn: chặn ghi ra ngoài brain và vào `sources/`, chặn gửi tin hàng loạt khi người gọi không phải chủ, nối cảnh báo khi chi lớn chưa gắn hợp đồng. Xong khi: có test cho mỗi luật và số lần chặn đọc được.
 3. Dọn kết quả tool cũ trong một lượt dài và ghim dữ kiện Sổ Shop khi nén. Xong khi: test lượt 30 vòng giữ payload dưới ngưỡng và test hỏi lại sau nén xanh.
 
-Giai đoạn 0A và 0B chạy song song. Không việc nào của 0A được làm yếu ranh giới quyền.
+Giai đoạn 0A và 0B chạy song song (chủ đồng ý cách xếp ngày 28/10/2026). Không việc nào của 0A được làm yếu ranh giới quyền.
 
 ## 3B. Giai đoạn 0B: schema và enforcement tối thiểu
 
@@ -208,7 +208,7 @@ Trước khi đụng dữ liệu `brains/`, cần chốt:
 
 - Schema v1 có được coi là ổn định để migration không.
 - Danh sách agent hệ thống nào thật sự dùng chung.
-- Trần token, thời gian và số lần Probe. Chủ đã đồng ý CÓ trần (28/10) nhưng chưa chốt số: đặc tả mục 13 đề xuất 500.000 token, 80 lượt gọi, 20 phút; audit cũ đề xuất 1.000.000 token. Cả hai đều 2 lượt mỗi tuần.
+- Trần token, thời gian và số lần Probe. Chủ chốt 28/10/2026: trần token mỗi lượt cải tiến mặc định 500.000, nâng tới tối đa 1.000.000 khi việc cần (nhắm agent dùng chung nhiều brain, từ 5 ca thử trở lên, hoặc ca có vòng tool dài như đối soát cả tháng); không bao giờ vượt 1.000.000; mức đã chọn và lý do ghi vào file đề xuất; vẫn 2 lượt mỗi target mỗi tuần.
 - Health signal nào làm canary rollback.
 - Thời gian giữ backup.
 
@@ -233,5 +233,6 @@ Các quyết định trên không ngăn việc xây validator, golden profiles v
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | Chủ duyệt cách xếp 0A song song 0B (B-01, B-12 làm đầu 0B) và chốt trần token 500.000 đến 1.000.000 theo mức cần |
 | 2026-10-28 | Chỉnh cho khớp quyết định của chủ: thêm giai đoạn 0A (cache, joyce-guard, dọn ngữ cảnh), đổi giai đoạn 0 cũ thành 0B và đưa hai lỗ thật B-01, B-12 lên đầu; bỏ chữ `max_effect` còn sót; ghi trần chi phí chưa chốt số |
 | 2026-10-28 | Tạo rollout mới theo thứ tự chuẩn, enforcement, golden manager, lát cắt end-to-end, sáu phòng pilot, Probe rồi mới mở rộng |
