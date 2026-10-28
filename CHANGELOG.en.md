@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.42] - 2026-10-28
+### Fixed
+- (in progress) Package A of the Joyce Harness plan: closing the remaining auto-apply paths, keeping a department's own edits, locked and recoverable file writes, lower startup cost.
+
 ## [1.3.41] - 2026-10-28
 ### Fixed
 - **Self-improvement now sees every permission change**, including nested config keys and tools swapped between steps. A config it cannot read with confidence waits for you instead of auto-applying. 30 skills whose header was already malformed wait for you for that reason.

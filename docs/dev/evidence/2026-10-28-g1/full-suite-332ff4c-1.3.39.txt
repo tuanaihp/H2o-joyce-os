@@ -1,0 +1,894 @@
+Chạy 888 test bằng E:\CLAUDECODE\H2O-JOYCE-OS\.venv\Scripts\python.exe
+
+  [ 1/888] ok   test_2fa_mat_khoa_khong_im_lang.py
+  [ 2/888] ok   test_2fa_totp.py  (9s)
+  [ 3/888] ok   test_adaptive_context_phase8.py
+  [ 4/888] ok   test_adaptive_runtime_hardening.py
+  [ 5/888] ok   test_admin_env_password.py
+  [ 6/888] ok   test_agent_avatar.py
+  [ 7/888] ok   test_agent_budget.py
+  [ 8/888] ok   test_agent_calls_ledger.py  (10s)
+  [ 9/888] ok   test_agent_chat_prompt.py  (18s)
+  [10/888] ok   test_agent_jobs_0142.py  (18s)
+  [11/888] ok   test_agent_judge_dm.py
+  [12/888] ok   test_agent_judge_labels.py
+  [13/888] ok   test_agent_judge_name_called.py
+  [14/888] ok   test_agent_judge_review.py
+  [15/888] ok   test_agent_judge_scope.py
+  [16/888] ok   test_agent_judge_team.py  (16s)
+  [17/888] ok   test_agent_judge_waits.py  (7s)
+  [18/888] ok   test_agent_lessons.py  (19s)
+  [19/888] ok   test_agent_model_da_nha.py  (7s)
+  [20/888] ok   test_agent_pulse_host.py  (51s)
+  [21/888] ok   test_agent_pulse_policy.py  (7s)
+  [22/888] ok   test_agent_replan_phase11.py  (29s)
+  [23/888] ok   test_agent_review.py  (7s)
+  [24/888] ok   test_agent_rules.py  (17s)
+  [25/888] ok   test_agent_slug_co_dau.py
+  [26/888] ĐỎ   test_agent_tags.py  (7s)
+  [27/888] ok   test_agent_tu_boi_dap.py
+  [28/888] ok   test_agent_unread_0205.py
+  [29/888] ok   test_agents_danh_sach_nhe.py
+  [30/888] ok   test_agy_buoc_tool.py
+  [31/888] ok   test_agy_dan_ma_tu_terminal.py
+  [32/888] ok   test_agy_prompt_dai.py
+  [33/888] ok   test_agy_tu_cap_nhat.py
+  [34/888] ok   test_anh_codex_ve_brain.py
+  [35/888] ok   test_anh_dan_vao_chat.py
+  [36/888] ok   test_antigravity_chot_van.py
+  [37/888] ok   test_antigravity_cli.py  (6s)
+  [38/888] ok   test_apple_notes.py
+  [39/888] ok   test_autostart_windows.py
+  [40/888] ĐỎ   test_aux_engine.py
+  [41/888] ĐỎ   test_aux_fallback.py
+  [42/888] ok   test_avatar_tai_len.py
+  [43/888] ok   test_ba_don_bay_token.py
+  [44/888] ok   test_ba_loi_mac_va_telegram.py
+  [45/888] ok   test_ba_loi_nguoi_dung_bao.py
+  [46/888] ok   test_ba_loi_tran_prompt.py
+  [47/888] ok   test_backup_sync_anh.py
+  [48/888] ok   test_bao_khung_goc.py
+  [49/888] ok   test_bao_viec_ve_chat_web.py
+  [50/888] ĐỎ   test_bau_troi_tri_thuc.py
+  [51/888] ok   test_bien_chua_gan.py  (7s)
+  [52/888] ok   test_bot_anh_ly_do.py
+  [53/888] ok   test_bot_anh_vao_chat.py
+  [54/888] ok   test_bot_doi_tuong.py
+  [55/888] ok   test_bot_gui_anh.py
+  [56/888] ok   test_bot_linked_docs.py
+  [57/888] ok   test_bot_mat_muon.py
+  [58/888] ok   test_bot_noi_nhu_nguoi.py
+  [59/888] ok   test_bot_sessions_in_agent_history.py
+  [60/888] ok   test_bot_toan_quyen_khong_lo.py
+  [61/888] ok   test_bot_xem_anh.py
+  [62/888] ok   test_bot_zalo_ca_nhan.py
+  [63/888] ok   test_bot_zalo_nhom.py  (16s)
+  [64/888] ok   test_bot_zalo_tag.py
+  [65/888] ok   test_brain_delete_endpoint.py
+  [66/888] ok   test_brain_delete_sync.py  (21s)
+  [67/888] ok   test_brain_seed_ngon_ngu.py
+  [68/888] ok   test_brain_tombstone.py
+  [69/888] ok   test_brain_trash.py
+  [70/888] ok   test_brains_dem.py
+  [71/888] ok   test_brand_theme.py
+  [72/888] ok   test_browse_khong_treo.py
+  [73/888] ok   test_buoc_tool_ve_dung_phien.py
+  [74/888] ok   test_business_weather.py
+  [75/888] ok   test_cache_keepwarm_0202.py
+  [76/888] ok   test_cai_go_goi.py
+  [77/888] ok   test_cai_windows.py
+  [78/888] ok   test_call_rules_per_command.py
+  [79/888] ok   test_canh_bao_rui_ro.py
+  [80/888] ok   test_cap_nhat_cho_den_khi_xong.py
+  [81/888] ok   test_capability_embedding.py
+  [82/888] ok   test_capability_index.py
+  [83/888] ok   test_capability_registry_phase23.py
+  [84/888] ok   test_capsule_khong_ra_json.py
+  [85/888] ok   test_catalog_ban_dich.py
+  [86/888] ok   test_catalog_co_che.py
+  [87/888] ok   test_catalog_guides.py
+  [88/888] ok   test_cauhinh_cu_khong_ket.py
+  [89/888] ok   test_change_receipt_0200.py
+  [90/888] ok   test_channel_ask.py
+  [91/888] ok   test_channel_reminder_brain.py
+  [92/888] ok   test_channel_ui_prompt.py
+  [93/888] ok   test_chat_cards_0201.py
+  [94/888] ok   test_chat_de_doc.py
+  [95/888] ok   test_chat_disconnect.py
+  [96/888] ok   test_chat_fallback.py
+  [97/888] ok   test_chat_recall_0201.py
+  [98/888] ok   test_chat_runtime.py
+  [99/888] ok   test_chat_socket_chet.py
+  [100/888] ok   test_chat_tai_dan.py
+  [101/888] ok   test_chatbot_cach_ly.py
+  [102/888] ok   test_chatbot_doc_tools.py
+  [103/888] ok   test_chatbot_gio_truc.py
+  [104/888] ok   test_chatbot_grounding.py
+  [105/888] ok   test_chatbot_model_agent.py
+  [106/888] ok   test_chatbot_muc_quyen.py
+  [107/888] ok   test_chatbot_ngoai_le.py
+  [108/888] ok   test_chatbot_store.py
+  [109/888] ok   test_chatbot_tai_khoan_ban.py
+  [110/888] ok   test_chatbot_turn_context_hook.py
+  [111/888] ok   test_chi_so_token_doc_tiep.py
+  [112/888] ok   test_chia_se_kho_luu_tru.py
+  [113/888] ok   test_chu_theo_thiet_bi.py
+  [114/888] ok   test_chung_cat_duyet.py
+  [115/888] ok   test_ci_noi_ro_test_do.py
+  [116/888] ok   test_ci_trigger.py
+  [117/888] ok   test_claude_auth.py
+  [118/888] ok   test_claude_auth_khong_mat.py
+  [119/888] ok   test_claude_cli_moi_lai_mach.py
+  [120/888] ok   test_claude_ket_thuc_luot.py
+  [121/888] ok   test_claude_khong_tu_dang_xuat.py
+  [122/888] ok   test_claude_models.py
+  [123/888] ok   test_claude_startup_diagnosis.py
+  [124/888] ok   test_claude_tu_cap_nhat.py
+  [125/888] ok   test_cli_kenh.py
+  [126/888] ok   test_codex_auth_khong_giam_len_nhau.py
+  [127/888] ok   test_codex_background_hub_required.py
+  [128/888] ok   test_codex_cli_moi_nhat.py
+  [129/888] ok   test_codex_context.py
+  [130/888] ok   test_codex_home_env.py
+  [131/888] ok   test_codex_hub_mode.py
+  [132/888] ok   test_codex_ket_noi_lai.py
+  [133/888] ok   test_codex_mat_rollout.py
+  [134/888] ok   test_codex_models.py
+  [135/888] ok   test_codex_native_mcp.py
+  [136/888] ok   test_codex_realtime.py
+  [137/888] ok   test_codex_release_refresh.py
+  [138/888] ok   test_codex_sandbox_docker.py
+  [139/888] ok   test_codex_tien_do.py
+  [140/888] ok   test_codex_vault_header.py
+  [141/888] ok   test_coding_store.py
+  [142/888] ok   test_coding_tool_context.py
+  [143/888] ok   test_compaction.py
+  [144/888] ok   test_composio_connection.py
+  [145/888] ok   test_composio_doc_app.py
+  [146/888] ok   test_cong_cu_tuy_chon.py
+  [147/888] ok   test_connect_group.py
+  [148/888] ok   test_connect_health.py
+  [149/888] ok   test_connector_can_trinh_duyet_local.py
+  [150/888] ok   test_context_compiler_phase4.py
+  [151/888] ok   test_context_runtime_phase01.py
+  [152/888] ok   test_cred_dir_rieng.py
+  [153/888] ok   test_cred_exchange.py
+  [154/888] ok   test_crm.py
+  [155/888] ok   test_crm_nhan_vien.py  (7s)
+  [156/888] ok   test_curator_don_memory.py
+  [157/888] ok   test_curator_scope.py
+  [158/888] ok   test_curator_targets.py
+  [159/888] ok   test_custom_mcp_oauth_start.py
+  [160/888] ok   test_da_ngon_ngu.py
+  [161/888] ok   test_dat_ten_hoi_thoai.py
+  [162/888] ok   test_dataview_tasks.py
+  [163/888] ĐỎ   test_deepseek_provider.py
+  [164/888] ok   test_deploy_environment.py
+  [165/888] ok   test_desktop_apps_plugin.py
+  [166/888] ok   test_dien_giai_thuat_ngu.py
+  [167/888] ok   test_dispatch_hai_kenh.py
+  [168/888] ok   test_dm_reactions.py
+  [169/888] ok   test_do_chinh_xac_ngon_ngu.py
+  [170/888] ok   test_do_sau_suy_nghi.py
+  [171/888] ok   test_do_trinh_duyet.py
+  [172/888] ok   test_doc_file_dinh_kem.py
+  [173/888] ok   test_docker_giu_home_va_cli.py
+  [174/888] ok   test_docker_tu_cai_cli.py
+  [175/888] ok   test_doi_mat_khau.py
+  [176/888] ok   test_doi_model_lien_mach.py
+  [177/888] ok   test_doi_tro_ly_khong_dung_hinh.py  (11s)
+  [178/888] ok   test_domain_setup_ui.py
+  [179/888] ok   test_dong_ho.py  (7s)
+  [180/888] ok   test_dua_token_claude.py
+  [181/888] ok   test_duong_tat_bi_chan.py
+  [182/888] ok   test_duong_tat_khong_nuot_viec.py
+  [183/888] ok   test_engine_cache.py
+  [184/888] ok   test_engine_ngang_quyen.py
+  [185/888] ok   test_env_example_may_doc_duoc.py
+  [186/888] ok   test_factory.py
+  [187/888] ok   test_fast_mode.py
+  [188/888] ok   test_fast_mode_api.py
+  [189/888] ok   test_fast_mode_cli.py  (7s)
+  [190/888] ok   test_fast_path_phase5.py  (5s)
+  [191/888] ok   test_fastyaml.py
+  [192/888] ok   test_fb_monitor.py
+  [193/888] ok   test_feedback_projector.py
+  [194/888] ok   test_feedback_wake.py
+  [195/888] ok   test_files_root.py
+  [196/888] ok   test_form_chuoi_rong.py
+  [197/888] ok   test_frontmatter_delimiter.py
+  [198/888] ĐỎ   test_full_quyen_ungated.py
+  [199/888] ok   test_ghim_chuyen_nhom.py
+  [200/888] ok   test_ghim_file_dang_mo.py
+  [201/888] ok   test_ghim_model_telegram.py
+  [202/888] ok   test_giao_viec_moi_engine.py
+  [203/888] ok   test_giong_edge_da_ngon_ngu.py
+  [204/888] ok   test_git_chi_giu_chu.py
+  [205/888] ok   test_git_sync_bootstrap_locale.py
+  [206/888] ĐỎ   test_go_chatgpt_web.py
+  [207/888] ok   test_goi_chay_ma.py
+  [208/888] ok   test_goi_mau.py
+  [209/888] ok   test_goi_vao_brain.py
+  [210/888] ok   test_google_ads_oauth.py
+  [211/888] ok   test_google_keep.py
+  [212/888] ok   test_google_workspace_setup.py
+  [213/888] ĐỎ   test_graph_watch.py
+  [214/888] ok   test_grok_cli.py  (7s)
+  [215/888] ok   test_groq_bon_han_muc.py
+  [216/888] ĐỎ   test_groq_provider.py
+  [217/888] ok   test_h2o_departments.py  (7s)
+  [218/888] ok   test_handler_khong_goi_truc_tiep.py  (7s)
+  [219/888] ok   test_hang_nhap_ngang.py
+  [220/888] ok   test_harness_map.py
+  [221/888] ok   test_harness_ranh_gioi_quyen.py
+  [222/888] ok   test_hidden_unicode.py
+  [223/888] ok   test_hoi_thoai_bo_loc.py
+  [224/888] ok   test_hoi_thoai_bot_im.py
+  [225/888] ok   test_hoi_thoai_cat_nhom.py
+  [226/888] ok   test_hoi_thoai_crm.py
+  [227/888] ok   test_hoi_thoai_khach.py
+  [228/888] ok   test_hoi_thoai_media.py
+  [229/888] ok   test_hoi_thoai_nhom.py
+  [230/888] ok   test_hoi_thoai_tai_dan.py
+  [231/888] ok   test_hoi_thoai_tra_loi_giup.py
+  [232/888] ok   test_hom_thu.py
+  [233/888] ok   test_host_header_khong_lach_dang_nhap.py
+  [234/888] ok   test_hub_brain_mac_dinh.py
+  [235/888] ĐỎ   test_icons.py  (6s)
+  [236/888] ok   test_ignore_files.py
+  [237/888] ok   test_image_gen.py
+  [238/888] ok   test_image_vision.py
+  [239/888] ok   test_incident_desk_0199.py
+  [240/888] ok   test_install_admin.py
+  [241/888] ĐỎ   test_job_archive_reasoning.py
+  [242/888] ok   test_jobs.py
+  [243/888] ĐỎ   test_joyce_core.py  (5s)
+  [244/888] ok   test_joyce_core_followups.py
+  [245/888] ok   test_joyce_core_memory.py
+  [246/888] ok   test_joyce_core_notices.py
+  [247/888] ok   test_joyce_core_routing.py
+  [248/888] ok   test_joyce_guard.py
+  [249/888] ok   test_joyce_harness_schema.py
+  [250/888] ok   test_joyce_schedule.py
+  [251/888] ok   test_joyce_team_tool.py
+  [252/888] ok   test_joyce_today.py
+  [253/888] ok   test_joyce_workflow_plugin.py
+  [254/888] ok   test_kanban_het_luot.py
+  [255/888] ok   test_kanban_nghiem_thu_va_quy_trinh.py
+  [256/888] ok   test_kanban_snapshot.py
+  [257/888] ok   test_kenh_du_phong.py
+  [258/888] ok   test_kenh_tai_khoan.py
+  [259/888] ok   test_ket_noi_dung_chung_moi_brain.py
+  [260/888] ok   test_ket_noi_treo.py
+  [261/888] ok   test_kho_goi.py
+  [262/888] ok   test_khoa_lech_khong_xoa_secret.py
+  [263/888] ok   test_khoi_dong_cham.py
+  [264/888] ĐỎ   test_khoi_dong_nhe.py  (12s)
+  [265/888] ok   test_khoi_ngu_canh_lo_ra.py
+  [266/888] ok   test_khong_tu_de_viec.py
+  [267/888] ok   test_khung_go_server.py
+  [268/888] ok   test_lan_nhanh_roi_ve_noi_ro.py
+  [269/888] ok   test_lang_bat_bien.py
+  [270/888] ĐỎ   test_learn_agent_workflow.py
+  [271/888] ok   test_learn_sua_skill.py
+  [272/888] ok   test_learn_task_gate.py
+  [273/888] ok   test_learn_tu_viec_nen.py
+  [274/888] ok   test_lenh_he_thong.py
+  [275/888] ok   test_lich_ro_rang.py
+  [276/888] ok   test_limit_learner.py
+  [277/888] ok   test_limit_resume.py
+  [278/888] ok   test_link_file_uri.py
+  [279/888] ok   test_lo_trinh.py
+  [280/888] ok   test_locale.py
+  [281/888] ok   test_login_env_upgrade.py
+  [282/888] ok   test_login_forgiving.py
+  [283/888] ok   test_loi_go_duoc.py
+  [284/888] ok   test_loi_hua_moi_giong.py
+  [285/888] ok   test_loi_ket_noi_google.py
+  [286/888] ok   test_loi_mcp_noi_that.py
+  [287/888] ok   test_loop_ambient.py
+  [288/888] ok   test_loop_gio_co_dinh.py
+  [289/888] ok   test_loop_goal_default.py
+  [290/888] ok   test_luot_chat_codex.py
+  [291/888] ok   test_luu_cai_dat_giong.py
+  [292/888] ok   test_luu_luot_chat.py
+  [293/888] ok   test_ma_thiet_lap.py
+  [294/888] ok   test_machine_translations.py
+  [295/888] ok   test_mcp_connector_internal.py
+  [296/888] ok   test_mcp_dang_ban_khong_giet.py
+  [297/888] ok   test_mcp_fast_fail.py
+  [298/888] ok   test_mcp_khong_ro_tien_trinh.py
+  [299/888] ok   test_mcp_lazy.py
+  [300/888] ok   test_mcp_mo_coi_sau_khoi_dong_lai.py
+  [301/888] ok   test_mcp_nong_sau_update.py
+  [302/888] ok   test_mcp_official_release.py
+  [303/888] ok   test_mcp_phien_het_han.py
+  [304/888] ok   test_media_gc.py
+  [305/888] ok   test_memory_chat.py
+  [306/888] ok   test_memory_hoa_thuong.py
+  [307/888] ok   test_memory_index_hai_brain.py
+  [308/888] ok   test_meta_graph.py
+  [309/888] ok   test_meta_pages.py
+  [310/888] ok   test_mo_file_trong_trang_tep_tin.py
+  [311/888] ĐỎ   test_mobile_layout.py
+  [312/888] ok   test_model_limits.py
+  [313/888] ok   test_model_moi_khong_ket.py
+  [314/888] ok   test_model_router_phase12.py
+  [315/888] ok   test_model_theo_phien.py
+  [316/888] ok   test_muc_dung_moi.py
+  [317/888] ok   test_muc_mac_dinh.py
+  [318/888] ok   test_nghe_sua.py
+  [319/888] ok   test_nghien_cuu.py
+  [320/888] ok   test_nghien_cuu_route.py
+  [321/888] ok   test_nhac_hen_muc_quyen.py
+  [322/888] ok   test_nhat_ky_cap_nhat_nhanh.py
+  [323/888] ok   test_nhat_ky_hoc_moi_truoc.py
+  [324/888] ok   test_nhat_ky_hoc_sau.py
+  [325/888] ĐỎ   test_nhat_ky_song_ngu.py
+  [326/888] ok   test_nhieu_ban_mot_vps.py
+  [327/888] ok   test_nhom_agent_workflow.py
+  [328/888] ok   test_notebooklm_connector.py
+  [329/888] ok   test_nut_cap_nhat_ly_do.py
+  [330/888] ĐỎ   test_oauth_scope_clerk.py
+  [331/888] ĐỎ   test_ollama.py
+  [332/888] ok   test_ollama_local.py
+  [333/888] ok   test_ollama_local_dinh_tuyen.py
+  [334/888] ok   test_ollama_local_thinking.py
+  [335/888] ĐỎ   test_ollama_local_tool_pdf.py
+  [336/888] ok   test_openai_compat_connect.py
+  [337/888] ok   test_openai_oauth.py
+  [338/888] ok   test_packs_kho_state.py
+  [339/888] ok   test_path_exists.py
+  [340/888] ok   test_pet_luu_thanh_truot.py
+  [341/888] ok   test_phat_hien_ban_cu.py
+  [342/888] ok   test_phien_am.py
+  [343/888] ok   test_phien_ban_moi_nhat.py
+  [344/888] ok   test_phien_telegram_hien_o_thanh_ben.py
+  [345/888] ok   test_phong_ban_ra_soat.py
+  [346/888] ĐỎ   test_pinned_folder.py
+  [347/888] ĐỎ   test_placeholder_ui.py
+  [348/888] ok   test_plugin_http.py
+  [349/888] ok   test_plugin_vault.py
+  [350/888] ok   test_plugins_cache.py
+  [351/888] ok   test_plugins_host.py
+  [352/888] ok   test_prefix_slim.py
+  [353/888] ok   test_prerelease_0142.py
+  [354/888] ok   test_project_khung.py
+  [355/888] ok   test_project_panel.py
+  [356/888] ok   test_project_vao_prompt.py
+  [357/888] ok   test_prompt_budget.py
+  [358/888] ok   test_prompt_scan_once.py
+  [359/888] ok   test_provider_da_go.py
+  [360/888] ok   test_pulse_contrib.py
+  [361/888] ok   test_purge_ket_noi.py
+  [362/888] ok   test_quota_direction.py
+  [363/888] ok   test_quota_scheduler.py
+  [364/888] ok   test_readonly_orchestrator_phase7.py
+  [365/888] ok   test_readonly_path_phase6.py  (18s)
+  [366/888] ok   test_related_review.py
+  [367/888] ok   test_reminder_delivery.py
+  [368/888] ok   test_reminder_memory_0198.py
+  [369/888] ok   test_reminder_task_silent.py
+  [370/888] ĐỎ   test_reply_policy_api.py
+  [371/888] ok   test_reply_policy_decide.py
+  [372/888] ok   test_reply_policy_engine.py
+  [373/888] ok   test_reply_policy_hub_owner_only.py
+  [374/888] ok   test_reply_policy_review.py
+  [375/888] ok   test_reply_policy_store.py
+  [376/888] ok   test_reply_policy_tuning.py
+  [377/888] ok   test_reply_policy_zalo.py  (9s)
+  [378/888] ok   test_resonance_a1_gates.py  (6s)
+  [379/888] ok   test_resonance_a1_registry.py
+  [380/888] ok   test_resonance_a1_rollback.py
+  [381/888] ok   test_resonance_a1_transport.py  (7s)
+  [382/888] ok   test_resonance_a1_turn_agent.py
+  [383/888] ok   test_resonance_a2_heartbeat.py  (95s)
+  [384/888] ok   test_resonance_a2_rollback.py
+  [385/888] ok   test_resonance_a3_api.py  (17s)
+  [386/888] ok   test_resonance_a3_learning.py  (83s)
+  [387/888] ok   test_resonance_a3_pilot.py
+  [388/888] ok   test_resonance_a3_rollback.py
+  [389/888] ok   test_resonance_a4_grants.py  (28s)
+  [390/888] ok   test_resonance_a4_pilot.py
+  [391/888] ok   test_resonance_a4_pilot_gate.py
+  [392/888] ok   test_resonance_a4_rollback.py
+  [393/888] ok   test_resonance_a4_transport.py  (22s)
+  [394/888] ok   test_resonance_a5_api.py  (10s)
+  [395/888] ok   test_resonance_a5_budget.py  (57s)
+  [396/888] ok   test_resonance_a5_code_r1.py  (47s)
+  [397/888] ok   test_resonance_a5_engine_session_gate.py
+  [398/888] ok   test_resonance_a5_perf.py  (47s)
+  [399/888] ok   test_resonance_a5_pilot.py
+  [400/888] ok   test_resonance_a5_pilot_gate.py
+  [401/888] ok   test_resonance_a5_rollback.py
+  [402/888] ok   test_resonance_a5_team.py  (54s)
+  [403/888] ok   test_resonance_achieve_stages.py  (14s)
+  [404/888] ok   test_resonance_e2e_achieve_harness.py
+  [405/888] ok   test_resonance_e2e_guard.py
+  [406/888] ok   test_resonance_inline_handoff.py  (10s)
+  [407/888] ok   test_resonance_mvp_core.py
+  [408/888] ok   test_resonance_mvp_e2e_achieve.py
+  [409/888] ok   test_resonance_mvp_e2e_pilot.py
+  [410/888] ok   test_resonance_mvp_feedback.py  (14s)
+  [411/888] ok   test_resonance_mvp_handoff.py
+  [412/888] ok   test_resonance_mvp_integration.py
+  [413/888] ok   test_resonance_mvp_main.py  (6s)
+  [414/888] ok   test_resonance_mvp_pilot.py
+  [415/888] ok   test_resonance_mvp_revise.py
+  [416/888] ok   test_resonance_mvp_run.py  (13s)
+  [417/888] ok   test_resonance_mvp_trial.py  (31s)
+  [418/888] ok   test_resonance_mvp_trial_pilot.py
+  [419/888] ok   test_resonance_mvp_wiring.py
+  [420/888] ok   test_resonance_perf.py
+  [421/888] ok   test_resonance_tool_path.py
+  [422/888] ok   test_responses_tool_stream.py
+  [423/888] ok   test_review_removed_0142.py
+  [424/888] ok   test_route_table.py
+  [425/888] ok   test_run_command_quyen.py
+  [426/888] ok   test_runtime_preset.py
+  [427/888] ĐỎ   test_scheduled_call_0203.py
+  [428/888] ok   test_scope_google.py
+  [429/888] ok   test_sdk_engine.py  (10s)
+  [430/888] ok   test_security.py
+  [431/888] ok   test_sentinel_0199.py
+  [432/888] ok   test_session_brain.py
+  [433/888] ok   test_sessions_kenh_cong_su.py
+  [434/888] ok   test_settings_consolidation.py
+  [435/888] ĐỎ   test_settings_ghi_an_toan.py  (6s)
+  [436/888] ĐỎ   test_settings_khong_treo_theo_cli.py
+  [437/888] ok   test_settings_merge.py
+  [438/888] ok   test_share_hoi_thoai.py
+  [439/888] ok   test_share_link.py
+  [440/888] ok   test_share_ten.py
+  [441/888] ok   test_shop_so.py
+  [442/888] ok   test_shop_state.py
+  [443/888] ok   test_skill_caps.py
+  [444/888] ok   test_skill_da_ngon_ngu.py
+  [445/888] ok   test_skill_subtree_ship.py
+  [446/888] ok   test_skill_usage.py
+  [447/888] ok   test_staff_avatar.py
+  [448/888] ok   test_stdio_big_line.py
+  [449/888] ok   test_steer_0206.py
+  [450/888] ok   test_stt_ao_giac.py
+  [451/888] ok   test_stt_route.py
+  [452/888] ok   test_sua_mcp_tu_them.py
+  [453/888] ok   test_sua_md_hong.py
+  [454/888] ĐỎ   test_subscription_router.py
+  [455/888] ok   test_sweep.py
+  [456/888] ok   test_sysbar_layout.py
+  [457/888] ok   test_system_agents.py
+  [458/888] ok   test_system_sync.py
+  [459/888] ok   test_t3_event_loop.py  (25s)
+  [460/888] ok   test_t3_fix_judge_guard.py
+  [461/888] ok   test_t3_fix_judge_main.py
+  [462/888] ok   test_t3_fix_judge_p3.py
+  [463/888] ok   test_t3_fix_judge_retry.py
+  [464/888] ok   test_t3_fix_judge_team_wait.py
+  [465/888] ok   test_t3_fix_pulse_cancel.py
+  [466/888] ok   test_t3_fix_pulse_judge.py
+  [467/888] ok   test_t3_fix_pulse_main.py  (16s)
+  [468/888] ok   test_t3_fix_pulse_p3.py  (15s)
+  [469/888] ok   test_t3_fix_pulse_scope.py
+  [470/888] ok   test_t3_fix_review_learn.py
+  [471/888] ok   test_t3_integration.py
+  [472/888] ok   test_tai_khoan_theo_brain.py
+  [473/888] ok   test_tai_lieu_song_ngu.py
+  [474/888] ok   test_tai_san_cuoc_chat.py
+  [475/888] ok   test_tai_san_gan_tay.py
+  [476/888] ok   test_tai_san_tro_ly.py
+  [477/888] ok   test_tao_file_tu_chat.py
+  [478/888] ok   test_task_router.py
+  [479/888] ok   test_tasks_autonomous.py
+  [480/888] ok   test_team_acceptance_matrix.py
+  [481/888] ok   test_team_adaptive_restore.py
+  [482/888] ok   test_team_api.py  (6s)
+  [483/888] ok   test_team_authority.py
+  [484/888] ok   test_team_bundle_0200.py
+  [485/888] ok   test_team_chat_0142.py
+  [486/888] ok   test_team_chat_0142_review.py  (9s)
+  [487/888] ĐỎ   test_team_docs.py
+  [488/888] ok   test_team_history.py
+  [489/888] ok   test_team_identity.py
+  [490/888] ok   test_team_messages.py
+  [491/888] ok   test_team_peer_feedback.py
+  [492/888] ok   test_team_perf_bench.py
+  [493/888] ok   test_team_queue.py
+  [494/888] ok   test_team_reactions.py
+  [495/888] ok   test_team_release.py
+  [496/888] ok   test_team_rollback.py
+  [497/888] ok   test_team_runner.py  (12s)
+  [498/888] ok   test_team_share_routes_0200.py
+  [499/888] ok   test_team_store.py
+  [500/888] ok   test_team_t0_broadcast.py  (11s)
+  [501/888] ok   test_team_t1_goal.py  (5s)
+  [502/888] ok   test_team_t1_goal_host.py
+  [503/888] ok   test_team_t1_review.py  (25s)
+  [504/888] ok   test_team_t1_review_fixes.py  (8s)
+  [505/888] ok   test_team_t4_long_history.py  (6s)
+  [506/888] ok   test_team_t4_ops.py  (20s)
+  [507/888] ok   test_team_t4_perf.py  (41s)
+  [508/888] ok   test_team_t4_vps_script.py
+  [509/888] ok   test_team_tags.py
+  [510/888] ok   test_team_unread_0197.py
+  [511/888] ok   test_team_ux.py  (27s)
+  [512/888] ok   test_team_work_tools.py
+  [513/888] ok   test_telegram_khong_lo_cau_lenh.py
+  [514/888] ok   test_telegram_model_menu.py
+  [515/888] ok   test_telegram_notes.py
+  [516/888] ok   test_telegram_sessions.py
+  [517/888] ok   test_terminal.py  (6s)
+  [518/888] ok   test_terminal_cmd_goc.py
+  [519/888] ok   test_tg_ngu_canh_restart.py
+  [520/888] ok   test_them_mcp_qua_chat.py
+  [521/888] ok   test_theme_tokens.py
+  [522/888] ok   test_thu_gon_tool_cu.py
+  [523/888] ĐỎ   test_thu_lai_tam_thoi.py
+  [524/888] ok   test_tien_trinh_nen.py
+  [525/888] ok   test_tien_trinh_nen_main.py
+  [526/888] ok   test_tiet_kiem_chay_that.py
+  [527/888] ok   test_tiet_kiem_kenh_ngoai.py
+  [528/888] ok   test_tim_theo_kenh.py
+  [529/888] ok   test_tin_thoai.py
+  [530/888] ok   test_tin_trang_thai_telegram.py
+  [531/888] ok   test_tin_ve_quy_trinh.py
+  [532/888] ok   test_tinh_cau_tuy_bien.py
+  [533/888] ok   test_tong_quan.py
+  [534/888] ok   test_tool_label.py
+  [535/888] ok   test_tool_reliability.py
+  [536/888] ok   test_tool_syntax_recovery.py
+  [537/888] ok   test_tran_wall_clock_nen.py
+  [538/888] ok   test_trang_ky_nang.py
+  [539/888] ok   test_trang_tiet_kiem.py  (14s)
+  [540/888] ok   test_try_bot.py
+  [541/888] ok   test_tts_stream.py  (8s)
+  [542/888] ok   test_tu_dien_chi_giao_dien.py
+  [543/888] ok   test_turn_context.py
+  [544/888] ok   test_turn_engine_status.py  (6s)
+  [545/888] ok   test_turn_files.py
+  [546/888] ok   test_ui_bridge.py
+  [547/888] ok   test_ui_lang_ban_cu.py
+  [548/888] ok   test_update.py
+  [549/888] ok   test_update_diagnose.py
+  [550/888] ok   test_update_lui_hong.py  (24s)
+  [551/888] ok   test_updater_merge.py
+  [552/888] ok   test_updater_stash.py
+  [553/888] ok   test_usage_hotpath.py
+  [554/888] ok   test_usage_index.py
+  [555/888] ok   test_usage_parsers.py
+  [556/888] ok   test_vault_scaffold.py
+  [557/888] ok   test_vault_soi_md_mot_lan.py
+  [558/888] ok   test_version_khop_changelog.py
+  [559/888] ok   test_viec_mau.py
+  [560/888] ok   test_viec_mau_nhan_vien.py  (10s)
+  [561/888] ok   test_viec_nen_giong_dung_khung_chat.py
+  [562/888] ok   test_viec_nen_giong_khong_chet_lang.py
+  [563/888] ok   test_viec_nen_hien_ra.py
+  [564/888] ok   test_viec_nen_hop_ly.py
+  [565/888] ok   test_viec_nen_khong_moc_lung_tung.py
+  [566/888] ok   test_viec_nen_ve_dung_khung_chat.py
+  [567/888] ok   test_viec_xuyen_brain.py
+  [568/888] ok   test_voice_brain.py
+  [569/888] ok   test_voice_brain_auto.py
+  [570/888] ok   test_voice_call_select.py
+  [571/888] ok   test_voice_ear_select.py
+  [572/888] ok   test_voice_giu_ngon_ngu.py
+  [573/888] ok   test_voice_live.py
+  [574/888] ok   test_voice_live_chatgpt.py
+  [575/888] ok   test_voice_live_chatgpt_route.py
+  [576/888] ok   test_voice_live_focus.py
+  [577/888] ok   test_voice_live_followup.py  (11s)
+  [578/888] ok   test_voice_live_language.py
+  [579/888] ok   test_voice_live_progress.py  (26s)
+  [580/888] ok   test_voice_live_speech_queue.py  (5s)
+  [581/888] ok   test_voice_live_transcription.py
+  [582/888] ok   test_voice_note_0202.py
+  [583/888] ok   test_voice_privacy.py
+  [584/888] ok   test_voice_protocol_ws.py
+  [585/888] ok   test_voice_tap_am.py
+  [586/888] ok   test_voice_ten_joyce.py
+  [587/888] ok   test_voice_transcript_integrity.py
+  [588/888] ok   test_voice_turn_integrity.py  (17s)
+  [589/888] ok   test_voice_turn_protocol.py
+  [590/888] ok   test_watchdog.py  (5s)
+  [591/888] ok   test_watchdog_treo.py
+  [592/888] ok   test_watchtower_image.py
+  [593/888] ok   test_webhook_triggers_0198.py
+  [594/888] ok   test_webpush.py
+  [595/888] ok   test_wiki_chong_trung_va_nen_tinh.py
+  [596/888] ok   test_wikilink_bo_khoi_ma.py
+  [597/888] ok   test_windows_launcher.py
+  [598/888] ok   test_windows_no_console.py
+  [599/888] ok   test_workflow_chat.py
+  [600/888] ĐỎ   test_workflow_graph_phase10.py
+  [601/888] ok   test_workflow_runs.py
+  [602/888] ok   test_workflow_runs_api.py
+  [603/888] ĐỎ   test_workflow_turn_ws.py
+  [604/888] ok   test_write_path_phase9.py  (5s)
+  [605/888] ok   test_ws_origin_guard.py
+  [606/888] ok   test_ws_safari.py
+  [607/888] ok   test_xuat_nhieu_mot_goi.py
+  [608/888] ok   test_youtube_read.py
+  [609/888] ok   test_zalo_anh_chu_thich.py
+  [610/888] ok   test_zalo_anh_quote.py
+  [611/888] ok   test_zalo_anh_rieng.py
+  [612/888] ok   test_zalo_anh_tron_nhom.py
+  [613/888] ok   test_zalo_bot.py
+  [614/888] ok   test_zalo_cau_tra_loi_cu.py
+  [615/888] ok   test_zalo_cho_khach_nhan_xong.py  (6s)
+  [616/888] ok   test_zalo_chu_chua_tra_loi.py  (8s)
+  [617/888] ok   test_zalo_cli.py
+  [618/888] ok   test_zalo_file_attachment.py
+  [619/888] ok   test_zalo_kenh_chu.py
+  [620/888] ok   test_zalo_ket_ban.py
+  [621/888] ok   test_zalo_loi_de_hieu.py
+  [622/888] ok   test_zalo_mcp.py
+  [623/888] ok   test_zalo_mcp_khuon.py
+  [624/888] ok   test_zalo_ngoai_le.py
+  [625/888] ok   test_zalo_nhap_lich_su.py
+  [626/888] ok   test_zalo_nhuong_tay.py  (7s)
+  [627/888] ok   test_zalo_ranh_khong_phai_loi.py
+  [628/888] ok   test_zalo_send_file.py
+  [629/888] ok   test_zalo_tin_cua_minh_va_het_luot.py
+  [630/888] ok   test_zalo_tin_dai.py
+  [631/888] ok   test_zalo_vao_nhom.py
+  [632/888] ok   test_zalo_xin_vao_nhom.py
+  [633/888] ok   test_2fa_loi_vao.js
+  [634/888] ok   test_agent_avatar.js
+  [635/888] ok   test_agent_jobs_0142.js
+  [636/888] ok   test_agent_judge_ui.js
+  [637/888] ok   test_agent_lessons_ui.js
+  [638/888] ok   test_agent_pulse_ui.js
+  [639/888] ok   test_anh_dinh_kem_trong_chat.js
+  [640/888] ok   test_anh_sua_cung_ten.js
+  [641/888] ok   test_anh_trong_file_md.js
+  [642/888] ok   test_assistant_page_0181.js
+  [643/888] ok   test_badge_va_khung_chat_hep.js
+  [644/888] ok   test_bang_viec_mot_cot.js
+  [645/888] ok   test_bang_vuot_ngang.js
+  [646/888] ok   test_bau_troi_tri_thuc.js
+  [647/888] ok   test_big_bang_tri_thuc.js
+  [648/888] ok   test_bo_badge_engine.js
+  [649/888] ok   test_bo_nut_loa_header.js
+  [650/888] ok   test_brains_ui.mjs
+  [651/888] ok   test_cai_app_desktop.js
+  [652/888] ok   test_cai_goi_di_kem.js
+  [653/888] ok   test_call_bar.js
+  [654/888] ok   test_camnang_tri_thuc.js
+  [655/888] ok   test_chat_acts.js
+  [656/888] ok   test_chat_anh_theo_brain.js
+  [657/888] ok   test_chat_ask.js
+  [658/888] ok   test_chat_card_0201.js
+  [659/888] ok   test_chat_doi_0200.js
+  [660/888] ok   test_chat_file.js
+  [661/888] ok   test_chat_ime_enter.js
+  [662/888] ok   test_chat_kb.js
+  [663/888] ok   test_chat_lenh.js
+  [664/888] ok   test_chat_nho.js
+  [665/888] ok   test_chat_quote.js
+  [666/888] ok   test_chat_render.js
+  [667/888] ok   test_chat_side_actions.js
+  [668/888] ok   test_chat_slash.js
+  [669/888] ok   test_chat_tai_dan.js
+  [670/888] ok   test_chat_zoom_sang_trang.js
+  [671/888] ok   test_chatbot_hai_tab.js
+  [672/888] ok   test_chon_skill_va_phan_trang.js
+  [673/888] ok   test_code_hl.js
+  [674/888] ok   test_code_terminal.js
+  [675/888] ok   test_col_fold_0196.js
+  [676/888] ok   test_col_resize_0148.js
+  [677/888] ok   test_cong_su_bo_cuc_0142.js
+  [678/888] ok   test_cong_su_danh_sach_cu.js
+  [679/888] ok   test_cong_su_nhan_tho.js
+  [680/888] ok   test_crm.js
+  [681/888] ok   test_cuon_dung_khung.js
+  [682/888] ok   test_dai_he_thong_mo_coi.js
+  [683/888] ok   test_dai_viec_nen.js
+  [684/888] ok   test_danh_sach_tro_ly_nhe.js
+  [685/888] ok   test_dataview.js
+  [686/888] ok   test_de_doc_bong_bong.js
+  [687/888] ok   test_dem_tu.js
+  [688/888] ok   test_dinh_kem_khong_roi.js
+  [689/888] ok   test_doi_bo_nao_trang_cong_su.js
+  [690/888] ok   test_editor_cmds.js
+  [691/888] ok   test_engine_banner.js
+  [692/888] ok   test_favicon_theo_logo.js
+  [693/888] ok   test_form_them_mcp.js
+  [694/888] ok   test_gan_file_vao_cuoc.js
+  [695/888] ok   test_ghim_model_telegram.js
+  [696/888] ok   test_giao_dien_toi.js
+  [697/888] ok   test_gio_nui_lua_voi_rong.js  (7s)
+  [698/888] ok   test_giong_khong_lap_cau.js
+  [699/888] ok   test_giu_cho_cuon_khi_doi_trang.js
+  [700/888] ok   test_go_ket_noi_hoi_lai.js
+  [701/888] ok   test_graph_timelapse.js
+  [702/888] ok   test_health_panel_0199.js
+  [703/888] ok   test_ho_den_va_sao_moi.js
+  [704/888] ok   test_hoi_tham_viec_nen.js
+  [705/888] ok   test_hoi_thoai_bo_cuc.js
+  [706/888] ok   test_hoi_thoai_bo_loc.js
+  [707/888] ok   test_hoi_thoai_cong_tac.js
+  [708/888] ok   test_hoi_thoai_khach.js
+  [709/888] ok   test_hoi_thoai_nhap_cu.js
+  [710/888] ok   test_hoi_thoai_nhom_ui.js
+  [711/888] ok   test_hoi_thoai_tai_dan.js
+  [712/888] ok   test_hoi_thoai_tra_loi_giup.js
+  [713/888] ok   test_hom_thu_ui.js
+  [714/888] ok   test_hop_chon_thu_muc.js
+  [715/888] ok   test_hop_xoa_ket_noi.js
+  [716/888] ok   test_ht_media.js
+  [717/888] ok   test_html_to_webcake.js
+  [718/888] ĐỎ   test_i18n.mjs
+  [719/888] ok   test_i18n_ngoai_trinh_duyet.js
+  [720/888] ok   test_i18n_theo_trinh_duyet.js
+  [721/888] ok   test_icons.mjs
+  [722/888] ok   test_incoming_call_0203.js
+  [723/888] ok   test_info_tip.js
+  [724/888] ok   test_ios_chu_tam_khong_mat.js
+  [725/888] ok   test_ios_tai_file.js
+  [726/888] ok   test_job_archive_ui.js
+  [727/888] ok   test_joyce_core_ui.js
+  [728/888] ok   test_joyce_gestures.js
+  [729/888] ĐỎ   test_joyce_hands.js
+  [730/888] ĐỎ   test_joyce_humanoid.js
+  [731/888] ok   test_keo_tha_anh_iphone.js
+  [732/888] ok   test_keo_tha_va_che_do_xem.js
+  [733/888] ok   test_kho_ban_moi.js
+  [734/888] ok   test_kho_cai_dat.js
+  [735/888] ok   test_kho_luu_tru_trang_chia_se.js
+  [736/888] ok   test_kho_o_tim.js
+  [737/888] ok   test_khoi_phuc_trang_dang_lam.js
+  [738/888] ok   test_khung_go.js
+  [739/888] ok   test_khung_project.js
+  [740/888] ok   test_khung_xem_ma.js
+  [741/888] ok   test_kiem_tra_lai_nhat_ky.js
+  [742/888] ok   test_lightbox_anh.js
+  [743/888] ok   test_lightbox_cam_ung.js
+  [744/888] ok   test_lightbox_gesture_dom.js
+  [745/888] ok   test_limit_resume.js
+  [746/888] ok   test_linh_vat.js
+  [747/888] ok   test_link_file_uri.js
+  [748/888] ok   test_link_ma_hoa_phan_tram.js
+  [749/888] ok   test_link_md_va_khung_dinh.js
+  [750/888] ok   test_login_screen_opaque.js
+  [751/888] ok   test_logo_linh_vat.js
+  [752/888] ok   test_lui_tien_note.js
+  [753/888] ok   test_luu_md_khong_hong.js
+  [754/888] ok   test_mat_trang.js
+  [755/888] ok   test_menu_cong.js
+  [756/888] ok   test_mic_dien_thoai_mot_duong_thu.js
+  [757/888] ok   test_mic_doc_chong_va_loa_theo_mic.js
+  [758/888] ok   test_mic_khong_tu_gui.js
+  [759/888] ok   test_mic_loi_khong_lap.js
+  [760/888] ok   test_mic_popup.js
+  [761/888] ok   test_mo_file_tu_chat.js
+  [762/888] ok   test_mobile_enter_va_hoi_suc_pwa.js
+  [763/888] ok   test_moc_hoi_thoai.js
+  [764/888] ok   test_model_chip_compact.js
+  [765/888] ok   test_model_list_chung.js
+  [766/888] ok   test_model_list_nha_ket_noi.js
+  [767/888] ok   test_msg_press.js
+  [768/888] ok   test_muc_dung_khong_cho_quet.js
+  [769/888] ok   test_nao_tren_dien_thoai.js
+  [770/888] ok   test_ngan_keo_mobile_ket_cung.js
+  [771/888] ok   test_ngat_loi_nha_tieng.js
+  [772/888] ok   test_nhac_them_vao_man_hinh.js
+  [773/888] ok   test_nhan_danh_muc.js
+  [774/888] ok   test_nhat_ky_va_thu_muc_mobile.js
+  [775/888] ok   test_nhom_agent_workflow.js
+  [776/888] ok   test_noi_chen_khi_dang_nghi.js
+  [777/888] ok   test_nut_chia_se_trinh_sua_dinh.js
+  [778/888] ok   test_nut_quay_lai_trang.js
+  [779/888] ok   test_nut_xuong_day.js
+  [780/888] ok   test_o_bao_voi_rong.js  (7s)
+  [781/888] ok   test_o_chat_no_theo_chu.js
+  [782/888] ok   test_orb_trang_thai_that.js
+  [783/888] ok   test_partner_unread_0205.js
+  [784/888] ok   test_pet_bang_mau.js
+  [785/888] ok   test_pet_cam_xuc.js
+  [786/888] ok   test_pet_chan_dung_hai_mat.js
+  [787/888] ok   test_pet_huong_liec.js
+  [788/888] ok   test_pet_mat_dang_nghi.js
+  [789/888] ok   test_pet_thanh_truot_mau.js
+  [790/888] ok   test_pet_trang_cai_dat.js
+  [791/888] ok   test_phong_to_md_che_het_rail.js
+  [792/888] ok   test_pinned_folder.js
+  [793/888] ok   test_pinned_folder_flow.js
+  [794/888] ok   test_planet_astro.js
+  [795/888] ok   test_prov_order.js
+  [796/888] ok   test_qua_cau_khong_giat.js
+  [797/888] ok   test_qua_cau_nghi_khi_ranh.js
+  [798/888] ok   test_rail_muc_con.js
+  [799/888] ok   test_reactions_ui.js
+  [800/888] ok   test_reminder_ring_0202_1.js
+  [801/888] ok   test_reply_policy_ui.js
+  [802/888] ok   test_resonance_a1_ui.js
+  [803/888] ok   test_resonance_a2_ui.js
+  [804/888] ok   test_resonance_a3_ui.js
+  [805/888] ok   test_resonance_a4_ui.js
+  [806/888] ok   test_resonance_a5_ui.js
+  [807/888] ok   test_resonance_mvp_ui.js
+  [808/888] ok   test_resonance_perf_ui.js
+  [809/888] ok   test_response_tts_resend.js
+  [810/888] ok   test_restore_last_chat_and_labels.js
+  [811/888] ok   test_settings_tabs.js
+  [812/888] ok   test_sodo_he_thong.js
+  [813/888] ok   test_song_dung_nham.js
+  [814/888] ok   test_steer_ui_0206.js
+  [815/888] ok   test_studio_chon_model_agent.js
+  [816/888] ok   test_sua_md_giu_khung_chat.js
+  [817/888] ok   test_tab_model_local.js
+  [818/888] ok   test_tab_quy_trinh_cai_dat.js
+  [819/888] ok   test_tab_thu_muc.js
+  [820/888] ok   test_tai_len_khong_quay_mai.js
+  [821/888] ok   test_tai_lieu_cong_su_mot_ngan.js
+  [822/888] ok   test_tai_san_tro_ly.js
+  [823/888] ok   test_task_suggest.js
+  [824/888] ok   test_team_chat_0142.js
+  [825/888] ok   test_team_chat_0142_review.js
+  [826/888] ok   test_team_docs_ui.js
+  [827/888] ok   test_team_t0_toggle.js
+  [828/888] ok   test_team_tags_ui.js
+  [829/888] ok   test_team_unread_ui.js
+  [830/888] ok   test_teams_ui.js
+  [831/888] ok   test_thanh_truot_effort.js
+  [832/888] ok   test_the_ma_text_trong_trinh_sua.js
+  [833/888] ok   test_the_viec_nen.js
+  [834/888] ok   test_theme_schedule.js
+  [835/888] ok   test_thien_ha_phong_ban.js
+  [836/888] ok   test_thong_bao_ban_da_cai.js
+  [837/888] ok   test_thu_gon_panel.js
+  [838/888] ok   test_tia_set_fast.js
+  [839/888] ok   test_tia_tri_thuc.js
+  [840/888] ok   test_tien_trinh_buoc.js
+  [841/888] ok   test_tinh_cau_alien.js
+  [842/888] ok   test_tinh_cau_cham.js
+  [843/888] ok   test_tinh_cau_tuy_bien.js
+  [844/888] ok   test_tinh_van_chom_sao.js
+  [845/888] ok   test_token_api_ui.js
+  [846/888] ok   test_tong_quan.js
+  [847/888] ok   test_trang_chatbot.js
+  [848/888] ok   test_trang_chia_se.js
+  [849/888] ok   test_trang_code_dien_thoai.js
+  [850/888] ok   test_trang_coding.js
+  [851/888] ok   test_trang_hom_nay.js
+  [852/888] ok   test_trang_ky_nang.js
+  [853/888] ok   test_trang_lo_trinh.js
+  [854/888] ok   test_trang_nghien_cuu.js
+  [855/888] ok   test_trinh_sua_de_len_cot_hoi_thoai.js
+  [856/888] ok   test_tts_startup.js
+  [857/888] ok   test_ui_actions.js
+  [858/888] ok   test_ui_context.js
+  [859/888] ok   test_ui_fixes_0_12_1.js
+  [860/888] ok   test_vault_create_folder.js
+  [861/888] ok   test_vault_tim_ten_qua_server.js
+  [862/888] ok   test_viec_chay_nen_ui.js
+  [863/888] ok   test_viec_mau.js
+  [864/888] ok   test_viec_nen_khong_khoa_chat.js
+  [865/888] ok   test_voice_adaptive.js
+  [866/888] ok   test_voice_adaptive_frames.js
+  [867/888] ok   test_voice_adaptive_ui.js
+  [868/888] ok   test_voice_app_session.js
+  [869/888] ok   test_voice_attention.js
+  [870/888] ok   test_voice_capture_lifecycle.js
+  [871/888] ok   test_voice_chunker.js
+  [872/888] ok   test_voice_ear_upload.js
+  [873/888] ok   test_voice_focus_app.js
+  [874/888] ok   test_voice_live_lifecycle.js
+  [875/888] ok   test_voice_live_webrtc.js
+  [876/888] ok   test_voice_mobile_regressions.js
+  [877/888] ok   test_voice_settings_simple.js
+  [878/888] ok   test_voice_turn.js
+  [879/888] ok   test_voice_v2_day_noi.js
+  [880/888] ok   test_voice_v3_mot_luong.js
+  [881/888] ok   test_voice_wake_screen.js
+  [882/888] ok   test_webhooks_ui_0198.js
+  [883/888] ok   test_wikilink.js
+  [884/888] ok   test_work_page_0204.js
+  [885/888] ok   test_workspace.js
+  [886/888] ok   test_workspace_avatar_flow.js
+  [887/888] ok   test_workspace_save.js
+  [888/888] ok   test_xem_file_tren_dien_thoai.js
+
+855/888 xanh trong 2104 giây
+ĐỎ: test_agent_tags.py, test_aux_engine.py, test_aux_fallback.py, test_bau_troi_tri_thuc.py, test_deepseek_provider.py, test_full_quyen_ungated.py, test_go_chatgpt_web.py, test_graph_watch.py, test_groq_provider.py, test_icons.py, test_job_archive_reasoning.py, test_joyce_core.py, test_khoi_dong_nhe.py, test_learn_agent_workflow.py, test_mobile_layout.py, test_nhat_ky_song_ngu.py, test_oauth_scope_clerk.py, test_ollama.py, test_ollama_local_tool_pdf.py, test_pinned_folder.py, test_placeholder_ui.py, test_reply_policy_api.py, test_scheduled_call_0203.py, test_settings_ghi_an_toan.py, test_settings_khong_treo_theo_cli.py, test_subscription_router.py, test_team_docs.py, test_thu_lai_tam_thoi.py, test_workflow_graph_phase10.py, test_workflow_turn_ws.py, test_i18n.mjs, test_joyce_hands.js, test_joyce_humanoid.js
+Chạy lại một cái để xem chi tiết:  python tests/run.py <tên> -v

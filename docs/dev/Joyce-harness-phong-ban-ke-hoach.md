@@ -1,5 +1,9 @@
 # Joyce Harness: kế hoạch tổng tổ chức agent, vá lỗi và nâng cấp
 
+> **Bổ sung sau audit G1:** [Plan giao Sonnet 5.5 khép G1 và nối G2](./2026-10-28-joyce-harness-g1-g2-sonnet-plan.md) đang **chờ anh duyệt**. Bản này chốt đề xuất xử lý đủ G1-01..12, tách gói gia cố A và gói bằng chứng/route B. G1 hiện chưa đạt toàn bộ tiêu chí kết thúc; trạng thái “đã làm” bên dưới chỉ nói phần code FIX-01..05 đã có. Đặc biệt, canary chưa nhân sang đích nhưng ứng viên đã chạy ở nguồn, nên thiếu telemetry không chỉ làm chậm nhân bản.
+>
+> **Cập nhật kết quả test:** plan Sonnet đã tiếp nhận báo cáo 865/894 ở `6b22a33`, phân biệt baseline suite 1.3.38 với benchmark 1.3.39, thêm A07.1 để profile và tối ưu startup, giữ ngưỡng 5,0. D2/G1-02 đề xuất giữ bản riêng; D4/G1-09 đề xuất mặc định bắt buộc eval cho phòng ban ở đường tự áp. Các đề xuất vẫn chờ duyệt, chưa đổi runtime hoặc config.
+
 > **Trạng thái (cập nhật 28/10/2026): chủ yêu cầu triển khai theo plan. Gói G1 (FIX-01..05) ĐÃ LÀM ở 1.3.41, xem mục 3.3. G2 trở đi (JHA-06..12, compiler, ledger ngân sách, pilot) CHƯA làm. Phần còn lại của tài liệu giữ nguyên là kế hoạch; migration production và mở quyền từng phòng vẫn theo hồ sơ từng pilot.**
 >
 > Ngày audit: 2026-10-28. Baseline: Joyce OS **1.3.39**, commit `48cee2defdd7412aeb25c80e22aec8ff9335519e`.

@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.42] - 2026-10-28
+### Sửa
+- (đang làm) Gói A của kế hoạch Joyce Harness: khép các đường tự áp còn hở, giữ bản sửa riêng của phòng, ghi file có khoá và phục hồi được, giảm chi phí khởi động.
+
 ## [1.3.41] - 2026-10-28
 ### Sửa
 - **Tự cải tiến nhìn ra mọi thay đổi về quyền**, kể cả khoá lồng trong cấu hình hay tráo công cụ giữa các bước. Cấu hình đọc không chắc thì chờ anh xem, không tự áp. 30 skill có đầu file sai cú pháp từ trước cũng vì vậy mà chờ anh.
