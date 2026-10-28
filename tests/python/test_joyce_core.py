@@ -79,7 +79,7 @@ for label, b in (("brain with agents", OLD), ("empty new brain", NEW)):
     check(f"{label}: listed exactly once", sum(1 for a in ds if a["slug"] == "joyce-core") == 1)
 plain_list = client.get("/agents", params={"brain": str(OLD), "prompt": "0"}).json()["agents"]
 check("pickers that need an agent file (no system=1) never get it",
-      all(a["slug"] != "joyce-core" for a in plain_list) and [a["slug"] for a in plain_list] == ["viet-bai"])
+      all(a["slug"] != "joyce-core" for a in plain_list) and [a["slug"] for a in plain_list if not a.get("system_shared")] == ["viet-bai"])
 check("nothing was copied into either brain", not (OLD / "agents" / "joyce-core.md").exists()
       and not (NEW / "agents" / "joyce-core.md").exists())
 

@@ -121,7 +121,7 @@ out = main._team_reasoning(c, "medium", "câu hỏi")
 check("a Claude engine in a team turn gets the effort (or the keyword on an old CLI)",
       (c.effort == "medium" and out == "câu hỏi") or (c.effort is None and out != "câu hỏi"), (c.effort, out))
 src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("an assistant's chat turn uses its own level", 'reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])' in src)
+check("an assistant's chat turn uses its own level", 'reasoning = _agent_reasoning(_read_md(_agent_path(brain, _persona[1]))[0])' in src)
 
 print()
 if fails:

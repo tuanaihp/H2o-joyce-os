@@ -6520,7 +6520,7 @@
   "sodo.hx.shared.d": "Năm giám định, kỹ sư cải tiến, hai trợ lý đại tu và Trợ lý Onboarding sống một bản trong system/agents. Phòng nào cần khác thì lưu bản riêng, bản gốc không đổi.",
   "sodo.hx.evals": "Bộ ca thử",
   "sodo.hx.evals.m": "{n} bộ trong brain này",
-  "sodo.hx.evals.d": "File Joyce/evals/<trợ lý>.json. Có bộ ca thử thì bản nháp cải tiến phải qua hết ca mới được áp.",
+  "sodo.hx.evals.d": "File Joyce/evals/tên-trợ-lý.json. Có bộ ca thử thì bản nháp cải tiến phải qua hết ca mới được áp.",
   "sodo.hx.scope": "Khai phạm vi quyền",
   "sodo.hx.scope.m": "{n}/{m} trợ lý khai allowed_effects",
   "sodo.hx.scope.d": "Chuẩn v1 mục 6: mỗi trợ lý khai được làm loại việc gì (đọc, ghi nội bộ, ghi sổ, gửi ra ngoài, chi tiền). Chưa khai thì vẫn theo quyền của phiên; khai đủ là giai đoạn 1.",

@@ -58,7 +58,9 @@ def doc(brain, slug):
 
 
 def ds(brain):
-    return client.get("/agents", params={"brain": str(brain), "prompt": "0"}).json()["agents"]
+    # Trợ lý dùng chung (system/agents, 1.3.39) hiện ở mọi brain; test này chỉ đếm trợ lý của brain.
+    return [a for a in client.get("/agents", params={"brain": str(brain), "prompt": "0"}).json()["agents"]
+            if not a.get("system_shared")]
 
 
 def mot(brain, slug):

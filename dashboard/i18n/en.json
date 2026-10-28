@@ -6520,7 +6520,7 @@
   "sodo.hx.shared.d": "Five reviewers, the improvement engineer, two overhaul assistants and the Onboarding assistant live as one copy in system/agents. A department that needs its own saves an override; the source does not change.",
   "sodo.hx.evals": "Eval sets",
   "sodo.hx.evals.m": "{n} sets in this brain",
-  "sodo.hx.evals.d": "Joyce/evals/<assistant>.json. With an eval set, an improvement draft must pass every case before it is applied.",
+  "sodo.hx.evals.d": "Joyce/evals/assistant-name.json. With an eval set, an improvement draft must pass every case before it is applied.",
   "sodo.hx.scope": "Declared scope",
   "sodo.hx.scope.m": "{n}/{m} assistants declare allowed_effects",
   "sodo.hx.scope.d": "Standard v1 section 6: each assistant declares what kinds of effect it may have (read, internal write, ledger write, external send, payment). Undeclared ones follow the session permission; declaring them all is phase 1.",
