@@ -1,24 +1,28 @@
-"""So sánh QUYỀN giữa hai bản của một file cấu hình (agent, workflow, loop, skill) theo CÂY YAML.
+"""Phân loại thay đổi giữa hai bản của một file cấu hình (agent, workflow, loop, skill) theo CÂY YAML.
 
-Sinh ra từ FIX-01 của gói G1 (Joyce Harness, JHA-01, docs/dev/Joyce-harness-phong-ban-ke-hoach.md mục 13).
+FIX-01 (1.3.41, JHA-01) đọc YAML thật thay cho dấu vân dòng. A03 (1.3.42) bổ sung PHÂN LOẠI: không chỉ "có đổi quyền
+không" mà "thay đổi này thuộc loại nào", để cổng tự áp biết phải chờ chủ hay không.
 
-Bản trước (1.3.39) lọc các dòng `key: value` rồi SẮP XẾP, nên hai lỗi cùng một gốc: khoá lồng nhau
-(`harness.budgets.max_tokens`) không thấy, và tráo `tools` giữa hai bước workflow ra cùng tập dòng
-đã sắp xếp. Bản này đọc YAML thật rồi so từng đường dẫn:
+Năm loại, theo mức nghiêm trọng tăng dần (docs/dev/2026-10-28-joyce-harness-g1-g2-sonnet-plan.md mục A03):
 
-- Khoá nằm trong `KHOA_QUYEN` được so NGUYÊN giá trị (cả cây con), ở mọi độ sâu, kể cả bên trong
-  `steps`. Phần tử danh sách là mapping thì định danh theo `id`, rồi `name`, không có thì theo vị trí,
-  nên tráo giữa hai nút vẫn là một thay đổi.
-- Alias và anchor được giải TRƯỚC khi so (thêm quyền bằng `tools: *t` vẫn bị thấy; viết lại bằng alias
-  mà cùng giá trị thì không phải thay đổi).
-- Kiểu dữ liệu được so: `2` khác `"2"`, `false` khác `"false"`.
-- Danh sách thuần giá trị so như TẬP: đổi thứ tự `tools: [a, b]` không phải đổi quyền.
-- Khoá ở cấp ngoài (và trong từng bước) KHÔNG thuộc nhóm quyền cũng KHÔNG thuộc nhóm nội dung đã biết
-  (trừ khoá `x-...` chỉ để khai báo anchor) mà bị thêm, bỏ hay sửa thì tính là "khoá chưa biết" (`?tên`): một khoá quyền mới chưa kịp đăng ký
-  ở đây không được trượt qua như một lần sửa nội dung thuần.
+    display_only       chỉ đổi chữ hay metadata mà runtime KHÔNG đưa vào prompt hay dùng để quyết hành vi
+    behavior_change    đổi thứ model đọc để hành xử: thân bài, `name`, `role`, `description`, `goal`, lời giao việc của
+                       bước workflow, thứ tự hay cấu trúc các bước
+    permission_change  đổi khoá quyền, công cụ, model, phạm vi, lịch chạy, cách kiểm (KHOA_QUYEN), kể cả khoá lồng
+    unknown            khoá chưa đăng ký ở đâu hết: không biết nó làm gì thì không tự áp
+    invalid            không đọc chắc được: YAML lỗi, thiếu dấu đóng, khoá trùng, `id` bước trùng, không phải mapping, quá
+                       sâu hoặc quá lớn
 
-ĐIỀU KIỆN DỪNG: không đọc chắc được cấu hình (YAML lỗi, không phải mapping, quá lớn, thiếu PyYAML) thì
-trả `[KHONG_DOC_DUOC]`, người gọi KHÔNG được tự áp. Không bao giờ suy ra "chỉ sửa nội dung".
+Allowlist "chỉ hiển thị" CỐ Ý hẹp và dựa trên nơi runtime dùng trường: `name`/`role` đi vào prompt agent
+(`main._agent_sysprompt`), `description` đi vào bộ định tuyến skill (`skill_router`), nên không trường nào trong số đó là
+trung tính. Bản FIX-01 coi `name`/`role`/`description`/`goal` là nội dung tự do là SAI so với plan; đã sửa.
+
+Thân bài luôn là hành vi (D3 của plan): không dùng ngưỡng độ dài hay tìm chữ "được phép" để cho qua.
+
+Giữ nguyên các nguyên tắc FIX-01: alias và anchor được giải trước khi so; kiểu dữ liệu được so (`2` khác `"2"`); danh sách
+thuần giá trị so như TẬP; phần tử mapping định danh theo `id` rồi `name`, không có thì theo vị trí.
+
+ĐIỀU KIỆN DỪNG: không đọc chắc thì `invalid`, người gọi KHÔNG tự áp. Không bao giờ suy ra "chỉ sửa nội dung".
 """
 from __future__ import annotations
 
@@ -30,10 +34,11 @@ KHONG_DOC_DUOC = "(frontmatter không đọc được)"
 TRAN_FRONTMATTER = 64 * 1024     # byte; frontmatter lớn hơn thế không phải cấu hình, không đọc
 TRAN_SAU = 24                    # độ sâu tối đa khi đi cây; sâu hơn coi như không đọc chắc được
 
-# Khoá chạm QUYỀN, công cụ, model, phạm vi, lịch chạy hay cách kiểm. Đổi bất kỳ khoá nào ở đây KHÔNG bao giờ
-# tự áp (1.3.39 B-12). 1.3.41 thêm các khoá của hệ loop/workflow mà bản cũ bỏ sót: workspace (phạm vi file),
-# tools_profile, quiet_hours, max_runs_per_day, run_at, ambient_mcp, status (workflow bật/tắt), steps không ở đây
-# vì là vật chứa: ta đi vào trong nó.
+CLASSES = ("display_only", "behavior_change", "permission_change", "unknown", "invalid")
+_MUC = {c: i for i, c in enumerate(CLASSES)}
+
+# Khoá chạm QUYỀN, công cụ, model, phạm vi, lịch chạy hay cách kiểm. Đổi bất kỳ khoá nào ở đây KHÔNG bao giờ tự áp
+# (1.3.39 B-12; 1.3.41 thêm các khoá của hệ loop/workflow). `steps` không ở đây vì là vật chứa: ta đi vào trong nó.
 KHOA_QUYEN = frozenset({
     "agent", "tools", "allowed_tools", "verify_agent", "max_retries", "mode", "execution_mode",
     "muc_quyen", "enabled", "model", "model_provider", "skills", "harness", "min_mode", "risk",
@@ -41,45 +46,74 @@ KHOA_QUYEN = frozenset({
     "max_rounds", "max_minutes", "reasoning", "notify", "owner_chat", "interval_min",
     "workspace", "tools_profile", "quiet_hours", "max_runs_per_day", "run_at", "ambient_mcp", "status",
 })
-
-# Khoá chỉ là chữ hiện ra hoặc ghi chú, sửa tự do. `type` ở đây vì người gọi kiểm riêng rằng nó không đổi.
-KHOA_NOI_DUNG = frozenset({
-    "type", "name", "name_en", "description", "description_en", "role", "role_en", "group", "tags", "icon",
-    "pinned", "avatar", "updated", "created", "goal",
-})
-# Trong một bước workflow: lời giao việc là nội dung; mọi khoá khác ngoài KHOA_QUYEN là chưa biết.
-KHOA_BUOC_NOI_DUNG = frozenset({"task", "name", "id", "title", "note", "description"})
+# Đổi thứ model ĐỌC để hành xử. Mỗi khoá có lý do runtime dùng nó (xem docstring đầu file).
+KHOA_HANH_VI = frozenset({"name", "name_en", "role", "role_en", "description", "description_en", "group", "goal"})
+# Chỉ hiển thị hoặc ghi chép: runtime không đưa vào prompt. Giữ HẸP, thêm khi có bằng chứng.
+KHOA_HIEN_THI = frozenset({"updated", "created", "icon", "avatar", "pinned", "tags"})
+# Tương thích tên cũ (FIX-01 dùng một tập chung "nội dung").
+KHOA_NOI_DUNG = KHOA_HANH_VI | KHOA_HIEN_THI | {"type"}
+# Trong một bước workflow: lời giao việc và nhãn là hành vi; định danh bước (`id`, `name`) cũng vậy vì quyết nút nào là nút nào.
+KHOA_BUOC_HANH_VI = frozenset({"task", "name", "id", "title", "note", "description"})
 VAT_CHUA = frozenset({"steps"})
 
 
-def _doc_frontmatter(text: str) -> Tuple[str, Optional[dict]]:
-    """('co', dict) | ('khong', None) khi file không có frontmatter | ('loi', None) khi không đọc chắc được."""
+def _tao_loader():
+    """Bộ nạp YAML an toàn mà TỪ CHỐI khoá trùng. PyYAML mặc định giữ khoá cuối âm thầm, nên một bản nháp có hai `tools:`
+    sẽ có "quyền" khác với thứ người duyệt nhìn thấy ở dòng đầu."""
+    import yaml
+
+    class Loader(yaml.SafeLoader):
+        pass
+
+    def mapping(loader, node, deep=False):
+        thay = set()
+        for k, _ in node.value:
+            if k.tag == "tag:yaml.org,2002:merge":
+                continue
+            key = loader.construct_object(k, deep=True)
+            if key in thay:
+                raise yaml.constructor.ConstructorError(None, None, f"khoá trùng: {key!r}", k.start_mark)
+            thay.add(key)
+        return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+    Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+    return Loader
+
+
+_LOADER = None
+
+
+def _doc(text: str) -> Tuple[str, Optional[dict], str, str, str]:
+    """(trạng thái, frontmatter, thân bài, lỗi, phần đầu thô). Trạng thái: 'co' | 'khong' | 'loi'.
+
+    'khong' chỉ khi file KHÔNG mở bằng `---`. File mở bằng `---` mà thiếu dấu đóng là 'loi' (bản FIX-01 coi nó là 'khong'
+    và trả "không đổi", một lỗ thật)."""
+    global _LOADER
     t = (text or "").replace("\r\n", "\n")
     if not t.startswith("---"):
-        return "khong", None
+        return "khong", None, t, "", ""
     m = re.match(r"^---[ \t]*\n", t)
     if not m:
-        return "khong", None
+        return "khong", None, t, "", ""
     end = re.search(r"^---[ \t]*$", t[m.end():], re.M)
     if not end:
-        return "khong", None
+        return "loi", None, "", "thiếu dấu đóng frontmatter", ""
     head = t[m.end():m.end() + end.start()]
+    body = t[m.end() + end.end():]
     if len(head.encode("utf-8")) > TRAN_FRONTMATTER:
-        return "loi", None
+        return "loi", None, "", "frontmatter quá lớn", ""
     try:
         import yaml
-        try:
-            from yaml import CSafeLoader as loader
-        except ImportError:
-            loader = yaml.SafeLoader
-        d = yaml.load(head, Loader=loader)
-    except Exception:      # noqa: BLE001 - mọi lỗi đọc đều là "không chắc", không bao giờ là "không đổi"
-        return "loi", None
+        if _LOADER is None:
+            _LOADER = _tao_loader()
+        d = yaml.load(head, Loader=_LOADER)
+    except Exception as e:      # noqa: BLE001 - mọi lỗi đọc đều là "không chắc", không bao giờ là "không đổi"
+        return "loi", None, "", f"YAML không đọc được: {type(e).__name__}", ""
     if d is None:
-        return "co", {}
+        return "co", {}, body, "", head
     if not isinstance(d, dict):
-        return "loi", None
-    return "co", d
+        return "loi", None, "", "frontmatter không phải mapping", ""
+    return "co", d, body, "", head
 
 
 def _chuan(v: Any, sau: int = 0) -> Any:
@@ -103,26 +137,44 @@ def _dinh_danh(item: Any, i: int) -> str:
     return f"#{i}"
 
 
-def _thu_quyen(node: Any, duong: Tuple[str, ...], ra: Dict[Tuple[str, ...], Any], sau: int = 0) -> None:
-    """Gom {đường dẫn: giá trị đã chuẩn} cho mọi khoá quyền và mọi khoá chưa biết. Đường dẫn chứa định danh."""
+def _neo_dung(head: str) -> set:
+    """Khoá `x-...`/`x_...` chỉ để khai báo anchor VÀ anchor đó có được dùng (alias) ở nơi khác trong đầu file."""
+    ra = set()
+    for m in re.finditer(r"^(x[-_][\w-]*)\s*:\s*&([\w-]+)", head, re.M):
+        if re.search(r"\*" + re.escape(m.group(2)) + r"(?![\w-])", head):
+            ra.add(m.group(1))
+    return ra
+
+
+def _thu(node: Any, duong: Tuple[str, ...], quyen: dict, hanh_vi: dict, la: dict, hien_thi: dict,
+         neo: set, sau: int = 0) -> None:
+    """Gom giá trị theo 4 nhóm. `duong` chứa định danh của bước nên tráo hai bước vẫn là thay đổi."""
     if sau > TRAN_SAU:
         raise ValueError("quá sâu")
     if isinstance(node, dict):
+        trong_buoc = len(duong) >= 1 and duong[0] == "steps"
         for k, v in node.items():
             ks = str(k)
+            p = duong + (ks,)
             if ks in KHOA_QUYEN:
-                ra[duong + (ks,)] = _chuan(v)
-            elif ks in VAT_CHUA:
-                _thu_quyen(v, duong + (ks,), ra, sau + 1)
+                quyen[p] = _chuan(v)
+            elif ks in VAT_CHUA and not duong:
+                _thu(v, p, quyen, hanh_vi, la, hien_thi, neo, sau + 1)
+            elif trong_buoc:
+                (hanh_vi if ks in KHOA_BUOC_HANH_VI else la)[p] = _chuan(v)
+            elif not duong and ks in KHOA_HANH_VI:
+                hanh_vi[p] = _chuan(v)
+            elif not duong and ks in KHOA_HIEN_THI:
+                hien_thi[p] = _chuan(v)
+            elif not duong and ks == "type":
+                la[p] = _chuan(v)
+            elif not duong and ks in neo:
+                hien_thi[p] = _chuan(v)
             else:
-                benh = KHOA_NOI_DUNG if not duong else KHOA_BUOC_NOI_DUNG
-                # `x-...` là chỗ khai báo anchor YAML (quy ước mở rộng): tự nó không có tác dụng, quyền thật chỉ
-                # hiện ở khoá thật SAU khi alias được giải, và ta so các khoá thật đó.
-                if ks not in benh and not ks.startswith(("x-", "x_")):
-                    ra[duong + ("?" + ks,)] = _chuan(v)
+                la[p] = _chuan(v)
     elif isinstance(node, (list, tuple)):
         for i, it in enumerate(node):
-            _thu_quyen(it, duong + (_dinh_danh(it, i),), ra, sau + 1)
+            _thu(it, duong + (_dinh_danh(it, i),), quyen, hanh_vi, la, hien_thi, neo, sau + 1)
 
 
 def _ten(duong: Tuple[str, ...]) -> str:
@@ -144,31 +196,114 @@ def _la(a: Any, b: Any, goc: str, ra: set) -> None:
     ra.add(goc)
 
 
-def diff_quyen(original: str, draft: str) -> List[str]:
-    """Tên các khoá quyền (hoặc `?khoá chưa biết`) bị đổi giữa hai bản; rỗng = chỉ đổi nội dung.
-
-    Trả `[KHONG_DOC_DUOC]` khi không đọc chắc được một trong hai bản: người gọi coi đó là CẦN CHỦ XEM."""
-    t1, d1 = _doc_frontmatter(original)
-    t2, d2 = _doc_frontmatter(draft)
-    if "loi" in (t1, t2):
-        return [KHONG_DOC_DUOC]
-    if t1 == "khong" and t2 == "khong":
-        return []
-    try:
-        a: Dict[Tuple[str, ...], Any] = {}
-        b: Dict[Tuple[str, ...], Any] = {}
-        _thu_quyen(d1 or {}, (), a)
-        _thu_quyen(d2 or {}, (), b)
-    except Exception:      # noqa: BLE001
-        return [KHONG_DOC_DUOC]
-    doi: set = set()
+def _khac(a: dict, b: dict, ten_ra: set, ten=None) -> None:
     for p in set(a) | set(b):
         va, vb = a.get(p), b.get(p)
-        if p in a and p in b and va == vb and json.dumps(va, default=str, sort_keys=True) == json.dumps(vb, default=str, sort_keys=True):
+        if p in a and p in b and json.dumps(va, default=str, sort_keys=True) == json.dumps(vb, default=str, sort_keys=True):
             continue
-        ten = _ten(p)
+        ten_p = (ten or _ten)(p)
         if isinstance(va, dict) and isinstance(vb, dict):
-            _la(va, vb, ten, doi)
+            _la(va, vb, ten_p, ten_ra)
         else:
-            doi.add(ten)
-    return sorted(doi)
+            ten_ra.add(ten_p)
+
+
+def _chuan_than(body: str) -> str:
+    """Thân bài về dạng so được: bỏ khoảng trắng cuối dòng và dòng trống đầu/cuối. Không đụng nội dung chữ."""
+    return "\n".join(ln.rstrip() for ln in (body or "").split("\n")).strip("\n")
+
+
+def _buoc_hop_le(d: dict) -> Optional[str]:
+    """Lỗi cấu trúc của `steps` (id trùng, không phải danh sách) hoặc None."""
+    st = d.get("steps")
+    if st is None:
+        return None
+    if not isinstance(st, list):
+        return "`steps` không phải danh sách"
+    thay = set()
+    for it in st:
+        if isinstance(it, dict) and it.get("id") not in (None, ""):
+            k = str(it["id"])
+            if k in thay:
+                return f"id bước trùng: {k}"
+            thay.add(k)
+    return None
+
+
+def _khung_buoc(d: dict) -> list:
+    """Khung thứ tự các bước: dãy định danh. Đổi dãy này (chèn, bỏ, đổi chỗ) là đổi cấu trúc."""
+    st = d.get("steps")
+    return [_dinh_danh(it, i) if isinstance(it, dict) and (it.get("id") or it.get("name")) else
+            ("agent=" + str(it.get("agent")) if isinstance(it, dict) and it.get("agent") else f"#{i}")
+            for i, it in enumerate(st if isinstance(st, list) else [])]
+
+
+def classify(original: str, draft: str) -> dict:
+    """Phân loại thay đổi giữa hai bản.
+
+    Trả {"class": loại nặng nhất, "paths": {loại: [tên khoá/đường dẫn]}, "errors": [lý do invalid]}. `class` là
+    `display_only` khi và chỉ khi không có gì khác ngoài `KHOA_HIEN_THI` (và neo anchor đã dùng) đổi, thân bài giống hệt
+    và cấu trúc bước giữ nguyên. Hai bản giống hệt là `display_only` với danh sách rỗng."""
+    kq = {"class": "display_only", "paths": {c: [] for c in CLASSES}, "errors": []}
+
+    def nang(loai: str, *ten: str) -> None:
+        for t in ten:
+            if t and t not in kq["paths"][loai]:
+                kq["paths"][loai].append(t)
+        if _MUC[loai] > _MUC[kq["class"]]:
+            kq["class"] = loai
+
+    s1, d1, b1, e1, h1 = _doc(original)
+    s2, d2, b2, e2, h2 = _doc(draft)
+    for e in (e1, e2):
+        if e:
+            kq["errors"].append(e)
+    if "loi" in (s1, s2):
+        nang("invalid", KHONG_DOC_DUOC)
+        return kq
+    for d in (d1, d2):
+        sai = _buoc_hop_le(d or {})
+        if sai:
+            kq["errors"].append(sai)
+    if kq["errors"]:
+        nang("invalid", KHONG_DOC_DUOC)
+        return kq
+    try:
+        neo = _neo_dung(h2) | _neo_dung(h1)
+        q1, q2, h1d, h2d, l1, l2, v1, v2 = {}, {}, {}, {}, {}, {}, {}, {}
+        _thu(d1 or {}, (), q1, h1d, l1, v1, neo)
+        _thu(d2 or {}, (), q2, h2d, l2, v2, neo)
+        khung_1, khung_2 = _khung_buoc(d1 or {}), _khung_buoc(d2 or {})
+    except Exception:      # noqa: BLE001
+        nang("invalid", KHONG_DOC_DUOC)
+        kq["errors"].append("cấu trúc quá sâu hoặc có vòng alias")
+        return kq
+    ten_q, ten_h, ten_l, ten_v = set(), set(), set(), set()
+    _khac(q1, q2, ten_q)
+    _khac(h1d, h2d, ten_h)
+    _khac(l1, l2, ten_l, lambda p: "?" + (("steps." if "steps" in p[:-1] else "") + p[-1]))
+    _khac(v1, v2, ten_v)
+    if ten_q:
+        nang("permission_change", *sorted(ten_q))
+    if ten_l:
+        nang("unknown", *sorted(ten_l))
+    if ten_h:
+        nang("behavior_change", *sorted(ten_h))
+    if khung_1 != khung_2:
+        nang("behavior_change", "steps.cau_truc")
+    if ten_v:
+        nang("display_only", *sorted(ten_v))
+    if _chuan_than(b1) != _chuan_than(b2):
+        nang("behavior_change", "than_bai")
+    return kq
+
+
+def diff_quyen(original: str, draft: str) -> List[str]:
+    """Tên các khoá quyền (hoặc `?khoá chưa biết`) bị đổi; rỗng = không đổi quyền. Bộ chuyển tương thích cho chỗ gọi cũ.
+
+    Trả `[KHONG_DOC_DUOC]` khi không đọc chắc được một trong hai bản. KHÔNG báo thay đổi thân bài hay `role`/`goal`: đó là
+    `behavior_change`, dùng `classify` để biết."""
+    kq = classify(original, draft)
+    if kq["class"] == "invalid":
+        return [KHONG_DOC_DUOC]
+    return sorted(set(kq["paths"]["permission_change"]) | set(kq["paths"]["unknown"]))

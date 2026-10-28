@@ -73,8 +73,8 @@ check("khoá quyền mới của hệ loop (workspace, quiet_hours, status) cũn
 check("YAML lỗi ở bản nháp: không tự áp", diff(agent(""), "---\ntype: agent\nname: x: y: z\n  : [\n---\nthân\n") == [BAD])
 check("YAML lỗi ở bản gốc: không tự áp", diff("---\ntype: agent\nname: a: b\n---\nthân", agent("")) == [BAD])
 check("frontmatter không phải mapping (danh sách): không tự áp", diff(agent(""), "---\n- a\n- b\n---\nthân\n") == [BAD])
-check("bản nháp BỎ frontmatter của file có frontmatter: bị phát hiện khi gốc có khoá quyền",
-      diff(agent("model: sonnet\n"), "Chỉ còn thân bài, không frontmatter.\n") == ["model"])
+check("bản nháp BỎ frontmatter của file có frontmatter: mất khoá quyền VÀ mất `type` đều bị phát hiện (A03)",
+      diff(agent("model: sonnet\n"), "Chỉ còn thân bài, không frontmatter.\n") == ["?type", "model"])
 
 # ---------------- sửa nội dung thuần vẫn hợp lệ (không làm hỏng tự cải tiến)
 check("sửa thân bài: không đổi quyền", diff(agent(), agent(body="Nội dung mới hoàn toàn, dài hơn.\n")) == [])
