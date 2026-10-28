@@ -219,3 +219,35 @@ def thong_ke(*, brain_id: str = "", agent_id: str = "", agent_revision: str = ""
         else:
             out["chua_kiem"] += 1
     return out
+
+
+# ---------------------------------------------------------------- tiện ích cho nơi gọi
+def chup_cho_agent(root, slug: str, agent_text: str, *, harness_version: str = "", guard_on: bool = False, config_view: Optional[dict] = None,
+                   grant_view: Optional[dict] = None, deps: Optional[dict] = None) -> dict:
+    """Chụp revision của MỘT agent sắp chạy. `agent_text` là nội dung đã nạp thật cho lượt này; bộ ca thử đọc từ
+    `<root>/Joyce/evals/<slug>.json` nếu có. Lỗi đọc file eval không làm hỏng lượt: revision eval để rỗng."""
+    ev = ""
+    try:
+        p = Path(str(root)) / "Joyce" / "evals" / f"{slug}.json"
+        if p.is_file():
+            ev = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        ev = ""
+    return chup_revision(agent_text=agent_text, harness_version=harness_version, guard_on=guard_on, config_view=config_view,
+                         grant_view=grant_view, eval_text=ev, deps=deps)
+
+
+def ghi_an_toan(fn, *a, **k):
+    """Gọi một hàm của sổ mà KHÔNG BAO GIỜ làm hỏng lượt chạy thật: lỗi sổ chỉ ra stderr. Trả kết quả hoặc None."""
+    try:
+        return fn(*a, **k)
+    except Exception as e:  # noqa: BLE001
+        import sys
+        print(f"[run_ledger] {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+
+
+def bo(run_id: str) -> bool:
+    """Gỡ một lượt `running` chưa làm gì (lượt im lặng). Chỉ gỡ được lượt còn đang chạy: lượt đã chốt là bằng chứng, không xoá."""
+    with _LOCK:
+        return _db().execute("DELETE FROM agent_runs WHERE run_id=? AND status='running'", (run_id,)).rowcount == 1

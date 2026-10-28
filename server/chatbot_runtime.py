@@ -1485,8 +1485,63 @@ def _luot_cu(meta) -> bool:
         return False
 
 
+def _so_mo(bot_id: str, meta) -> str:
+    """Mở một lượt trong sổ lượt chạy. Trả run_id hoặc chuỗi rỗng (sổ hỏng, bot không gắn agent): không bao giờ ném lỗi."""
+    def _lam():
+        import harness_map
+        import run_ledger
+        cfg = chatbot_store.get_bot(bot_id) or {}
+        a = cfg.get("agent") or {}
+        slug, brain = str(a.get("slug") or ""), str(a.get("brain") or cfg.get("brain") or "")
+        if not slug:
+            return ""
+        rd, root = _deps.get("read_agent"), _deps.get("brain_root")
+        texte, rt = "", ""
+        try:
+            m, b = rd(brain, slug)
+            texte = (b or "") + chr(10) + repr(sorted((m or {}).items()))
+            rt = root(brain) if root else ""
+        except Exception:      # noqa: BLE001 - agent đọc không được thì lượt vẫn ghi, revision rỗng (không giả vờ biết)
+            pass
+        rv = run_ledger.chup_cho_agent(rt, slug, texte, harness_version=harness_map.STANDARD_VERSION)
+        return run_ledger.bat_dau(brain_id=brain, agent_id=slug, entrypoint="bot", ref="bot:" + str(bot_id)[:60], revision=rv,
+                                  engine=str(cfg.get("engine") or "")[:60])
+    import run_ledger
+    return run_ledger.ghi_an_toan(_lam) or ""
+
+
+def _so_chot(rid: str, status: str, block_kind: str = "") -> None:
+    if rid:
+        import run_ledger
+        run_ledger.ghi_an_toan(run_ledger.ket_thuc, rid, status, block_kind=block_kind)
+
+
+def _so_bo(rid: str) -> None:
+    """Lượt im lặng không gọi model: gỡ khỏi sổ để không phình mẫu bằng lượt không làm gì."""
+    import run_ledger
+    run_ledger.ghi_an_toan(run_ledger.bo, rid)
+
+
 def _make_answer_fn(bot_id: str):
     async def _answer(text, meta=None, progress=None):
+        """Lượt trả lời của bot, bọc sổ lượt chạy (B01): host mở lượt TRƯỚC khi gọi model, chốt sau. Sổ chỉ ghi nhận, lỗi sổ không
+        bao giờ làm hỏng câu trả lời. Lượt im lặng (không gọi model) không vào sổ."""
+        rid = _so_mo(bot_id, meta)
+        try:
+            out = await _answer_loi(text, meta=meta, progress=progress)
+        except BaseException as e:      # kể cả huỷ giữa chừng: phải chốt, không để treo `running`
+            _so_chot(rid, "canceled" if isinstance(e, asyncio.CancelledError) else "failed",
+                     "system" if not isinstance(e, asyncio.CancelledError) else "")
+            raise
+        im = isinstance(out, dict) and out.get("im_lang")
+        if rid and im:
+            _so_bo(rid)
+        else:
+            _so_chot(rid, "completed" if isinstance(out, dict) and out.get("text") else "failed",
+                     "" if isinstance(out, dict) and out.get("text") else "unknown")
+        return out
+
+    async def _answer_loi(text, meta=None, progress=None):
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {"text": "", "files": [], "im_lang": True}
