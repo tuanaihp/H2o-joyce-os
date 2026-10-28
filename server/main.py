@@ -10990,7 +10990,47 @@ def _route_step_model(router, prompt, agent_model, session_id):
 
 
 async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=None,
-                             session_id="", log_run=None, learn=None):
+                             session_id="", log_run=None, learn=None, brain_id=""):
+    """Chạy một bước workflow và GHI vào sổ lượt chạy (B01). Host mở lượt trước khi gọi model, chốt theo kết quả thật. Sổ chỉ ghi
+    nhận: lỗi sổ không làm hỏng bước. `verified_pass` chỉ do bước kiểm chứng của chính workflow (verify_agent) quyết định."""
+    import harness_map
+    import run_ledger
+
+    def _mo():
+        slug = str(getattr(node, "agent", "") or "")
+        if not slug:
+            return ""
+        texte = ""
+        try:
+            m, b = _read_md(_agent_path(brain_id, slug)) if brain_id else ({}, "")
+            texte = (b or "") + chr(10) + repr(sorted((m or {}).items()))
+        except Exception:  # noqa: BLE001 - agent không đọc được thì revision rỗng, không giả vờ biết
+            pass
+        rv = run_ledger.chup_cho_agent(_brain_root(brain_id) if brain_id else "", slug, texte, harness_version=harness_map.STANDARD_VERSION)
+        return run_ledger.bat_dau(brain_id=brain_id, agent_id=slug, entrypoint="workflow",
+                                  ref=f"wf:{session_id}:{getattr(node, 'id', '')}"[:200], revision=rv,
+                                  logical_execution_id=f"wf:{session_id}:{getattr(node, 'id', '')}")
+    rid = run_ledger.ghi_an_toan(_mo) or ""
+    try:
+        kq = await _run_workflow_step_loi(node, prompt, mk, agent_sysprompt, sink, router=router, session_id=session_id,
+                                          log_run=log_run, learn=learn)
+    except BaseException as e:      # huỷ giữa chừng cũng phải chốt, không để treo running
+        if rid:
+            run_ledger.ghi_an_toan(run_ledger.ket_thuc, rid, "canceled" if isinstance(e, asyncio.CancelledError) else "failed",
+                                   block_kind="" if isinstance(e, asyncio.CancelledError) else "system")
+        raise
+    if rid:
+        # Bước không có chữ nào trả về (engine báo lỗi rồi im) cũng KHÔNG phải hoàn tất: runner cũ không đặt `error` cho ca đó.
+        loi = bool((kq or {}).get("error")) or not str((kq or {}).get("output") or "").strip()
+        co_kiem = bool(getattr(node, "verify_agent", "")) and (kq or {}).get("verified") is not None
+        ver = ("verified_pass" if (kq or {}).get("verified") is True else "verified_fail") if co_kiem else "unverified"
+        run_ledger.ghi_an_toan(run_ledger.ket_thuc, rid, "failed" if loi else "completed", block_kind="unknown" if loi else "",
+                               verification="unverified" if loi else ver)
+    return kq
+
+
+async def _run_workflow_step_loi(node, prompt, mk, agent_sysprompt, sink, router=None,
+                                 session_id="", log_run=None, learn=None):
     """Chạy ĐÚNG một bước theo đúng ngữ nghĩa runner cũ: agent, kiểm chứng, retry.
 
     Dùng chung cho cả hai đường. `sink` nhận event để đường graph đẩy ra SSE y như cũ.
@@ -11480,7 +11520,7 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
         return await _run_workflow_step(
             node, prompt, mk, agent_sysprompt, sink,
             router=model_router.ModelRouter(cfgmod.read_settings),
-            session_id=session_id or f"wf:{slug}", log_run=log_run, learn=learn)
+            session_id=session_id or f"wf:{slug}", log_run=log_run, learn=learn, brain_id=brain)
 
     async def capability_runner(node, approved):
         """Node capability của workflow.
@@ -11888,7 +11928,7 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
         return await _run_workflow_step(
             node, prompt, mk, agent_sysprompt, sink,
             router=model_router.ModelRouter(cfgmod.read_settings),
-            session_id=session_id or f"wf:{slug}", log_run=log_run, learn=learn)
+            session_id=session_id or f"wf:{slug}", log_run=log_run, learn=learn, brain_id=brain)
 
     async def capability_runner(node, approved):
         try:
