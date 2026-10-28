@@ -448,6 +448,7 @@
     gate: ["sodo.hx.gate", "sodo.hx.gate.m", "sodo.hx.gate.d", "shield-alert"],
     week: ["sodo.hx.week", "sodo.hx.week.m", "sodo.hx.week.d", "activity"],
     writer: ["sodo.hx.writer", "sodo.hx.writer.m", "sodo.hx.writer.d", "hard-drive"],
+    routes: ["sodo.hx.routes", "sodo.hx.routes.m", "sodo.hx.routes.d", "git-branch"],
     runs: ["sodo.hx.runs", "sodo.hx.runs.m", "sodo.hx.runs.d", "route"],
     canary: ["sodo.hx.canary", "sodo.hx.canary.m", "sodo.hx.canary.d", "undo-2"],
     telemetry: ["sodo.hx.telemetry", ["sodo.hx.telemetry.m", "sodo.hx.telemetry.m_ok"], "sodo.hx.telemetry.d", "history"],

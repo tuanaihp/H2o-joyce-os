@@ -14885,7 +14885,7 @@ def _harness_snapshot(deps, brain: str, stages: dict) -> dict:
         stages=stages, guard_on=guard_on, shared_agents=len(system_agents.entries()),
         tool_rounds=engine._max_tool_rounds(), trim_chars=engine.TOOL_CU_NGAN_SACH,
         brains_total=len(names), brains_self_improve=bat, agents=metas, evals_brain=evals_n,
-        telemetry_ready=factory_mod.telemetry_quan_sat_duoc() > 0, telemetry_n=factory_mod.telemetry_quan_sat_duoc())
+        telemetry_ready=factory_mod.telemetry_quan_sat_duoc() > 0, telemetry_n=factory_mod.telemetry_quan_sat_duoc(), routes=__import__("route_cert").tom_tat())
 
 
 # Nối hook sau-khi-xong của kanban vào factory (CI babysit + watcher + gợi ý lặp).

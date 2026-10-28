@@ -25,7 +25,8 @@ def _o(ten, state, **v):
 
 def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: int,
              trim_chars: int, brains_total: int, brains_self_improve: int,
-             agents: list, evals_brain: int, telemetry_ready: bool = False, telemetry_n: int = 0) -> dict:
+             agents: list, evals_brain: int, telemetry_ready: bool = False, telemetry_n: int = 0,
+             routes: dict = None) -> dict:
     """`agents`: frontmatter (dict) của trợ lý trong brain đang xem, gồm cả trợ lý dùng chung hiện ở đó."""
     sg = stages or {}
     pp = sg.get("proposals") or {}
@@ -37,6 +38,7 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
     cho_chu = int(pp.get("cho_chu_duyet") or 0)
     evf = int(pp.get("eval_failed") or 0)
     c7 = sg.get("cong7") or {}
+    rt = routes or {}
     lc = sg.get("luot_chay") or {}
     nk = sg.get("nhat_ky") or {}
     xem = sum(int(cn.get(k) or 0) for k in ("legacy_review", "het_han", "partial", "conflict"))
@@ -70,6 +72,9 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
         # Những thứ này KHÔNG được hiện xanh: chưa đủ dữ liệu khác với không có lỗi.
         _o("canary", "warn" if (cn.get("reverted") or xem) else "ok", n=int(cn.get("canary") or 0),
            r=int(cn.get("reverted") or 0), l=xem),
+        # Chứng nhận đường thực thi và ghi (B03): bản kê trung thực. Xanh chỉ khi MỌI đường đạt; có đường một phần thì vàng; còn lại xám.
+        _o("routes", "ok" if rt.get("tong") and rt.get("chung_nhan") == rt.get("tong") else "warn" if rt.get("mot_phan") else "off",
+           c=int(rt.get("chung_nhan") or 0), p=int(rt.get("mot_phan") or 0), u=int(rt.get("chua_chung_nhan") or 0), n=int(rt.get("tong") or 0)),
         # Lượt chạy thật do host ghi (B01): chat bot, việc giao cho trợ lý, bước workflow. Xám khi 7 ngày qua chưa ghi lượt nào.
         _o("runs", "ok" if int(lc.get("logical") or 0) else "off", n=int(lc.get("logical") or 0), v=int(lc.get("verified_pass") or 0),
            u=int(lc.get("chua_kiem") or 0), i=int(lc.get("gian_doan") or 0)),

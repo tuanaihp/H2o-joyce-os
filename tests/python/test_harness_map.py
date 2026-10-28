@@ -35,7 +35,7 @@ base = dict(stages={}, guard_on=True, shared_agents=9, tool_rounds=30, trim_char
             brains_total=61, brains_self_improve=61, agents=[], evals_brain=0)
 s = harness_map.snapshot(**base)
 check("ba tầng A, B, C", [t["id"] for t in s["tiers"]] == ["A", "B", "C"])
-check("đếm tổng và số xanh khớp các đèn", s["total"] == 18 and s["ok"] == sum(
+check("đếm tổng và số xanh khớp các đèn", s["total"] == 19 and s["ok"] == sum(
     1 for t in s["tiers"] for x in t["items"] if x["state"] == "ok"))
 check("trần token đã chốt nhưng chưa ép: đèn xám, không tô xanh", _st(s, "budget")["state"] == "off"
       and _st(s, "budget")["v"] == {"n": 500000, "m": 1000000})
