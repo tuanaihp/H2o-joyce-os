@@ -29031,6 +29031,16 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host=host, port=port, reload=False, ws_per_message_deflate=ws_compat.wanted())
 
 
+# Chủ chấm một lượt chạy đã hoàn tất là đạt hoặc rớt (B02, 1.3.43). Chỉ chủ; nhân viên bị 403 ở chính hàm này.
+@app.post("/work/factory/grade")
+async def work_factory_grade(request: Request, run_id: str = Form(""), result: str = Form(""), reason: str = Form("")):
+    import factory_admin
+    if (r := _chi_chu(request)) is not None:
+        return r
+    http, kq = factory_admin.cham_luot(_factory_deps(), run_id, result, reason)
+    return JSONResponse(kq, status_code=http)
+
+
 # Sổ lượt chạy (B01, 1.3.43): lượt còn `running` từ trước lúc khởi động là lượt mà tiến trình cũ chết khi đang chạy. Chuyển sang
 # `interrupted`, KHÔNG tính đạt hay rớt. Lỗi sổ chỉ ra stderr, không chặn khởi động.
 @app.on_event("startup")

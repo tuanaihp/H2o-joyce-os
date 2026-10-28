@@ -7094,5 +7094,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 714,
+  "type": "APIRoute",
+  "path": "/work/factory/grade",
+  "name": "work_factory_grade",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

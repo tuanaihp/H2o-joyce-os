@@ -106,8 +106,48 @@ def trang_thai(deps) -> dict:
             "dich": _dich_chi_tiet(c),
             "thieu": dieu_kien_nhan(deps, c) if c.get("state") in ("canary", "legacy_review", "partial", "conflict", "het_han") else [],
         })
-    return {"ok": True, "telemetry_ready": bool(factory.telemetry_ready(deps)), "tam_dung": bool(st.get("tam_dung")), "schema": st.get("schema"),
-            "canaries": ds}
+    return {"ok": True, "telemetry_ready": factory.telemetry_quan_sat_duoc() > 0, "tam_dung": bool(st.get("tam_dung")), "schema": st.get("schema"),
+            "canaries": ds, "luot_can_cham": luot_can_cham()}
+
+
+def luot_can_cham(gioi_han: int = 20) -> list:
+    """Lượt đã hoàn tất mà chưa ai chấm (B02): chủ chấm đạt hoặc rớt thì mới thành bằng chứng canary. Chỉ metadata, không nội dung."""
+    try:
+        import run_ledger
+        rs = [r for r in run_ledger.danh_sach(gioi_han=500) if r["status"] == "completed" and r["verification_status"] == "unverified"
+              and r["agent_revision"]]
+        return [{"run_id": r["run_id"], "brain": r["brain_id"], "agent": r["agent_id"], "cua": r["entrypoint"], "ref": r["ref"],
+                 "luc": r["started_at"], "ban": r["agent_revision"][:8]} for r in rs[:gioi_han]]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def cham_luot(deps, run_id: str, ket_qua: str, ly_do: str, nguoi: str = "chu") -> Tuple[int, dict]:
+    """Chủ chấm MỘT lượt đã hoàn tất là đạt hoặc rớt (B02). Đây là đường hợp lệ để một lượt thành bằng chứng canary khi workflow không
+    có bước kiểm chứng riêng. Chỉ chấm được lượt `completed` chưa chấm; chấm rồi thì không đổi được (muốn đổi phải có đường riêng có
+    dấu vết). Nhật ký quản trị ghi ai chấm, lý do, lúc nào. Không nhận gì từ client ngoài run_id, kết quả và lý do."""
+    import run_ledger
+    if ket_qua not in ("pass", "fail"):
+        return 400, {"ok": False, "error": "kết quả phải là pass hoặc fail"}
+    if len(str(ly_do or "").strip()) < 3:
+        return 400, {"ok": False, "error": "cần nêu lý do chấm (ít nhất vài chữ)"}
+    r = run_ledger.lay(str(run_id or ""))
+    if not r:
+        return 404, {"ok": False, "error": "không có lượt chạy này"}
+    if r["status"] != "completed":
+        return 409, {"ok": False, "error": f"lượt này đang ở trạng thái {r['status']}, chỉ chấm được lượt đã hoàn tất"}
+    if r["verification_status"] != "unverified":
+        return 409, {"ok": False, "error": "lượt này đã được chấm, không đổi lại ở đây", "da_cham": r["verification_status"]}
+    ok = run_ledger.danh_dau_kiem_chung(r["run_id"], "verified_pass" if ket_qua == "pass" else "verified_fail", ["owner:" + nguoi])
+    if not ok:
+        return 409, {"ok": False, "error": "không chấm được (lượt vừa đổi trạng thái), tải lại rồi thử"}
+    with factory._khoa_state(deps):
+        st = factory._load_state(deps)
+        st.setdefault("nhat_ky_quan_tri", []).append({"luc": time.time(), "action": "cham_luot", "run_id": r["run_id"], "ket_qua": ket_qua,
+                                                      "ly_do": ly_do[:200], "nguoi": nguoi})
+        st["nhat_ky_quan_tri"] = st["nhat_ky_quan_tri"][-TRAN_LICH_SU_HANH_DONG:]
+        factory._save_state(deps, st)
+    return 200, {"ok": True, "run_id": r["run_id"], "ket_qua": "verified_pass" if ket_qua == "pass" else "verified_fail"}
 
 
 def _tra_cuu(deps, st: dict, canary_id: str, target_id: str) -> Tuple[Optional[dict], Optional[dict], str]:
