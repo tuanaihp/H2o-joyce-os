@@ -7,7 +7,7 @@
 - **Tự cải tiến nhìn ra mọi thay đổi về quyền**, kể cả khoá lồng trong cấu hình hay tráo công cụ giữa các bước. Cấu hình đọc không chắc thì chờ anh xem, không tự áp. 30 skill có đầu file sai cú pháp từ trước cũng vì vậy mà chờ anh.
 - **Bộ ca thử hỏng không còn mở đường.** File ca thử sai sẽ chặn bản sửa tự động thay vì bị coi như chưa có ca thử nào.
 - **Không ghi đè tài liệu gốc bằng đường vòng.** Chốt bảo vệ `sources/` nay nằm ngay ở lệnh ghi file, chặn cả đường dẫn viết vòng, thư mục liên kết và file bị tráo phút chót.
-- **Canary an toàn hơn.** Nhân từng phòng và không đè bản phòng tự sửa; cần đủ 20 việc chạy thật mới nhân; có lỗi là dừng và lật lại ngay.
+- **Canary an toàn hơn.** Nhân từng phòng và không đè bản phòng tự sửa; cần đủ 20 việc chạy thật mới nhân; có lỗi là dừng ngay. Lưu ý: hiện việc chưa được gắn với agent nên canary sẽ chờ rồi hết hạn thay vì nhân; phần gắn việc làm ở gói sau.
 
 ## [1.3.40] - 2026-10-28
 ### Thêm

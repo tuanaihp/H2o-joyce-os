@@ -7,7 +7,7 @@
 - **Self-improvement now sees every permission change**, including nested config keys and tools swapped between steps. A config it cannot read with confidence waits for you instead of auto-applying. 30 skills whose header was already malformed wait for you for that reason.
 - **A broken eval set no longer opens the gate.** A bad eval file blocks the automatic fix instead of being treated as having no eval at all.
 - **No overwriting source documents by a side route.** The `sources/` guard now sits right at the file-write command, covering oddly written paths, linked folders and files swapped at the last moment.
-- **Safer canary.** It spreads one department at a time and never overwrites a department's own edit; it needs 20 real runs before spreading; any failure stops it and rolls back at once.
+- **Safer canary.** It spreads one department at a time and never overwrites a department's own edit; it needs 20 real runs before spreading; any failure stops it. Note: runs are not yet tied to agents, so a canary will wait and expire instead of spreading; tying them is a later package.
 
 ## [1.3.40] - 2026-10-28
 ### Added
