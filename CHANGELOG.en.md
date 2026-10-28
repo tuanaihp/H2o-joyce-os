@@ -4,7 +4,10 @@
 
 ## [1.3.40] - 2026-10-28
 ### Added
-- (in progress) A Messenger inbox right inside the Fanpage tab: read customer conversations, write replies, Joyce drafts and waits for you to press send.
+- **A Messenger inbox right inside the Fanpage tab.** Turn it on per Page, read customer conversations, press "Suggest a reply" so Joyce drafts and you edit and press Send. By default messages are only saved to the inbox; nothing is sent by itself.
+- **Automatic replies are a separate switch, off by default.** It needs a confirmation because messages go straight to the customer. Meta only allows replies within 24 hours of the customer's last message; the screen says so and reports a plain error past that.
+- **Add a customer to the CRM with one button** so Joyce proposes profile updates for you to approve.
+- One-time setup: paste the webhook address into your Facebook app and add the messaging permission. Real customers need Meta to approve `pages_messaging`; until then you can only test with people who hold a role in the app.
 
 ## [1.3.39] - 2026-10-28
 ### Added

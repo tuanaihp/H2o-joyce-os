@@ -2118,6 +2118,12 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
             # bản chụp: chủ đổi chế độ ở trang Chatbot là có tác dụng ngay.
             chung["cfg_fn"] = (lambda _b=bot_id: chatbot_store.get_bot(_b) or {})
             chung["policy"] = PolicyHooks(bot_id)      # bộ phán xử hội thoại nhóm (0.65.0)
+        if kenh == "messenger":
+            # Kênh nhận tin bằng webhook (1.3.40): lớp vận chuyển bị động cần bản ghi bot SỐNG và chế độ
+            # trả lời của TÀI KHOẢN (cho_gui | tu_dong), đọc lại mỗi tin để chủ đổi là có tác dụng ngay.
+            chung["cfg_fn"] = (lambda _b=bot_id: chatbot_store.get_bot(_b) or {})
+            chung["che_do_fn"] = (lambda _a=aid: str(((channel_accounts.get_account(_a) or {}).get("meta") or {})
+                                                     .get("che_do_tra_loi") or "cho_gui"))
         tb = Lop(
             token,
             "",                       # KHÔNG whitelist: bot khách hàng vốn để người lạ nhắn.

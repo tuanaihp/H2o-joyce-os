@@ -230,6 +230,8 @@ app.add_middleware(CORSMiddleware,
 _AUTH_PUBLIC_PREFIX = ("/static", "/health", "/s/", "/hooks/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth/setup",
+                      # Meta gọi vào (1.3.40): không có cookie, bảo mật bằng mã xác minh + chữ ký HMAC.
+                      "/webhooks/messenger",
                       "/brand-logo", "/brand-theme.css", "/tls-check",
                       # Nhân viên H2O đăng nhập bằng SĐT+PIN (cookie h2o_staff) - 3 đường này
                       # phải công khai vì người dùng chưa có gì khi đứng trước màn đăng nhập.
@@ -28939,6 +28941,12 @@ async def model_fast_state():
     """Last Fast mode state each brain reported (on, cooldown, fallback), for the bolt tooltip (0.164.0)."""
     return {"states": fast_mode.states()}
 
+
+# Hộp thư Messenger của Fanpage (1.3.40): webhook Meta gọi vào + nút bật/tắt cho tab Fanpage.
+# Đăng ký SAU route cuối để bảng route cũ giữ nguyên thứ tự (xem route_table.json).
+import messenger_ops  # noqa: E402
+
+messenger_ops.register(app)
 
 
 if __name__ == "__main__":

@@ -260,7 +260,12 @@ async def start_auth(conn_id, redirect_uri, _retry=0):
                 "at the provider (Google Cloud / Slack app), then press Connect again.")}
         authorize_endpoint = auth["authorize_url"]
         token_endpoint = auth["token_url"]
-        scopes = auth.get("scopes") or []
+        scopes = list(auth.get("scopes") or [])
+        # Quyền XIN THÊM do chủ bật cho riêng kết nối này (1.3.40, vd pages_messaging cho hộp thư Messenger).
+        # Không đưa vào danh sách chuẩn của connector: Meta từ chối cả cuộc đăng nhập nếu app chưa thêm
+        # tính năng tương ứng, nên chỉ xin khi chủ đã chuẩn bị app.
+        scopes += [s for s in (mcp_store.connection_config(conn_id).get("extra_scopes") or [])
+                   if str(s).strip() and s not in scopes]
         # Tên param mang scope + dấu ngăn khác nhau theo hãng: Google dùng scope + dấu cách (mặc định),
         # Slack dùng user_scope + dấu phẩy (token người dùng).
         scope_param = auth.get("scope_param") or "scope"

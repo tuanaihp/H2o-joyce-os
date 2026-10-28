@@ -315,6 +315,7 @@
       + panel("users", tw("camnang.fb_pages"), tw("camnang.fb_pages_d"),
           '<div id="cnFbPages" class="cn-plist"><div class="cn-mini-d">' + esc(tw("camnang.fb_loading")) + '</div></div>',
           pill("good", tw("camnang.st_connected")))
+      + panel("messages-square", tw("camnang.fb_inbox"), tw("camnang.fb_inbox_d"), '<div id="cnFbInbox"></div>')
       + panel("zap", tw("camnang.ops_tasks"), tw("camnang.fb_tasks_d"), '<div id="cnFbTasks"></div>')
       + panel("list-todo", tw("camnang.fb_posts"), "", '<div id="cnFbPosts"></div>')
       + '</div><aside class="cn-col">'
@@ -336,6 +337,10 @@
     ganChip(el);
 
     napFanpages(ctx.con);
+    // Hộp thư Messenger (1.3.40): file riêng, cửa sổ khác nhìn vào kho hội thoại của trang Hội thoại.
+    if (window.JoyceMessengerInbox) {
+      window.JoyceMessengerInbox.mount(el.querySelector("#cnFbInbox"), { brain: brain(), agents: ctx.agents || [] });
+    }
     napBaiNhap(el.querySelector("#cnFbDrafts"), mod.kw);
     napViecTuDong(el.querySelector("#cnFbJobs"), mod.kw);
   }

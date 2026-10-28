@@ -4,7 +4,10 @@
 
 ## [1.3.40] - 2026-10-28
 ### Thêm
-- (đang làm) Hộp thư Messenger ngay trong tab Fanpage: xem hội thoại khách, soạn trả lời, Joyce soạn nháp chờ anh bấm gửi.
+- **Hộp thư Messenger ngay trong tab Fanpage.** Bật cho từng Trang, xem hội thoại khách, bấm "Gợi ý trả lời" để Joyce soạn nháp rồi anh sửa và bấm Gửi. Mặc định chỉ lưu tin vào hộp thư, không có gì tự gửi đi.
+- **Tự động trả lời là công tắc riêng, mặc định tắt.** Phải xác nhận mới bật vì tin đi thẳng tới khách. Meta chỉ cho trả lời trong 24 giờ sau tin cuối của khách, giao diện nhắc rõ và báo lỗi nói thẳng khi quá hạn.
+- **Đưa khách vào CRM bằng một nút** để Joyce đề xuất cập nhật hồ sơ, chờ anh duyệt.
+- Làm một lần: dán địa chỉ webhook sang app Facebook và xin thêm quyền nhắn tin. Khách thật cần Meta duyệt quyền `pages_messaging`; trước đó chỉ thử được với người có vai trò trong app.
 
 ## [1.3.39] - 2026-10-28
 ### Thêm

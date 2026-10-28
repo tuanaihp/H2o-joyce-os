@@ -6986,5 +6986,93 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 703,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 704,
+  "type": "APIRoute",
+  "path": "/webhooks/messenger",
+  "name": "webhook_xac_minh",
+  "methods": [
+   "GET"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 705,
+  "type": "APIRoute",
+  "path": "/webhooks/messenger",
+  "name": "webhook_nhan",
+  "methods": [
+   "POST"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 706,
+  "type": "APIRoute",
+  "path": "/channels/webhook-info",
+  "name": "webhook_info",
+  "methods": [
+   "GET"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 707,
+  "type": "APIRoute",
+  "path": "/social/facebook/messenger/status",
+  "name": "trang_thai",
+  "methods": [
+   "GET"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 708,
+  "type": "APIRoute",
+  "path": "/social/facebook/messenger/enable",
+  "name": "bat",
+  "methods": [
+   "POST"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 709,
+  "type": "APIRoute",
+  "path": "/social/facebook/messenger/disable",
+  "name": "tat",
+  "methods": [
+   "POST"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 710,
+  "type": "APIRoute",
+  "path": "/social/facebook/messenger/mode",
+  "name": "doi_che_do",
+  "methods": [
+   "POST"
+  ],
+  "trong": 703
+ },
+ {
+  "order": 711,
+  "type": "APIRoute",
+  "path": "/social/facebook/messenger/permissions",
+  "name": "xin_quyen",
+  "methods": [
+   "POST"
+  ],
+  "trong": 703
  }
 ]
