@@ -277,3 +277,14 @@ def doc_file_agent(root, slug: str) -> str:
     except Exception:  # noqa: BLE001
         pass
     return ""
+
+
+def ngu_canh(run_id: str, root):
+    """Dựng ngữ cảnh lượt chạy cho host đặt vào `run_context` từ chính dòng trong sổ và NỘI DUNG file agent đang chạy. Không có dòng
+    (sổ hỏng, lượt đã gỡ) thì trả None: route chạy không ngữ cảnh, đúng như trước."""
+    r = lay(run_id)
+    if not r:
+        return None
+    import run_context
+    return run_context.RunContext(run_id=r["run_id"], agent_id=r["agent_id"], brain_id=r["brain_id"], entrypoint=r["entrypoint"],
+                                  allowed_effects=run_context.doc_allowed_effects(doc_file_agent(root, r["agent_id"])))

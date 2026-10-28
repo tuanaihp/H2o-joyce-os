@@ -21,10 +21,11 @@ TRANG_THAI = ("chung_nhan", "mot_phan", "chua_chung_nhan")
 # (id, mô tả, chủ thể, nguồn quyền, nơi kiểm, test, trạng thái, khoảng hở)
 _HANG = [
     ("hub_write_file", "Tool joyce_write_file qua MCP Hub (mọi engine)",
-     "engine chạy dưới brain đang mở", "không có grant theo thao tác; chỉ chính sách đường dẫn",
-     "mcp_hub._write -> file_policy.deny_reason (giải lại đích, chặn sources/, symlink, tạo độc quyền)",
-     "tests/python/test_fix03_file_guard.py", "mot_phan",
-     "Chính sách đường dẫn có kiểm sát lúc ghi, nhưng chưa có ủy quyền theo thao tác và tham số; deny_reason trả None ngoài brain không phải cho phép."),
+     "engine chạy dưới brain đang mở; từ 1.3.43 host đặt ngữ cảnh (run_context) cho lượt của bot, việc giao trợ lý và bước workflow",
+     "allowed_effects trong file agent (internal_write) NẾU agent đã khai; agent chưa khai thì chỉ chính sách đường dẫn",
+     "mcp_hub._write -> run_context.cho_phep rồi file_policy.deny_reason (giải lại đích, chặn sources/, symlink, tạo độc quyền)",
+     "tests/python/test_g2_ngu_canh_quyen.py và tests/python/test_fix03_file_guard.py", "mot_phan",
+     "Chỉ agent ĐÃ KHAI allowed_effects mới bị kiểm quyền (phần lớn chưa khai); chat trực tiếp với Joyce và các route khác chạy không ngữ cảnh; chưa có grant theo tham số; deny_reason trả None ngoài brain không phải cho phép."),
     ("hub_other_tools", "Các tool khác của MCP Hub (gửi tin, đặt hàng, đăng bài, Zalo, Messenger...)",
      "engine chạy dưới brain đang mở", "mức quyền của phiên (suggest, auto, full) và xác nhận từng loại",
      "mcp_hub (mức quyền) và joyce-guard (hook trước tool)", "tests/python/test_harness_ranh_gioi_quyen.py", "mot_phan",

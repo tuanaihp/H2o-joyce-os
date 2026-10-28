@@ -1511,6 +1511,27 @@ def _so_mo(bot_id: str, meta) -> str:
     return run_ledger.ghi_an_toan(_lam) or ""
 
 
+def _so_ngu_canh(rid: str):
+    """Đặt ngữ cảnh lượt chạy (run_context) cho lượt bot đang chạy; trả token để gỡ, hoặc None. Không bao giờ ném lỗi."""
+    if not rid:
+        return None
+    def _lam():
+        import run_context
+        import run_ledger
+        brain = (run_ledger.lay(rid) or {}).get("brain_id", "")
+        root = _deps.get("brain_root")
+        ctx = run_ledger.ngu_canh(rid, root(brain) if root and brain else "")
+        return run_context.dat(ctx) if ctx else None
+    import run_ledger
+    return run_ledger.ghi_an_toan(_lam)
+
+
+def _so_go_ngu_canh(tok) -> None:
+    if tok is not None:
+        import run_context
+        run_context.go(tok)
+
+
 def _so_chot(rid: str, status: str, block_kind: str = "") -> None:
     if rid:
         import run_ledger
@@ -1528,12 +1549,15 @@ def _make_answer_fn(bot_id: str):
         """Lượt trả lời của bot, bọc sổ lượt chạy (B01): host mở lượt TRƯỚC khi gọi model, chốt sau. Sổ chỉ ghi nhận, lỗi sổ không
         bao giờ làm hỏng câu trả lời. Lượt im lặng (không gọi model) không vào sổ."""
         rid = _so_mo(bot_id, meta)
+        tok = _so_ngu_canh(rid)
         try:
             out = await _answer_loi(text, meta=meta, progress=progress)
         except BaseException as e:      # kể cả huỷ giữa chừng: phải chốt, không để treo `running`
             _so_chot(rid, "canceled" if isinstance(e, asyncio.CancelledError) else "failed",
                      "system" if not isinstance(e, asyncio.CancelledError) else "")
             raise
+        finally:
+            _so_go_ngu_canh(tok)
         im = isinstance(out, dict) and out.get("im_lang")
         if rid and im:
             _so_bo(rid)

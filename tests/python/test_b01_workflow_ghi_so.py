@@ -96,6 +96,30 @@ asyncio.run(huy())
 r9 = [x for x in L.danh_sach(agent_id="nguoi-viet") if x["ref"].endswith(":n9")]
 check("bước bị huỷ giữa chừng: lượt được chốt canceled, không treo running", len(r9) == 1 and r9[0]["status"] == "canceled", r9)
 
+# ngữ cảnh lượt chạy do host đặt trong lúc bước chạy, và gỡ sau đó
+import run_context as RX  # noqa: E402
+thay = []
+
+
+class EngineDoCtx:
+    async def query(self, prompt):
+        c = RX.hien_tai()
+        thay.append((c.agent_id, c.entrypoint, c.run_id) if c else None)
+        yield {"type": "final", "content": "XONG"}
+
+
+node_ctx = SimpleNamespace(id="nc", kind="model_step", agent="nguoi-viet", verify_agent="", max_retries=0, metadata={})
+
+
+async def _sink(ev):
+    pass
+
+
+asyncio.run(main._run_workflow_step(node_ctx, "p", lambda *a, **k: EngineDoCtx(), sysprompt_gia, _sink, session_id="sc", brain_id="BrainThu"))
+rc = [x for x in L.danh_sach(agent_id="nguoi-viet") if x["ref"].endswith(":nc")]
+check("trong lúc bước chạy, tool thấy ngữ cảnh đúng agent, cửa workflow, run_id của sổ; chạy xong thì gỡ",
+      len(thay) == 1 and thay[0] and thay[0][0] == "nguoi-viet" and thay[0][1] == "workflow" and rc and thay[0][2] == rc[0]["run_id"] and RX.hien_tai() is None, (thay, rc))
+
 # sổ hỏng không làm hỏng bước
 from pathlib import Path  # noqa: E402
 _d = L._duong_dan

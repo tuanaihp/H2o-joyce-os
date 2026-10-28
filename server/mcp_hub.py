@@ -685,6 +685,13 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         # CHỐT BẮT BUỘC ghi file (1.3.41, FIX-03 của gói G1). Hook joyce-guard chỉ là lời báo sớm và fail-open theo thiết kế
         # (plugins_host), nên chốt thật phải nằm ở đây, trên ĐÚNG đường dẫn đã giải mà tool sắp ghi.
         import file_policy
+        # QUYẾT ĐỊNH QUYỀN CHUNG (G2): lượt chạy của agent đã khai `allowed_effects` thì ghi file (internal_write) phải nằm trong đó.
+        # Ngữ cảnh do host đặt (run_context), không lấy từ lời agent. Không ngữ cảnh hoặc agent chưa khai: giữ hành vi cũ.
+        import run_context
+        _ok_q, _ly_q = run_context.cho_phep("internal_write")
+        if not _ok_q:
+            return ("ERROR: agent này đã khai quyền (allowed_effects) và không có internal_write nên không được ghi file. "
+                    "Báo chủ nếu cần cấp thêm.")
         if p.is_dir():
             # Đường dẫn rỗng hay chỉ tới thư mục: không có file nào để ghi. Trả lời nói được thay vì để PermissionError bay ra.
             return "ERROR: đường dẫn này là một thư mục, cần đường dẫn tới một FILE (vd `wiki/ten-trang.md`)."

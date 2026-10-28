@@ -11006,6 +11006,9 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
                                   ref=f"wf:{session_id}:{getattr(node, 'id', '')}"[:200], revision=rv,
                                   logical_execution_id=f"wf:{session_id}:{getattr(node, 'id', '')}")
     rid = run_ledger.ghi_an_toan(_mo) or ""
+    import run_context
+    _ctx = run_ledger.ghi_an_toan(run_ledger.ngu_canh, rid, _brain_root(brain_id) if brain_id else "") if rid else None
+    _tok = run_context.dat(_ctx) if _ctx else None
     try:
         kq = await _run_workflow_step_loi(node, prompt, mk, agent_sysprompt, sink, router=router, session_id=session_id,
                                           log_run=log_run, learn=learn)
@@ -11014,6 +11017,9 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
             run_ledger.ghi_an_toan(run_ledger.ket_thuc, rid, "canceled" if isinstance(e, asyncio.CancelledError) else "failed",
                                    block_kind="" if isinstance(e, asyncio.CancelledError) else "system")
         raise
+    finally:
+        if _tok is not None:
+            run_context.go(_tok)
     if rid:
         # Bước không có chữ nào trả về (engine báo lỗi rồi im) cũng KHÔNG phải hoàn tất: runner cũ không đặt `error` cho ca đó.
         loi = bool((kq or {}).get("error")) or not str((kq or {}).get("output") or "").strip()

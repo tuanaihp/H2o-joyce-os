@@ -683,11 +683,18 @@ class TasksFeature:
         if not claimed:
             return False
         root = str(claimed["brain_root"])
-        worker = asyncio.create_task(
-            self._run_worker(claimed, worker_id),
-            name=f"joyce-task-{task_id}",
-        )
-        self._so_luot[task_id] = self._so_mo_viec(claimed)
+        rid = self._so_mo_viec(claimed)
+        self._so_luot[task_id] = rid
+        tok = self._so_ngu_canh_viec(rid, root)       # task asyncio sao chép ngữ cảnh lúc được tạo, nên đặt TRƯỚC create_task
+        try:
+            worker = asyncio.create_task(
+                self._run_worker(claimed, worker_id),
+                name=f"joyce-task-{task_id}",
+            )
+        finally:
+            if tok is not None:
+                import run_context
+                run_context.go(tok)
         self._workers[task_id] = worker
         self._worker_ids[task_id] = worker_id
         self._worker_brains[task_id] = root
@@ -713,6 +720,18 @@ class TasksFeature:
                                       engine=str(task.get("execution_mode") or ""), revision=rv)
         import run_ledger
         return run_ledger.ghi_an_toan(_lam) or ""
+
+    def _so_ngu_canh_viec(self, rid: str, root: str):
+        """Đặt ngữ cảnh lượt chạy cho worker sắp được tạo. Trả token hoặc None; không bao giờ ném lỗi."""
+        if not rid:
+            return None
+        import run_ledger
+
+        def _lam():
+            import run_context
+            ctx = run_ledger.ngu_canh(rid, root)
+            return run_context.dat(ctx) if ctx else None
+        return run_ledger.ghi_an_toan(_lam)
 
     def _so_chot_viec(self, task_id: str, rid: str) -> None:
         """Chốt lượt trong sổ theo trạng thái việc SAU khi worker xong. Chờ duyệt hay chờ nhập không phải lỗi của trợ lý; việc bị trả
