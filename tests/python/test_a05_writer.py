@@ -144,6 +144,39 @@ t0 = time.time()
 rc = dw.ghi_co_dieu_kien(goc, f, BAN_MOI, thu_muc_khoa=kh, deployment_id="g" * 32, target_id="t" * 32, truoc_hash=sha(BAN_CU))
 check("tiến trình giữ khoá chết đột ngột: tiến trình khác lấy được khoá ngay (không chờ hết giờ)", "DANG_GIU" in r.stdout and rc["ket_qua"] == "committed" and time.time() - t0 < 10, (r.stdout, r.stderr[-200:], time.time() - t0))
 
+# Hai tiến trình cùng tạo file khoá lần đầu: bên kia đã khoá byte 0 của file RỖNG thì bên này không được nổ PermissionError khi
+# ghi byte khởi tạo (lỗi thật gặp khi 10 lần chạy song song trên Windows), mà phải chờ rồi hết giờ một cách có kiểm soát.
+base, goc, kh = moi()
+f = goc / "agents" / "a.md"
+kh.mkdir(parents=True, exist_ok=True)
+tep_khoa = dw._khoa_file(kh, os.path.normcase(str(f)))
+giu = subprocess.Popen([PY, "-c", f"""
+import os, sys, time
+fd = os.open({str(tep_khoa)!r}, os.O_RDWR | os.O_CREAT, 0o600)
+try:
+    import msvcrt
+    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+except ImportError:
+    import fcntl
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+print("DA_KHOA", flush=True)
+time.sleep(6)
+"""], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+try:
+    dong = giu.stdout.readline()
+    try:
+        with dw.khoa(kh, str(f), het_gio=1.0):
+            loi_khoa = "lấy được khoá đang bị giữ"
+    except dw.HetGioKhoa:
+        loi_khoa = "het_gio"
+    except OSError as e:
+        loi_khoa = "OSError: " + repr(e)
+finally:
+    giu.kill()
+    giu.wait()
+check("file khoá rỗng đã bị tiến trình khác khoá byte 0: chờ rồi hết giờ có kiểm soát, KHÔNG nổ PermissionError khi ghi byte khởi tạo",
+      "DA_KHOA" in dong and loi_khoa == "het_gio", (dong, loi_khoa))
+
 # ============================================================
 # 5. Chết giữa chừng ở từng bước + đối soát
 # ============================================================

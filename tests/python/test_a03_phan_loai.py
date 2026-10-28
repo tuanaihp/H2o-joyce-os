@@ -109,6 +109,7 @@ check("diff_quyen vẫn không báo thay đổi thân bài (đó là behavior, d
 check("diff_quyen báo cả khoá lạ", h.diff_quyen(agent(), agent("permissions: x\n")) == ["?permissions"])
 
 # ---------------- dữ liệu thật (chỉ đọc): sửa thân bài phải ra behavior_change, không bao giờ display_only
+# `brains/` không nằm trong git: worktree sạch chỉ có `system/agents/` (10 file), máy chủ có hàng trăm. Cần ít nhất 1 file mẫu, không đòi số lượng.
 import glob  # noqa: E402
 import os  # noqa: E402
 nho = {"behavior_change": 0, "invalid": 0, "khac": 0}
@@ -120,7 +121,7 @@ for pat in ("brains/*/agents/*.md", "brains/*/workflows/*.md", "brains/*/Joyce/l
         c = loai(t, t + "\n\nMột dòng mới.\n")
         nho[c if c in nho else "khac"] += 1
 check("trên agent, workflow, loop, agent dùng chung thật: sửa thân bài luôn là behavior_change, không file nào bị invalid",
-      nho["behavior_change"] > 100 and nho["invalid"] == 0 and nho["khac"] == 0, nho)
+      nho["behavior_change"] >= 1 and nho["invalid"] == 0 and nho["khac"] == 0, nho)
 
 if fails:
     print("\nTHẤT BẠI %d: %s" % (len(fails), fails))

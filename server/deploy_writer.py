@@ -80,8 +80,13 @@ def khoa(thu_muc_khoa: Path, *dich: str, het_gio: float = 30.0):
         for k in sorted({os.path.normcase(str(x)) for x in dich}):
             fd = os.open(_khoa_file(thu_muc_khoa, k), os.O_RDWR | os.O_CREAT, 0o600)
             try:
-                if os.fstat(fd).st_size == 0:
-                    os.write(fd, b"\0")
+                try:
+                    if os.fstat(fd).st_size == 0:
+                        os.write(fd, b"\0")
+                except OSError:
+                    # Tiến trình khác vừa tạo file này và đã khoá byte 0: Windows từ chối ghi vào vùng đang khoá. Không sao,
+                    # khoá byte 0 không cần byte đó đã tồn tại; vòng chờ bên dưới lo phần còn lại.
+                    pass
                 t0 = time.time()
                 while True:
                     try:
