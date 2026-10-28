@@ -241,6 +241,7 @@ Các quyết định trên không ngăn việc xây validator, golden profiles v
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | 1.3.43 (gói B, chưa merge main): sổ lượt chạy do host ghi ở ba cửa (bot, việc, workflow), canary đọc bằng chứng từ sổ và chỉ tính lượt đã chấm đạt, chủ chấm trên Sơ đồ, bản kê chứng nhận 8 đường ghi (chưa đường nào đạt). Gate B chạy trong sandbox; chưa mở pilot |
 | 2026-10-28 | 1.3.42 (gói A, chưa merge main): cổng host chặn tự áp thay đổi hành vi và quyền, baseline chung và override, cổng eval bốn trạng thái, writer có khoá và phục hồi sau crash, khung quản trị triển khai trên Sơ đồ. Trạng thái: G1 đã gia cố, canary chưa chứng nhận; chưa làm gói B |
 | 2026-10-28 | 1.3.41: gói G1 của kế hoạch phòng ban (FIX-01..05: so quyền theo cây YAML, eval loader chặt, chính sách file dùng chung kiểm sát lúc ghi, canary từng đích và đòi bằng chứng); chưa làm G2 |
 | 2026-10-28 | 1.3.39: xong giai đoạn 0A (cache, joyce-guard, thu gọn kết quả tool cũ), vá B-01, B-10, B-12, gom 9 trợ lý dùng chung, khối Joyce Harness trên trang Sơ đồ |

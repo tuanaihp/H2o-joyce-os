@@ -183,7 +183,18 @@ Thứ tự làm thực tế: A00, **A03 trước A01** (cổng của A01 cần b
 | G1-11 | **Đóng.** Mỗi task gói A một commit riêng, không viết lại commit đã đẩy | Không |
 | G1-12 | **Một phần.** Đã có test đầu cuối trong sandbox (`test_a07_dau_cuoi.py`), full suite với exit code, profile khởi động. **Gate A07.1 chưa đạt**: p95 tỉ lệ khởi động vẫn trên 5,0 (5,17 sau khi bỏ nạp sớm `cryptography`); trần giữ 5,0, không nâng | Giảm số route nạp lúc import hoặc tách `main.py`; xem `evidence/2026-10-28-g1/44-khoi-dong-ket-luan.md` |
 
-**Chưa chứng nhận sau gói A:** canary (G1-01, G1-10), mọi đường ghi ngoài MCP Hub (G1-05), nền tảng Linux và macOS (G1-06), hành vi thật của
+
+#### Gói B (1.3.43, cùng nhánh, chưa merge main): làm theo thứ tự B01, B03, B02 sau khi chủ cho tiếp tục
+
+| Mục | Đã làm | Còn lại, nói thẳng |
+|---|---|---|
+| B01 hợp đồng lượt chạy | `server/run_ledger.py`: sổ lượt chạy host ghi, revision chụp từ NỘI DUNG THÔ file agent (so được với `candidate_hash`), sự kiện idempotent, retry cùng logical execution, mất worker thành `interrupted`. Ghi ở ba cửa: bot khách (`chatbot_runtime`), việc giao cho trợ lý (`tasks`), bước workflow (`main._run_workflow_step`). Lỗi sổ không làm hỏng lượt | **Chat trực tiếp với Joyce chưa vào sổ**; chưa có `parent_run_id` cho sub-agent; chưa chụp được `grant_hash` và `effective_config_hash` thật (đang băm rỗng); skill đổi chưa vào `deps_revisions` ở ba cửa |
+| B03 chứng nhận route | `server/route_cert.py`: bản kê 8 đường ghi với chủ thể, nguồn quyền, nơi kiểm, test, khoảng hở; test chặn trượt cho route HTTP ghi file trực tiếp (13 route đã phân loại). **Không đường nào đạt `chung_nhan`**, hai đường `mot_phan` | Ủy quyền theo từng thao tác (G2); sandbox chỉ-đọc cho CLI native; dò route ghi gián tiếp; test từng OS |
+| B02 canary theo run | `factory._canary_evidence` đọc sổ: chỉ lượt `verified_pass` đúng agent, brain, revision và sau lúc áp; hoàn tất chưa chấm KHÔNG tính; rớt đã chấm thì lật lại. `telemetry_ready` đọc sổ thật. Chủ chấm Đạt hoặc Rớt trên Sơ đồ (`/work/factory/grade`) | Chưa có bộ chấm tự động ngoài `verify_agent` của workflow; chưa có nhóm ca bắt buộc theo phòng; chưa theo dõi lượt chạy TẠI ĐÍCH sau khi nhân; chưa hiệu chỉnh ngưỡng 20 lượt, 24 giờ, 14 ngày bằng dữ liệu thật |
+
+**Gate B (đã chạy trong sandbox, `tests/python/test_b_dau_cuoi.py`):** bot gắn agent trả lời, host ghi lượt kèm revision thật, chủ chấm, đủ 20 lượt đạt thì nhân, một lượt rớt thì lật lại, lượt của bản cũ không tính cho bản mới. **Chưa mở pilot Đối Soát**: đó là hồ sơ riêng, cần chủ duyệt.
+
+**Chưa chứng nhận sau gói A (đọc cùng bảng gói B ở trên):** canary (G1-01, G1-10), mọi đường ghi ngoài MCP Hub (G1-05), nền tảng Linux và macOS (G1-06), hành vi thật của
 bản nháp (chỉ có eval chuỗi). Việc "tự cải tiến" ở production vì vậy chỉ nên coi là: tự áp thay đổi hiển thị, còn lại chờ chủ.
 
 ## 4. Bằng chứng kiểm tra và giới hạn
