@@ -1,498 +1,780 @@
-# Joyce-hardness: kiểm tra harness của Joyce và của các phòng ban
+# Joyce Harness: khung harness của Joyce (bản 2)
 
-> Tài liệu SỐNG. Mỗi lần thay đổi harness thì sửa bảng chấm điểm ở mục 2 và thêm một dòng vào "Nhật ký cập nhật" ở cuối file.
-> Bản đầu: 2026-10-28, soi trên nhánh `claude/crm-v2-final-1-3-35` (bản 1.3.38). Người đọc: chủ Joyce và các phiên Claude Code làm việc trên repo này.
-> Mục đích dài hạn: làm nền để xây **harness riêng cho Joyce** (một lõi dùng chung, không phụ thuộc engine nào).
+> Tài liệu SỐNG. Đổi harness thì sửa bảng chấm điểm ở mục 3, mục kiểm tra ở mục 11, và thêm một dòng vào "Nhật ký cập nhật" ở cuối.
+> Bản 1: 2026-10-28 (chấm theo bài giảng). Bản 2: 2026-10-28, viết lại thành khung ba tầng, có ghép phương pháp của repo Harness² và sửa các nhận định sai của bản 1.
+> Soi trên nhánh `claude/crm-v2-final-1-3-35` (bản 1.3.38). Người đọc: chủ Joyce và các phiên Claude Code làm việc trên repo này.
 
 ## 0. Cách đọc
 
-"Harness" là phần bao quanh model: vòng lặp, ngữ cảnh, công cụ, agent con, kỹ năng, bộ nhớ, system prompt, hook và phân quyền. Model quyết định làm gì, harness quyết định model được thấy gì, được làm gì và chuyện gì xảy ra sau mỗi bước. Tài liệu này đối chiếu Joyce với đúng chín thành phần trong bài giảng anh gửi:
+### 0.1 Nguồn
 
-Loop, Context, Tools và Skills, Sub-agent, Skill có sẵn, Memory, System prompt, Hooks, Phân quyền.
+| Nguồn | Dùng để |
+|---|---|
+| Code Joyce (`server/`, `system/plugins/`, `dashboard/`) | Biết Joyce đang có gì thật |
+| Dữ liệu thật trên máy chủ: 61 brain trong `brains/`, `server/settings.json`, `server/usage_index.db` | Biết cơ chế có đang chạy và có dữ liệu không. Chỉ đọc, không sửa |
+| Repo Harness² (Google, bài báo arXiv 2610.14224), bản tải về ở `E:\CLAUDECODE\TOOK\harness2-main` | Phương pháp tự cải tiến harness và cách chia thành phần |
+| Bài giảng "Harness" (các slide bếp phở anh gửi) | Chín thành phần cơ bản và các nguyên tắc vận hành |
 
-Quy ước mức chấm: **Tốt** (đủ và có kiểm chứng), **Khá** (có, còn lỗ hổng rõ), **Thiếu** (cơ chế có nhưng gần như không dùng hoặc thiếu mảnh quan trọng), **Chưa có**.
+### 0.2 Cấu trúc mỗi mục
 
-Mọi nhận định ghi kèm file đã đọc. Chỗ nào em chưa kiểm tra thì nói thẳng ở mục 7.
+Mỗi thành phần được viết theo năm phần cố định:
+1. **Hiện trạng:** Joyce có gì, ở file nào, số liệu thật.
+2. **Nguyên tắc:** bài giảng hoặc Harness² nói gì.
+3. **Lỗ hổng:** chênh giữa hai cái trên.
+4. **Giải pháp cho Joyce:** làm gì, áp vào công việc H2O ra sao.
+5. **Đo:** biết đã xong bằng con số nào.
 
-## 1. Kết luận nhanh
+Thang điểm: **Tốt** (đủ và có kiểm chứng), **Khá** (có, còn lỗ hổng rõ), **Thiếu** (có cơ chế nhưng gần như không dùng, hoặc thiếu mảnh quan trọng), **Chưa có**.
 
-**Harness của Joyce mạnh ở tầng hub, phân quyền và quản lý ngữ cảnh. Yếu ở chỗ "một agent là gì".** Hôm nay agent của Joyce mới là một file prompt kèm danh sách skill và tên model. Nó chưa là một gói có phạm vi riêng (công cụ được dùng, mức quyền, trần số vòng, loại việc). Đó chính là khác biệt giữa bài giảng ("mỗi phụ bếp có phạm vi riêng") và Joyce hiện tại.
+### 0.3 Ràng buộc của chủ mà mọi giải pháp phải giữ
 
-Điểm mạnh đáng giữ:
-- Một cửa công cụ duy nhất (MCP Hub) cho mọi engine, có phân loại đọc, ghi, nguy hiểm, giới hạn tần suất và nhật ký kiểm toán.
-- Vòng lặp tool của engine API có trần số vòng, phanh chống kẹt vòng và thử lại có chờ.
-- Nén hội thoại và "Adaptive Context Runtime" đã chạy thật trên máy anh (mức Siêu tiết kiệm).
-- Cơ chế bộ nhớ có kiểm soát (xem, sửa, quên, tắt học) và cơ chế tự học có người duyệt.
+Đây là các quyết định chủ đã chốt. Giải pháp nào đi ngược thì phải hỏi chủ trước, không tự làm.
 
-Bảy lỗ hổng lớn nhất, xếp theo mức đáng làm trước:
-1. **Agent chưa có phạm vi riêng.** Frontmatter agent chỉ có `name, slug, role, group, skills, model, model_provider`. Không có `tools`, `mode`, `max_rounds`, loại việc (khám phá, thực hiện, kiểm tra). Phạm vi công cụ chỉ nằm ở bước workflow hoặc việc Kanban.
-2. **Hook có cơ chế nhưng không có hook bảo vệ nào bật sẵn.** `pre_tool_call` chặn được và sửa được tham số, nhưng plugin duy nhất dùng hook là `tool-audit` (chỉ đếm, và tắt mặc định).
-3. **Dọn ngữ cảnh trong một lượt dài còn thô.** Mỗi kết quả công cụ bị cắt ở 8.000 ký tự nhưng kết quả cũ không bị dọn trong cùng lượt (tối đa 30 vòng). Chưa thấy xử lý chủ động khi nhà cung cấp báo "ngữ cảnh quá dài".
-4. **Các phòng ban chủ yếu là bản sao.** 549 trên 600 agent là 9 agent dùng chung nhân bản vào cả 61 brain. 14 brain khối chỉ có đúng 9 bản sao đó, không có agent nghiệp vụ nào.
-5. **Bộ nhớ gần như rỗng trong thực tế.** 54 trên 61 brain có chỉ mục bộ nhớ trống, 48 file bộ nhớ agent không chứa bài học nào. Cơ chế tốt nhưng chưa có dữ liệu chảy vào.
-6. **Prefix caching bị phá ở đường API.** Hai khối đổi mỗi lượt (đồng hồ theo phút và "Mức dùng hôm nay" đếm token) nằm TRONG system prompt, mà dấu cache của Anthropic đặt trên toàn bộ system như một khối duy nhất. Phần "tĩnh trước, động sau" đã đúng thứ tự, nhưng chưa tách khối nên không hưởng được. Chi tiết ở mục 3.11.
-7. **Chưa có "dừng lại xin phép chủ" cho từng thao tác lớn trong chat.** Quyền chỉ là cho phép hoặc chặn. Việc xin duyệt có ở Sổ Shop (chi vượt hạn mức), cột Review của Kanban (sau khi chạy), và đường ghi có xác nhận (đang ở 0%). Chi tiết ở mục 3.9 và 3.13.
+| Ràng buộc | Nguồn | Hệ quả cho harness |
+|---|---|---|
+| Vận hành không tốn quota: gửi bài, chấm điểm, nhắc việc, ghi sổ chạy bằng luật cố định; model chỉ để soạn nội dung và phán đoán | Bộ nhớ dự án | Kiểm tra nên viết bằng script và code trước, chỉ dùng model khi thật sự cần phán đoán |
+| Không có vòng nền quét và nâng cấp skill, agent hàng loạt (16/08/2026) | `CLAUDE.md` gốc | Tự cải tiến chỉ chạy khi có bằng chứng cụ thể, lúc đang dùng, không theo lịch |
+| Joyce tự hành động, bỏ luật "tiền, đơn, đăng bài, nhắn tin không tự động" (10/09/2026) | `CLAUDE.md` gốc | Cổng xin phép phải là tùy chọn theo loại thao tác, mặc định tắt |
+| Giữ nguyên 44 phòng H2O, mỗi việc do agent đúng phòng làm | Bộ nhớ dự án | Gói harness đặt theo phòng, không gom về Joyce |
+| `brains/` không có git, xóa là mất vĩnh viễn | Bộ nhớ dự án | Mọi sửa tự động vào brain phải có bản sao lưu và đường lật lại |
+| Không dùng ký tự gạch dài, xưng hô theo người dùng | `CLAUDE.md` gốc | Áp cho cả prompt agent sinh ra |
 
-Trả lời hai câu hỏi của anh:
-- **"Harness hiện tại của Joyce đã tốt chưa?"** Tầng nền (hub, quyền, ngữ cảnh) đã tốt đến khá. Tầng agent và hook chưa. Đủ dùng để vận hành H2O, chưa đủ để gọi là harness riêng của Joyce.
-- **"Các agent các phòng đã có harness chưa?"** Có khung, chưa có phạm vi. Mỗi phòng đã có không gian riêng (brain riêng), lời dặn tập trung (đa số có mục Bối cảnh, Quy trình, Cấm), một skill nghiệp vụ. Còn thiếu công cụ giới hạn theo agent và bộ nhớ có dữ liệu. Chi tiết ở mục 4.
+## 1. Kết luận
 
-## 2. Bảng chấm điểm chín thành phần
+### 1.1 Trả lời ngắn
 
-| # | Thành phần | Mức | Một dòng lý do |
+- **Harness của Joyce đã tốt chưa?** Lõi chạy (vòng lặp, ngữ cảnh, hub công cụ, phân quyền) ở mức khá đến tốt. Vòng tự cải tiến đã được viết khá đầy đủ nhưng gần như chưa chạy. Phần yếu nhất là "một agent là gì": agent mới là một file prompt, chưa là một gói có phạm vi, ca thử và cách kiểm của riêng nó.
+- **Agent các phòng đã có harness chưa?** Có khung, chưa có ruột. 61 brain đều có agent, skill, workflow, bộ nhớ, cấu hình factory. Nhưng 549 trên 600 agent là bản sao dùng chung, bộ nhớ gần như trống, không phòng nào có lệnh kiểm tra sau việc, và chỉ 1 bộ ca thử tồn tại trên cả hệ thống.
+
+### 1.2 Khung Joyce Harness ba tầng
+
+Harness² tách hai thứ: **hạ tầng đóng băng** (CLI, công cụ gốc, nhà cung cấp model) và **bề mặt sửa được** (tám thành phần quanh model). Rồi thêm một vòng **tự cải tiến bề mặt** dựa trên bằng chứng chạy thật. Joyce đặt vào đúng khung đó thành ba tầng:
+
+```
+TẦNG C  VÒNG CẢI TIẾN          đề xuất -> chạy thử -> so sánh -> chọn -> áp có canary -> ghi kinh nghiệm
+          (harnessing)          ky-su-harness, giam-dinh-harness, factory.py, Joyce/proposals, Joyce/evals
+                 |  sửa
+                 v
+TẦNG B  BỀ MẶT NGHỀ             mỗi agent / mỗi phòng một gói:
+          (của từng phòng)       prompt, nội quy, bộ nhớ, hướng dẫn công cụ, agent con,
+                                 skill, script kiểm tra, hook, phạm vi, ca thử, cách kiểm
+                 |  chạy trên
+                 v
+TẦNG A  LÕI CHẠY                vòng lặp, ngữ cảnh, lắp prompt, hub công cụ, quyền,
+          (app sở hữu, cố định)  hook, nhật ký, sandbox, giới hạn tài nguyên, bộ nhớ lõi
+                 |  gọi
+                 v
+        MODEL (12 bộ não, đổi ở trang Models)
+```
+
+Quy tắc giữa các tầng:
+- Tầng A do app sở hữu, chỉ đổi qua bản phát hành. Model và agent không được sửa nó.
+- Tầng B là thứ chủ, trưởng phòng và Tầng C được sửa. Mỗi lần sửa phải đi qua kiểm tra của Tầng A (khuôn, quyền, khóa mục hệ thống).
+- Tầng C không bao giờ tự cấp thêm quyền cho Tầng B (đúng bất biến "replan không cấp thêm quyền" đã có ở `server/agent_runtime.py`).
+
+### 1.3 Năm phát hiện chính của bản 2
+
+1. **Vòng tự cải tiến đã có, bản 1 bỏ sót.** `server/factory.py` (1.379 dòng) đã có: chạy lệnh kiểm sau việc rồi tự mở việc sửa (CI babysit), theo dõi kết quả sau khi xong (watch), gom lỗi cùng gốc thành một việc, tự áp đề xuất cải tiến có bản sao lưu, áp thử ở một brain 24 giờ rồi mới nhân (canary) và tự lật lại khi có tín hiệu xấu, bảng điểm từng agent, tỉ lệ việc tự chạy không cần người. Factory đang BẬT ở cả 61 brain.
+2. **Nhưng gần như không có gì chảy qua nó.** Lệnh kiểm sau việc (`post_check`) rỗng ở cả 61 brain. Cả hệ thống có 1 bộ ca thử (`Brain Default/Joyce/evals/giam-dinh-harness.json`) và 2 đề xuất cải tiến (đều ở Brain Default, đều loại sửa lỗi hiệu năng). Vòng PPC mới chạy 4 lần, ra 2 bài học. Tức là nhà máy dựng xong mà chưa có nguyên liệu.
+3. **Joyce đã mượn Harness² nửa chừng.** Agent `ky-su-harness` ghi rõ là "Propose của PPC", `giam-dinh-harness` là "Compose của PPC", skill `cham-diem-tuong-phan` dịch nguyên ba khối prompt từ `harness2/core/prompts.py`. Phần còn thiếu là phần quan trọng nhất của Harness²: **Probe**, tức chạy thử bản sửa trên cùng việc thật rồi so hành vi. Giám định của Joyce hiện so hai bản CHỮ của prompt, không so hai lần CHẠY.
+4. **Workflow có vòng kiểm chứng, chat thì không.** Bước workflow khai `verify_agent` thì có agent khác kiểm, chưa đạt làm lại, không rõ kết luận là hỏng. Nhưng chỉ 5 trên 239 file workflow dùng, và chat không có bước kiểm cuối.
+5. **Lõi chạy còn ba lỗ đáng vá sớm vì rẻ:** prefix cache bị phá bởi khối đổi mỗi lượt (Claude Code qua Joyce chỉ trúng 76%), không có hook bảo vệ nào bật sẵn, và kết quả công cụ cũ không được dọn trong một lượt dài.
+
+## 2. Gói harness của một agent (mục tiêu của Tầng B)
+
+Đây là hình dạng đích. Phần lớn đã có chỗ để đặt, chỉ chưa được điền.
+
+| Thành phần (Harness²) | Đặt ở đâu trong brain phòng | Đã có chưa |
+|---|---|---|
+| c1 Thân prompt | `agents/<slug>.md`, thân file | Có, 600 file |
+| Phạm vi (mới, không có trong Harness²) | `agents/<slug>.md`, frontmatter: `kind`, `tools`, `mode`, `max_rounds`, `max_minutes`, `verify` | Chưa |
+| c2 Nội quy luôn bật | Đề xuất: `Joyce/noi-quy.md` của phòng, app tự ghép vào khối phòng ban của prompt | Chưa. Hiện nằm rải trong mục "Cấm" của từng agent |
+| c3 Bộ nhớ dài hạn | `memory/` của brain và `memory/agents/<slug>/MEMORY.md` | Có cơ chế, gần như không có dữ liệu |
+| c4 Hướng dẫn dùng công cụ | Đề xuất: mục "Công cụ" trong `Joyce/noi-quy.md`, cộng mô tả của từng tool | Một phần: mô tả tool có, hướng dẫn theo phòng chưa |
+| c5 Agent con | Agent khác trong cùng brain hoặc `Ten Brain\|slug` ở workflow | Có cách gọi, chưa có kiểu khai báo |
+| c6 Skill | `skills/<slug>/SKILL.md` | Có, phần lớn là skill hệ thống |
+| c7 Script kiểm tra cố định | `Joyce/scripts/*.py` | Có thư mục ở Brain Default (`h2o-bao-cao.py`), chưa có ở phòng |
+| c8 Plugin và hook | `plugins/<slug>/` (vault) hoặc plugin hệ thống | Có hạ tầng, chưa có hook bảo vệ |
+| Ca thử | `Joyce/evals/<slug>.json` | Có cơ chế (`factory.eval_for_draft`), 1 file trên cả hệ thống |
+| Cách kiểm sau việc | `Joyce/factory.json` (`post_check`, `watch`), `verify_agent` trong workflow | Có cơ chế, rỗng |
+| Đề xuất và kinh nghiệm | `Joyce/proposals/`, `Joyce/learn-log/`, đề xuất thêm `Joyce/kinh-nghiem/` | Có hai thư mục đầu |
+
+### 2.1 Chọn thành phần rẻ nhất mà hiệu quả
+
+Harness² dặn người sửa harness: "khớp mỗi lỗi với thành phần rẻ nhất mà hiệu quả", và không thêm code cho một lỗi chỉ gặp một lần. Đây cũng là cách tôn trọng luật "vận hành không tốn quota". Thang từ rẻ đến đắt:
+
+| Bậc | Dùng khi | Chi phí mỗi lượt | Ví dụ H2O |
 |---|---|---|---|
-| 1 | Loop | Khá | Engine API có trần 30 vòng, phanh lặp, thử lại. Chưa có trần riêng theo agent. Vòng kiểm chứng chỉ có ở workflow, không có ở chat |
-| 2 | Context | Khá | Nén tóm tắt và Adaptive Runtime đã chạy. Chưa dọn kết quả cũ trong lượt, chưa ghim mục không được nén |
-| 3 | Tools và Skills | Tốt | Hub thống nhất ba nguồn, registry đủ trường, nạp tool lười khi đông. Skill cao cấp (git, PR, test) chỉ có ở engine CLI |
-| 4 | Sub-agent | Thiếu | Có Team, Kanban, workflow nhiều bước, Task của CLI. Chưa có ba kiểu phụ bếp khai báo rõ, chưa chuẩn hóa "chỉ trả kết quả cần thiết" |
-| 5 | Skill có sẵn | Khá | Sáu skill hệ thống có mặt ở mọi brain, tự cập nhật. Skill nghiệp vụ thật chỉ khoảng 41 cái, mỗi cái ở một phòng |
-| 6 | Memory | Khá | Cơ chế đầy đủ và có kiểm soát. Dữ liệu thực gần như trống |
-| 7 | System prompt | Khá | Xếp lớp rõ, có ngân sách và test. Prompt lớn (CLAUDE.md 31 KB) nên phải nhờ mức tiết kiệm mới nhẹ |
-| 8 | Hooks | Thiếu | Hạ tầng hook tốt. Không có hook bảo vệ nào chạy sẵn |
-| 9 | Phân quyền | Tốt | Ba mức quyền, kiểm từng lời gọi, hai lớp, kiểm toán. Thiếu quyền ở cấp agent |
+| 1. Một dòng trong thân prompt hoặc nội quy | Lỗi thứ tự làm việc bình thường, áp cho MỌI việc của phòng | Trả mỗi lượt, nên có trần | "Gọi `joyce_shop op=gia` trước khi báo giá cho khách, không đọc giá từ trí nhớ" |
+| 2. Skill | Quy trình nhiều bước có dấu hiệu kích hoạt rõ | Chỉ tốn khi dùng | Quy trình đối soát cuối tháng của Phòng Đối Soát |
+| 3. Script cố định | Việc lặp lại có đầu vào, đầu ra rõ: trích, đổi định dạng, kiểm số | Không tốn model | `kiem_so.py` đối chiếu tổng thu trừ tổng chi bằng lãi gộp |
+| 4. Hook | Lời dặn đã rõ mà model vẫn bỏ qua nhiều lần, cần kiểm lại ngay trong vòng | Không tốn model (hoặc rất ít) | Sau mỗi `joyce_shop op=ghi` có khoản chi lớn, hook kiểm đã gắn hợp đồng chưa |
+| 5. Code lõi (Tầng A) | Đúng cho mọi phòng, mọi engine | Không tốn, nhưng cần phát hành | Chống ghi trùng 10 phút của Sổ Shop |
 
-Các chủ đề bổ sung trong bài giảng (cùng thang điểm):
+Harness² còn hai luật đi kèm: bộ nhớ luôn bật chỉ chứa sự thật ngắn đúng cho MỌI việc của lĩnh vực đó ("thêm thì phải bớt"), và **không bao giờ lưu sự việc của một vụ cụ thể làm bộ nhớ bền**, vì nó thành mỏ neo sai cho vụ sau.
 
-| Chủ đề | Mức | Một dòng lý do |
+## 3. Bảng chấm điểm
+
+| Mã | Thành phần | Mức | Một dòng lý do |
+|---|---|---|---|
+| **A** | **Lõi chạy** | | |
+| A1 | Vòng lặp | Khá | Trần 30 vòng, phanh lặp, thử lại, chat sống qua F5. Chưa có trần theo agent |
+| A2 | Ngữ cảnh và dọn bàn | Khá | Nén tóm tắt, Adaptive Runtime chạy thật. Không dọn kết quả cũ trong lượt |
+| A3 | Lắp prompt và prefix cache | Khá | Xếp lớp đúng thứ tự. Khối động phá cache, Claude Code qua Joyce trúng 76% |
+| A4 | Hub công cụ và registry | Tốt | Một cửa cho mọi engine, registry đủ trường, nạp tool lười |
+| A5 | Quyền và xin phép | Khá | Ba mức, kiểm từng lời gọi theo cả tham số. Không có trạng thái "dừng chờ chủ" chung |
+| A6 | Hook | Thiếu | Hạ tầng chặn được và sửa được đầu vào. Không hook bảo vệ nào bật sẵn |
+| A7 | Nhật ký và khôi phục | Khá | Kanban reclaim, nhóm chat recover, chat sống qua F5. Lịch sử chat sửa xóa được |
+| A8 | Sandbox và giới hạn tài nguyên | Khá | Lệnh có rào, việc nền khóa, sổ cái token. Không có bản sao để chạy thử |
+| A9 | Bộ nhớ lõi | Tốt | Có kiểm soát, quên có dấu vân tay, học có người duyệt, độc lập engine |
+| **B** | **Bề mặt nghề** | | |
+| B1 | Thân prompt agent | Khá | 600 file, đa số có Bối cảnh, Quy trình, Cấm. 549 là bản sao |
+| B2 | Nội quy phòng | Thiếu | `CLAUDE.md` của phòng chỉ là lược đồ vault chung |
+| B3 | Bộ nhớ phòng và agent | Thiếu | 54 trên 61 brain trống, 0 bài học agent |
+| B4 | Hướng dẫn công cụ | Thiếu | Có mô tả tool, không có hướng dẫn theo phòng |
+| B5 | Agent con | Thiếu | Gọi được, chưa khai báo ba kiểu khám phá, làm, kiểm |
+| B6 | Skill | Khá | 530 skill, chỉ 54 tên, khoảng 41 skill nghiệp vụ riêng |
+| B7 | Script kiểm tra | Chưa có | Một script ở Brain Default, không phòng nào có |
+| B8 | Plugin và hook của phòng | Chưa có | Không phòng nào có hook riêng |
+| B9 | Phạm vi agent | Chưa có | Frontmatter không có công cụ, quyền, trần |
+| B10 | Cách kiểm theo loại việc | Thiếu | `verify_agent` ở 5 trên 239 workflow, `post_check` rỗng ở 61 brain |
+| **C** | **Vòng cải tiến** | | |
+| C1 | Đề xuất có bằng chứng | Khá | `ky-su-harness` đúng tinh thần, mới chạy 4 lần |
+| C2 | Chạy thử bản sửa (Probe) | Chưa có | Giám định so chữ, không so lần chạy |
+| C3 | Chọn ẩn danh | Khá | Có giao thức A/B ẩn danh, chưa có nhiều bản đã chạy để chọn |
+| C4 | Áp an toàn (canary, lật lại) | Tốt | Có sẵn trong factory: sao lưu, canary 24 giờ, tự lật lại |
+| C5 | Thư viện kinh nghiệm theo phòng | Thiếu | Có learn-log, chưa có kinh nghiệm dạng gợi ý, bài học, bằng chứng |
+| C6 | Đo hiệu quả | Khá | Có bảng điểm agent và tỉ lệ tự chạy, chưa ai nhìn |
+
+## 4. Tầng A: lõi chạy
+
+### A1. Vòng lặp
+
+**Hiện trạng**
+- Engine API (OpenAI, Anthropic API, Gemini, OpenRouter, Groq, DeepSeek, Z.ai, Ollama): vòng tool tự viết ở `server/engine.py::_cc_tool_loop`. Trần `JOYCE_MAX_TOOL_ROUNDS` mặc định 30 (kẹp 1 đến 120), chạm trần báo cách xử lý. `_LapGuard`: gọi y hệt cùng tool cùng tham số thì nhắc ở lần thứ 3, dừng ở lần thứ 5; chỉ bắt lặp tuyệt đối liên tiếp nên đọc, sửa, đọc lại không bị bắt oan. `thu_lai_khi_tam_thoi` thử lại 3 lần có chờ và đọc `Retry-After`.
+- Engine CLI (Claude Code, Codex, Grok Build, Antigravity): vòng do CLI chạy, Joyce bọc trần thời gian việc nền (`JOYCE_BG_MAX_WALL_S`, mặc định 1 giờ) và chuỗi dự phòng `aux_engine.swap` (chỉ đổi engine khi bước trước chưa gọi tool nào).
+- Lượt chat là việc của máy chủ (`chat_runtime.py`), đóng tab hay F5 không hủy. Tin gõ thêm giữa chừng được đưa vào bước kế (`steer_inbox.py`).
+
+**Nguyên tắc**: bài giảng "làm, kiểm tra, nhận kết quả, điều chỉnh"; Harness² định nghĩa "đủ bằng chứng" và "kiểm lại sản phẩm, một lần ghi thành công không chứng minh dùng được".
+
+**Lỗ hổng**
+- Trần vòng và thời gian là cấu hình toàn máy, không đặt theo agent. Một agent soạn nội dung và một agent đối soát dùng chung trần 30 vòng.
+- Vòng không có bước "mở lại sản phẩm để kiểm" trước khi trả lời.
+
+**Giải pháp cho Joyce**
+- Đọc `max_rounds`, `max_minutes` từ frontmatter agent (B9), mặc định giữ 30 vòng và 1 giờ. Đưa vào `_max_tool_rounds()` qua ngữ cảnh lượt, không đổi chữ ký hàm.
+- Thêm luật vào nội quy các phòng ghi sổ: "sau khi ghi, gọi `joyce_shop op=xem` hoặc đọc lại phiếu vừa ghi rồi mới báo xong". Rẻ, bậc 1.
+
+**Đo**: số lượt chạm trần vòng mỗi tuần theo agent; số lượt bị `_LapGuard` dừng.
+
+### A2. Ngữ cảnh và dọn bàn
+
+**Hiện trạng**
+- `server/compaction.py`: giữ nguyên 12 tin gần nhất, phần cũ gộp thành tóm tắt tối đa 6.000 ký tự; lời nhắc tóm tắt dặn giữ quyết định, con số, tên riêng, đường dẫn, việc dang dở. Đuôi chưa nén dài hơn 24 tin thì nén đồng bộ trước khi gửi, để phần cũ không bị cắt câm.
+- Engine CLI tự quản mạch; Codex và Claude Code xoay mạch ở 1.000.000 token, mang gói mồi tối đa 300.000 ký tự. Antigravity gửi 45.000 ký tự mỗi lượt.
+- Mỗi kết quả tool cắt ở 8.000 ký tự, giữ đầu 60% và cuối 40% kèm dòng báo bỏ bao nhiêu (`_clip_tool_result`).
+- Adaptive Context Runtime chạy thật trên máy (mục 12): capsule thay prompt đầy đủ, nạp tool lười khi từ 40 tool trở lên (phơi 8 tool khớp nhất trong 6.000 ký tự).
+
+**Nguyên tắc**: bài giảng "dọn context, giữ thông tin cần thiết", ba nhóm giữ nguyên, tóm tắt, loại bỏ. Harness² cảnh báo ngược chiều: cắt nhật ký dưới 10.000 ký tự khi đưa cho người phân tích là "khoảng bịa ra lỗi" (`BenchSpec.obs_trunc` từ chối giá trị dưới 10.000), vì người đọc thấy chỗ cụt và tưởng agent làm thiếu.
+
+**Lỗ hổng**
+- Không dọn kết quả cũ trong cùng lượt: 30 vòng nhân 8.000 ký tự là tới khoảng 240.000 ký tự trên bàn.
+- Bản tóm tắt là một khối phẳng, không có chỗ ghim dữ kiện tuyệt đối không được mất.
+- Nếu Tầng C đọc nhật ký đã bị cắt 8.000 ký tự để chẩn đoán agent, nó rơi đúng vào vùng "bịa ra lỗi" của Harness².
+
+**Giải pháp cho Joyce**
+- Dọn trong lượt: khi tổng ký tự kết quả tool vượt ngưỡng (đề xuất 60.000), thay các kết quả cũ (trừ 3 kết quả mới nhất) bằng một dòng "đã đọc X, kết quả chính: ..." lấy từ phần đầu đã có. Không gọi model để tóm tắt.
+- Ghim dữ kiện: phần tóm tắt có mục riêng "Không được mất" do code điền từ sự kiện Sổ Shop của phiên (mã hợp đồng, số tiền, số điện thoại khách). Ví dụ: chat 40 lượt về hợp đồng Tuấn Thủy thì mã HD0001 và số 15.000.000 vẫn còn sau nén.
+- Khi Tầng C cần bằng chứng, đọc nhật ký gốc từ nơi lưu (tin chat, `task_events`), không đọc bản đã cắt.
+
+**Đo**: kích thước trung bình payload vòng cuối của lượt dài; test "hỏi lại sau nén" cho các dữ kiện đã ghim.
+
+### A3. Lắp prompt và prefix cache
+
+**Hiện trạng**
+- `main.py::build_system_prompt` xếp từ ổn định đến thay đổi: `CLAUDE.md` gốc (31.362 byte), hồ sơ, bộ nhớ, chỉ mục wiki (tối đa 8.000 ký tự), khối phòng ban H2O, dự án, cuộc chat, lớp agentic, chỉ mục năng lực, router skill, rồi khối "Bây giờ" (giờ theo phút), khối ngôn ngữ, khối "Mức dùng hôm nay" (token tăng sau mỗi lượt).
+- Đánh dấu cache cho Anthropic `_apply_anthropic_cache`: biến system thành MỘT khối rồi gắn dấu lên khối đó, cộng 3 tin cuối.
+- Số đo thật từ `usage_index.db` (tỉ lệ đọc cache trên tổng token vào):
+
+| Nguồn | Lượt | Cache |
 |---|---|---|
-| Nhật ký chỉ ghi thêm | Thiếu | Lịch sử chat nằm trong SQLite có sửa và xóa được. Nhật ký kiểm toán là file chỉ ghi thêm nhưng chỉ giữ khoảng 10 MB |
-| Khôi phục và replay | Khá | Việc Kanban có lease và reclaim, nhóm chat có `recover`. Workflow có checkpoint nhưng đang ở 0% |
-| Bộ nhớ độc lập với harness | Tốt | Phiên và bộ nhớ lưu riêng, đổi engine giữa chừng vẫn nạp lại được mạch |
-| Lắp hướng dẫn đầu ca | Khá | Xếp nhiều tầng đúng ý bài giảng. CLAUDE.md của phòng chỉ là lược đồ vault chung, chưa có luật riêng từng phòng |
-| Prefix caching | Thiếu | Đo thật: Claude Code qua Joyce 76%, Codex 96%. Đường API bị phá cache bởi khối đổi mỗi lượt |
-| Hook gọi chương trình ngoài (JSON vào, exit code ra) | Chưa có | Hook của Joyce chỉ là hàm Python trong plugin |
-| Dừng xin phép con người | Thiếu | Có ở vài điểm rời rạc, không có cổng chung |
-| Làm, kiểm tra, điều chỉnh | Khá | Workflow có `verify_agent` kiểm độc lập, thử lại, kết luận không rõ là hỏng. Mới 5 workflow dùng |
-| Kiểm tra theo loại việc | Thiếu | Một kiểu kiểm duy nhất (agent đọc và phán). Chưa có kiểu chạy test, so ảnh, hay tính lại số |
-| Bếp thử nghiệm riêng (sandbox) | Khá | Sandbox của Codex, môi trường lọc cho lệnh, thư mục làm việc ghim, việc nền khóa công cụ. Không có bản sao brain để thử |
-| Giới hạn dữ liệu và tài nguyên | Khá | Sổ cái token mỗi phút, tần suất theo kết nối, trần thời gian và output. Chưa có trần chi phí theo agent |
-
-## 3. Chi tiết từng thành phần
-
-### 3.1 Loop
-
-Có gì:
-- **Engine API** (OpenAI, Anthropic API, Gemini, OpenRouter, Groq, DeepSeek, Z.ai, Ollama): vòng gọi tool của Joyce tự viết, trong `server/engine.py`.
-  - Trần vòng `_max_tool_rounds()` mặc định 30, chỉnh bằng `JOYCE_MAX_TOOL_ROUNDS` (kẹp 1 đến 120). Chạm trần thì báo rõ cách xử lý.
-  - Phanh chống kẹt `_LapGuard`: gọi y hệt cùng tool cùng tham số, nhắc thẳng vào kết quả tool ở lần lặp thứ 3, dừng lượt ở lần thứ 5. Cố ý chỉ bắt lặp tuyệt đối liên tiếp nên đọc, sửa, đọc lại không bị bắt oan.
-  - Thử lại khi lỗi tạm thời `thu_lai_khi_tam_thoi` (mặc định 3 lần, chờ có nhiễu, đọc `Retry-After`).
-  - Ép dùng tool khi yêu cầu rõ ràng (`_tool_requirement`), cổng riêng cho hủy lịch (`schedule_cancel_gateway`).
-  - Gửi thêm tin giữa chừng (`server/steer_inbox.py`): tin chủ gõ khi Joyce đang chạy được đưa vào bước kế tiếp, không mất.
-  - Lượt chat là việc của máy chủ, không gắn với WebSocket (`server/chat_runtime.py`): đóng hoặc F5 tab không hủy việc đang chạy.
-- **Engine CLI** (Claude Code, Codex, Grok, Antigravity): vòng lặp do chính CLI chạy. Joyce bọc thêm giới hạn thời gian cho việc nền (`max_wall_s`, mặc định 1 giờ, env `JOYCE_BG_MAX_WALL_S`) và chuỗi dự phòng engine `aux_engine.swap` (chỉ đổi engine khi bước trước chưa gọi tool nào, không bao giờ chạy lại việc đã làm dở).
-
-Thiếu:
-- Trần số vòng và thời gian chỉ là cấu hình toàn cục, chưa đặt được theo từng agent.
-- Vòng "làm, kiểm tra, nhận kết quả, điều chỉnh" CÓ ở workflow (xem 3.14) nhưng chỉ khi bước khai `verify_agent`. Trong chat thường và với việc ghi tiền hoặc hợp đồng thì không có bước kiểm tra độc lập sau khi model nói xong. `DeterministicQualityGate` có trong `server/context_compiler.py` nhưng chỉ nằm trong đường thích ứng đang ở mức thử (xem mục 5).
-
-### 3.2 Context (ngữ cảnh) và việc dọn bàn bếp
-
-Tương ứng bài giảng "mỗi vòng bàn bếp lại đầy thêm" và "dọn có chọn lọc: giữ nguyên, tóm tắt, loại bỏ".
-
-Có gì:
-- **Lắp system prompt theo lớp** (mục 3.7), cộng thêm kết quả công cụ vào ngữ cảnh mỗi vòng.
-- **Nén hội thoại cho engine API** (`server/compaction.py`):
-  - Giữ NGUYÊN 12 tin gần nhất, phần cũ hơn gộp vào một bản tóm tắt (tối đa 6.000 ký tự, mỗi tin đưa vào tóm tắt cắt còn 1.500 ký tự).
-  - Lời nhắc tóm tắt dặn giữ chủ đề chính, quyết định đã chốt, con số, tên riêng, đường dẫn, việc dang dở và sở thích của người dùng, bỏ chào hỏi xã giao. Tức là ba nhóm "giữ nguyên, tóm tắt, loại bỏ" đã có, theo nghĩa gần đúng.
-  - Nén nền sau mỗi lượt. Nếu đuôi chưa nén dài hơn 24 tin thì nén ĐỒNG BỘ trước khi gửi để phần cũ không bị cắt câm.
-- **Engine CLI tự quản mạch hội thoại.** Codex và Claude Code xoay sang mạch mới khi chạm 1.000.000 token, mang theo gói mồi tối đa 300.000 ký tự. Antigravity không nối mạch nên chỉ gửi gói 45.000 ký tự mỗi lượt.
-- **Cắt kết quả công cụ** `_clip_tool_result`: tối đa 8.000 ký tự, giữ đầu 60% và cuối 40% kèm dòng báo bỏ bao nhiêu, để model biết dữ liệu bị thiếu.
-- **Adaptive Context Runtime** (`server/context_compiler.py`, `adaptive_context_runtime.py`, `fast_path_runtime.py`, `lazy_skill_runtime.py`, `conversation_state.py`, `capability_*`): đo, biên soạn và gửi "capsule" thay cho prompt đầy đủ. Mặc định xuất xưởng là mức Siêu tiết kiệm (`PRESET_MAC_DINH = "max"`). Theo ghi chú đo trong `server/config.py`: mức Tắt tốn khoảng 8.900 token cố định mỗi lượt, mức Siêu tiết kiệm khoảng 460 token (đo trên một brain mẫu).
-  - Nạp tool lười: khi có từ 40 tool trở lên chỉ phơi 8 tool khớp nhất trong ngân sách 6.000 ký tự, còn lại tìm qua `joyce_search_tools` rồi gọi bằng `joyce_run_tool`.
-
-Thiếu:
-- **Không dọn kết quả cũ trong cùng một lượt.** Một lượt có thể có đến 30 vòng, mỗi kết quả tới 8.000 ký tự. Chỉ cắt từng kết quả, không thay kết quả cũ bằng một dòng tóm tắt khi bàn đã đầy.
-- **Chưa thấy xử lý chủ động khi nhà cung cấp báo ngữ cảnh quá dài** trong `engine.py` (chưa soi phần xử lý lỗi ở `main.py`, xem mục 7).
-- **Bản tóm tắt chỉ có một khối phẳng.** Không có chỗ "ghim" những dữ kiện tuyệt đối không được mất (số tiền, mã hợp đồng, quyết định của chủ) và chưa có test phát hiện mất dữ kiện sau nén.
-- Lần thử sai, lần gọi lỗi không bị loại khỏi bàn khi đã xử lý xong.
-
-### 3.3 Tools và Skills, và Registry
-
-Slide "Registry mô tả từng công cụ" nói đủ bốn trường: tên, quyền cần có, hàm xử lý, mô tả.
-
-Có gì:
-- **Ba nguồn công cụ qua một cửa** `server/mcp_hub.py`: MCP ngoài (POS, quảng cáo, lịch, Zalo...), công cụ lõi (`joyce_read_file`, `joyce_list_dir`, `joyce_write_file`, `joyce_use_skill`, `joyce_connections`, `joyce_search_tools`, `joyce_run_tool`, và `joyce_run_command` chỉ khi phiên có thư mục làm việc), và plugin.
-- **Registry đủ bốn trường:**
-  - Plugin: `ctx.register_tool(name, description, handler, schema, min_mode, emoji)` trong `server/plugins_host.py`. Tên (kiểm biểu thức chính quy, cấm trùng tên lõi), mô tả, hàm xử lý, quyền tối thiểu `min_mode` (readonly, safe, full).
-  - MCP và lõi: mỗi mục route có `call`, `effect`, `required_mode`, `source_type`, `source_id`.
-  - Có thêm Capability Registry dẫn xuất (`server/capability_registry.py`, SQLite) dựng lại hoàn toàn từ ảnh chụp tool của hub, có tìm kiếm lai chữ và embedding (`capability_index.py`).
-- **24 plugin đi kèm** trong `system/plugins/`, ví dụ `joyce-shop`, `joyce-task`, `joyce-schedule`, `joyce-memory`, `joyce-team`, `web-pilot`.
-- **Skill:** thư mục `skills/<slug>/SKILL.md` theo từng brain, nạp lười được (`lazy_skill_runtime.py`, thân tối đa 12.000 ký tự).
-
-Thiếu (đối chiếu slide "skill cơ bản" và "skill cao cấp"):
-- Engine CLI có sẵn đọc, ghi, sửa, tìm file, chạy lệnh, git. Engine API có đọc, liệt kê, ghi CẢ file, và khi mở tab Code (có thư mục làm việc) thì thêm `joyce_run_command` (`server/run_command.py`). Lệnh đó chạy MỘT lệnh mỗi lần, không qua shell, môi trường lọc, có trần thời gian và output, có audit, ba mức: `suggest` chỉ đề xuất chữ, `auto` chỉ chạy lệnh trong danh sách cho phép (pytest, python, node, npm test, ruff, eslint, tsc, ls, cat, find, grep, rg, git chỉ đọc), `full` chạy đầy đủ. Vậy tìm trong code và chạy kiểm thử làm được ở tab Code kể cả với engine API.
-- Còn thiếu ở engine API: sửa từng đoạn (chỉ ghi lại cả file, dễ ghi đè hoặc làm hỏng file lớn). Tạo commit và đẩy lên phải lên mức `full`, vì `git commit`, `push`, `reset` cố ý nằm ngoài danh sách của mức `auto`. Trong chat thường (không có thư mục làm việc) thì không có tool chạy lệnh nào.
-
-### 3.4 Sub-agent
-
-Slide: khi một đầu bếp không gánh nổi thì harness gọi thêm agent con, mỗi phụ bếp có phiên riêng, dụng cụ giới hạn, lời dặn chỉ làm đúng việc, thu về kết quả cần thiết, bàn chính vẫn gọn. Có ba kiểu: khám phá (chỉ xem), thực hiện, kiểm tra.
-
-Có gì:
-- **Team runner** (`server/team_runner.py`): nhóm chat nhiều agent, trưởng nhóm giao việc bằng khối `JOYCE_TEAM: {"op":"assign",...}`, host kiểm từng op theo vai của lượt. Lượt nhóm ở T1 chỉ chữ (không công cụ). Có trần số lượt.
-- **Kanban và `joyce_task`:** việc nền, có `deps` nối trước sau, mức quyền theo từng việc (`suggest`, `auto`, `full`).
-- **Workflow nhiều bước** (`workflows/<slug>.md`): mỗi bước gọi một agent, có thể chỉ agent của phòng khác bằng cú pháp `Ten Brain|slug`. Chạy nền thì bị khóa: không Bash, WebFetch, WebSearch, Task, MCP rỗng và nghiêm ngặt (`main.py::_workflow_agent_helpers`).
-- **Replan có kỷ luật** (`server/agent_runtime.py`): agent được thêm nút kế hoạch nhưng KHÔNG BAO GIỜ được cấp thêm quyền, kiểm trong code chứ không trong prompt. Nhưng đường này đang ở 0% (`agent_canary`).
-- **Khám phá chỉ đọc** (`readonly_orchestrator.py`, `readonly_path_runtime.py`): có planner chỉ thấy manifest, chạy song song theo DAG. Cũng đang ở 0%.
-- **Kiểm tra:** có lưới agent giám định đa miền (bảo mật, dữ liệu, nội dung, UX, harness) và workflow `review-da-mien`, nhưng đây là file prompt, không phải kiểu agent khai báo.
-- Engine CLI có công cụ `Task` sinh agent con tự nhiên khi chat.
-
-Thiếu:
-- Không có khai báo "loại việc" (khám phá, thực hiện, kiểm tra) trên agent, nên không ép được "khám phá thì chỉ đọc".
-- Phạm vi công cụ nằm ở bước workflow (`tools:`) chứ không ở agent. Cùng một agent chạy ở hai nơi có thể có hai phạm vi khác nhau, không ai nhìn một chỗ mà biết hết.
-- Chưa có quy ước "chỉ gửi kết quả cần thiết về bàn chính": kết quả bước trước được truyền qua `{{prev}}` nguyên văn.
-- Các đường nâng cao (replan, khám phá song song, workflow dạng đồ thị có checkpoint) đã viết xong nhưng đều ở 0%.
-
-### 3.5 Skill có sẵn
-
-Có gì:
-- Sáu skill hệ thống có mặt ở cả 61 brain, tự cập nhật theo app: `joyce-builder`, `ingest-source`, `lint-wiki`, `notes`, `query-wiki`, `html-to-webcake`. Cộng `cham-diem-tuong-phan` (61 brain) và `h2o-y-tuong` (47 brain).
-- Skill nghiệp vụ theo phòng, ví dụ `h2o-studio-ketoan-chi-kiem-soat`: có mục Vai trò, Kích hoạt, Quy trình, Đầu ra, Guardrail. Mẫu tốt.
-
-Thiếu:
-- Tổng cộng 530 skill nhưng chỉ 54 tên khác nhau. Khoảng 41 skill nghiệp vụ mỗi cái chỉ có ở một phòng. Phần lớn phòng chỉ có một skill nghiệp vụ.
-- Skill nghiệp vụ ngắn (ví dụ skill chi chỉ 1.326 byte), chưa có ví dụ đầu vào đầu ra mẫu và mục "bẫy thường gặp" mà `joyce-builder` khuyến nghị.
-
-### 3.6 Memory
-
-Có gì:
-- Cấu trúc: `memory/MEMORY.md` (chỉ mục nạp sẵn mỗi lượt), `memory/facts/*.md` (một sự kiện một file), `memory/conversations/YYYY-MM-DD.md` (nhật ký thô), và bộ nhớ riêng từng agent `memory/agents/<slug>/MEMORY.md`.
-- **Điều khiển của người dùng** (`server/memory_control.py`): xem, sửa, quên (giữ dấu vân tay để vòng học không dựng lại), tắt học theo brain.
-- **Tự học an toàn** (`server/learn.py`): nhánh học CHỈ ĐỌC, trả về một manifest JSON, chỉ Python tin cậy mới ghi. Có quét bí mật và quét chèn lệnh trước khi ghi, giới hạn tần suất cứng, chỉ tự ghi khi brain là kho git.
-- **Bài học agent theo "model đề xuất, code ghi"**: agent phát dòng `JOYCE_LESSON: ...`, ứng dụng bóc ra, xếp chờ chủ duyệt rồi mới ghi (tối đa 15 dòng mới nhất, khử trùng).
-- Nạp bộ nhớ vào prompt: hồ sơ cá nhân, MEMORY.md, chỉ mục wiki (tối đa 8.000 ký tự). Truy xuất có nguồn dưới Adaptive Runtime: tối đa 6 mục, độ tin cậy từ 0,38.
-
-Thiếu (về dữ liệu, không phải cơ chế):
-- 54 trên 61 brain có chỉ mục bộ nhớ trống. Chỉ Brain Default có 36 mục.
-- 48 file bộ nhớ agent đã được tạo nhưng 0 bài học thật. Chỉ có 1 file nhật ký chạy.
-- Chỉ 7 brain có thư mục `facts` có nội dung.
-
-Hiểu đúng: các phòng chưa chạy việc thật nên chưa có gì để nhớ. Không phải lỗi cơ chế, nhưng cho thấy vòng "làm việc rồi học" chưa quay.
-
-### 3.7 System prompt
-
-Có gì:
-- `build_system_prompt` trong `main.py` lắp theo lớp: `CLAUDE.md` (31.362 byte ở gốc), hồ sơ cá nhân, bộ nhớ dài hạn, tắt học (nếu có), chỉ mục wiki, khối phòng ban H2O, hướng dẫn dự án, danh sách skill, lớp agentic, khối kênh hội thoại và khối ngôn ngữ.
-- Có ngân sách và test (`test_prompt_budget.py`, `test_ba_loi_tran_prompt.py`). Hai hằng số trần của Antigravity được giữ khớp nhau bằng test.
-- Prompt agent: thân file agent, khối bộ nhớ và luật `JOYCE_LESSON` chèn vô điều kiện, thêm câu nói rõ đang trò chuyện chứ không phải một bước quy trình.
-- Mỗi brain phòng có `CLAUDE.md` riêng (6.205 byte, giống `AGENTS.md`).
-
-Thiếu:
-- Prompt gốc lớn nên giá trị cố định mỗi lượt cao nếu mức tiết kiệm bị tắt (khoảng 8.900 token trên brain mẫu).
-- Chưa có phiên bản hóa và đo chất lượng prompt theo thay đổi (chỉ đo kích thước).
-
-### 3.8 Hooks
-
-Có gì (`server/plugins_host.py`):
-- Hai sự kiện quanh MỌI lời gọi tool, ở mọi engine: `pre_tool_call` và `post_tool_call`.
-- **`pre_tool_call` chặn được và sửa được tham số:** trả `{"deny": "lý do"}` thì tool không chạy và model nhận đúng lý do, trả `{"args": {...}}` thì thay tham số. Hook ném lỗi thì tool vẫn chạy (fail-open có chủ ý). Hook đầu tiên nói `deny` thắng.
-- Cả hai hook nhận `turn` (kênh, người gửi, nhóm hay riêng, có phải chủ): hook biết ai đang nói. Lời gọi bị chặn vẫn bắn `post_tool_call` để kiểm toán thấy đủ.
-- Thêm `chatbot_turn_context`: mỗi lượt bot khách có thể thêm đúng một dòng ngữ cảnh vào prompt, hết thời gian chờ 2 giây thì bỏ qua.
-
-Thiếu:
-- **Không có hook bảo vệ nào chạy sẵn.** Trong 24 plugin đi kèm, chỉ `tool-audit` dùng hook (chỉ đếm sau khi gọi, manifest tắt mặc định).
-- Chưa có hook mẫu cho các rủi ro đã biết: ghi ra ngoài brain, xóa hàng loạt, gửi tin Zalo hàng loạt, chi tiền vượt hạn mức.
-- Hook mới chỉ có hai sự kiện công cụ. Chưa có sự kiện đầu lượt, cuối lượt, trước nén, khi lỗi (đối chiếu với Claude Code có nhiều sự kiện hơn).
-- Đối chiếu các slide "Pre-tool hook, Post-tool hook, Cách giao tiếp với hook, Gắn quy định công ty": hai nửa đầu Joyce đã có (pre chặn, cho qua hoặc sửa đầu vào; post quan sát để ghi log và kiểm toán). Nửa sau chưa có: bài giảng nói hook nhận JSON và trả exit code để gắn kiểm tra mà không sửa phần lõi, còn hook Joyce là hàm Python trong plugin nên muốn gắn quy định công ty (bảo mật, kiểm toán, tuân thủ) bằng script riêng thì vẫn phải viết plugin.
-
-### 3.9 Phân quyền
-
-Có gì:
-- **Ba mức quyền** theo phiên: đọc (readonly, ứng với `suggest`), an toàn (safe, `auto`), đầy đủ (full). Với Codex ánh xạ sang `--sandbox read-only`, `workspace-write`, và không rào.
-- **Kiểm từng lời gọi** `mcp_hub._guard`: phân loại đọc, ghi, nguy hiểm theo luật của connector và theo cả tham số, đối chiếu quyền của kết nối với mức của phiên, giới hạn tần suất theo kết nối (chống spam và khóa tài khoản). Tool ghi bị ẩn ngay lúc LIỆT KÊ ở mức Chỉ đọc.
-- **Nhật ký kiểm toán** `jsonl`, xoay vòng ở 5 MB, chỉ ghi TÊN tham số không ghi giá trị, có chẩn đoán lỗi để model không đổ nhầm cho hub.
-- **Việc nền bị khóa kỹ:** danh sách cho phép từng lời gọi bằng `can_use_tool` ở engine SDK, kiểm toán từng lần, cấm Bash, WebFetch, WebSearch, Task, MCP rỗng.
-- **Bot khách hàng** không được dùng 12 công cụ gốc (`BOT_CAM_NATIVE`) và 4 tool chỉ của chủ (`joyce_reply_policy`, `joyce_reply_policy_tune`, `joyce_team`, `joyce_memory`).
-- **Nhân viên** bị khóa vào phạm vi phòng của họ (`_STAFF_SCOPE`), việc ghi sổ Shop qua `joyce_shop` phân quyền theo vai.
-- Plugin: tên tool bị khóa, `min_mode` ép giống tool ghi file, plugin người dùng bật tắt bằng cờ môi trường.
-
-Thiếu:
-- Quyền chỉ ở cấp phiên và cấp kết nối, chưa ở cấp agent (liên quan lỗ hổng 1).
-- Đối chiếu các slide quyền: ba phạm vi (chỉ xem, thao tác trong khu vực được giao, toàn quyền) Joyce đã có qua ba mức readonly, safe, full. "Cùng công cụ, khác cách dùng" cũng có: `mcp_catalog.classify` phân loại theo cả tham số của từng lời gọi, tool cổng gộp nhiều lệnh con thì lấy mức nặng nhất, thiếu tham số quyết định thì coi là nguy hiểm (fail-closed). "Khu vực được giao" là brain của phòng, phạm vi nhân viên (`_STAFF_SCOPE`) và thư mục làm việc của tab Code.
-- Điểm chưa giống bài giảng: ở mức full mọi thao tác chạy thẳng (`allowed()` trả đúng ngay), ở mức thấp hơn thì bị chặn kèm câu "bảo người dùng nâng quyền". Không có trạng thái thứ ba "tạm dừng, giải thích lý do, chờ chủ đồng ý" cho một thao tác cụ thể. Đây cũng là quyết định có chủ ý của chủ ngày 2026-09-10 (bỏ luật "tiền, đơn, đăng bài, nhắn tin không bao giờ giao tự động"), nên cần chủ quyết trước khi đổi, xem mục 3.13.
-- Trên Docker, `JOYCE_CODEX_SANDBOX=off` làm mức `suggest` không còn gì chặn Codex ghi file (ghi chú rõ trong `claude_cli.py`).
-- Chat tương tác ở mức Đầy đủ với Claude Code chạy `bypassPermissions`: an toàn dựa vào mức quyền của phiên chứ không hỏi từng lệnh.
-
-### 3.10 Nhật ký chỉ ghi thêm, khôi phục và replay
-
-Tương ứng các slide "Nhật ký chỉ được ghi thêm, không được xóa", "Đầu bếp vắng mặt, nhật ký vẫn còn", "Replay" và "Bộ nhớ độc lập với harness".
-
-Có gì:
-- **Lịch sử chat là nguồn sự thật** trong SQLite (`server/sessions.py`, `conversations.py`). Adaptive Runtime coi bản ghi này là gốc, trạng thái hội thoại chỉ là bản chiếu dựng lại được (`conversation_state.py`).
-- **Nhật ký kiểm toán hub** là file `jsonl` chỉ ghi thêm, ghi ngay mỗi lời gọi. Nhật ký việc Kanban `task_events` ghi sự kiện của từng việc (ví dụ `reclaimed`).
-- **Checkpoint Task State mã hóa, chỉ ghi thêm** trong `runtime.db` (đường thích ứng).
-- **Khôi phục sau khi máy chủ chết:**
-  - Việc Kanban có lease 90 giây và nhịp tim, `reclaim_stale` lấy lại việc của worker đã chết và ghi sự kiện `reclaimed`.
-  - Nhóm chat có `TeamRunner.recover`: lượt chưa tới mốc gọi engine thì chạy lại, đã qua mốc thì tính một lần, đánh dấu `interrupted`, chặn việc và đưa nút "Chạy lại bước", không tự chạy lại để khỏi làm trùng việc đã ghi ra ngoài.
-  - Lượt chat là việc của máy chủ nên F5 hay đóng tab không hủy việc.
-  - Workflow đồ thị có checkpoint (`workflow_runtime.py`: node đã xong không chạy lại, node ghi không tự chạy) nhưng `workflow_canary` đang ở 0%, nên workflow thật vẫn chạy bằng bộ chạy cũ.
-- **Bộ nhớ độc lập với harness:** phiên, tóm tắt nén, bộ nhớ brain đều lưu riêng ngoài engine. Đổi engine giữa chừng thì lịch sử được nạp lại (`compaction.seed_messages`, `bootstrap_prompt`), engine CLI nối lại mạch bằng id phiên riêng.
-
-Thiếu:
-- **Lịch sử chat không phải nhật ký chỉ ghi thêm.** `sessions.py` có `DELETE FROM messages` và `UPDATE messages SET content` (dùng cho sửa, chạy lại, xóa phiên), `conversations.py` xóa tin cũ theo hạn giữ. `task_events` và `task_runs` bị xóa khi xóa việc. Bằng chứng runtime xóa theo `retention_days` (mặc định 14 ngày).
-- **Nhật ký kiểm toán chỉ giữ khoảng 10 MB:** xoay vòng ở 5 MB và bản `.jsonl.1` cũ bị ghi đè lần xoay sau. Nhật ký chỉ có tên tham số, không có giá trị, nên không đủ để dựng lại một lời gọi (có chủ ý về riêng tư, nhưng cũng nghĩa là không replay được).
-- **Replay thật chưa có.** Khôi phục hiện nay là "chạy tiếp từ bước dở" ở vài chỗ rời rạc, chưa có một nhật ký sự kiện chung của một lượt agent để đọc lại từ đầu đến cuối.
-- Mọi đường khôi phục tốt hơn (workflow checkpoint, replan) đều đang ở 0%.
-
-### 3.11 Prefix caching và thứ tự prompt
-
-Tương ứng các slide "Prefix caching", "Phần tĩnh đặt trước, phần động đặt sau", "Chèn dòng ở đầu, phải xử lý lại", "Nội quy đã quen, ghi chú cần đọc kỹ".
-
-Có gì:
-- **Thứ tự đúng nguyên tắc.** `build_system_prompt` xếp từ ổn định đến thay đổi: CLAUDE.md, hồ sơ, bộ nhớ, chỉ mục wiki, khối phòng ban, dự án, lớp agentic, chỉ mục năng lực, router skill, rồi cuối cùng khối "Bây giờ" và khối ngôn ngữ và khối "Mức dùng hôm nay". Phần động đã nằm cuối.
-- **Đánh dấu cache cho Anthropic** (`engine.py::_apply_anthropic_cache`): dấu `cache_control` lên system và 3 tin cuối, TTL 5 phút hoặc 1 giờ. Qua OpenRouter với model Claude thì đánh dấu system. OpenAI và Gemini tự cache.
-- **Có đo.** `server/usage_index.py` tính `cache_hit` và có gợi ý "Cache hit thấp" khi dưới ngưỡng.
-
-Số đo thật từ `usage_index.db` trên máy này (28/10/2026), tính bằng đọc cache chia tổng token vào:
-
-| Nguồn | Lượt | Tỉ lệ cache |
-|---|---|---|
-| Claude Code qua Joyce (chat) | 219 | 84% |
-| Claude Code qua Joyce (việc nền) | 760 | 73% |
-| Claude Code qua Joyce (chung) | 979 | 76% |
+| Claude Code qua Joyce, chat | 219 | 84% |
+| Claude Code qua Joyce, việc nền | 760 | 73% |
 | Codex qua Joyce | 7.879 | 96% |
 | Claude Code chạy tay, không qua Joyce | 48.048 | 98% |
-| Engine API qua Joyce | 24 | 0% |
+| Engine API qua Joyce | 24 | 0% (mẫu nhỏ, model mã nguồn mở, có thể nhà cung cấp không báo số cache) |
 
-Cách đọc: mẫu engine API chỉ có 24 lượt và toàn model mã nguồn mở (gpt-oss, qwen), có thể vì nhà cung cấp không báo token cache chứ chưa chắc là không cache được. Không kết luận từ số này. Còn số 76% của Claude Code qua Joyce thấp hơn rõ so với 98% của phiên làm việc thường, đáng điều tra.
+**Nguyên tắc**: bài giảng "phần tĩnh trước, phần động sau", "chèn dòng ở đầu phải xử lý lại, tốn thêm thời gian và tiền".
 
-Thiếu:
-- **Dấu cache đặt trên cả system như một khối.** `_apply_anthropic_cache` biến chuỗi system thành MỘT khối text rồi gắn dấu cache lên khối đó. Đồng hồ (theo phút) và "Mức dùng hôm nay" (token đếm tăng sau mỗi lượt) nằm trong khối đó, nên mỗi lượt khối khác đi và phần system gần như không bao giờ trúng cache. Ghi chú trong `context_compiler.dong_ho` còn viết thẳng "system prompt của Joyce vốn đã đổi mỗi lượt", tức là đã biết và coi như chấp nhận được. Với bài giảng thì đây chính là kiểu "chèn dòng động vào phần đầu, phải xử lý lại, tốn thêm thời gian và tiền".
-- **Cách sửa nhỏ:** tách system thành hai khối, khối tĩnh (tới hết router skill) mang dấu cache, khối động (giờ, ngôn ngữ, mức dùng) đứng sau không đánh dấu. Engine CLI thì giữ phần tĩnh ổn định và đưa phần động vào tin nhắn người dùng.
-- Chỉ mục bộ nhớ và chỉ mục wiki nằm trong phần "tĩnh" nhưng đổi mỗi khi có ghi nhớ mới; chấp nhận được vì ít đổi, nhưng nên đặt sau các khối thật sự bất biến.
+**Lỗ hổng**: thứ tự đã đúng, nhưng khối động nằm CHUNG khối với phần tĩnh nên mỗi lượt cả system đổi. Ghi chú trong `context_compiler.dong_ho` còn ghi "system prompt của Joyce vốn đã đổi mỗi lượt", tức đã biết và chấp nhận.
 
-### 3.12 Lắp hướng dẫn đầu ca, chung cả chuỗi và riêng từng chi nhánh
+**Giải pháp cho Joyce**
+- Tách system thành hai khối: tĩnh (tới hết router skill) có dấu cache, động (giờ, ngôn ngữ, mức dùng) không dấu.
+- Với Claude Code và Codex: giữ phần tĩnh ổn định, đưa phần động vào tin nhắn người dùng của lượt.
+- Đẩy chỉ mục bộ nhớ và chỉ mục wiki xuống sau các khối bất biến thật, vì hai khối này đổi khi có ghi nhớ mới.
 
-Tương ứng các slide "Lắp ráp tờ hướng dẫn ở đầu ca", "Hướng dẫn đầu ca tại các chi nhánh", "Nội quy chung của cả chuỗi", "Chung công thức, riêng cách vận hành", "Nạp hướng dẫn đúng dự án".
+**Đo**: tỉ lệ cache của Claude Code qua Joyce, mục tiêu từ 76% lên trên 90%, đo trước và sau trên cùng một tuần dùng.
 
-Có gì:
-- **Tầng 1, luật chung cả chuỗi:** `CLAUDE.md` ở gốc dự án (31.362 byte) là system prompt cho mọi lượt chat của Joyce.
-- **Tầng 2, hướng dẫn của từng brain:** `CLAUDE.md` và `AGENTS.md` ở gốc mỗi brain (cùng nội dung, 6.205 byte) để Claude Code và Codex tự nạp khi chạy với thư mục làm việc là brain. `AGENTS.md` và `CLAUDE.md` được tạo cùng lúc để hai họ CLI đều thấy.
-- **Tầng 3, khối riêng chi nhánh:** `_h2o_phong_block` thêm tên phòng, khối, thương hiệu (H2O hay ThuyH2O), tên Agent Trưởng Phòng, đường tới **brain chung chỉ đọc** (thương hiệu, bảng giá, quy trình chung) và trích chỉ mục bộ nhớ chung. Đây đúng là "chung công thức, riêng cách vận hành".
-- **Tầng 4, khối theo cuộc trò chuyện:** hướng dẫn dự án và tài liệu gắn vào đúng cuộc chat.
-- **Tầng 5, chính agent:** thân file agent, bộ nhớ riêng của agent và luật bài học.
-- **Khóa mục hệ thống** (`KHOA_MAC_DINH`): nhân viên không đổi tên, xóa hay ghi đè `agents`, `skills`, `memory`, `CLAUDE.md`... của brain phòng bằng tay.
+### A4. Hub công cụ và registry
 
-Thiếu:
-- `CLAUDE.md` của từng phòng chỉ là lược đồ vault chung (ba lớp nguồn, wiki, bộ nhớ). **Chưa có luật nghiệp vụ riêng của phòng trong đó**; luật riêng nằm ở agent trưởng phòng và skill. Hậu quả: engine CLI khi chạy trong brain phòng chỉ nạp lược đồ vault, không nạp vai trò của phòng trừ khi agent được gọi.
-- Chưa có tệp "nội quy chung của chuỗi" tách bạch, soạn một lần và tự rải xuống mọi phòng. Hiện phần chung nằm rải ở `CLAUDE.md` gốc và brain chung.
+**Hiện trạng**
+- `server/mcp_hub.py`: ba nguồn qua một cửa (MCP ngoài, tool lõi, plugin). Tool lõi: `joyce_read_file`, `joyce_list_dir`, `joyce_write_file`, `joyce_use_skill`, `joyce_connections`, `joyce_search_tools`, `joyce_run_tool`, và `joyce_run_command` chỉ khi phiên có thư mục làm việc.
+- Registry đủ bốn trường của bài giảng (tên, quyền, hàm xử lý, mô tả): `ctx.register_tool(name, description, handler, schema, min_mode)`; route MCP có `effect`, `required_mode`, `source_type`. Có Capability Registry dẫn xuất (`capability_registry.py`) với tìm kiếm lai chữ và embedding.
+- 24 plugin đi kèm, ví dụ `joyce-shop`, `joyce-task`, `joyce-schedule`, `web-pilot`.
 
-### 3.13 Dừng lại xin phép con người
+**Nguyên tắc**: Harness² xem "hướng dẫn dùng công cụ" (c4) là một thành phần sửa được riêng, khác với bản thân công cụ.
 
-Tương ứng các slide "Đổ nồi nước dùng: cần chủ quán đồng ý" và "Rõ việc tự làm, rõ việc cần con người".
+**Lỗ hổng**
+- Engine API không sửa được từng đoạn file, chỉ ghi lại cả file. Trong chat thường không có tool chạy lệnh.
+- Mô tả tool viết một lần cho mọi phòng. Không có chỗ để Phòng Chi nói "với chúng tôi, `joyce_shop` dùng như sau".
 
-Có gì (rời rạc):
-- **Sổ Shop (`joyce_shop`):** chi của nhân viên từ 2.000.000 đồng trở lên nằm "chờ duyệt", chỉ chủ hoặc giám đốc duyệt được, trưởng phòng không tự duyệt chi của mình. Đây là cổng TRƯỚC khi ghi sổ, đúng tinh thần bài giảng.
-- **Kanban:** việc có tác dụng ra ngoài (báo giá, động tiền, CRM) tự gắn `needs_approval` và risk cao bị ép vào cột Review. Nhưng việc đã CHẠY xong mới rơi vào Review, tức duyệt sau chứ không chặn trước.
-- **Đường ghi có xác nhận** (`write_path_runtime.py`): vòng một chỉ lập đề xuất, người dùng gõ lại đúng mã xác nhận thì vòng hai mới chạy, lỗi mập mờ chuyển UNKNOWN và không tự thử lại. Đang ở 0%.
-- **Workflow đồ thị:** node ghi dừng ở `WAITING_USER`. Đang ở 0%.
-- **Vòng lặp mới tạo từ chat** mặc định `enabled: false` để chủ xem lại rồi mới bật.
+**Giải pháp cho Joyce**
+- Thêm tool lõi `joyce_edit_file` (thay một đoạn duy nhất, giống Edit của Claude Code), bậc 5, có ích cho mọi phòng sửa wiki và báo giá.
+- Mục "Công cụ" trong `Joyce/noi-quy.md` của phòng (B4).
 
-Thiếu:
-- Không có cổng chung "thao tác nguy hiểm trong chat thì dừng, giải thích lý do, chờ chủ bấm đồng ý". Mức full chạy thẳng, mức thấp hơn thì chặn.
-- Ranh giới "việc tự làm" và "việc cần người" chưa được viết thành một bảng duy nhất mà cả chủ lẫn nhân viên đọc được.
+**Đo**: số lần `joyce_write_file` ghi lại file lớn hơn 20 KB; số lỗi "ghi đè mất nội dung".
 
-Quyết định cần chủ: ngày 2026-09-10 chủ đã bỏ luật cũ "tiền, đơn, đăng bài, nhắn tin không bao giờ tự động" để Joyce tự hành động. Thêm cổng xin phép là đi ngược một phần quyết định đó, nên đề xuất ở mục 6 là **cổng tùy chọn theo từng loại thao tác**, mặc định tắt, chủ bật loại nào thì loại đó dừng lại hỏi.
+### A5. Quyền và xin phép
 
-### 3.14 Làm, kiểm tra, nhận kết quả, điều chỉnh, và kiểm tra theo loại việc
+**Hiện trạng**
+- Ba mức theo phiên: chỉ đọc (`suggest`), an toàn (`auto`), đầy đủ (`full`). Codex ánh xạ sang `--sandbox read-only`, `workspace-write`, không rào.
+- `mcp_hub._guard` kiểm TỪNG lời gọi: `mcp_catalog.classify` phân loại đọc, ghi, nguy hiểm theo cả tham số; tool cổng gộp nhiều lệnh con lấy mức nặng nhất; thiếu tham số quyết định thì coi là nguy hiểm. Tool ghi bị ẩn ngay lúc liệt kê ở mức Chỉ đọc. Giới hạn tần suất theo từng kết nối.
+- Phạm vi người: nhân viên bị khóa vào phòng (`_STAFF_SCOPE`), bot khách hàng không dùng được 12 công cụ gốc và 4 tool chỉ của chủ.
+- Xin phép có ở: Sổ Shop (chi của nhân viên từ 2.000.000 đồng chờ chủ hoặc giám đốc duyệt, trưởng phòng không tự duyệt chi của mình), Kanban (`needs_approval`, risk cao vào cột Review, nhưng duyệt SAU khi chạy), factory `low_risk_auto` (việc rủi ro thấp và chỉ ghi trong brain thì tự qua; tiền và ghi ra ngoài không bao giờ tự qua).
 
-Tương ứng các slide "Làm, kiểm tra, nhận kết quả, điều chỉnh", "Mỗi loại việc cần cách kiểm tra phù hợp", "Test và giới hạn ghi bảo vệ công việc", "Lời nhắc và cơ chế cần phối hợp".
+**Nguyên tắc**: bài giảng ba phạm vi quyền, "cùng công cụ khác cách dùng", "đổ nồi nước dùng cần chủ quán đồng ý", "rõ việc tự làm, rõ việc cần con người".
 
-Có gì (`server/main.py`, bộ chạy workflow cũ và đường đồ thị dùng chung `_workflow_verdict`):
-- Bước workflow khai `verify_agent` và `max_retries`. Agent làm xong thì một agent KHÁC kiểm, trả `{"pass": true/false, "reason", "fixes"}`. Chưa đạt thì agent làm nhận lý do và các chỉnh sửa rồi làm lại, tối đa `max_retries` lần.
-- **Fail-closed:** không đọc được kết luận, hoặc agent kiểm lỗi, đều tính là CHƯA ĐẠT. Hết lượt thử vẫn chưa đạt thì bước HỎNG, output không chảy sang bước sau, quy trình dừng và nói rõ ở bước nào (`_verify_failed_message`).
-- Bước engine báo lỗi được chốt là hỏng TRƯỚC khi vào vòng kiểm, để khỏi đốt thêm một lượt kiểm trên đầu ra rác.
-- Ngoài workflow: agent giám định (bảo mật, dữ liệu, nội dung, UX, harness) cho việc cải tiến hệ thống; Kanban có cột Review; Sổ Shop tự kiểm luật (chống ghi trùng, hạn mức chi, hợp đồng chỉ có hoa hồng khi Đã ký) bằng code, không dùng model.
+**Lỗ hổng**
+- Không có trạng thái thứ ba "tạm dừng, giải thích, chờ chủ bấm" cho một thao tác cụ thể trong chat.
+- Quyền ở cấp phiên và kết nối, không ở cấp agent.
 
-Đây đúng là "lời nhắc cộng cơ chế" của slide: lời nhắc nói nên làm gì (prompt agent), cơ chế phát hiện và ngăn lỗi (verify, `_LapGuard`, hạn mức chi, hook). Joyce có cả hai nhưng mỏng ở nửa sau.
+**Giải pháp cho Joyce**
+- Cổng xin phép TÙY CHỌN theo loại thao tác, mặc định tắt (tôn trọng quyết định 10/09). Chủ bật loại nào thì loại đó dừng: ví dụ "gửi Zalo cho hơn 5 người", "xóa file trong brain", "ghi chi trên 10 triệu". Dùng lại `WAITING_USER` và mã xác nhận đã có ở `write_path_runtime.py`.
+- Một trang "Việc tự làm và việc cần anh" liệt kê bảng phân loại hiện hành, để chủ và trưởng phòng cùng đọc.
 
-Thiếu:
-- **Chỉ 5 trong 239 file workflow dùng `verify_agent`** (năm quy trình bàn giao của H2O: lead sang sản xuất, nội dung sang lead, ngày chụp sang hậu kỳ, hậu kỳ sang bàn giao khách, chăm sóc sau dịch vụ). Phần còn lại, gồm cả ba workflow dùng chung, chạy một lượt không kiểm.
-- **Một kiểu kiểm duy nhất: một agent khác đọc rồi phán.** Slide chia ba kiểu: đọc soát lỗi, so kết quả nhìn thấy (đúng, sai), tính toán đối chiếu. Joyce chưa có kiểu thứ hai và thứ ba cho việc nghiệp vụ. Ví dụ nên có: Sổ Shop tự đối chiếu "tổng thu trừ tổng chi bằng lãi gộp" và "lịch cọc khớp bảng giá" bằng tính toán; báo giá in ra thì so với bảng giá; ảnh chụp màn hình giao diện sau khi sửa. Đối chiếu số bằng code sẵn có ở Sổ Shop nhưng chưa là một bước kiểm có tên mà agent nào cũng gọi được.
-- **Chat không có vòng này.** Model nói "xong" là xong, không ai chạy lại kiểm. Với việc code, tab Code có `run_command` chạy test nhưng không ép model phải chạy test trước khi báo xong.
-- Chưa có "giới hạn ghi bảo vệ công việc" theo slide (test được khóa, agent không sửa test để cho qua). `KHOA_MAC_DINH` khóa brain phòng khỏi thao tác TAY của nhân viên, không khóa agent.
+**Đo**: số lần cổng dừng mỗi tuần, thời gian chờ chủ trung bình.
 
-### 3.15 Bếp thử nghiệm riêng (sandbox), giới hạn dữ liệu và tài nguyên
+### A6. Hook
 
-Tương ứng các slide "Một căn bếp thử nghiệm riêng", "Giới hạn cả dữ liệu và tài nguyên" và sơ đồ SANDBOX (agent ở giữa, tới hệ thống, file, dữ liệu đều có dấu X chặn).
+**Hiện trạng** (`server/plugins_host.py`)
+- `pre_tool_call` chặn được (`{"deny": lý do}`), sửa được tham số (`{"args": ...}`), hoặc cho qua. Hook ném lỗi thì tool vẫn chạy (fail-open có chủ ý). `post_tool_call` quan sát, kể cả lời gọi bị chặn. Cả hai biết ai đang nói qua `turn` (kênh, người gửi, nhóm hay riêng, có phải chủ).
+- `chatbot_turn_context`: mỗi lượt bot khách được thêm đúng một dòng ngữ cảnh, quá 2 giây thì bỏ.
+- Plugin duy nhất dùng hook là `tool-audit`, chỉ đếm, manifest tắt mặc định.
 
-Có gì:
-- **Sandbox của engine:** Codex có `--sandbox` read-only (suggest), workspace-write (auto), không rào (full); Docker tắt được bằng `JOYCE_CODEX_SANDBOX=off`. Claude Code SDK chạy `can_use_tool` kiểm từng lời gọi cho việc nền. Antigravity tự bỏ `--sandbox` vì xung đột chế độ in một lượt.
-- **Cô lập thư mục:** mỗi phiên làm việc ghim `cwd` vào brain hoặc thư mục tab Code; `_safe_path` chặn thoát thư mục; nhân viên bị khóa vào phạm vi phòng; mỗi nhân viên có thư mục riêng `staff_workspaces/`; vùng nhận file chat `.staging` chỉ đọc và chỉ mở khi được cho phép.
-- **Lệnh chạy có rào** (`server/run_command.py`): không qua shell, môi trường lọc trắng chỉ giữ vài biến (PATH, HOME, LANG, TEMP...) nên khóa API trong `.env` không lọt vào lệnh, có trần thời gian và output, có danh sách chặn cứng ở mọi mức kể cả full.
-- **Việc nền bị khóa chặt:** không Bash, WebFetch, WebSearch, Task, MCP rỗng, trần 1 giờ (`JOYCE_BG_MAX_WALL_S`).
-- **Giới hạn tài nguyên (nửa dưới của slide dữ liệu và tài nguyên):**
-  - Sổ cái token mỗi phút dùng chung mọi nguồn (`quota_scheduler.py`), cộng với phần đang bay.
-  - Giới hạn tần suất theo từng kết nối (chống spam và khóa tài khoản).
-  - Học hạn mức token từ chính lỗi nhà cung cấp (`limit_learner.py`).
-  - Trần 30 vòng tool, trần 8.000 ký tự mỗi kết quả, trần thời gian mỗi việc.
-  - Ngân sách lượt mỗi ngày cho agent trong nhóm (`agent_budget`).
-- **Giới hạn dữ liệu (nửa trên):** bot khách hàng không dùng được 12 công cụ gốc và các tool chỉ của chủ; hook `chatbot_turn_context` chỉ đưa vào đúng một dòng đã lọc; nhật ký kiểm toán chỉ ghi tên tham số.
+**Nguyên tắc**: bài giảng "lời nhắc và cơ chế cần phối hợp", hook gắn quy định công ty (bảo mật, kiểm toán, tuân thủ), "JSON vào, mã thoát ra, gắn kiểm tra mà không sửa phần lõi". Harness² dùng plugin `tool.execute.after` để **kiểm lại sản phẩm ngay trong vòng** (sau khi ghi thì kiểm, thiếu thì nối cảnh báo vào kết quả), thay vì một lời dặn tĩnh.
 
-Thiếu:
-- **Không có "căn bếp thử riêng" theo nghĩa slide.** Sandbox hiện chặn việc nguy hiểm, nhưng không có bản sao brain hay bản sao sổ để agent thử rồi người duyệt kết quả mới đưa sang brain thật. Agent chạy ở mức đủ quyền là ghi thẳng vào brain thật. Brain không nằm trong git nên không hoàn tác được (xem mục 6, đề xuất 9).
-- Việc thử ca nghiệp vụ của em ở bản 1.3.37 đến 1.3.38 phải tự dựng sổ sandbox bằng `JOYCE_STATE_DIR` và `BRAINS_DIR` riêng. Làm được vì app tách được hai thư mục đó, nhưng chưa có nút "chạy thử trong bản sao" cho người dùng.
-- Trần chi phí theo agent hoặc theo phòng chưa có; `agent_budget` chỉ đếm lượt trong nhóm chat, không đếm tiền của việc Kanban hay workflow.
-- Quyền đọc dữ liệu có vẻ chưa chia nhỏ theo thư mục con trong brain (em chưa kiểm từng đường): mức quyền chỉ chia đọc, ghi, nguy hiểm, chưa thấy kiểu "chỉ đọc wiki, không đọc nhật ký hội thoại".
+**Lỗ hổng**: không có hook bảo vệ nào chạy sẵn; không gắn được kiểm tra bằng script ngoài mà không viết plugin Python.
 
-### 3.16 CLAUDE.md và AGENTS.md, dùng coding agent làm nền, và công thức Agent = Model + Harness
+**Giải pháp cho Joyce**
+- Plugin hệ thống `joyce-guard`, bật sẵn, ba luật đầu tiên đều bằng code, không tốn model:
+  1. Chặn ghi ra ngoài brain và vào `sources/` (nguồn bất biến theo lược đồ vault).
+  2. Chặn gửi Zalo hàng loạt quá N người trong M phút khi người gọi không phải chủ.
+  3. Sau `joyce_shop op=ghi`, nếu có khoản chi lớn chưa gắn hợp đồng thì nối cảnh báo vào kết quả để model hỏi lại chủ (kiểu `tool.execute.after` của Harness²).
+- Bộ chuyển hook ngoài: khai trong `Joyce/hooks.json` một lệnh (đọc JSON từ stdin, trả mã thoát 0 cho qua, 2 chặn kèm lý do), để chủ gắn quy định riêng của studio mà không viết plugin.
 
-Tương ứng các slide "CLAUDE.md/AGENTS.md" (hướng dẫn dự án, skills, hooks, kết nối công cụ), "Dùng coding agent có sẵn làm nền" và "The Core Equation".
+**Đo**: số lần mỗi luật chặn mỗi tuần (đọc từ `post_tool_call` có `denied`).
 
-Đối chiếu:
-- **Công thức Agent = Model + Harness, "nếu không phải model thì là harness":** hệ thống đúng nghĩa này. Joyce không huấn luyện model nào; toàn bộ 154.000 dòng Python trong `server/` (cộng dashboard) là harness. Model đứng sau mười hai cổng thay được.
-- **Dùng coding agent có sẵn làm nền, bổ sung phần của mình:** Joyce làm theo cả hai kiểu. Với ba engine CLI (Claude Code, Codex, Grok Build) cùng Antigravity thì lõi là chính CLI đó (vòng lặp, công cụ gốc, nén ngữ cảnh), Joyce chỉ bọc quyền, hub công cụ, bộ nhớ, và hệ agent. Với bảy engine API thì Joyce tự viết lõi (`server/engine.py`). Hai kiểu này là nguồn của mọi chênh lệch ở mục 5A.
-- **Bốn ống nối của slide CLAUDE.md và AGENTS.md** trong Joyce:
-  - Hướng dẫn dự án: `CLAUDE.md` gốc và của từng brain (tạo cùng `AGENTS.md`).
-  - Skills cho việc thường làm: 530 skill trong brain, đồng bộ ra `.claude/skills` cho CLI tự thấy.
-  - Hooks kiểm tra tự động: plugin `pre_tool_call` và `post_tool_call`, hiện chưa dùng cho bảo vệ.
-  - Kết nối công cụ: MCP Hub, mọi engine cùng một cửa.
-  Cả bốn ống đều có. Ống yếu nhất là hooks (mục 3.8). Ống chưa chuẩn nhất là hướng dẫn dự án: `CLAUDE.md` của phòng chỉ là lược đồ vault chung (3.12).
-- Một điểm bài giảng không nhấn nhưng Joyce vướng: hai file `CLAUDE.md` và `AGENTS.md` ở brain là bản sao y hệt nhau (6.205 byte) nên sửa một nơi phải nhớ sửa nơi kia, trong khi `meta_tools` tạo cả hai cùng lúc. Nên một file là nguồn, file kia sinh ra.
+### A7. Nhật ký và khôi phục
 
-## 4. Harness của các phòng ban (61 brain)
+**Hiện trạng**
+- Lịch sử chat trong SQLite là nguồn sự thật (`sessions.py`, `conversations.py`). Nhật ký kiểm toán hub là file chỉ ghi thêm, xoay vòng ở 5 MB, chỉ ghi TÊN tham số. Nhật ký việc `task_events`. Checkpoint Task State mã hóa chỉ ghi thêm trong `runtime.db`.
+- Khôi phục: Kanban lease 90 giây và `reclaim_stale`; nhóm chat `TeamRunner.recover` (đã qua mốc gọi engine thì đánh dấu `interrupted`, chặn việc, không tự chạy lại để khỏi làm trùng việc ghi ra ngoài); workflow đồ thị có checkpoint nhưng đang 0%.
+- Bộ nhớ độc lập với harness: đổi engine giữa chừng vẫn nạp lại mạch.
 
-Số liệu quét ngày 2026-10-28, chỉ đọc, không sửa gì trong `brains/`.
+**Nguyên tắc**: bài giảng "nhật ký chỉ ghi thêm", "đầu bếp vắng mặt nhật ký vẫn còn", "replay đọc lại từ đầu đến cuối". Harness² mỗi lần chạy có thư mục riêng, chạy lại cùng lệnh thì tiếp tục từ chỗ dở (idempotent theo `run_id`).
+
+**Lỗ hổng**: lịch sử chat sửa và xóa được; `task_events` bị xóa khi xóa việc; nhật ký kiểm toán chỉ giữ khoảng 10 MB; chưa có một nhật ký sự kiện chung của một lượt agent để đọc lại.
+
+**Giải pháp cho Joyce**
+- Không cần đổi lịch sử chat (sửa và chạy lại là tính năng). Thay vào đó: một **sổ sự kiện chỉ ghi thêm** riêng cho việc có tác dụng ra ngoài (ghi sổ tiền, gửi tin, đăng bài, xóa file), mỗi dòng có lượt, agent, tool, kết quả, giữ ít nhất 12 tháng. Sổ Shop đã có `so_hoat_dong` đúng tinh thần này; mở rộng thành chung.
+- Bật `workflow_canary` cho các workflow nền chạm tiền, để tiến trình chết không chạy lại bước đã ghi.
+
+**Đo**: có trả lời được câu "tuần trước agent nào đã ghi khoản chi này" từ sổ sự kiện không.
+
+### A8. Sandbox và giới hạn tài nguyên
+
+**Hiện trạng**
+- Sandbox engine: Codex `--sandbox`; Claude Code SDK `can_use_tool` kiểm từng lời gọi cho việc nền; việc nền cấm Bash, WebFetch, WebSearch, Task, MCP rỗng.
+- Cô lập thư mục: `cwd` ghim vào brain hoặc thư mục tab Code, `_safe_path` chặn thoát thư mục, thư mục riêng từng nhân viên `staff_workspaces/`.
+- `run_command.py`: một lệnh mỗi lần, không qua shell, môi trường lọc trắng (khóa API trong `.env` không lọt vào lệnh), trần thời gian và output, danh sách lệnh cho mức `auto` (pytest, npm test, ruff, eslint, grep, rg, git chỉ đọc), chặn cứng một số lệnh phá hoại ở mọi mức.
+- Tài nguyên: sổ cái token mỗi phút dùng chung (`quota_scheduler.py`), học hạn mức từ lỗi nhà cung cấp (`limit_learner.py`), giới hạn tần suất theo kết nối, ngân sách lượt mỗi ngày cho agent nhóm (`agent_budget`).
+
+**Nguyên tắc**: bài giảng "một căn bếp thử nghiệm riêng", "giới hạn cả dữ liệu và tài nguyên". Harness² mỗi bản harness được dựng ra thư mục riêng (`write_tree` vào `harnesses/<label>`) và chạy độc lập, chạy thật mà không đụng bản gốc.
+
+**Lỗ hổng**: không có bản sao để agent thử rồi người duyệt mới áp; không có trần chi phí theo agent hay phòng.
+
+**Giải pháp cho Joyce**
+- "Chạy thử trong bản sao": app đã tách được `BRAINS_DIR` và `JOYCE_STATE_DIR` (em dùng đúng cách này để thử Sổ Shop ở bản 1.3.37 và 1.3.38). Thêm một chế độ tạo bản sao tạm của brain phòng và sổ, agent làm trên bản sao, kết quả hiện dạng so sánh, chủ bấm áp. Đây cũng là nền cho Probe ở C2.
+- Trần chi phí theo phòng mỗi ngày, đọc từ `usage_store`, chạm trần thì việc nền của phòng đó xếp hàng chờ.
+
+**Đo**: số việc chạy thử trước khi áp; chi phí theo phòng mỗi tuần.
+
+### A9. Bộ nhớ lõi
+
+**Hiện trạng**: `memory/MEMORY.md` (chỉ mục nạp mỗi lượt), `memory/facts/` (một sự thật một file), `memory/conversations/` (nhật ký thô), `memory/agents/<slug>/MEMORY.md`. `memory_control.py` cho xem, sửa, quên (giữ dấu vân tay để không dựng lại), tắt học theo brain. `learn.py`: nhánh học chỉ đọc, trả manifest, chỉ Python tin cậy mới ghi, quét bí mật và chèn lệnh trước khi ghi, giới hạn tần suất cứng. Bài học agent theo "model đề xuất, code ghi", chờ chủ duyệt.
+
+**Nguyên tắc**: bài giảng "bộ nhớ độc lập với harness". Harness² tách bộ nhớ bền (sự thật ngắn, chung) khỏi sự việc của từng vụ.
+
+**Lỗ hổng**: cơ chế tốt, nằm ở Tầng A là đúng. Lỗ hổng thật là dữ liệu (B3).
+
+**Giải pháp cho Joyce**: giữ nguyên lõi. Thêm một kiểm tra khi ghi: nếu một mục bộ nhớ chứa số điện thoại, mã hợp đồng hoặc số tiền cụ thể của một khách thì đẩy sang CRM hoặc Sổ Shop thay vì bộ nhớ bền (luật "không lưu sự việc một vụ" của Harness²).
+
+**Đo**: số mục bộ nhớ bị đẩy sang CRM hoặc sổ.
+
+## 5. Tầng B: bề mặt nghề của từng phòng
+
+Số liệu quét 61 brain ngày 28/10/2026, chỉ đọc:
 
 | Chỉ số | Giá trị |
 |---|---|
-| Số brain | 61 (14 brain khối, 43 phòng có Agent Trưởng Phòng, 4 brain cá nhân hoặc chung) |
-| Tổng agent | 600, nhưng chỉ 59 tên khác nhau |
-| Agent là bản sao dùng chung | 549 (9 agent nhân vào cả 61 brain) |
-| Tổng skill | 530, chỉ 54 tên khác nhau, khoảng 41 skill chỉ có ở một phòng |
-| Tổng workflow | 239, chỉ 13 tên khác nhau (3 workflow dùng chung nằm ở cả 61 brain) |
-| Agent có ghi `skills` rỗng | 490 trên 600 |
+| Brain | 61 (43 phòng có Agent Trưởng Phòng, 14 brain khối, 4 brain cá nhân hoặc chung) |
+| Agent | 600, chỉ 59 tên khác nhau; 549 là 9 agent dùng chung nhân vào cả 61 brain |
+| Skill | 530, chỉ 54 tên; khoảng 41 skill nghiệp vụ mỗi cái chỉ ở một phòng |
+| Workflow | 239, chỉ 13 tên; 3 workflow dùng chung ở cả 61 brain |
+| Agent có `skills` rỗng | 490 trên 600 |
 | Agent có đặt `model` | 50 trên 600 |
 | Agent có mục Bối cảnh, Quy trình, Cấm | 410, 471, 427 |
 | Brain có chỉ mục bộ nhớ không trống | 7 trên 61 |
-| File bộ nhớ agent, có bài học thật | 48, và 0 |
+| File bộ nhớ agent, có bài học | 48, và 0 |
+| `post_check` trong `Joyce/factory.json` | rỗng ở 61 trên 61 |
+| Bộ ca thử `Joyce/evals/*.json` | 1 trên cả hệ thống |
 
-Chín agent dùng chung ở mọi brain: năm giám định (`giam-dinh-bao-mat`, `-du-lieu`, `-noi-dung`, `-ux`, `-harness`), `ky-su-harness`, `giam-sat-dai-tu`, `ke-toan-vien-dai-tu`, `tro-ly-onboarding`. Ba workflow dùng chung: `dai-tu-codebase`, `review-da-mien`, `tu-cai-tien-agent`. Chúng là bộ "lưới review" cho việc cải tiến hệ thống, không phải việc của một phòng nghiệp vụ.
+Chín agent dùng chung: năm giám định (`giam-dinh-bao-mat`, `-du-lieu`, `-noi-dung`, `-ux`, `-harness`), `ky-su-harness`, `giam-sat-dai-tu`, `ke-toan-vien-dai-tu`, `tro-ly-onboarding`. Đây là bộ máy của Tầng C và việc đại tu code, không phải việc của phòng nghiệp vụ. `ke-toan-vien-dai-tu` có tên dễ nhầm với Phòng Kế Toán.
 
-Đối chiếu slide "Mỗi agent có phạm vi riêng":
+### B1. Thân prompt agent (c1)
 
-| Thuộc tính của slide | Phòng ban hiện tại |
-|---|---|
-| Phiên làm việc riêng | Có. Mỗi phòng có brain riêng, bộ nhớ riêng, và agent chat riêng theo khóa `dm:<agent_key>` |
-| Lời dặn tập trung | Có ở Agent Trưởng Phòng (mục Bối cảnh, Nhiệm vụ, Cấm) |
-| Công cụ bị giới hạn | CHƯA ở cấp agent. Chỉ giới hạn ở bước workflow hoặc việc Kanban |
+**Hiện trạng**: Agent Trưởng Phòng có Bối cảnh, Nhiệm vụ, Cấm, ví dụ `truong-phong-chi.md`. Prompt agent khi chạy được ghép thêm khối bộ nhớ và luật `JOYCE_LESSON` (`main.py::_agent_sysprompt`).
 
-Nhận xét:
-- Hạ tầng cho 44 phòng H2O đã dựng đủ khung (brain, trưởng phòng, một skill nghiệp vụ, workflow chung). Chỗ thiếu là **ruột nghiệp vụ**: mỗi phòng nên có thêm vài skill thật và workflow thật cho việc hằng ngày.
-- 14 brain khối (Ban Hang, Ke Toan, CSKH, Nhan Su, San Xuat, Marketing, Nghien Cuu, ThuyH2O, Truyen Thong, Ve Sinh, Van Thu, H2O Studio, ThuyH2O Studio, Kien Thuc Kinh Doanh Tham Khao Ngoai) chỉ có 9 agent dùng chung, chưa có agent điều phối khối.
-- Sổ Quản lý Shop (bản 1.3.37) là ví dụ tốt nhất của agent có việc thật. Việc ghi sổ đi tới đúng Agent Trưởng của Sales Hình Ảnh, Phòng Thu, Phòng Chi, Đối Soát và Nhân Sự Vận Hành: việc ghi sổ đi qua `joyce_shop` và chạy bằng luật cố định, chỉ giao agent khi cần phán đoán.
+**Nguyên tắc**: Harness² chia người sửa prompt làm hai: **INV** (cách agent làm việc: thứ tự, dùng tool, khi nào xong) và **DOM** (điều người làm nghề biết: sản phẩm, người dùng sản phẩm, nguồn chuẩn, cấu trúc bắt buộc, quy tắc nhất quán). Luật DOM: không bao giờ bịa nguồn hay con số; chỉ viết kiến thức agent ÁP DỤNG và KIỂM được, không viết bài đọc nền.
 
-## 5. Trạng thái cấu hình thật trên máy (28/10/2026)
+**Lỗ hổng**: thân prompt trưởng phòng nghiêng về mô tả vai, ít "quy tắc kiểm được". Ví dụ Phòng Chi viết "kiểm đề nghị chi có đủ chứng từ" nhưng không nói đủ là gồm những gì và kiểm bằng cách nào.
 
-Đọc từ `settings.json`, phần `context_runtime`:
+**Giải pháp cho Joyce**: chuẩn hóa thân prompt trưởng phòng thành hai phần đúng INV và DOM:
+- "Cách làm" (INV): thứ tự gọi tool, điều kiện xong việc. Ví dụ Phòng Chi: "1) `joyce_shop op=xem` lấy hợp đồng liên quan; 2) ghi chi kèm `khach`; 3) đọc lại phiếu; 4) chỉ báo xong khi phiếu có mã".
+- "Điều nghề biết" (DOM), viết thành quy tắc kiểm được. Ví dụ: "Chứng từ đủ = ngày, số tiền, đơn vị nhận, lý do. Thiếu một trong bốn thì ghi 'chờ bổ sung', không ghi sổ".
 
-| Đường | Mức hiện tại | Ý nghĩa |
+**Đo**: tỉ lệ việc của agent qua kiểm (B10) trước và sau khi chuẩn hóa.
+
+### B2. Nội quy phòng (c2)
+
+**Hiện trạng**: `CLAUDE.md` và `AGENTS.md` của mỗi brain là bản sao y hệt lược đồ vault chung (6.205 byte). Khối `_h2o_phong_block` thêm tên phòng, khối, thương hiệu, trưởng phòng, brain chung chỉ đọc.
+
+**Nguyên tắc**: bài giảng "nội quy chung của cả chuỗi, riêng cách vận hành từng chi nhánh". Harness² có c2 guardrails là luật luôn bật, có trần ký tự cho phần luôn bật.
+
+**Lỗ hổng**: không có chỗ cho luật nghiệp vụ riêng của phòng mà mọi agent trong phòng đều đọc.
+
+**Giải pháp cho Joyce**
+- File `Joyce/noi-quy.md` mỗi phòng, app ghép vào `_h2o_phong_block`, có trần 1.500 ký tự (luôn bật thì phải ngắn). Hai mục: "Luật" và "Công cụ".
+- Ví dụ Phòng Thu: "Thu cọc phải gắn hợp đồng. Thu đủ lịch cọc thì báo bước tiếp theo theo bảng giá. Không tự đổi trạng thái hợp đồng sang Hoàn thành".
+- Luật chung cả chuỗi H2O (thương hiệu, xưng hô với khách, cấm bịa giá) đặt một lần ở brain chung, không chép vào từng phòng.
+- Sinh `AGENTS.md` từ `CLAUDE.md` thay vì giữ hai bản tay.
+
+**Đo**: số phòng có nội quy; độ dài phần luôn bật mỗi phòng.
+
+### B3. Bộ nhớ phòng và agent (c3)
+
+**Hiện trạng**: 7 trên 61 brain có chỉ mục bộ nhớ không trống; 48 file bộ nhớ agent, 0 bài học; 37 nhật ký hội thoại trên toàn bộ brain.
+
+**Nguyên tắc**: Harness² "bộ nhớ luôn bật chỉ cho sự thật ngắn đúng với MỌI việc, thêm thì bớt; không lưu sự việc một vụ".
+
+**Lỗ hổng**: chưa có dữ liệu vì các phòng chưa chạy việc thật qua agent.
+
+**Giải pháp cho Joyce**: không ép điền. Cho dữ liệu chảy từ việc thật: khi Sổ Shop, CRM, Hoa hồng chạy hằng ngày, mỗi lần chủ SỬA kết quả của agent là một bằng chứng; đó là nguồn cho `JOYCE_LESSON` và cho Tầng C. Bộ nhớ phòng chỉ nhận quy tắc chung (ví dụ "khách H2O hay đặt cọc 10% qua chuyển khoản"), sự việc từng khách thì vào CRM.
+
+**Đo**: số bài học agent được chủ duyệt mỗi tháng.
+
+### B4. Hướng dẫn công cụ (c4)
+
+**Hiện trạng**: mô tả tool viết một lần (ví dụ mô tả `joyce_shop` dặn hỏi lại khi thiếu số tiền).
+
+**Nguyên tắc**: Harness² c4 là văn xuôi hướng dẫn dùng bộ công cụ, sửa được riêng.
+
+**Giải pháp cho Joyce**: mục "Công cụ" trong `Joyce/noi-quy.md`. Ví dụ Sales Váy Cưới: "Trước khi hứa ngày cho khách, gọi `joyce_shop op=do tu_khoa=<mã váy>` để xem lịch và ngày giặt. Thuê bị chặn thì đọc ngày sẵn sàng trong câu báo, đề xuất ngày đó cho khách".
+
+**Đo**: số lần thuê đồ bị chặn trùng lịch mà agent vẫn báo khách là được.
+
+### B5. Agent con (c5)
+
+**Hiện trạng**: Team runner (trưởng nhóm giao việc bằng khối `JOYCE_TEAM`), Kanban có `deps`, workflow gọi agent phòng khác bằng `Ten Brain|slug`, engine CLI có `Task`. Đường khám phá chỉ đọc nhiều vòng (`readonly_orchestrator.py`) và replan có kỷ luật quyền (`agent_runtime.py`) đã viết nhưng đang 0%.
+
+**Nguyên tắc**: bài giảng ba kiểu phụ bếp: khám phá (chỉ xem), thực hiện, kiểm tra; phụ bếp có phiên riêng, dụng cụ giới hạn, trả về kết quả cần thiết. Harness² chỉ cho agent con khi bề mặt cho phép (`allow_subagents`), mỗi agent con khai `mode: subagent`.
+
+**Lỗ hổng**: không khai báo kiểu; kết quả bước trước truyền nguyên văn qua `{{prev}}`.
+
+**Giải pháp cho Joyce**: trường `kind: explore | execute | verify` trong frontmatter (B9). `explore` tự động chỉ đọc; `verify` không được ghi gì ngoài kết luận. Bước workflow thêm trường `tra_ve:` mô tả khuôn kết quả cần thiết (ví dụ "mã hợp đồng, số tiền, trạng thái"), bước sau chỉ nhận phần đó.
+
+**Đo**: kích thước trung bình `{{prev}}` giữa các bước.
+
+### B6. Skill (c6)
+
+**Hiện trạng**: sáu skill hệ thống ở mọi brain, tự cập nhật; skill nghiệp vụ mẫu `h2o-studio-ketoan-chi-kiem-soat` (1.326 byte) có Vai trò, Kích hoạt, Quy trình, Đầu ra, Guardrail.
+
+**Nguyên tắc**: Harness² "skill là nhà mặc định cho kiến thức nghề có dấu hiệu kích hoạt", và nêu dấu hiệu đó trong phần luôn bật để agent biết gọi.
+
+**Lỗ hổng**: phần lớn phòng chỉ có một skill nghiệp vụ, skill ngắn, chưa có ví dụ vào ra và mục bẫy thường gặp.
+
+**Giải pháp cho Joyce**: mỗi phòng pilot thêm 2 đến 3 skill gắn đúng việc hằng ngày, có ví dụ vào ra và mục "Bẫy" (ghi từ lần chủ sửa thật). Ví dụ:
+- Phòng Thu: "thu-coc-theo-lich" (đọc lịch cọc của hợp đồng, nhắc bước tiếp).
+- Đối Soát: "doi-soat-hop-dong-hoan-thanh" (đã có ý trong `giao_bao_cao` của Sổ Shop).
+- Nhân Sự Vận Hành: "chia-viec-tinh-hoa-hong".
+
+**Đo**: số lần skill được gọi (`skill-usage.json` đã có).
+
+### B7. Script kiểm tra cố định (c7)
+
+**Hiện trạng**: `Brain Default/Joyce/scripts/h2o-bao-cao.py` là script duy nhất.
+
+**Nguyên tắc**: Harness² "lặp lại máy móc thì dùng `scripts/<tên>.py` có đầu vào, đầu ra và cách báo lỗi rõ"; không tự động hóa phán đoán nghề. Rất khớp luật "vận hành không tốn quota".
+
+**Giải pháp cho Joyce**: bộ script kiểm Sổ Shop dùng chung, đặt ở plugin hệ thống để mọi phòng gọi được (không chép vào brain):
+- `kiem_so`: tổng thu trừ tổng chi bằng lãi gộp theo kỳ; mỗi phiếu thu cọc khớp lịch cọc của bảng giá.
+- `kiem_luong`: lương bằng lương cơ bản cộng hoa hồng việc cộng hoa hồng phần trăm, không ai bị tính cả hai ở cùng hợp đồng.
+- `kiem_thue_do`: không phiếu nào chồng lịch kể cả ngày giặt.
+Đây cũng là nội dung của `post_check` (B10).
+
+**Đo**: số lỗi script bắt được mỗi tuần.
+
+### B8. Plugin và hook của phòng (c8)
+
+**Hiện trạng**: không phòng nào có. Plugin trong brain chạy được khi chủ bật cờ người dùng.
+
+**Giải pháp cho Joyce**: ưu tiên hook hệ thống (A6). Hook riêng phòng chỉ khi luật thật sự riêng, ví dụ CSKH: chặn agent gửi tin cho khách ngoài giờ 8 đến 21 giờ.
+
+### B9. Phạm vi agent
+
+**Hiện trạng**: frontmatter có `name, slug, role, group, skills, model, model_provider`. Phạm vi công cụ chỉ ở bước workflow (`tools:`) hoặc việc Kanban.
+
+**Nguyên tắc**: bài giảng "mỗi agent có phạm vi riêng: phiên riêng, lời dặn tập trung, công cụ bị giới hạn".
+
+**Giải pháp cho Joyce**: thêm các trường tùy chọn, thiếu thì giữ hành vi cũ:
+
+```yaml
+kind: execute            # explore | execute | verify
+tools: [joyce_shop, joyce_read_file]   # danh sách cho phép, rỗng = như cũ
+mode: auto               # trần quyền, không bao giờ cao hơn mức của phiên
+max_rounds: 12
+max_minutes: 10
+verify: giam-sat-so      # agent hoặc script kiểm sau việc
+```
+
+Thực thi bằng đúng cơ chế đã có của việc nền (`allowed_tools`, `disallowed_tools`, `can_use_tool`), không viết bộ khóa thứ hai. Bất biến: `mode` của agent chỉ được hạ, không được nâng mức của phiên.
+
+Ví dụ Phòng Chi: `kind: execute`, `tools: [joyce_shop, joyce_read_file]`, `mode: auto`, `verify: kiem_so`. Agent này không thể gửi Zalo hay ghi file ngoài brain dù model muốn.
+
+**Đo**: số agent có phạm vi; số lời gọi bị chặn vì ngoài phạm vi.
+
+### B10. Cách kiểm theo loại việc
+
+**Hiện trạng**
+- Workflow: `verify_agent` và `max_retries`. Kết luận dạng `{"pass", "reason", "fixes"}`, không đọc được là CHƯA ĐẠT, hết lượt thử thì bước hỏng và quy trình dừng (`main.py::_workflow_verdict`, `_verify_failed_message`). Dùng ở 5 trên 239 workflow (năm quy trình bàn giao H2O).
+- Factory: `post_check` (lệnh do chủ khai, không bao giờ lấy từ output model, fail thì mở việc `[CI fix]`, tối đa 3 vòng), `watch_spec` (file tồn tại, chứa chuỗi, URL sống, kiểm sau 10 phút trong 120 phút, fail mở lại việc một lần), `Joyce/evals/<slug>.json` (chứa, không chứa, có khóa, độ dài tối đa, biểu thức) chạy trên bản nháp đề xuất.
+- Sổ Shop tự kiểm bằng code: chống ghi trùng, hạn mức chi, hoa hồng chỉ khi Đã ký, chặn thuê trùng lịch kể cả ngày giặt.
+
+**Nguyên tắc**: bài giảng "mỗi loại việc cần cách kiểm phù hợp": đọc soát lỗi, so kết quả nhìn thấy, tính toán đối chiếu. Harness² "một lần ghi thành công không chứng minh sản phẩm dùng được; mở lại hoặc kiểm máy móc".
+
+**Lỗ hổng**: mới có kiểu "agent khác đọc rồi phán"; hai kiểu còn lại có mảnh (script, watch) nhưng không gắn vào việc nào; chat không có bước kiểm cuối.
+
+**Giải pháp cho Joyce**: bảng chọn cách kiểm theo loại việc của H2O:
+
+| Loại việc | Cách kiểm | Công cụ đã có để dùng |
 |---|---|---|
-| Chế độ chung | `canary` | Có đường đang chạy thật |
-| Fast path (capsule gọn, không tool) | 100% | Câu hỏi chat thuần gửi gọn |
-| Conversation state | 100% (chỉ engine API) | Trạng thái hội thoại có cấu trúc |
-| Memory (truy xuất có nguồn) | 100% | Chỉ nạp mục bộ nhớ liên quan |
-| Lazy skill | 100% | Nạp thân skill khi cần |
-| Đọc một bước (readonly) | 0% | Chưa bật |
-| Khám phá nhiều vòng (orchestrator) | 0% | Chưa bật |
-| Workflow đồ thị có checkpoint | 0% | Chưa bật |
-| Agent tự lập lại kế hoạch | 0% | Chưa bật |
-| Chọn model theo bước | 0% | Chưa bật |
-| Ghi có xác nhận (write) | 0% | Chưa bật |
+| Ghi sổ tiền, hoa hồng, lương | Tính toán đối chiếu | Script B7 làm `post_check` của việc Kanban phòng Thu, Chi, Đối Soát |
+| Báo giá, hợp đồng | So với bảng giá | Script so dòng báo giá với `so_dich_vu` |
+| Thuê đồ | Kiểm luật lịch | Đã có trong `shop_so` (chặn trước), thêm `kiem_thue_do` quét định kỳ |
+| Nội dung marketing | Đọc soát | `verify_agent` là `giam-dinh-noi-dung` |
+| Bàn giao giữa phòng | Đọc soát cộng file tồn tại | `verify_agent` (đã có ở 5 workflow) cộng `watch_spec` |
+| Sửa code | Chạy test | `post_check` là lệnh test, tab Code `run_command` |
+| Giao diện | So ảnh chụp | Chưa có, để sau |
 
-Nghĩa là: phần tiết kiệm token đã chạy thật. Phần "agent con thông minh" (khám phá, replan, workflow có checkpoint, ghi có xác nhận) đã được viết và có test nhưng chưa được bật cho việc thật.
+**Đo**: tỉ lệ việc qua kiểm ngay lần đầu, theo phòng.
 
-## 5A. Ví dụ thực tế: "sửa lỗi nút đăng nhập không bấm được"
+## 6. Tầng C: vòng tự cải tiến
 
-Chạy thử bài giảng qua harness của Joyce. Đây là phần đọc code, chưa chạy thật một tác vụ sửa lỗi. Ba môi trường để so: (1) engine CLI Claude Code ở tab Code, (2) engine API ở tab Code có thư mục làm việc (não chính hiện tại trên thanh trên cùng của anh là Z.ai glm-4.7-flash, nghĩa là thuộc nhóm này), (3) engine API trong chat thường không có thư mục làm việc.
+### C0. Harness² làm gì, tóm tắt cho Joyce
 
-| Bước trong bài giảng | (1) Claude Code | (2) API ở tab Code | (3) API chat thường |
+Harness² giữ nguyên model, chỉ sửa harness, theo hai vòng đệ quy:
+- **Vòng trong (mỗi việc)**: Propose, Probe, Compose.
+  1. Propose: hai người sửa song song, một lo INV (cách làm), một lo DOM (kiến thức nghề), mỗi người đề xuất bản harness sửa. Đề xuất chỉ ghi phần thay đổi, phần bỏ trống là giữ nguyên.
+  2. Probe: CHẠY từng bản đề xuất trên CÙNG việc đó, lấy nhật ký và sản phẩm.
+  3. Compose: đọc tương phản hành vi giữa các lần chạy, ghép thành bản harness cuối. Không cần đáp án đúng.
+  4. Chọn: các bản cuối được đổi tên ẩn danh, một người chọn đọc nhật ký và sản phẩm rồi chọn bản tốt nhất (có thể giữ bản gốc).
+- **Vòng ngoài (qua nhiều việc)**: sau mỗi việc, lưu bản harness được chọn cùng một "kinh nghiệm" gồm dấu hiệu (cue), bài học, bằng chứng, độ tin cậy vào thư viện theo lĩnh vực. Việc sau cùng lĩnh vực đọc thư viện trước khi sửa.
+- **Kỷ luật đi kèm**: ngân sách cố định (k bước thì 4k lần chạy và 3k lượt sửa, kiểm khớp sổ); đề xuất sai khuôn được thử lại MỘT lần kèm lý do bị từ chối, rồi giữ bản hiện tại; không để chữ "người chấm", "điểm", "rubric" lọt vào harness (chống học cách lấy lòng người chấm); bằng chứng đưa dạng file đầy đủ, không cắt cho vừa prompt; chấm điểm thật chỉ chạy SAU khi đã chọn xong.
+- Kết quả công bố trong README: tăng tới 11,5 điểm trên WorkBuddy-Bench, 4,5 điểm trên JobBench, 11,8 điểm phần trăm trên LAB, với một bước sửa.
+
+### C1. Hiện trạng ở Joyce
+
+| Mảnh Harness² | Joyce có | Trạng thái thật |
+|---|---|---|
+| Propose có bằng chứng | `ky-su-harness` (mỗi chế hành vi phải trỏ bằng chứng, sửa tối thiểu, đảo ngược được, viết vào `Joyce/proposals/`) | Có ở 61 brain. Cả hệ thống có 2 đề xuất |
+| Tách INV và DOM | Chưa | Một người đề xuất lo cả hai |
+| Probe | Chưa | Giám định đọc chữ hai bản, không chạy |
+| Compose và chọn ẩn danh | `giam-dinh-harness` cộng skill `cham-diem-tuong-phan` (A/B ẩn danh, ba khối prompt dịch từ Harness²) | Có, chưa từng có nhiều bản đã chạy để chọn |
+| Áp an toàn | `factory._proposal_apply`: `verdict=win` cộng `risk=low` cộng có bản nháp đầy đủ thì tự áp, có bản sao lưu; file chung nhiều brain thì canary 24 giờ, tín hiệu xấu là việc bị chặn có nhắc slug thì tự lật lại | Bật ở 61 brain |
+| Ca thử bản nháp | `factory.eval_for_draft` đọc `Joyce/evals/<slug>.json` | 1 file |
+| Thư viện kinh nghiệm | `Joyce/learn-log/` (95 file), `ppc-state.json` (Brain Default: 4 lượt, 2 bài học) | Có nhật ký, chưa có dạng dấu hiệu, bài học, bằng chứng, độ tin cậy |
+| Đo | `agent_scoreboard`, `autonomy_stats` | Có, trả qua `GET /work/factory` |
+
+### C2. Lỗ hổng chính
+
+1. **Không có Probe.** Đây là cốt lõi Harness². So hai bản prompt bằng mắt không thấy được hành vi; hai prompt đọc giống nhau có thể làm việc rất khác nhau.
+2. **Không có nguyên liệu.** Không ca thử, không `post_check`, bài học agent bằng 0, nên Propose không có bằng chứng để bám.
+3. **Thư viện kinh nghiệm là nhật ký phẳng**, phòng sau không lấy lại được "lần trước phòng này đã sửa gì và vì sao".
+
+### C3. Thiết kế vòng C cho Joyce
+
+Giữ đúng hai ràng buộc của chủ: chỉ chạy khi có bằng chứng (không lịch quét), và tốn ít quota.
+
+**Kích hoạt** (một trong các tín hiệu, đếm bằng code):
+- Chủ sửa tay kết quả của agent 2 lần trong 7 ngày cho cùng loại việc.
+- Bước workflow trượt `verify` 2 lần.
+- `post_check` hoặc script B7 báo lỗi 2 lần cùng chữ ký.
+- Chủ bấm "Cải tiến agent này" trên thẻ agent.
+
+**Một lượt cải tiến** (một bước Harness² với k bằng 1, giới hạn ngân sách):
+1. Gom bằng chứng dạng file: nhật ký gốc (không cắt dưới 10.000 ký tự), kết quả, chỗ chủ sửa, thư viện kinh nghiệm của phòng.
+2. Propose hai bản: INV (cách làm: thứ tự tool, điều kiện xong, thêm script hay hook) và DOM (quy tắc nghề kiểm được của phòng). Mỗi bản chỉ ghi phần đổi.
+3. Kiểm khuôn bằng code (frontmatter, trần phần luôn bật, khóa mục hệ thống, không chứa chữ "người chấm"); sai thì thử lại một lần kèm lý do, rồi bỏ.
+4. Probe trong bản sao (A8): chạy bản gốc và hai bản đề xuất trên 3 đến 5 ca thử của phòng (`Joyce/evals/<slug>.json` mở rộng thêm loại ca "chạy việc mẫu"). Mỗi lần chạy là một việc nền thật trong sandbox, có trần tiền.
+5. Compose một bản từ tương phản, rồi chọn ẩn danh giữa bản gốc và bản ghép bằng `cham-diem-tuong-phan`.
+6. Áp theo luật đã có của factory: rủi ro thấp và thắng thì tự áp có sao lưu; còn lại chờ chủ. File chung nhiều brain thì canary 24 giờ.
+7. Ghi kinh nghiệm (C4).
+
+Ngân sách mỗi lượt (k bằng 1): 4 lần chạy (gốc, INV, DOM, ghép) nhân số ca thử, cộng 3 lượt sửa. Đặt trần chi phí mỗi lượt và mỗi tháng theo phòng.
+
+### C4. Thư viện kinh nghiệm theo phòng
+
+Theo `harness2/core/library.py`, mỗi phòng một thư mục `Joyce/kinh-nghiem/`:
+
+```
+Joyce/kinh-nghiem/INDEX.md                   danh sách, mỗi dòng có dấu hiệu
+Joyce/kinh-nghiem/<ngay>-<slug>/harness/     bản đầy đủ đã được chọn (không phải tóm tắt)
+Joyce/kinh-nghiem/<ngay>-<slug>/KINH-NGHIEM.md
+    - Dấu hiệu: khi nào bài học này áp dụng
+    - Bài học: một câu
+    - Bằng chứng: lần chạy nào, kết quả khác nhau ra sao
+    - Độ tin cậy: thấp, vừa, cao
+```
+
+Chỉ ghi khi đủ cả dấu hiệu, bài học, bằng chứng (đúng điều kiện `has_experience` của Harness²). Ví dụ Phòng Chi: "Dấu hiệu: khoản chi có chữ 'setup' hoặc 'đạo cụ'. Bài học: hỏi gắn hợp đồng nào trước khi ghi. Bằng chứng: 3 phiếu chi tháng 10 không gắn hợp đồng làm lãi gộp HD0001 sai. Độ tin cậy: vừa".
+
+### C5. Bác sĩ harness: tìm cái thiếu trước khi đổi model
+
+Bài giảng "tìm phần đang thiếu trước khi đổi model". Joyce đổi não chỉ bằng một cú bấm, nên dễ phản xạ đổi model. Đề xuất: khi một việc thất bại hoặc bị chủ sửa, code gắn nhãn nguyên nhân gần nhất và hiện trên thẻ việc:
+
+| Nhãn | Dấu hiệu đọc được bằng code | Sửa ở đâu |
+|---|---|---|
+| Thiếu ngữ cảnh | Agent không gọi tool đọc nào trước khi trả lời; trả lời "không có dữ liệu" khi wiki có trang khớp | B2, B3, B6 |
+| Thiếu công cụ | Tool bị chặn vì ngoài phạm vi; model nói "không có công cụ" | B9, A4 |
+| Thiếu cách làm (INV) | Gọi đúng tool nhưng sai thứ tự; báo xong khi phiếu chưa có mã | B1 phần Cách làm |
+| Thiếu kiến thức nghề (DOM) | Script B7 bắt lỗi số; chủ sửa nội dung nghề | B1 phần Điều nghề biết, B6 |
+| Thiếu kiểm tra | Lỗi chỉ phát hiện sau khi khách phàn nàn | B10 |
+| Model | Đủ cả năm mà vẫn sai trên nhiều ca | Đổi model cho agent đó (đã có trường `model`) |
+
+### C6. Đo hiệu quả
+
+Dùng số đã có: `autonomy_stats` (tỉ lệ việc xong không cần người chạm), `agent_scoreboard` (việc xong, bị chặn, số đề xuất thắng), tỉ lệ qua kiểm (B10), tỉ lệ cache (A3), chi phí theo phòng (A8). Đề xuất một ô "Sức khỏe harness" trên trang Việc gom năm số này theo phòng.
+
+## 7. Kế hoạch theo phòng
+
+### 7.1 Năm phòng pilot
+
+Chọn các phòng đang có việc thật nhờ Sổ Quản lý Shop (bản 1.3.37 và 1.3.38):
+
+| Phòng | Việc thật đang có | Gói harness cần thêm |
+|---|---|---|
+| Ban Hàng, Sales Hình Ảnh | Lập hợp đồng, báo giá theo bảng giá 46 gói | Nội quy (tra giá trước khi báo), skill báo giá, kiểm báo giá so bảng giá |
+| Ban Hàng, Sales Váy Cưới | Cho thuê, giữ chỗ, nhận trả đồ | Hướng dẫn công cụ thuê đồ, `kiem_thue_do` |
+| Kế Toán, Thu | Ghi thu, lịch cọc | Phạm vi `joyce_shop` mức auto, skill thu cọc theo lịch, `kiem_so` |
+| Kế Toán, Chi | Ghi chi, chi chờ duyệt | Phạm vi, nội quy chứng từ đủ, hook cảnh báo chi không gắn hợp đồng |
+| Kế Toán, Đối Soát | Báo cáo hợp đồng hoàn thành | `verify` bằng `kiem_so`, skill đối soát, ca thử |
+| Nhân Sự, Vận Hành | Chia việc, hoa hồng, lương | `kiem_luong`, skill chia việc |
+
+### 7.2 Còn lại
+
+- 14 brain khối: thêm một agent điều phối khối (đọc việc các phòng con, không ghi sổ), `kind: explore`.
+- 9 agent dùng chung: chuyển thành agent hệ thống như skill hệ thống (một bản ở app, tự cập nhật), bỏ 549 bản sao. Cẩn thận vì `brains/` không có git: làm bằng đường sao lưu của factory, áp canary.
+- Đổi tên `ke-toan-vien-dai-tu` cho khỏi nhầm với Phòng Kế Toán (cần chủ đồng ý).
+
+## 8. Ba ví dụ thực tế đi qua khung
+
+### 8.1 "Hợp đồng Tuấn Thủy 0899252392, gói chụp 15 triệu, thu 15tr, chi 4tr setup"
+
+| Bước | Tầng, thành phần | Hôm nay | Khi có khung đầy đủ |
 |---|---|---|---|
-| Nạp hướng dẫn đúng dự án | CLI tự nạp CLAUDE.md và AGENTS.md ở thư mục làm việc | Chỉ system prompt của Joyce, không tự nạp CLAUDE.md của dự án code | Chỉ system prompt của Joyce và brain |
-| Tìm code, đọc file, tìm lỗi | Grep, Read, Glob gốc | `joyce_run_command` (grep, rg, find, cat) và `joyce_read_file` | Chỉ đọc file trong brain, không thấy code |
-| Giao việc cho agent con | Công cụ `Task` | Không có. Chỉ có Kanban và workflow, nặng và chạy nền | Không có |
-| Kiểm tra quyền trước khi chạy | Mức quyền của phiên (mức full chạy thẳng) | Hub `_guard` và ba mức của `run_command`, lệnh phá hoại chặn cứng ở mọi mức | Hub `_guard` |
-| Hooks và quy định môi trường | Không có hook Joyce nào bật sẵn | Như bên trái, chỉ còn rào đường dẫn và danh sách lệnh | Như bên trái |
-| Sửa rồi chạy kiểm thử | Bash chạy pytest, Edit sửa đoạn | `joyce_write_file` ghi cả file rồi `run_command` pytest ở mức `auto` | Không chạy được lệnh |
-| Lỗi thì quay lại sửa | Vòng lặp của CLI | Trần 30 vòng, `_LapGuard` chỉ bắt gọi lặp y hệt | Như bên trái |
-| Ghi diễn biến | Bản ghi của CLI và tin chat trong Joyce | Tin chat, nhật ký hub chỉ có tên tham số | Như bên trái |
-| Dọn context | CLI tự nén | Cắt từng kết quả ở 8.000 ký tự, KHÔNG dọn kết quả cũ trong lượt | Như bên trái |
-| Đúng kết quả, đúng yêu cầu | Model tự báo cáo | Model tự báo cáo, chỉ có kiểm tra lời hứa suông | Như bên trái |
+| Joyce đọc câu, tách sự kiện | A1 vòng lặp, B1 prompt Joyce | Có | Như cũ |
+| Gọi `joyce_shop op=ghi` một lần | A4 hub, plugin | Có | Như cũ |
+| Tra giá gói, tra khách theo số điện thoại | Lõi Sổ Shop (bậc 5) | Có | Như cũ |
+| Giao Sales, Thu, Chi ghi | Định tuyến bằng luật | Có, không tốn model | Như cũ |
+| Chi 4 triệu của nhân viên vượt hạn mức chờ duyệt | A5 xin phép | Có | Như cũ |
+| Hook kiểm khoản chi đã gắn hợp đồng | A6 | Chưa | `joyce-guard` nối cảnh báo nếu thiếu |
+| Kiểm số sau khi ghi | B10, B7 | Chưa | `kiem_so` chạy sau việc: thu 15, chi 4, lãi gộp 11 |
+| Ghi sổ sự kiện | A7 | `so_hoat_dong` | Sổ sự kiện chung |
+| Chủ sửa kết quả thì thành bằng chứng | C3 | Chưa | Đếm vào kích hoạt cải tiến của phòng tương ứng |
 
-Đọc bảng:
-- **"Tay nghề giống, môi trường khác" đúng với Joyce.** Cùng một model nhưng cột (1) có đủ công cụ, hướng dẫn và kiểm thử, cột (3) gần như không làm được việc code. Với việc code, anh nên chọn engine CLI hoặc mở tab Code, đừng giao cho não chính là API miễn phí.
-- **Điểm yếu nặng nhất của cột (2)** là bước "dọn context": một vòng sửa, chạy pytest, đọc lỗi lặp nhiều lần dễ chất đầy bàn (tối đa 30 vòng, mỗi kết quả 8.000 ký tự, tức khoảng 240.000 ký tự). Và bước "kiểm tra cuối" không có người hay máy độc lập xác nhận.
-- Server có một lớp kiểm tra nhỏ: phát hiện câu hứa suông kiểu "tôi sẽ báo lại" rồi so với việc nền thật, nếu rỗng thì nối thêm dòng đính chính. Đó là mầm của bước "đúng kết quả, đúng yêu cầu", mới dừng ở lời hứa chứ chưa kiểm kết quả.
+### 8.2 "Cho cô dâu B thuê VAY-CC209 ngày 13/11" khi cô dâu A trả 12/11
 
-Ví dụ nghiệp vụ, chạy thật trong sandbox ở bản 1.3.37 (câu "hợp đồng Tuấn Thủy 0899252392, gói chụp 15 triệu, thu 15tr, chi 4tr setup"): đây là "một yêu cầu, cả quá trình phía sau" chạy tốt vì harness làm hộ phần khó. Tool `joyce_shop` tách thành ba sự kiện, tìm khách theo số điện thoại để không tạo trùng, chống ghi hai lần trong 10 phút, chuyển hợp đồng sang Đã ký khi nhận cọc, chi của nhân viên vượt hạn mức thì dừng chờ chủ duyệt, mỗi bước ghi vào nhật ký hoạt động và hiện trên văn phòng ảo, kết quả đối chiếu được bằng số trong sổ. Việc nghiệp vụ có sẵn "đủ công cụ, ngữ cảnh và kiểm tra" như bên phải của slide cuối. Việc code thì chưa bằng.
+- Hôm nay (đã sửa ở 1.3.38): lõi Sổ Shop chặn vì còn 3 ngày giặt, báo ngày sẵn sàng 15/11. Đây là kiểm tra bậc 5, không tốn model, đúng nguyên tắc "cơ chế ngăn lỗi".
+- Khung thêm: hướng dẫn công cụ của Sales Váy Cưới (B4) bảo agent đọc ngày sẵn sàng trong câu báo và đề xuất ngày đó cho khách, thay vì chỉ nói "không được". Ca thử của phòng có đúng tình huống này (B10, C3).
 
-## 5B. Lõi có sẵn cộng phần chủ bổ sung, và tìm cái thiếu trước khi đổi model
+### 8.3 "Sửa lỗi nút đăng nhập không bấm được" (việc code)
 
-Hai slide cuối của bài giảng: harness gồm lõi có sẵn (model, công cụ, context, vòng lặp) cộng phần mình bổ sung theo công việc; và khi kết quả kém thì tìm phần đang thiếu (hướng dẫn rõ, công cụ, kiểm tra) trước khi nghĩ tới đổi model.
+| Bước bài giảng | Claude Code ở tab Code | Engine API ở tab Code | Engine API chat thường |
+|---|---|---|---|
+| Nạp hướng dẫn dự án | CLI tự nạp `CLAUDE.md`, `AGENTS.md` | Chỉ prompt Joyce | Chỉ prompt Joyce |
+| Tìm code, đọc file | Grep, Read gốc | `joyce_run_command` (grep, rg), `joyce_read_file` | Không thấy code |
+| Giao agent con | `Task` | Không | Không |
+| Sửa rồi chạy test | Edit, Bash | Ghi cả file, `run_command` pytest ở mức auto | Không chạy được lệnh |
+| Kiểm cuối | Model tự báo | Model tự báo | Model tự báo |
 
-Joyce đặt vào khung đó:
+Khung thêm: `post_check` là lệnh test cho việc Kanban loại code (CI babysit đã có, chỉ cần khai), `joyce_edit_file` (A4), và luật "việc code giao engine CLI hoặc tab Code" trong prompt Joyce. Kết luận giữ nguyên bản 1: cùng một model, môi trường khác thì kết quả khác; não chính hiện tại của anh (Z.ai glm-4.7-flash, engine API) không hợp việc code.
 
-| Lớp | Lõi có sẵn (app và engine) | Phần chủ bổ sung |
-|---|---|---|
-| Model | 12 bộ não, đổi ở trang Models | Chọn não chính, đặt model riêng cho agent (50 trên 600 agent có đặt) |
-| Công cụ | Hub, 24 plugin đi kèm, tool lõi | Kết nối MCP, plugin riêng, skill nghiệp vụ |
-| Context | Nén hội thoại, Adaptive Runtime | CLAUDE.md của brain, MEMORY.md, wiki, dự án |
-| Vòng lặp | Vòng của engine, phanh lặp, trần 30 vòng | Workflow, loop, nhắc hẹn, việc Kanban |
-| Hướng dẫn | System prompt gốc (31 KB) | Agent trưởng phòng, skill, nội quy phòng |
-| Kiểm tra | Ba mức quyền, kiểm từng lời gọi | Hook (hiện 0 cái bật sẵn), agent giám định, duyệt chi |
+## 9. Lộ trình
 
-Cái thiếu của Joyce theo đúng ba nhóm của slide:
-- **Thiếu hướng dẫn và ngữ cảnh:** 54 trên 61 brain có bộ nhớ trống, CLAUDE.md của phòng chỉ là lược đồ vault chung, 490 trên 600 agent không gán skill nào.
-- **Thiếu công cụ:** engine API trong chat thường không có công cụ chạy lệnh, không sửa từng đoạn file, không có Task. Việc code chỉ đủ đồ nghề ở engine CLI.
-- **Thiếu kiểm tra:** vòng kiểm chứng có sẵn nhưng chỉ 5 workflow dùng (xem 3.14), chat không có bước kiểm cuối, không có bộ ca thử cho từng phòng, không có hook bảo vệ nào bật sẵn.
+Mỗi giai đoạn có tiêu chí xong đo được. Không giai đoạn nào cần thêm vòng nền theo lịch.
 
-Hệ quả cho cách làm việc: Joyce đổi model rất dễ (một cú bấm ở trang Models), nên dễ phản xạ "kết quả kém thì đổi não". Ghi nhận ở đây thứ tự chẩn đoán đề xuất khi một agent làm sai việc: (1) có đọc đúng ngữ cảnh chưa (brain chung, bộ nhớ, wiki)? (2) có đủ công cụ trong phạm vi quyền chưa? (3) có bước kiểm kết quả chưa? Chỉ khi cả ba đủ mà vẫn kém mới đổi model.
+**Giai đoạn 0: vá lõi rẻ (1 bản phát hành)**
+1. Tách khối tĩnh và động của system prompt (A3). Xong khi: cache Claude Code qua Joyce trên 90% trong một tuần.
+2. Plugin `joyce-guard` bật sẵn với ba luật đầu (A6). Xong khi: có test cho mỗi luật và số lần chặn hiện trên trang.
+3. Dọn kết quả tool cũ trong lượt và ghim dữ kiện Sổ Shop khi nén (A2). Xong khi: test lượt 30 vòng giữ payload dưới ngưỡng và test hỏi lại sau nén xanh.
 
-Lưu ý lời hứa "năng lực của Joyce không đổi theo model" trong CLAUDE.md đã nói đúng các ngoại lệ (chỉ engine CLI có shell, WebFetch, Task và nối lại phiên). Nhưng mục 5A cho thấy chênh lệch thực tế ở việc code còn lớn hơn lời hứa đó gợi ý.
+**Giai đoạn 1: gói harness cho 5 phòng pilot (2 đến 3 bản)**
+4. Trường phạm vi agent `kind, tools, mode, max_rounds, max_minutes, verify` (B9).
+5. `Joyce/noi-quy.md` có trần ký tự, ghép vào khối phòng (B2, B4).
+6. Script kiểm `kiem_so`, `kiem_luong`, `kiem_thue_do` và khai làm `post_check` cho việc của các phòng pilot (B7, B10).
+7. Chuẩn hóa thân prompt trưởng phòng pilot thành Cách làm và Điều nghề biết (B1), 2 đến 3 skill mỗi phòng (B6).
+8. Bộ ca thử `Joyce/evals/` cho mỗi trưởng phòng pilot, 3 đến 5 ca.
+Xong khi: mỗi phòng pilot có gói đầy đủ ở mục 2 và tỉ lệ qua kiểm được đo.
 
-## 6. Đề xuất lộ trình xây harness riêng cho Joyce
+**Giai đoạn 2: vòng C có Probe (1 đến 2 bản)**
+9. Chế độ chạy thử trong bản sao brain và sổ (A8).
+10. Tách người đề xuất INV và DOM, thêm bước Probe chạy ca thử, giữ giám định ẩn danh và luật áp của factory (C3).
+11. Thư viện `Joyce/kinh-nghiem/` (C4) và nhãn bác sĩ harness (C5).
+12. Ô "Sức khỏe harness" theo phòng (C6).
+Xong khi: một lượt cải tiến thật trên phòng pilot chạy đủ bảy bước và có ghi kinh nghiệm.
 
-Tất cả là ĐỀ XUẤT, chưa làm. Xếp từ rẻ và nhiều tác dụng đến lớn.
+**Giai đoạn 3: mở rộng và đóng gói**
+13. Gói harness cho các phòng còn lại theo thứ tự có việc thật.
+14. Chín agent dùng chung thành agent hệ thống, bỏ bản sao.
+15. Sổ sự kiện chỉ ghi thêm cho việc có tác dụng ra ngoài (A7); bật workflow đồ thị có checkpoint cho việc nền chạm tiền.
+16. Cổng xin phép tùy chọn theo loại thao tác (A5), bộ chuyển hook ngoài (A6), trần chi phí theo phòng (A8).
+17. Gom Tầng A thành "lõi harness Joyce" độc lập engine.
 
-**Giai đoạn A: vá lỗ hổng lớn nhất, ít đụng lõi**
-1. Mở rộng khuôn agent với các trường tùy chọn: `kind` (explore, execute, verify), `tools` (danh sách cho phép), `mode` (suggest, auto, full), `max_rounds`, `max_minutes`. Thiếu trường thì giữ hành vi cũ. Dùng đúng cơ chế khóa đã có ở workflow nền.
-2. Một plugin hệ thống `guard` bật sẵn với `pre_tool_call` chặn các việc đã biết nguy hiểm: ghi ra ngoài brain, xóa hàng loạt, gửi tin hàng loạt, chi tiền vượt hạn mức khi người gọi không phải chủ. Fail-closed cho nhóm này (tự bắt lỗi rồi trả `deny`).
-3. Tách system prompt thành khối tĩnh (có dấu cache) và khối động (giờ, ngôn ngữ, mức dùng) để lấy lại prefix caching ở đường API và đường Claude Code. Đo lại tỉ lệ cache trước và sau trên cùng bộ ca (mục tiêu: Claude Code qua Joyce từ 76% lên gần 95%).
-4. Dọn ngữ cảnh trong lượt: khi tổng ký tự công cụ vượt ngưỡng thì thay kết quả cũ (trừ 2 đến 3 kết quả mới nhất) bằng một dòng tóm tắt. Thêm xử lý "ngữ cảnh quá dài": nén rồi thử lại một lần.
+## 10. Chưa kiểm tra hoặc cần chủ quyết
 
-5. Cổng xin phép tùy chọn theo loại thao tác (gửi tin hàng loạt, ghi tiền, xóa, đăng bài), mặc định tắt: thao tác thuộc loại đã bật thì tạm dừng, nêu lý do và đối tượng bị tác động, chờ chủ bấm đồng ý. Dùng lại cơ chế `WAITING_USER` và mã xác nhận đã có sẵn.
-6. Bộ chuyển hook ngoài: cho khai báo hook là lệnh (JSON vào, exit code ra) trong một file cấu hình, để chủ gắn quy định công ty (kiểm toán, tuân thủ) mà không viết plugin.
+- Em chưa chạy bộ test đầy đủ. Nhận định dựa trên đọc code, đọc cấu hình thật và quét file brain. Em chưa chạy thật một lượt PPC hay một workflow có `verify_agent`.
+- Em chưa chạy demo của Harness² (`harness2-demo`); chỉ đọc mã nguồn và README. Số tăng điểm là số họ công bố.
+- Chưa soi harness của bot khách hàng (Zalo, Telegram, `chatbot_runtime.py`) và vòng lặp bên trong các engine CLI.
+- Số cache gom theo ngày từ `usage_index.db`; chưa thử thực nghiệm việc tách khối.
+- Cần chủ quyết:
+  1. Thứ tự giai đoạn 0 (đề xuất: A3 trước vì đo được và tiết kiệm tiền ngay).
+  2. Cổng xin phép tùy chọn, mặc định tắt: có đồng ý hướng này không.
+  3. Trần chi phí cho mỗi lượt cải tiến ở Tầng C.
+  4. Đổi tên `ke-toan-vien-dai-tu` và gom chín agent dùng chung thành agent hệ thống.
+  5. Tầng C hiện tự áp đề xuất rủi ro thấp (`self_improve: true`, `low_risk_auto: true` ở 61 brain). Có giữ như vậy khi bắt đầu có đề xuất thật không.
 
-**Giai đoạn B: làm cho phòng ban có ruột**
-7. Chuyển chín agent dùng chung thành agent hệ thống như skill hệ thống (một bản ở app, tự cập nhật), bỏ 549 bản sao. Cần cẩn thận vì `brains/` không có git.
-8. Thêm agent điều phối cho 14 brain khối.
-9. Mỗi phòng thêm 2 đến 3 skill nghiệp vụ thật kèm ví dụ vào ra và mục bẫy thường gặp, bắt đầu từ các phòng đang chạy việc thật (Sales, Thu, Chi, Đối soát, Nhân sự).
-10. Ghim mục không được nén (số tiền, mã hợp đồng, quyết định của chủ) vào tóm tắt, kèm test "hỏi lại sau nén".
+## 11. Mục lục kiểm tra Joyce Harness
 
-**Giai đoạn C: đo và đóng gói**
-11. Bộ ca thử cố định cho mỗi phòng (đầu vào, đầu ra mong đợi, mức quyền) để mỗi lần đổi prompt hay skill có số đo trước sau.
-12. Bật dần các đường đang ở 0%: workflow đồ thị có checkpoint cho việc nền, replan có kỷ luật quyền, ghi có xác nhận cho Sổ Shop.
-13. "Bác sĩ harness": khi một việc agent thất bại hoặc bị chủ sửa lại, tự gắn nhãn nguyên nhân gần nhất (thiếu ngữ cảnh, thiếu công cụ, thiếu kiểm tra, hay hết cách mới là do model) và hiện ở trang Việc, để chủ biết cần bổ sung gì trước khi đổi não. Dùng lại nhật ký hub và `task_events`, không thêm model nào.
-14. Thêm hai kiểu kiểm tra còn thiếu thành bước dùng chung: "kiểm bằng tính toán" (đối chiếu số trong Sổ Shop: thu trừ chi, lịch cọc khớp bảng giá, bảng lương khớp hoa hồng) và "kiểm bằng so kết quả" (báo giá in ra so với bảng giá). Gắn `verify_agent` vào các workflow chạm tiền và hợp đồng, bắt đầu từ ba phòng Thu, Chi, Đối soát.
-15. Bản sao thử cho agent: chế độ "chạy thử" tạo bản sao sổ và brain trong thư mục tạm, agent làm trên bản sao, người duyệt rồi mới áp sang bản thật. Làm được vì `JOYCE_STATE_DIR` và `BRAINS_DIR` đã tách; còn thiếu phần giao diện và bước áp.
-16. Gom thành "lõi harness Joyce" độc lập engine: một vòng lặp, một bộ ngữ cảnh, một sổ hook, một bảng quyền, mọi engine và mọi agent đi qua.
+Ký hiệu: **[Có]** chạy được và đang dùng, **[Có, chưa dùng]** có cơ chế nhưng chưa có dữ liệu hoặc chưa bật, **[Một phần]**, **[Chưa]**.
 
-## 7. Chưa kiểm tra được hoặc cần anh xác nhận
+**Tầng A: lõi chạy**
+- A1 Vòng lặp
+  - [Có] Trần 30 vòng, chỉnh bằng biến môi trường
+  - [Có] Phanh lặp `_LapGuard` (nhắc lần 3, dừng lần 5)
+  - [Có] Thử lại lỗi tạm thời có chờ
+  - [Có] Chat sống qua F5, gõ thêm giữa chừng
+  - [Có] Trần thời gian việc nền, chuỗi dự phòng engine
+  - [Chưa] Trần vòng và thời gian theo agent
+- A2 Ngữ cảnh
+  - [Có] Nén tóm tắt giữ 12 tin, nén đồng bộ khi đuôi dài
+  - [Có] Cắt kết quả tool có dòng báo
+  - [Có] Adaptive Runtime: capsule, nạp tool lười, bộ nhớ có nguồn, skill lười
+  - [Chưa] Dọn kết quả cũ trong lượt
+  - [Chưa] Ghim dữ kiện không được mất khi nén
+- A3 Lắp prompt và cache
+  - [Có] Xếp lớp tĩnh trước, động sau
+  - [Có] Đánh dấu cache Anthropic, đo tỉ lệ cache
+  - [Chưa] Tách khối tĩnh và động để cache trúng
+- A4 Hub công cụ
+  - [Có] Một cửa ba nguồn cho mọi engine
+  - [Có] Registry đủ tên, quyền, hàm, mô tả
+  - [Có] 24 plugin đi kèm
+  - [Một phần] Chạy lệnh có rào (chỉ ở tab Code)
+  - [Chưa] Sửa từng đoạn file cho engine API
+- A5 Quyền
+  - [Có] Ba mức quyền, kiểm từng lời gọi theo tham số
+  - [Có] Phạm vi nhân viên, bot khách, tool chỉ của chủ
+  - [Có] Duyệt chi vượt hạn mức (Sổ Shop)
+  - [Một phần] Duyệt ở Kanban (sau khi chạy)
+  - [Có, chưa dùng] Ghi có mã xác nhận (đường thích ứng 0%)
+  - [Chưa] Cổng xin phép chung theo loại thao tác
+- A6 Hook
+  - [Có] `pre_tool_call` chặn và sửa đầu vào, `post_tool_call` quan sát, biết người nói
+  - [Có] `chatbot_turn_context`
+  - [Chưa] Hook bảo vệ bật sẵn
+  - [Chưa] Hook bằng lệnh ngoài (JSON vào, mã thoát ra)
+- A7 Nhật ký và khôi phục
+  - [Có] Nhật ký kiểm toán hub chỉ ghi thêm (khoảng 10 MB)
+  - [Có] Kanban lease và reclaim, nhóm chat recover
+  - [Có] Bộ nhớ và phiên độc lập engine
+  - [Có, chưa dùng] Workflow đồ thị có checkpoint
+  - [Chưa] Sổ sự kiện chung chỉ ghi thêm cho việc ra ngoài
+- A8 Sandbox và tài nguyên
+  - [Có] Sandbox Codex, cổng từng lời gọi của Claude Code việc nền
+  - [Có] Thư mục ghim, chặn thoát thư mục, thư mục riêng nhân viên
+  - [Có] Lệnh không qua shell, môi trường lọc, chặn cứng
+  - [Có] Sổ cái token mỗi phút, học hạn mức, giới hạn tần suất
+  - [Chưa] Chạy thử trong bản sao brain và sổ
+  - [Chưa] Trần chi phí theo phòng
+- A9 Bộ nhớ lõi
+  - [Có] Chỉ mục, sự thật, nhật ký, bộ nhớ agent
+  - [Có] Xem, sửa, quên, tắt học
+  - [Có] Học chỉ đọc, code ghi, quét bí mật, chủ duyệt bài học
+  - [Chưa] Đẩy sự việc từng khách sang CRM thay vì bộ nhớ
 
-- Em chưa chạy bộ test đầy đủ để xác nhận từng tính năng ở trên còn xanh. Các nhận định dựa trên đọc code, đọc cấu hình thật và quét file brain.
-- Chưa soi phần engine CLI bên trong (vòng lặp của Claude Code, Codex, Grok, Antigravity do chính CLI quản lý).
-- Chưa tìm thấy xử lý lỗi "ngữ cảnh quá dài" trong `engine.py`. Có thể nằm ở `main.py` mà em chưa đọc hết (28.000 dòng).
-- Chưa soi harness của bot khách hàng (`chatbot_runtime.py`, `chatbot_reply_policy.py`) và của kênh Zalo, Telegram. Đây là harness riêng đáng một bản kiểm tra thứ hai.
-- Số liệu phòng ban là ảnh chụp lúc quét, sẽ lệch khi anh thêm agent và skill.
-- Số đo cache lấy từ bảng `file_daily` trong `usage_index.db`: nó gom theo ngày, nên "lượt" là cột `turns` cộng lại chứ không phải từng yêu cầu. Chưa kiểm tra thực nghiệm việc chuyển dấu cache sang khối tĩnh có tăng tỉ lệ trúng hay không.
-- Chưa xác minh vì sao Claude Code qua Joyce chỉ đạt 76% so với 98% khi chạy tay (nghi do system prompt đổi mỗi lượt, nhưng chưa thử).
-- Câu hỏi cho anh: các agent dùng chung (`ke-toan-vien-dai-tu` ở cả 61 brain) tên là "kế toán viên" nhưng thực chất là bước lập kế hoạch đại tu codebase. Anh muốn đổi tên cho đúng nghĩa khi dọn bản sao không.
+**Tầng B: bề mặt nghề**
+- [Có] B1 Thân prompt agent (600 file; 549 là bản sao)
+- [Chưa] B1 Chia Cách làm và Điều nghề biết
+- [Chưa] B2 Nội quy phòng có trần ký tự
+- [Có, chưa dùng] B3 Bộ nhớ phòng và agent (7 trên 61 brain có dữ liệu, 0 bài học agent)
+- [Chưa] B4 Hướng dẫn công cụ theo phòng
+- [Một phần] B5 Agent con (gọi được, chưa khai kiểu)
+- [Một phần] B6 Skill (6 hệ thống, khoảng 41 nghiệp vụ)
+- [Chưa] B7 Script kiểm tra cố định cho phòng
+- [Chưa] B8 Hook riêng phòng
+- [Chưa] B9 Phạm vi agent
+- [Một phần] B10 Cách kiểm theo loại việc (`verify_agent` ở 5 trên 239 workflow, luật Sổ Shop bằng code)
+- [Có, chưa dùng] B10 `post_check`, `watch_spec`, ca thử `Joyce/evals`
+
+**Tầng C: vòng cải tiến**
+- [Có, chưa dùng] C1 Đề xuất có bằng chứng (`ky-su-harness`, 2 đề xuất trên cả hệ thống)
+- [Chưa] C1 Tách INV và DOM
+- [Chưa] C2 Probe: chạy thử bản sửa trên ca thật
+- [Có, chưa dùng] C3 Chọn ẩn danh (`giam-dinh-harness`, `cham-diem-tuong-phan`)
+- [Có] C4 Áp an toàn: sao lưu, canary 24 giờ, tự lật lại
+- [Một phần] C5 Thư viện kinh nghiệm (có learn-log, chưa có dạng dấu hiệu, bài học, bằng chứng)
+- [Chưa] C5 Bác sĩ harness gắn nhãn nguyên nhân
+- [Có, chưa dùng] C6 Bảng điểm agent, tỉ lệ việc tự chạy
+- [Chưa] C6 Ô Sức khỏe harness theo phòng
+
+## Phụ lục: cấu hình thật trên máy (28/10/2026)
+
+`server/settings.json`, phần `context_runtime` (mức phân bổ, 10000 là 100%):
+
+| Đường | Mức |
+|---|---|
+| Chế độ chung | canary |
+| Fast path | 100% |
+| Conversation state (chỉ engine API) | 100% |
+| Memory có nguồn | 100% |
+| Lazy skill | 100% |
+| Đọc một bước, khám phá nhiều vòng, workflow đồ thị, agent replan, chọn model theo bước, ghi có xác nhận | 0% |
+
+`brains/*/Joyce/factory.json` (giống nhau ở 61 brain): `post_check.code` rỗng, `ci_max_rounds` 3, `watch_delay_min` 10, `watch_minutes` 120, `low_risk_auto` true, `discovery` true, `recipes` true, `self_improve` true, `canary_hours` 24.
 
 ## Nhật ký cập nhật
 
 | Ngày | Nội dung |
 |---|---|
-| 2026-10-28 | Bản đầu: chấm chín thành phần, quét 61 brain, đối chiếu cấu hình thật, đề xuất lộ trình |
-| 2026-10-28 | Slide cuối: thêm 3.14 (làm, kiểm tra, điều chỉnh; kiểm tra theo loại việc), 3.15 (sandbox, giới hạn dữ liệu và tài nguyên), 3.16 (CLAUDE.md và AGENTS.md, coding agent làm nền, công thức Agent = Model + Harness). SỬA nhận định cũ: workflow CÓ vòng kiểm chứng (`verify_agent`), chỉ 5 trên 239 workflow dùng; thêm hai bước lộ trình |
-| 2026-10-28 | Thêm mục 5B (lõi có sẵn cộng phần bổ sung, tìm cái thiếu trước khi đổi model) và bước lộ trình "Bác sĩ harness" |
-| 2026-10-28 | Thêm mục 5A ví dụ thực tế (sửa lỗi nút đăng nhập, so ba môi trường) và sửa nhận định ở 3.3 về công cụ code của engine API |
-| 2026-10-28 | Bổ sung theo các slide tiếp theo: nhật ký và khôi phục (3.10), prefix caching kèm số đo thật (3.11), lắp hướng dẫn nhiều tầng (3.12), xin phép con người (3.13), đối chiếu hook và quyền; thêm hai lỗ hổng và hai bước lộ trình |
+| 2026-10-28 | Bản 1: chấm chín thành phần theo bài giảng, quét 61 brain, đối chiếu cấu hình thật, đề xuất lộ trình; bổ sung nhật ký, prefix caching, lắp hướng dẫn, xin phép, ví dụ thực tế, sandbox, công thức Agent bằng Model cộng Harness |
+| 2026-10-28 | Bản 2: viết lại thành khung ba tầng (lõi chạy, bề mặt nghề, vòng cải tiến), mỗi thành phần có hiện trạng, nguyên tắc, lỗ hổng, giải pháp cho H2O, cách đo. Ghép phương pháp Harness² (tám thành phần, INV và DOM, Propose Probe Compose, thư viện kinh nghiệm, ngân sách, luật chọn thành phần rẻ nhất). Sửa nhận định sai của bản 1: `server/factory.py` đã có CI babysit, watch, tự áp có canary và lật lại, bảng điểm agent, ca thử bản nháp; nhưng `post_check` rỗng ở 61 brain và chỉ có 1 bộ ca thử, 2 đề xuất. Thêm mục lục kiểm tra (mục 11) |
