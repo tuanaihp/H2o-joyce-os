@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.39] - 2026-10-28
+### Changed
+- (in progress) One source for the 9 shared assistants, permission boundary fixes from the Joyce Harness standard, the harness standard on the Diagram tab.
+
 ## [1.3.38] - 2026-10-27
 ### Added
 - **New tab "Price list & commission".** A price list of 46 service packages with the first deposit, second deposit and final payment schedule, plus the job list per department (Makeup, Photo, Photoshop, Dress consulting...) with a fixed commission per job. Both are preloaded from the H2O sheet and editable on screen.

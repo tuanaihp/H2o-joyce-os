@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.39] - 2026-10-28
+### Đổi
+- (đang làm) Gom 9 trợ lý dùng chung về một bản gốc, vá ranh giới quyền theo chuẩn Joyce Harness, đưa chuẩn harness lên tab Sơ đồ.
+
 ## [1.3.38] - 2026-10-27
 ### Thêm
 - **Tab mới "Bảng giá & hoa hồng".** Bảng giá 46 gói dịch vụ kèm lịch cọc lần 1, lần 2 và thanh toán cuối; bảng đầu việc theo phòng (Makeup, Chụp ảnh, Photoshop, Tư vấn váy...) kèm hoa hồng cố định mỗi việc. Cả hai nạp sẵn từ sheet của H2O, sửa được ngay trên màn hình.
