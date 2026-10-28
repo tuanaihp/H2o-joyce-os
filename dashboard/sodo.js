@@ -387,9 +387,13 @@
         ${thieu.length ? `<div class="sd-dp-m">${esc(t("sodo.dp.missing"))}: ${esc(thieu.join("; "))}</div>` : ""}
         <div class="sd-dp-tg">${tg}</div><div class="sd-dp-act">${nutNguon}${ack}${nhan}</div></div>`;
     }).join("");
+    const cham = (dp.luot_can_cham || []).slice(0, 6).map(r => `<div class="sd-dp-r"><div class="sd-dp-h"><b>${esc(r.agent)}</b><span class="sd-dp-m">${esc(r.brain)} · ${esc(r.cua)} · ${esc(r.ban)}</span></div>
+        <div class="sd-dp-act"><button type="button" class="sd-dp-b" data-dp="cham" data-run="${esc(r.run_id)}" data-kq="pass">${esc(t("sodo.dp.grade.pass"))}</button>
+        <button type="button" class="sd-dp-b" data-dp="cham" data-run="${esc(r.run_id)}" data-kq="fail">${esc(t("sodo.dp.grade.fail"))}</button></div></div>`).join("");
+    const khungCham = cham ? `<div class="sd-dp-m" style="margin-top:10px"><b>${esc(t("sodo.dp.grade.title"))}</b> ${esc(t("sodo.dp.grade.sub"))}</div><div class="sd-dp-list">${cham}</div>` : "";
     return `<section class="sd-fac sd-dp"><div class="sd-fac-h"><span class="sd-t">${esc(t("sodo.dp.title"))}</span><span class="sd-sub">${esc(t("sodo.dp.sub"))}</span>
         <button type="button" class="sd-dp-b" style="margin-left:auto" data-dp="pause" data-on="${dp.tam_dung ? "0" : "1"}">${esc(t(dp.tam_dung ? "sodo.dp.btn.resume" : "sodo.dp.btn.pause"))}</button></div>
-      ${banner}<div class="sd-dp-list">${rows || `<div class="sd-empty">${esc(t("sodo.dp.none"))}</div>`}</div>
+      ${banner}<div class="sd-dp-list">${rows || `<div class="sd-empty">${esc(t("sodo.dp.none"))}</div>`}</div>${khungCham}
       <pre class="sd-dp-out" id="sdDpOut" hidden></pre></section>`;
   }
 
@@ -400,6 +404,16 @@
       const r = await fetch(`/work/factory/diff?canary_id=${encodeURIComponent(d.c)}&target_id=${encodeURIComponent(d.t)}`);
       let j = {}; try { j = await r.json(); } catch (e) {}
       return noi(r.ok ? (j.diff || t("sodo.dp.diff_same")) : (j.error || t("sodo.dp.err")), !r.ok);
+    }
+    if (d.dp === "cham") {
+      const lyc = window.prompt(t("sodo.dp.grade.reason"), "") || "";
+      if (!lyc.trim()) return "";
+      const rg = await fetch("/work/factory/grade", { method: "POST", body: new URLSearchParams({ run_id: d.run || "", result: d.kq || "", reason: lyc }) });
+      let jg = {}; try { jg = await rg.json(); } catch (e) {}
+      const mg = rg.ok ? t("sodo.dp.done") : (jg.error || t("sodo.dp.err"));
+      noi(mg, !rg.ok);
+      if (rg.ok && ui.el) setTimeout(() => render(ui.el, true), 400);
+      return mg;
     }
     if (d.dp === "restore" && !window.confirm(t("sodo.dp.confirm_restore"))) return "";
     if (d.dp === "promote" && !window.confirm(t("sodo.dp.confirm_promote"))) return "";

@@ -130,6 +130,20 @@ async function main() {
   const kb = [...tho.matchAll(/"(sodo\.dp\.[a-z_.]+)"/g)].map((m) => m[1]);
   check("các khoá nhãn trạng thái trong bảng tra đều có đủ vi và en", kb.length >= 15 && kb.every((k) => k in VI && k in EN), kb.filter((k) => !(k in VI && k in EN)).join(","));
 
+  // ---- chấm lượt chạy (B02)
+  const hc = J._dpSection(FC([], { luot_can_cham: [{ run_id: "r1", brain: "B", agent: "tro-ly-a", cua: "task", ref: "x", luc: 1, ban: "abcd1234" }] }));
+  check("có lượt chờ chấm: hiện tiêu đề, tên trợ lý và hai nút Đạt/Rớt mang run_id", hc.includes(VI["sodo.dp.grade.title"]) && hc.includes("tro-ly-a")
+        && /data-dp="cham" data-run="r1" data-kq="pass"/.test(hc) && /data-dp="cham" data-run="r1" data-kq="fail"/.test(hc));
+  check("không có lượt chờ chấm: không vẽ khối chấm", !J._dpSection(FC([])).includes(VI["sodo.dp.grade.title"]));
+  const gc = ctxFor();
+  await gc.J._dpAct({ dp: "cham", run: "r1", kq: "fail" });
+  const pg = gc.goi.filter(x => x.method === "POST");
+  check("bấm Rớt gọi /work/factory/grade với run_id, kết quả và lý do; không gửi đường dẫn",
+        pg.length === 1 && pg[0].u === "/work/factory/grade" && pg[0].body.run_id === "r1" && pg[0].body.result === "fail" && pg[0].body.reason === "lý do thử");
+  const gk = ctxFor({ lyDo: "" });
+  await gk.J._dpAct({ dp: "cham", run: "r1", kq: "pass" });
+  check("không nhập lý do thì không gửi gì", gk.goi.filter(x => x.method === "POST").length === 0);
+
   if (fails.length) { console.log("\nĐỎ " + fails.length + " mục"); process.exit(1); }
   console.log("\nTất cả xanh.");
 }
