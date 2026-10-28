@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.40] - 2026-10-28
+### Thêm
+- (đang làm) Hộp thư Messenger ngay trong tab Fanpage: xem hội thoại khách, soạn trả lời, Joyce soạn nháp chờ anh bấm gửi.
+
 ## [1.3.39] - 2026-10-28
 ### Thêm
 - **Trang Sơ đồ có khối Joyce Harness.** Ba tầng (lõi chạy, bề mặt phòng ban, vòng cải tiến), 14 thành phần, mỗi cái một đèn theo số thật; thứ chưa làm hiện xám và nói thẳng là chưa làm.

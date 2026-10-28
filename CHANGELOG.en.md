@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.40] - 2026-10-28
+### Added
+- (in progress) A Messenger inbox right inside the Fanpage tab: read customer conversations, write replies, Joyce drafts and waits for you to press send.
+
 ## [1.3.39] - 2026-10-28
 ### Added
 - **Joyce Harness on the Diagram page.** Three tiers (runtime core, department surface, improvement loop), 14 components, each with a light driven by live numbers; anything not built yet shows grey and says so.
