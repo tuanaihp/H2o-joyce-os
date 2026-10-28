@@ -28994,3 +28994,13 @@ if __name__ == "__main__":
     host = os.getenv("JOYCE_HOST", "127.0.0.1")
     port = int(os.getenv("JOYCE_PORT", "7777"))
     uvicorn.run("main:app", host=host, port=port, reload=False, ws_per_message_deflate=ws_compat.wanted())
+
+
+# Sổ lượt chạy (B01, 1.3.43): lượt còn `running` từ trước lúc khởi động là lượt mà tiến trình cũ chết khi đang chạy. Chuyển sang
+# `interrupted`, KHÔNG tính đạt hay rớt. Lỗi sổ chỉ ra stderr, không chặn khởi động.
+@app.on_event("startup")
+async def _so_luot_chay_don_mo_coi():
+    import run_ledger
+    n = run_ledger.ghi_an_toan(run_ledger.don_mo_coi, time.time())
+    if n:
+        print(f"[run_ledger] {n} lượt chạy dở từ lần trước được đánh dấu interrupted", file=sys.stderr)
