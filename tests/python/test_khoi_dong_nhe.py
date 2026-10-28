@@ -49,12 +49,15 @@ NANG_PHAI_LUOI = {
     # 0.59.18: jsonschema ~50ms, chỉ hai hàm của capability_executor và một hàm của
     # readonly_orchestrator dùng, và cả ba chỉ chạy khi thật sự cấp/kiểm một capability lease.
     "jsonschema": "kiểm schema capability lease - ~50ms, chỉ dùng khi có lease",
+    # 1.3.42 (A07.1): cryptography ~36ms, chỉ webpush.py nạp ở mức module; config và secrets_store đã nạp lười từ trước.
+    "cryptography": "Web Push - ~36ms, chỉ dùng khi gửi hoặc đăng ký thông báo đẩy",
 }
 
 # File nào phải KHÔNG có lệnh import thư viện đó ở cột 0. Mặc định là main.py; thư viện nào
 # từng nằm ở file khác thì ghi rõ file ấy, kẻo hàng rào canh sai chỗ.
 NOI_CAM_IMPORT = {
     "jsonschema": ("capability_executor.py", "readonly_orchestrator.py"),
+    "cryptography": ("webpush.py", "secrets_store.py", "config.py"),
 }
 
 import main  # noqa: E402,F401
