@@ -66,3 +66,17 @@ Chạy trong worktree sạch, `python tests/run.py` bằng `.venv\Scripts\python
 - Chưa chạy trên Linux và macOS. Khóa liên tiến trình có hai nhánh (`msvcrt`, `fcntl`); nhánh `fcntl` chưa được chạy thật ở đâu cả.
 - Chưa chạy luồng tự cải tiến trên brain thật, chỉ sandbox.
 
+## Kết quả cuối gói B và G2 (1.3.43)
+
+Cùng cách chạy như trên (worktree sạch, `python tests/run.py`, Windows 10, Python 3.14.6).
+
+| Log | Commit | Kết quả | Exit code | Thời gian |
+|---|---|---|---|---|
+| `full-suite-a1d591d-1.3.43-lan1-co-2-loi.txt` | `a1d591d` | 883/914 | 1 | 1796 giây |
+| `full-suite-ff1865d-1.3.43-goi-B-G2.txt` | `ff1865d` | **886/914** | 1 | 1856 giây |
+
+- **Lần 1 lộ hai test đỏ mới do chính mã gói B, đã sửa:** `test_factory` (canary nay đọc bằng chứng từ sổ lượt chạy, và trần 2 lần mỗi tuần cản các đề xuất liên tiếp trong test) và `test_fastyaml` (mã mới gọi `yaml.safe_load` trần trái quy ước của repo). Còn phát hiện test làm bẩn sổ thật: một số test ghi lượt chạy giả vào `server/run_ledger.sqlite3`, làm `test_factory` chập chờn khi chạy song song (2 trong 8 lượt đỏ); nay sổ của test luôn nằm trong thư mục tạm (`JOYCE_RUN_LEDGER_DIR`, đặt ở `tests/python/_paths.py`) và 8 lượt song song đều xanh.
+- **Lần 2:** 28 mục đỏ, **không mục nào mới** so với 1.3.41 (29 mục). 28 mục này giống hệt các lần trước.
+- **`test_khoi_dong_nhe` xanh ở lần này nhưng vẫn dao động quanh trần 5,0** (đo riêng 4,22 đến 5,17 giữa các lần). Gate p95 của A07.1 vẫn CHƯA đạt; không coi một lần xanh là đã đạt.
+- Không khai suite xanh: 886/914 không phải xanh toàn bộ. Khoảng hở độ phủ (symlink file, Linux, macOS, brain thật) vẫn như mục trước.
+
