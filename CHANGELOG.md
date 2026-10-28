@@ -4,10 +4,10 @@
 
 ## [1.3.43] - 2026-10-28
 ### Thêm
-- **Joyce ghi lại mọi lượt trợ lý chạy thật** (bot trả lời khách, việc giao cho trợ lý, bước workflow), kèm đúng bản cấu hình đã dùng. Retry của một việc chỉ tính một lần; máy tắt giữa chừng thì ghi là gián đoạn, không tính đạt.
-- **Canary chỉ nhân khi đủ 20 lượt được anh chấm đạt.** Hoàn tất chưa phải đạt. Trên trang Sơ đồ có khung "Lượt chờ anh chấm" với nút Đạt và Rớt; một lượt rớt là lật lại ngay.
-- **Sơ đồ thêm 4 đèn:** Cổng 7 ngày, Bộ ghi file, Lượt chạy thật, Chứng nhận đường ghi. Đường ghi nào chưa được chứng nhận thì nói thẳng là chưa.
-- Nói thẳng: chưa có đường ghi nào đạt chứng nhận, và chat trực tiếp với Joyce chưa vào sổ lượt chạy.
+- **Joyce ghi lại mọi lượt trợ lý chạy thật** (bot trả lời khách, việc giao cho trợ lý, bước workflow) kèm đúng bản cấu hình đã dùng. Retry chỉ tính một lần; máy tắt giữa chừng ghi là gián đoạn, không tính đạt.
+- **Canary chỉ nhân khi đủ 20 lượt anh chấm đạt.** Hoàn tất chưa phải đạt. Trang Sơ đồ có khung "Lượt chờ anh chấm" với nút Đạt và Rớt; một lượt rớt là lật lại ngay.
+- **Trợ lý đã khai quyền thì bị chặn ghi file nếu thiếu quyền ghi, và mỗi file tự cải tiến tối đa 2 lần mỗi tuần** (lần thứ ba chờ anh duyệt).
+- **Sơ đồ thêm 5 đèn:** Cổng 7 ngày, Bộ ghi file, Lượt chạy thật, Bản đang chạy, Chứng nhận đường ghi. Nói thẳng: chưa đường ghi nào đạt chứng nhận, và chat trực tiếp với Joyce chưa vào sổ lượt chạy.
 
 ## [1.3.42] - 2026-10-28
 ### Sửa

@@ -4,10 +4,10 @@
 
 ## [1.3.43] - 2026-10-28
 ### Added
-- **Joyce now records every real assistant run** (bot replies to customers, tasks given to an assistant, workflow steps) with the exact configuration used. A retried job counts once; if the machine stops mid-run it is recorded as interrupted, never as a pass.
+- **Joyce now records every real assistant run** (bot replies to customers, tasks given to an assistant, workflow steps) with the exact configuration used. A retry counts once; if the machine stops mid-run it is recorded as interrupted, never as a pass.
 - **A canary only spreads after 20 runs you graded as passing.** Finished is not passed. The Map page has a "Runs waiting for your grade" panel with Pass and Fail buttons; a single fail rolls it back at once.
-- **The Map gets 4 more lights:** Gate (7 days), File writer, Real runs, Write-path certification. A write path that is not certified is plainly marked as such.
-- Plainly: no write path is certified yet, and direct chat with Joyce itself is not in the run log yet.
+- **An assistant that declared its permissions is blocked from writing files if it lacks write permission, and each file self-improves at most 2 times a week** (the third waits for you).
+- **The Map gets 5 more lights:** Gate (7 days), File writer, Real runs, Running version, Write-path certification. Plainly: no write path is certified yet, and direct chat with Joyce itself is not in the run log yet.
 
 ## [1.3.42] - 2026-10-28
 ### Fixed
