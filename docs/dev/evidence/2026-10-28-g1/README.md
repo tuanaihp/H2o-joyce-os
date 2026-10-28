@@ -45,3 +45,24 @@ So với baseline suite 1.3.38 (28 mục đỏ): **chỉ `test_khoi_dong_nhe` l�
 
 - Không có CI Linux hay macOS trong phạm vi lượt này; mọi kết quả là Windows.
 - Không đọc, sửa hay quét kho Kanban production trong A00. Con số `0/160` việc có khóa agent là kết quả quét chỉ-đọc của lượt trước, ghi ở master plan mục 3.4, không phải bất biến.
+
+## Kết quả cuối gói A (1.3.42)
+
+Chạy trong worktree sạch, `python tests/run.py` bằng `.venv\Scripts\python.exe`, Windows 10, Python 3.14.6, `PYTHONIOENCODING=utf-8 PYTHONUTF8=1`.
+
+| Log | Commit | Kết quả | Exit code | Thời gian |
+|---|---|---|---|---|
+| `full-suite-fdf44cd-1.3.42-lan1-co-2-loi.txt` | `fdf44cd` | 873/904 | 1 | 1774 giây |
+| `full-suite-4062d3f-1.3.42-goi-A.txt` | `4062d3f` | **876/904** | 1 | 1761 giây |
+
+- **Lần 1 lộ hai việc cần sửa, đã sửa trước lần 2:** `test_a03` đòi hơn 100 file mẫu từ `brains/` (không nằm trong git, nên worktree sạch chỉ có 10 file); và một lỗi THẬT của bộ khóa: `deploy_writer.khoa()` ném `PermissionError` khi hai tiến trình cùng tạo file khóa lần đầu (tái hiện 1/10 lần khi chạy 10 tiến trình song song, 0/20 sau khi sửa; test tái hiện đỏ trên mã cũ, xanh trên mã mới).
+- **Lần 2:** 28 mục đỏ, **không mục nào mới** so với 1.3.41 (29 mục). `test_khoi_dong_nhe` hết đỏ (tỉ lệ 4,30 đến 4,75 theo phép đo thô của chính test; gate p95 của plan vẫn chưa đạt, xem `44-khoi-dong-ket-luan.md`). `test_resonance_perf` xanh ở lần này, nhưng từng đỏ ở log 1.3.40 nên vẫn là test có biến động.
+- **28 mục đỏ còn lại giống hệt 1.3.41 và 1.3.38**, nên không do gói A. Đã kiểm lại riêng hai mục plan nêu tên ở đúng mã gốc 1.3.39 (`332ff4c`): `test_icons` đỏ vì 43 emoji còn trong giao diện và 109 tên icon chưa có trong vendor; `test_nhat_ky_song_ngu` đỏ vì một mục tiếng Anh cũ lẫn chữ Việt. Cả hai đỏ ở mã gốc. Nguyên nhân của các mục còn lại **chưa được điều tra**, nên vẫn không gọi là "lỗi môi trường".
+- **Không khai suite xanh:** 876/904 không phải xanh toàn bộ.
+
+## Khoảng hở độ phủ còn lại sau gói A
+
+- Ca symlink FILE (lá và tráo symlink file) bị bỏ qua trên máy Windows này vì thiếu quyền tạo symlink; chỉ junction chạy thật.
+- Chưa chạy trên Linux và macOS. Khóa liên tiến trình có hai nhánh (`msvcrt`, `fcntl`); nhánh `fcntl` chưa được chạy thật ở đâu cả.
+- Chưa chạy luồng tự cải tiến trên brain thật, chỉ sandbox.
+
