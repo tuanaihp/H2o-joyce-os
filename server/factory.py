@@ -954,17 +954,26 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
             f"🐤 **Tự cải tiến**: proposal `{fp.stem}` sửa `{rel}` dùng chung {len(chung) + 1} brain, mà chưa có dữ liệu chạy thật "
             f"để canary kiểm chứng. Không tự áp, không tự nhân - chờ anh xem.", f"telemetry:{fp.stem}")
 
-    # Perf harness: bộ eval deterministic (nếu chủ đã khai cho file này) chạy lên
-    # bản nháp TRƯỚC khi áp. Case FAIL → không tự áp, đánh dấu eval_failed để chủ
-    # thấy đề xuất đã qua đường chứng mà vấp ở đâu.
-    # FIX-02 (1.3.41): bộ eval HỎNG hoặc thiếu khi chủ đặt bắt buộc cũng CHẶN, không được hiểu là "không có eval".
-    ev = eval_for_draft(root, rel, draft, bat_buoc=bool(cfg.get("eval_bat_buoc")))
+    # Perf harness: bộ eval deterministic (nếu chủ đã khai cho file này) chạy lên bản nháp TRƯỚC khi áp.
+    # FIX-02 (1.3.41): bộ eval HỎNG, hoặc thiếu khi chủ đặt bắt buộc, cũng CHẶN, không được hiểu là "không có eval".
+    # A04 (1.3.42): lỗi khi CHẠY evaluator cũng là chặn (trước đây một exception ở đây làm cả lượt quét báo lỗi và đề xuất kẹt
+    # pending không ai biết). Mọi kết quả gắn băm bản nháp và băm file eval để kết quả cũ không dùng cho bản khác.
+    written = draft if draft.endswith("\n") else draft + "\n"
+    try:
+        ev = eval_for_draft(root, rel, draft, bat_buoc=bool(cfg.get("eval_bat_buoc") is True))
+    except Exception as e:  # noqa: BLE001
+        ev = {"status": "invalid", "ket_qua": "invalid", "loai": "chuoi", "eval_revision": "", "total": 0, "passed": 0, "read": 0,
+              "fails": [], "errors": [f"lỗi khi chạy evaluator: {type(e).__name__}"]}
+    dau_eval = {}
+    if ev:
+        dau_eval = {"eval_candidate_hash": _sha256(written), "eval_revision": ev.get("eval_revision") or "",
+                    "eval_loai": ev.get("loai") or "chuoi", "eval_hanh_vi": "chua_co"}
     if ev and ev.get("status") != "valid":
         try:
             ly_do = "; ".join(ev.get("errors") or [])[:170]
             fp.write_text(_fm_patch(text, {
                 "status": "eval_failed",
-                "eval": (f"bộ eval không dùng được ({ev['status']}): " + ly_do)[:180],
+                "eval": (f"bộ eval không dùng được ({ev['ket_qua']}): " + ly_do)[:180], **dau_eval,
             }), encoding="utf-8")
             await deps.inbox(
                 f"🧪 **Perf harness**: proposal `{fp.stem}` không tự áp vì bộ eval của `{rel}` không dùng được "
@@ -979,7 +988,7 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
             fp.write_text(_fm_patch(text, {
                 "status": "eval_failed",
                 "eval": f"{ev['passed']}/{ev['total']} đạt; rớt: "
-                        + ", ".join(ev["fails"][:5])[:180],
+                        + ", ".join(ev["fails"][:5])[:180], **dau_eval,
             }), encoding="utf-8")
             await deps.inbox(
                 f"🧪 **Perf harness**: proposal `{fp.stem}` WIN+low nhưng bản nháp rớt "
@@ -996,7 +1005,6 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
     bpath = backup_dir / f"{target.stem}-{int(time.time())}.bak"
     bpath.write_text(original, encoding="utf-8")
 
-    written = draft if draft.endswith("\n") else draft + "\n"
     if deps.atomic_write_text:
         deps.atomic_write_text(target, written)
     else:
@@ -1044,7 +1052,7 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
     fp.write_text(_fm_patch(text, dict({
         "status": "applied", "applied_by": "factory",
         "applied_mode": mode, "applied_at": time.strftime("%Y-%m-%d %H:%M"),
-    }, **({"eval": f"{ev['passed']}/{ev['total']} đạt"} if ev else {}))),
+    }, **({"eval": f"{ev['passed']}/{ev['total']} đạt", **dau_eval} if ev else {}))),
         encoding="utf-8")
     try:
         if mode == "canary":
@@ -1188,7 +1196,7 @@ def eval_load(root: str, slug: str) -> dict:
         status "valid"    `cases` dùng được, `read` = số ca đọc
 
     Không bỏ ca nào âm thầm: MỘT ca sai là cả bộ invalid. Không tự sửa đáp án để cho qua."""
-    out = {"status": "missing", "cases": [], "read": 0, "errors": []}
+    out = {"status": "missing", "cases": [], "read": 0, "errors": [], "revision": ""}
     p = Path(root) / "Joyce" / "evals" / f"{slug}.json"
     try:
         if not p.is_file():
@@ -1197,7 +1205,9 @@ def eval_load(root: str, slug: str) -> dict:
         if p.stat().st_size > EVAL_MAX_BYTES:
             out["errors"].append(f"file eval lớn hơn {EVAL_MAX_BYTES // 1024}KB")
             return out
-        data = json.loads(p.read_text(encoding="utf-8"))
+        raw = p.read_text(encoding="utf-8")
+        out["revision"] = _sha256(raw)       # phiên bản của CHÍNH file eval: sửa nó thì kết quả chấm cũ hết hợp lệ
+        data = json.loads(raw)
     except Exception as e:  # noqa: BLE001
         out["status"] = "invalid"
         out["errors"].append(f"không đọc được file eval: {type(e).__name__}")
@@ -1280,25 +1290,58 @@ def _eval_run(cases: list, text: str) -> list:
 def eval_for_draft(root: str, rel: str, draft: str, bat_buoc: bool = False) -> Optional[dict]:
     """Chạy bộ eval của file mục tiêu lên bản nháp.
 
-    None = không khai eval và không bắt buộc (không có gì để kiểm). Còn lại luôn là dict có `status`:
-    "valid" (có `total`, `fails`, `passed`, `read`), "invalid" (`errors`, bộ hỏng), "missing_required"
-    (chủ đặt `eval_bat_buoc` mà không có file). Hai trạng thái sau KHÔNG phải "đạt": người gọi phải chặn.
+    None = không khai eval và không bắt buộc (không có gì để kiểm). Còn lại luôn là dict có `ket_qua` thuộc bốn trạng thái của
+    A04 cộng một biến thể: `valid_pass`, `valid_fail`, `invalid` (bộ hỏng, có `errors`), `missing_required` (chủ đặt
+    `eval_bat_buoc` mà không có file). `status` giữ nguyên nghĩa cũ ("valid" | "invalid" | "missing_required") cho chỗ gọi cũ.
+    `invalid` và `missing_required` KHÔNG phải "đạt": người gọi phải chặn. `eval_revision` là SHA-256 của file eval.
 
     Case không kiểm được (loại check lạ, lỗi khi chạy) tính là RỚT kèm nhãn "không kiểm được"
-    (1.3.39, Joyce Harness B-10): "không thấy lỗi" không phải "đạt"."""
+    (1.3.39, Joyce Harness B-10): "không thấy lỗi" không phải "đạt".
+
+    Đây là eval CHUỖI (kiểm tĩnh trên chữ của bản nháp). Nó KHÔNG phải bằng chứng hành vi: `loai = "chuoi"`."""
     ld = eval_load(root, Path(rel).stem)
+    base = {"loai": "chuoi", "eval_revision": ld.get("revision") or ""}
     if ld["status"] == "missing":
         if not bat_buoc:
             return None
-        return {"status": "missing_required", "total": 0, "passed": 0, "read": 0, "fails": [],
+        return {**base, "status": "missing_required", "ket_qua": "missing_required", "total": 0, "passed": 0, "read": 0, "fails": [],
                 "errors": ["chủ đặt eval bắt buộc cho brain này mà file này chưa có bộ eval"]}
     if ld["status"] == "invalid":
-        return {"status": "invalid", "total": 0, "passed": 0, "read": ld["read"], "fails": [], "errors": ld["errors"]}
+        return {**base, "status": "invalid", "ket_qua": "invalid", "total": 0, "passed": 0, "read": ld["read"], "fails": [],
+                "errors": ld["errors"]}
     res = _eval_run(ld["cases"], draft)
     fails = [r["name"] for r in res if r["ok"] is False]
     fails += [f"{r['name']} (không kiểm được)" for r in res if r["ok"] is None]
-    return {"status": "valid", "total": len(res), "fails": fails, "passed": len(res) - len(fails),
-            "read": ld["read"], "errors": []}
+    return {**base, "status": "valid", "ket_qua": "valid_fail" if fails else "valid_pass", "total": len(res), "fails": fails,
+            "passed": len(res) - len(fails), "read": ld["read"], "errors": []}
+
+
+def chinh_sach_eval(cfg: Optional[dict]) -> dict:
+    """Chính sách eval HIỆU LỰC của một brain, để giao diện và API nói đúng điều đang chạy (A04).
+
+    D4 nhẹ của chủ (28/10/2026): luôn chặn `invalid` và `valid_fail`; `missing` chỉ chặn khi chủ bật `eval_bat_buoc`. Giá trị lạ
+    của `eval_bat_buoc` KHÔNG làm mở cổng: chỉ đúng `True` mới coi là bắt buộc, còn lại về mặc định (không bắt buộc)."""
+    bat = (cfg or {}).get("eval_bat_buoc") is True
+    return {
+        "chan_invalid": True, "chan_fail": True, "chan_missing": bat, "eval_bat_buoc": bat,
+        # D3: thay đổi hành vi và quyền chờ chủ ở gói A DÙ eval đạt, nên eval chỉ quyết định ở nhánh hiển thị thuần.
+        "hanh_vi_van_cho_chu": True, "loai_eval": "chuoi",
+        "ghi_chu": ("Bộ eval hiện là eval CHUỖI (kiểm tĩnh chữ của bản nháp), chưa phải eval hành vi. Đạt eval chuỗi không đủ để tự áp "
+                    "thay đổi hành vi: loại thay đổi đó luôn chờ chủ ở gói A. "
+                    + ("Thiếu bộ eval cũng chặn tự áp." if bat else "Thiếu bộ eval không bị chặn riêng vì lý do này.")),
+    }
+
+
+def eval_ket_qua_hop_le(fm: Optional[dict], candidate_hash: str, eval_revision: str) -> bool:
+    """Kết quả eval đã ghi trên đề xuất còn dùng được cho BẢN NHÁP này và PHIÊN BẢN eval này không (A04).
+
+    Dùng ở mọi đường cần "đã qua eval": kết quả cũ không được áp cho bản nháp khác, và sửa file eval sau lúc chấm thì phải chấm lại.
+    Thiếu dấu băm thì không hợp lệ (không suy đoán)."""
+    fm = fm or {}
+    ch, er = str(fm.get("eval_candidate_hash") or ""), str(fm.get("eval_revision") or "")
+    if len(ch) != 64 or len(er) != 64:
+        return False
+    return ch == candidate_hash and er == eval_revision
 
 
 # ── Số liệu sống cho tab Sơ đồ ──────────────────────────────────────────────
