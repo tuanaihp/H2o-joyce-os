@@ -339,7 +339,21 @@ Số liệu quét 61 brain ngày 28/10/2026, chỉ đọc:
 | `post_check` trong `Joyce/factory.json` | rỗng ở 61 trên 61 |
 | Bộ ca thử `Joyce/evals/*.json` | 1 trên cả hệ thống |
 
-Chín agent dùng chung: năm giám định (`giam-dinh-bao-mat`, `-du-lieu`, `-noi-dung`, `-ux`, `-harness`), `ky-su-harness`, `giam-sat-dai-tu`, `ke-toan-vien-dai-tu`, `tro-ly-onboarding`. Đây là bộ máy của Tầng C và việc đại tu code, không phải việc của phòng nghiệp vụ. `ke-toan-vien-dai-tu` có tên dễ nhầm với Phòng Kế Toán.
+Chín agent dùng chung, có mặt y hệt ở cả 61 brain (cùng nội dung, không do app quản lý: `.joyce/system-manifest.json` của brain chỉ quản skill hệ thống, không quản các agent này, nên sửa một bản không cập nhật 60 bản kia):
+
+| Slug | Tên | Làm gì | Thuộc nhóm | Dùng ở workflow |
+|---|---|---|---|---|
+| `ky-su-harness` | Kỹ sư Cải tiến Agent | Đề xuất sửa prompt, skill, agent từ bằng chứng thật (Propose) | Tầng C | `tu-cai-tien-agent` |
+| `giam-dinh-harness` | Giám định Tương phản | Chấm ẩn danh bản đề xuất với bản gốc, quyết thắng, giữ, chưa rõ (Compose) | Tầng C | `tu-cai-tien-agent` |
+| `giam-dinh-bao-mat` | Giám định Bảo mật | Soát lộ khóa, nâng quyền, chèn lệnh, lộ dữ liệu trong một đề xuất | Tầng C, lưới review | `review-da-mien` |
+| `giam-dinh-du-lieu` | Giám định Dữ liệu | Soát tương thích ngược, định dạng lưu, đổi nghĩa trường | Tầng C, lưới review | `review-da-mien` |
+| `giam-dinh-noi-dung` | Giám định Nội dung | Soát giọng thương hiệu, đúng chủ đề, ngôn ngữ, không bịa | Tầng C, lưới review; dùng được làm `verify_agent` cho nội dung marketing | `review-da-mien` |
+| `giam-dinh-ux` | Giám định Trải nghiệm | Soát luồng người dùng, thông báo, độ rõ, chống spam | Tầng C, lưới review | `review-da-mien` |
+| `ke-toan-vien-dai-tu` | Kế toán viên Đại-tu | Khảo sát code, lập kế hoạch chia một cuộc đại tu thành chuỗi việc nhỏ | Việc code | `dai-tu-codebase` |
+| `giam-sat-dai-tu` | Giám sát Đại-tu | Kiểm kế hoạch đại tu rồi xếp chuỗi việc Kanban nối nhau | Việc code | `dai-tu-codebase` |
+| `tro-ly-onboarding` | Trợ lý Onboarding | Trả lời "cách làm X" cho người mới của phòng, dựa trên wiki và nguồn của chính phòng đó | Phòng nghiệp vụ (agent duy nhất trong chín cái thật sự cần ở mọi phòng) | không |
+
+Nhận xét: tám cái đầu là bộ máy cải tiến hệ thống và việc code, không phải việc của phòng nghiệp vụ. `ke-toan-vien-dai-tu` không liên quan Phòng Kế Toán, tên dễ gây nhầm khi Joyce định tuyến việc kế toán. `tro-ly-onboarding` đúng là việc của phòng nhưng nội dung giống nhau, chỉ khác dữ liệu nó đọc.
 
 ### B1. Thân prompt agent (c1)
 
@@ -666,12 +680,38 @@ Xong khi: một lượt cải tiến thật trên phòng pilot chạy đủ bả
 - Em chưa chạy demo của Harness² (`harness2-demo`); chỉ đọc mã nguồn và README. Số tăng điểm là số họ công bố.
 - Chưa soi harness của bot khách hàng (Zalo, Telegram, `chatbot_runtime.py`) và vòng lặp bên trong các engine CLI.
 - Số cache gom theo ngày từ `usage_index.db`; chưa thử thực nghiệm việc tách khối.
-- Cần chủ quyết:
-  1. Thứ tự giai đoạn 0 (đề xuất: A3 trước vì đo được và tiết kiệm tiền ngay).
-  2. Cổng xin phép tùy chọn, mặc định tắt: có đồng ý hướng này không.
-  3. Trần chi phí cho mỗi lượt cải tiến ở Tầng C.
-  4. Đổi tên `ke-toan-vien-dai-tu` và gom chín agent dùng chung thành agent hệ thống.
-  5. Tầng C hiện tự áp đề xuất rủi ro thấp (`self_improve: true`, `low_risk_auto: true` ở 61 brain). Có giữ như vậy khi bắt đầu có đề xuất thật không.
+### 10.1 Chủ đã chốt (28/10/2026)
+
+| # | Câu hỏi | Chốt |
+|---|---|---|
+| 1 | Thứ tự giai đoạn 0 | Theo đề xuất: (1) tách khối tĩnh và động của prompt để lấy lại cache, (2) plugin `joyce-guard` bật sẵn, (3) dọn kết quả tool cũ trong lượt và ghim dữ kiện khi nén |
+| 2 | Cổng xin phép | Làm dạng tùy chọn theo loại thao tác, MẶC ĐỊNH TẮT; chủ bật loại nào thì loại đó dừng chờ duyệt |
+| 3 | Trần chi phí mỗi lượt cải tiến | Có trần. Con số đề xuất ở 10.2, chờ chủ xác nhận |
+| 4 | Gom chín agent dùng chung | Danh sách và vai ở mục 5. Cách gom ở 10.3, chờ chủ duyệt trước khi đụng `brains/` |
+| 5 | Tự áp đề xuất rủi ro thấp | GIỮ như hiện tại: `self_improve: true`, `low_risk_auto: true` ở 61 brain. Tiền và ghi ra ngoài vẫn không bao giờ tự qua (luật `low_risk_auto` của factory) |
+
+### 10.2 Đề xuất trần chi phí cho một lượt cải tiến
+
+Một lượt Tầng C với k bằng 1 gồm 4 lần chạy (bản gốc, bản INV, bản DOM, bản ghép) trên mỗi ca thử, cộng 3 lượt sửa và 1 lượt chọn. Với 3 ca thử là khoảng 16 lượt gọi model. Đề xuất (ước lượng, chỉnh lại sau lượt thật đầu tiên):
+- Trần mỗi lượt: 1.000.000 token. Chạm trần thì dừng ngay, giữ bản gốc, ghi lý do vào đề xuất.
+- Trần mỗi phòng: 2 lượt mỗi tuần.
+- Đếm bằng token chứ không bằng tiền, vì phần lớn chạy trên gói thuê bao (Claude Code, Codex) nơi tiền không đo được theo lượt. Nếu chạy bằng model miễn phí (Z.ai glm-4.7-flash) thì vẫn giữ trần token để khỏi chạm giới hạn tần suất.
+- Lượt chạy thử luôn trong bản sao (A8), nên không có lượt nào đụng sổ hay brain thật.
+
+### 10.3 Đề xuất cách gom chín agent dùng chung
+
+1. Đặt chín file một lần trong app: `system/agents/` (đã có thư mục, hiện chứa `joyce-core.md`), cập nhật theo bản phát hành giống skill hệ thống.
+2. App đọc agent theo thứ tự: brain trước, hệ thống sau. Brain nào đã sửa tay bản của mình thì giữ bản đó (giống quy tắc skill hệ thống bị sửa thì thành của người dùng).
+3. Gỡ 549 bản sao bằng đường sao lưu của factory: chuyển vào `Joyce/backup/` của từng brain thay vì xóa, chỉ gỡ bản còn GIỐNG HỆT bản gốc (so mã băm), bản đã bị sửa thì để nguyên.
+4. Đổi tên `ke-toan-vien-dai-tu` thành `lap-ke-hoach-dai-tu` (giữ tên cũ làm bí danh để workflow cũ vẫn chạy).
+5. `tro-ly-onboarding` giữ ở mọi phòng nhưng cũng đọc từ bản hệ thống, vì nó đã tự đọc wiki của đúng brain đang chạy.
+
+Lợi ích: sửa một lần áp cho 61 brain; trang Agents của mỗi phòng chỉ còn agent nghiệp vụ; Joyce bớt nhầm khi định tuyến việc kế toán.
+
+### 10.4 Còn chờ chủ
+
+- Xác nhận con số trần ở 10.2.
+- Duyệt cách gom ở 10.3 (đây là thao tác trên `brains/`, không hoàn tác được nếu làm sai, nên cần chủ đồng ý trước).
 
 ## 11. Mục lục kiểm tra Joyce Harness
 
@@ -777,4 +817,5 @@ Ký hiệu: **[Có]** chạy được và đang dùng, **[Có, chưa dùng]** c�
 | Ngày | Nội dung |
 |---|---|
 | 2026-10-28 | Bản 1: chấm chín thành phần theo bài giảng, quét 61 brain, đối chiếu cấu hình thật, đề xuất lộ trình; bổ sung nhật ký, prefix caching, lắp hướng dẫn, xin phép, ví dụ thực tế, sandbox, công thức Agent bằng Model cộng Harness |
+| 2026-10-28 | Chủ chốt năm câu ở mục 10.1 (thứ tự giai đoạn 0 theo đề xuất, cổng xin phép tùy chọn mặc định tắt, có trần chi phí, giữ tự áp rủi ro thấp); thêm bảng chín agent dùng chung, đề xuất trần và cách gom |
 | 2026-10-28 | Bản 2: viết lại thành khung ba tầng (lõi chạy, bề mặt nghề, vòng cải tiến), mỗi thành phần có hiện trạng, nguyên tắc, lỗ hổng, giải pháp cho H2O, cách đo. Ghép phương pháp Harness² (tám thành phần, INV và DOM, Propose Probe Compose, thư viện kinh nghiệm, ngân sách, luật chọn thành phần rẻ nhất). Sửa nhận định sai của bản 1: `server/factory.py` đã có CI babysit, watch, tự áp có canary và lật lại, bảng điểm agent, ca thử bản nháp; nhưng `post_check` rỗng ở 61 brain và chỉ có 1 bộ ca thử, 2 đề xuất. Thêm mục lục kiểm tra (mục 11) |
