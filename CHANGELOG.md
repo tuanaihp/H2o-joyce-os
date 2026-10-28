@@ -3,8 +3,14 @@
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
 ## [1.3.39] - 2026-10-28
+### Thêm
+- **Trang Sơ đồ có khối Joyce Harness.** Ba tầng (lõi chạy, bề mặt phòng ban, vòng cải tiến), 14 thành phần, mỗi cái một đèn theo số thật; thứ chưa làm hiện xám và nói thẳng là chưa làm.
+- **Chốt chặn joyce-guard bật sẵn.** Không ghi đè tài liệu gốc trong sources/, người ngoài không nhờ Joyce gửi Zalo dồn dập, khoản chi từ 5 triệu phải gắn hợp đồng hoặc ghi rõ hạng mục.
 ### Đổi
-- (đang làm) Gom 9 trợ lý dùng chung về một bản gốc, vá ranh giới quyền theo chuẩn Joyce Harness, đưa chuẩn harness lên tab Sơ đồ.
+- **9 trợ lý dùng chung giờ chỉ còn một bản gốc.** Năm giám định, kỹ sư cải tiến, hai trợ lý đại tu và Trợ lý Onboarding sửa một nơi là mọi phòng đổi theo; 549 bản chép trong các brain đã xoá (có sao lưu). Phòng cần khác thì lưu bản riêng.
+- **Rẻ token hơn.** Phần cố định của lời dặn Joyce được cache thật, không còn trượt mỗi lượt vì đồng hồ; lượt đọc nhiều trang dữ liệu tự thu gọn kết quả cũ, số liệu Sổ Shop giữ nguyên.
+### Sửa
+- Việc khai "không dùng tool nào" trước đây lại chạy toàn quyền ở engine Claude; tự cải tiến đổi quyền của trợ lý giờ phải chờ chủ duyệt; ca thử không kiểm được tính là rớt.
 
 ## [1.3.38] - 2026-10-27
 ### Thêm

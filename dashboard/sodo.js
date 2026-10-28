@@ -209,6 +209,22 @@
 .sd-stage-in b{font-size:11.5px;font-weight:650;line-height:1.2}
 .sd-stage-in span{font-size:10.5px;color:var(--text2);line-height:1.3;overflow-wrap:anywhere}
 .sd-fac-cap{display:flex;flex-wrap:wrap;gap:5px}
+/* Chuẩn Joyce Harness: ba cột tầng A/B/C, mỗi dòng một thành phần có đèn */
+.sd-hx-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sd-hx-col{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sd-hx-th{display:flex;flex-direction:column;gap:1px;padding:0 2px 2px}
+.sd-hx-th b{font-size:12px;font-weight:700}
+.sd-hx-th span{font-size:10.5px;color:var(--text3)}
+.sd-hx-r{display:flex;align-items:flex-start;gap:8px;padding:8px 26px 8px 10px;border-radius:10px;
+  border:1px solid var(--line);background:var(--wash);position:relative;min-width:0}
+.sd-hx-r .sd-dot{position:absolute;top:9px;right:9px}
+.sd-hx-r.sd-st-off{opacity:.78}
+.sd-hx-ic{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:none;
+  color:var(--s,var(--accent-ink));background:color-mix(in srgb,var(--s,var(--accent)) 14%,transparent)}
+.sd-hx-in{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sd-hx-in b{font-size:11.5px;font-weight:650;line-height:1.2}
+.sd-hx-in span{font-size:10.5px;color:var(--text2);line-height:1.3;overflow-wrap:anywhere}
+@container sd (max-width:819px){.sd-hx-grid{grid-template-columns:minmax(0,1fr)}}
 /* Bảng agent hiệu quả */
 .sd-ag{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:12px;
   overflow:hidden;background:var(--card)}
@@ -314,6 +330,54 @@
       <div class="sd-pipe">${cells}</div>
       ${noteHtml}
       <div class="sd-fac-cap">${caps}</div>
+    </section>`;
+  }
+
+  // Chuẩn Joyce Harness (1.3.39, docs/dev/Joyce-harness.md): ba tầng A lõi chạy, B bề mặt phòng
+  // ban, C vòng cải tiến. Mỗi thành phần một đèn lấy từ /work/factory -> harness (server
+  // harness_map.py). Thứ chưa làm thì đèn xám và mô tả nói thẳng là chưa làm.
+  const HX_TIER = { A: ["sodo.hx.tA", "sodo.hx.tA.d"], B: ["sodo.hx.tB", "sodo.hx.tB.d"], C: ["sodo.hx.tC", "sodo.hx.tC.d"] };
+  const HX = {
+    cache: ["sodo.hx.cache", "sodo.hx.cache.m", "sodo.hx.cache.d", "zap"],
+    guard: ["sodo.hx.guard", "sodo.hx.guard.m", "sodo.hx.guard.d", "shield"],
+    trim: ["sodo.hx.trim", "sodo.hx.trim.m", "sodo.hx.trim.d", "minimize"],
+    perm: ["sodo.hx.perm", "sodo.hx.perm.m", "sodo.hx.perm.d", "lock"],
+    brake: ["sodo.hx.brake", "sodo.hx.brake.m", "sodo.hx.brake.d", "circle-stop"],
+    agents: ["sodo.hx.agents", "sodo.hx.agents.m", "sodo.hx.agents.d", "users"],
+    shared: ["sodo.hx.shared", "sodo.hx.shared.m", "sodo.hx.shared.d", "layers"],
+    evals: ["sodo.hx.evals", "sodo.hx.evals.m", "sodo.hx.evals.d", "list-checks"],
+    scope: ["sodo.hx.scope", "sodo.hx.scope.m", "sodo.hx.scope.d", "key"],
+    self: ["sodo.hx.self", "sodo.hx.self.m", "sodo.hx.self.d", "sparkles"],
+    judge: ["sodo.hx.judge", "sodo.hx.judge.m", "sodo.hx.judge.d", "eye"],
+    gate: ["sodo.hx.gate", "sodo.hx.gate.m", "sodo.hx.gate.d", "shield-alert"],
+    canary: ["sodo.hx.canary", "sodo.hx.canary.m", "sodo.hx.canary.d", "undo-2"],
+    budget: ["sodo.hx.budget", "sodo.hx.budget.m", "sodo.hx.budget.d", "hourglass"],
+  };
+  function hxSection(fc) {
+    const hx = fc && fc.harness;
+    if (!hx || !Array.isArray(hx.tiers)) return "";
+    const fmt = (v) => { const o = {}; for (const k in (v || {})) o[k] = typeof v[k] === "number" ? so(v[k]) : v[k]; return o; };
+    const cols = hx.tiers.map(tr => {
+      const tk = HX_TIER[tr.id];
+      if (!tk) return "";
+      const rows = (tr.items || []).map(x => {
+        const m = HX[x.k];
+        if (!m) return "";
+        const st = STATE_KEY[x.state] ? x.state : "off";
+        return `<div class="sd-hx-r sd-st-${st}" title="${esc(t(m[2]))}"><span class="sd-hx-ic">${ic(m[3])}</span>
+          <span class="sd-hx-in"><b>${esc(t(m[0]))}</b><span>${esc(t(m[1], fmt(x.v)))}</span></span>
+          <span class="sd-dot sd-st-${st}" role="img" aria-label="${esc(t(STATE_KEY[st]))}"></span></div>`;
+      }).join("");
+      return `<div class="sd-hx-col"><div class="sd-hx-th"><b>${esc(t(tk[0]))}</b><span>${esc(t(tk[1]))}</span></div>${rows}</div>`;
+    }).join("");
+    const phases = (hx.phases || []).map(p => chip(t("sodo.hx.phase", { k: p.k }), p.state === "ok" ? "on" : p.state === "warn" ? "warn" : "")).join("");
+    return `<section class="sd-fac sd-hx">
+      <div class="sd-fac-h"><span class="sd-t">${esc(t("sodo.hx.title"))}</span>
+        <span class="sd-sub">${esc(t("sodo.hx.sub"))}</span>
+        <div class="sd-fac-au"><b>${esc(so(hx.ok))}/${esc(so(hx.total))}</b><span>${esc(t("sodo.hx.score", { v: hx.version || "" }))}</span></div></div>
+      <div class="sd-hx-grid">${cols}</div>
+      <div class="sd-fac-cap">${phases}</div>
+      <div class="sd-fac-note">${esc(t("sodo.hx.hint"))}</div>
     </section>`;
   }
 
@@ -590,6 +654,8 @@
       </section>
       <div class="sd-sect">${esc(t("sodo.pipe_title"))}</div>
       <div class="sd-flow">${flow}</div>
+      ${fc && fc.harness ? `<div class="sd-sect">${esc(t("sodo.hx.sect"))}</div>` : ""}
+      ${hxSection(fc)}
       <div class="sd-sect">${esc(t("sodo.fac.sect"))}</div>
       ${facSection(fc)}
       <div class="sd-grid">

@@ -222,7 +222,7 @@ def pick_text_only_link(engine: Any, base: Any, requested: dict, chain_type: typ
                            f"hệ thống định lùi về {actual_prov} nhưng Resonance không tự đổi provider")
         return None, info
     if first is base:
-        if not getattr(first, "allowed_tools", None):
+        if getattr(first, "allowed_tools", None) is None:   # [] = cổng bật, không tool nào (1.3.39)
             info["blocked"] = "engine Claude không có cổng chặn công cụ (allowed_tools trống), không bảo đảm chỉ chữ"
             return None, info
     elif getattr(first, "no_tools", False) is not True:

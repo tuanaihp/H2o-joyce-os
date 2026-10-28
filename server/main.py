@@ -1132,6 +1132,8 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # Khối NGÔN NGỮ + đồng hồ đi CÙNG NHAU và đi CUỐI, sát chỗ model bắt đầu trả lời.
     # Ngôn ngữ đặt ở cuối vì luật càng gần chỗ sinh chữ thì model càng ít trôi; đồng hồ
     # đi kèm vì tên thứ trong tuần cũng phải theo ngôn ngữ đó.
+    # Tiêu đề này cũng là ĐƯỜNG CẮT CACHE (engine._DUOI_DONG, 1.3.39): mọi thứ đổi theo lượt phải
+    # đứng từ đây trở xuống, nếu không phần tĩnh phía trên trượt cache ở mọi lượt.
     base += "\n\n# === BÂY GIỜ ===\n" + context_compiler.dong_ho(lang=_lma)
     base += lang_mod.khoi_ngon_ngu(_lq or lang_mod.LangDecision(_lma, "default", 1.0, True))
     try:
@@ -2667,7 +2669,7 @@ def _model_cua_agent(brain: str, slug: str) -> dict:
     if not slug:
         return {}
     try:
-        meta, _ = _read_md(_agents_dir(brain or "brain") / f"{slug}.md")
+        meta, _ = _read_md(_agent_path(brain or "brain", slug))
     except Exception:      # noqa: BLE001 - agent bị xoá/đổi slug: coi như không chọn model
         return {}
     mdl = (meta.get("model") or "").strip()
@@ -7443,6 +7445,29 @@ def _agents_dir(brain):
     return _brain_sub(_brain_root(brain), "agents", "Joyce/agents")
 
 
+def _agent_path(brain, slug):
+    """File ĐỊNH NGHĨA để ĐỌC một trợ lý: bản trong brain thắng, không có thì bản gốc dùng chung ở
+    `system/agents/` (system_agents, 1.3.39). Không có cả hai thì trả đường brain (chưa tồn tại),
+    để `.exists()` / `.is_file()` của nơi gọi vẫn ra False như trước.
+
+    CHỈ dùng cho đường đọc. Đường ghi (lưu form, tài liệu, mức suy luận) đi `_agents_dir` /
+    `_agent_file` như cũ, nên sửa ở một phòng chỉ tạo bản riêng của phòng đó, không đụng bản gốc."""
+    p = _agents_dir(brain) / f"{slug}.md"
+    if p.is_file():
+        return p
+    # Tên cũ đổi tên (vd ke-toan-vien-dai-tu): brain còn bản cũ thì bản cũ vẫn thắng ở trên.
+    sp = system_agents.path(slug)
+    return sp if sp else p
+
+
+def _la_brain_chung(brain) -> bool:
+    """Brain chung (Brain Default): nơi trợ lý dùng chung scope `system` hiện trong danh sách."""
+    try:
+        return Path(_brain_root(brain)).resolve() == _default_brain_dir().resolve()
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # Khoá meta của agent (port Javis): form lưu agent, tài liệu/link của agent, và xoá agent. Chỉ
 # được giữ ở worker (asyncio.to_thread), không bao giờ trên event loop. Xoá agent mà không vào
 # khoá này thì một worker đã đọc file sẽ ghi lại đúng file vừa xoá, agent sống lại sau khi xoá
@@ -7655,6 +7680,20 @@ def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
                     "avatar": agent_avatar.for_agent(meta, f.stem)})
         if kem_prompt:
             out[-1]["prompt"] = body
+    co_san = {a["slug"] for a in out}
+    chung = _la_brain_chung(brain)
+    for sa in system_agents.entries():
+        if sa["slug"] in co_san or not system_agents.visible_in(sa["scope"], chung):
+            continue
+        meta, body = _read_md(sa["path"])
+        out.append({"slug": sa["slug"], "name": meta.get("name", sa["slug"]),
+                    "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
+                    "model": meta.get("model", ""), **_agent_tag_fields(meta),
+                    "model_provider": meta.get("model_provider", ""),
+                    "pinned": bool(meta.get("pinned")), "system_shared": True,
+                    "avatar": agent_avatar.for_agent(meta, sa["slug"])})
+        if kem_prompt:
+            out[-1]["prompt"] = body
     # last_chat_at: mốc chat gần nhất với agent này. `moc_cap_nhat_theo_kenh` là hàm của
     # Task 3 (SessionStore), CHƯA tồn tại nếu Task 2 chạy trước - try/except rơi về {} để
     # Task 2 tự đứng vững một mình; nhớ quay lại kiểm khi Task 3 xong.
@@ -7714,10 +7753,14 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     if joyce_core.is_core_slug(slug):
         return {**_joyce_core_entry(brain), "prompt": joyce_core.definition()["body"]}
     path = _agent_md_path(brain, slug)
+    shared = False
+    if not path and skill_router.valid_file_slug(slug) and system_agents.is_shared(slug):
+        path, shared = system_agents.path(slug), True
     if not path:
         return JSONResponse({"error": "Không tìm thấy trợ lý"}, status_code=404)
     meta, body = _read_md(path)
     return {"slug": slug, "name": meta.get("name", slug), "role": meta.get("role", ""),
+            "system_shared": shared,
             "skills": meta.get("skills", []) or [], "model": meta.get("model", ""),
             **_agent_tag_fields(meta), "model_provider": meta.get("model_provider", ""),
             "reasoning": _agent_reasoning(meta),
@@ -7807,6 +7850,11 @@ async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
         return JSONResponse({"ok": False, "error": "slug không hợp lệ"}, status_code=400)
     if joyce_core.is_core_slug(slug):
         return _core_refusal()
+    if system_agents.is_shared(slug) and not _agent_file(brain, slug):
+        return JSONResponse({"ok": False, "code": "system_shared", "error": localefmt.chu(
+            "Đây là trợ lý dùng chung của hệ thống (một bản gốc cho mọi phòng), không xoá ở từng phòng được.",
+            "This is a shared system assistant (one source for every brain); it cannot be deleted per brain.")},
+            status_code=403)
     def _xoa():
         # Tìm và xoá file TRONG khoá ghi agent, ở worker: thao tác tag hay form đang giữ khoá thì xoá
         # đợi nó ghi xong rồi mới xoá; thao tác tới sau thấy file đã mất và không tạo lại.
@@ -11193,7 +11241,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
 
     def _agent_sysprompt(aslug):
         abrain, aslug = _tach_brain(aslug)
-        ameta, abody = _read_md(_agents_dir(abrain) / f"{aslug}.md")
+        ameta, abody = _read_md(_agent_path(abrain, aslug))
         amem = _agent_memory(abrain, aslug)
         # Khối bộ nhớ + luật tự bồi đắp chèn VÔ ĐIỀU KIỆN (kể cả khi amem rỗng): điều
         # kiện `if amem` cũ là bẫy con-gà-quả-trứng - agent chưa có ký ức thì không bao
@@ -11298,7 +11346,7 @@ def _agent_chat_prompt(brain, slug) -> str:
     Cố ý KHÔNG nối CLAUDE.md, bộ nhớ của chủ hay khối kênh: người dùng đang muốn nói chuyện với
     "Người viết", không phải với Joyce đội mũ Người viết.
     """
-    if not (_agents_dir(brain) / f"{slug}.md").exists():
+    if not _agent_path(brain, slug).exists():
         raise FileNotFoundError(slug)
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     _name, sysprompt, _model, _prov = _agent_sysprompt(slug)
@@ -12016,6 +12064,7 @@ import doc_text            # trích chữ từ tài liệu cho chat/vision
 import fast_mode           # lựa chọn làn nhanh theo lượt + tham số theo brain
 import vision_input        # ảnh/file đính kèm vào lượt chat
 import joyce_core          # Joyce Core: trợ lý hệ thống ghim trong mọi brain (port Javis 0.185.0)
+import system_agents       # 1.3.39: trợ lý dùng chung, một bản gốc ở system/agents/ cho mọi brain
 import image_vision        # bộ não khác xem hộ ảnh
 import borrowed_eyes       # mắt mượn cho bot không xem được ảnh
 import bot_images          # ảnh từ tin nhắn bot vào lượt trả lời
@@ -14027,6 +14076,15 @@ def _gather_capabilities(brain: str, skills=None) -> dict:
                                    "model": m.get("model", ""), "group": _nhom_cua(m),
                                    "tags": agent_tags.tags_of(m),
                                    "skills": m.get("skills", []) or []})
+    co_san = {a["slug"] for a in caps["agents"]}
+    for sa in system_agents.entries():
+        if sa["slug"] in co_san or not system_agents.visible_in(sa["scope"], _la_brain_chung(brain)):
+            continue
+        m, _ = _read_md(sa["path"])
+        caps["agents"].append({"slug": sa["slug"], "name": m.get("name", sa["slug"]), "role": m.get("role", ""),
+                               "model": m.get("model", ""), "group": _nhom_cua(m),
+                               "tags": agent_tags.tags_of(m), "skills": m.get("skills", []) or [],
+                               "system_shared": True})
     wd = _workflows_dir(brain)
     if wd.is_dir():
         for f in sorted(wd.glob("*.md")):
@@ -14735,6 +14793,11 @@ async def work_factory(brain: str = ""):
         stages = factory_mod.stages_snapshot(deps)
     except Exception as e:  # noqa: BLE001
         print(f"[factory] stages: {type(e).__name__}: {e}", file=sys.stderr)
+    harness = {}
+    try:
+        harness = _harness_snapshot(deps, brain, stages)
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] harness: {type(e).__name__}: {e}", file=sys.stderr)
     agents = []
     if brain:
         try:
@@ -14747,7 +14810,38 @@ async def work_factory(brain: str = ""):
             "perf_cooldowns": len(st.get("perf_cd") or {}),
             "sev_sent": st.get("sev_sent") or {},
             "stages": stages, "agents": agents,
-            "autonomy": autonomy}
+            "autonomy": autonomy, "harness": harness}
+
+
+def _harness_snapshot(deps, brain: str, stages: dict) -> dict:
+    """Số thật cho khối Joyce Harness trên trang Sơ đồ (harness_map.snapshot)."""
+    import harness_map
+    guard_on = any(d.get("slug") == "joyce-guard" and d.get("enabled") and d.get("loaded")
+                   for d in plugins_host.describe(None))
+    names = list(deps.brains() or [])
+    bat = 0
+    for n in names:
+        try:
+            if factory_mod.load_factory_cfg(deps.task_root(str(n))).get("self_improve"):
+                bat += 1
+        except Exception:  # noqa: BLE001
+            continue
+    metas, evals_n = [], 0
+    if brain:
+        for a in agents_index(brain, kem_prompt=False):
+            try:
+                metas.append(_read_md(_agent_path(brain, a["slug"]))[0] or {})
+            except Exception:  # noqa: BLE001
+                continue
+        try:
+            ed = Path(deps.task_root(brain)) / "Joyce" / "evals"
+            evals_n = sum(1 for _ in ed.glob("*.json")) if ed.is_dir() else 0
+        except Exception:  # noqa: BLE001
+            evals_n = 0
+    return harness_map.snapshot(
+        stages=stages, guard_on=guard_on, shared_agents=len(system_agents.entries()),
+        tool_rounds=engine._max_tool_rounds(), trim_chars=engine.TOOL_CU_NGAN_SACH,
+        brains_total=len(names), brains_self_improve=bat, agents=metas, evals_brain=evals_n)
 
 
 # Nối hook sau-khi-xong của kanban vào factory (CI babysit + watcher + gợi ý lặp).
@@ -15011,7 +15105,7 @@ async def _start_scheduler():
         # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
         # khởi động (xem bước "Import thật main" trong CI).
         chatbot_runtime.wire(answer=_tg_answer, brain_root=_brain_root,
-                             read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"),
+                             read_agent=lambda b, slug: _read_md(_agent_path(b, slug)),
                              session_probe=_manual_session_probe, session_undo=_manual_session_undo,
                              # Lượt bot hỏng: khách không nhận gì, chủ nghe ở chuông thông báo.
                              notify=lambda text: _bo_vao_hom_thu("", text, kind="system", source="chatbot",
@@ -17741,7 +17835,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Phiên cộng sự (trang Cộng sự, 0.59): kênh agent:<slug> đổi system prompt sang prompt
             # của trợ lý đó. Đọc MỘT lần ở đây, mọi chỗ chọn prompt bên dưới đều hỏi `_persona`.
             _persona = workflow_chat.persona_cua_phien(_row0)
-            if _persona and _persona[0] == "agent" and not (_agents_dir(brain) / f"{_persona[1]}.md").exists():
+            if _persona and _persona[0] == "agent" and not _agent_path(brain, _persona[1]).exists():
                 await ws.send_text(json.dumps({"type": "error",
                     "content": f"Trợ lý '{_persona[1]}' không còn trong brain này. Mở trang Cộng sự để chọn trợ lý khác."}))
                 return ""
@@ -17768,7 +17862,7 @@ async def websocket_endpoint(ws: WebSocket):
             if _persona and _persona[0] == "agent":
                 # 0.193.0: an assistant's chat thinks at the assistant's own level (default medium).
                 try:
-                    reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])
+                    reasoning = _agent_reasoning(_read_md(_agent_path(brain, _persona[1]))[0])
                 except Exception:  # noqa: BLE001 - an unreadable file keeps the main level
                     pass
             fast_mode.use(mcfg.get("fast") is True)
@@ -20149,7 +20243,7 @@ def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
                                          title=joyce_core.NAME)
         return {"id": sid, "channel": joyce_core.CHANNEL}
     thu_muc = _agents_dir(brain) if loai == "agent" else _workflows_dir(brain)
-    if not (thu_muc / f"{slug}.md").exists():
+    if not (_agent_path(brain, slug) if loai == "agent" else thu_muc / f"{slug}.md").exists():
         return JSONResponse({"error": f"{loai} '{slug}' không có trong brain này"}, status_code=404)
     store = get_store()
     sid = store.create_session(brain=_brain_key(brain), engine="cli", channel=ch)
@@ -20592,7 +20686,7 @@ async def sessions_meta(request: Request, session_id: str):
     _p = workflow_chat.persona_cua_phien(sess)
     if _p and _p[0] == "agent":
         try:
-            _m = _read_md(_agents_dir(sess.get("brain") or "brain") / f"{_p[1]}.md")[0]
+            _m = _read_md(_agent_path(sess.get("brain") or "brain", _p[1]))[0]
             sess["agent_slug"], sess["agent_reasoning"] = _p[1], _agent_reasoning(_m)
         except Exception:  # noqa: BLE001
             pass
@@ -24032,10 +24126,10 @@ BOT_LICH_SU_MAX = 20
 
 # Danh sách tool cho phép của bot khi phải chạy qua CLI: một chuỗi KHÔNG khớp tool nào.
 #
-# Không dùng list rỗng được: `claude_sdk_engine` kiểm `if self.allowed_tools:` nên [] là falsy,
-# và engine hiểu thành "không có allowlist" rồi chạy thẳng permission_mode="bypassPermissions"
-# - tức mở TOÀN QUYỀN đúng lúc mình định khoá chặt nhất. Một chuỗi vô nghĩa thì truthy, cổng
-# can_use_tool bật lên, và mọi tool đều rớt khỏi allowlist nên bị từ chối từng lượt gọi.
+# Tới 1.3.38 không dùng list rỗng được: `claude_sdk_engine` kiểm `if self.allowed_tools:` nên [] là
+# falsy và engine chạy thẳng `bypassPermissions`, tức mở TOÀN QUYỀN. Từ 1.3.39 (Joyce Harness B-01)
+# engine kiểm `is not None` nên [] đã là "không tool nào". Chuỗi vô nghĩa này giữ lại vì vô hại và
+# vẫn đúng với mọi bản engine: cổng can_use_tool bật lên, mọi tool rớt khỏi allowlist.
 BOT_KHONG_TOOL = ["__joyce_bot_khong_tool__"]
 
 
@@ -25973,7 +26067,7 @@ async def chatbots_list(brain: str = ""):
         b = dict(b)
         b["status"] = chatbot_runtime.status(b["id"])
         a = b.get("agent") or {}
-        meta, _ = _read_md(_agents_dir(a.get("brain") or "brain") / f"{a.get('slug')}.md")
+        meta, _ = _read_md(_agent_path(a.get("brain") or "brain", a.get('slug')))
         b["agent_name"] = meta.get("name") or ""
         b["agent_missing"] = not bool(meta)   # Agent bị xoá/đổi slug -> thẻ phải báo, đừng im
         # Model bot CHẠY THẬT ra ngoài = model của Agent nó trỏ tới (rỗng = Agent để Mặc định,

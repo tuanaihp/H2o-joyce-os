@@ -47,6 +47,9 @@ for i in range(14):
 # ---- 1. Lõi thuần: cờ kem_prompt ----
 day = main.agents_index(str(BRAIN))
 nhe = main.agents_index(str(BRAIN), kem_prompt=False)
+# 1.3.39: danh sách có thêm trợ lý dùng chung của hệ thống (test_system_agents.py khoá phần đó).
+check("trợ lý dùng chung có cờ system_shared", all(a.get("system_shared") for a in nhe if a["slug"] == "tro-ly-onboarding"))
+nhe = [a for a in nhe if not a.get("system_shared")]
 check("mặc định vẫn kèm prompt", all("prompt" in a for a in day))
 check("kem_prompt=False bỏ hẳn khoá prompt", all("prompt" not in a for a in nhe))
 check("bỏ prompt KHÔNG làm mất thứ cột trái cần",

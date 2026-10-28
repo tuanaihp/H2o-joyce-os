@@ -381,6 +381,22 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
         await asyncio.sleep(cho)
 
 
+# Đuôi đổi theo lượt của system prompt (main.build_system_prompt): đồng hồ, khối NGÔN NGỮ, MỨC
+# DÙNG HÔM NAY đứng cuối, mở bằng tiêu đề này. Trước 1.3.39 cả system là MỘT khối cache, mà đuôi
+# đổi mỗi lượt (đồng hồ theo phút, token theo thời gian thật) nên ~26k ký tự phía trước trượt cache
+# ở MỌI lượt. Tách đôi: phần tĩnh mang marker, phần đuôi không (chuẩn Joyce Harness, giai đoạn 0A).
+_DUOI_DONG = "\n\n# === BÂY GIỜ ==="
+
+
+def _system_blocks(sys_txt: str, marker: dict) -> list:
+    """System prompt thành block Anthropic: phần tĩnh có cache_control, phần đuôi đổi theo lượt không."""
+    i = sys_txt.find(_DUOI_DONG)
+    if i <= 0:
+        return [{"type": "text", "text": sys_txt, "cache_control": marker}]
+    return [{"type": "text", "text": sys_txt[:i], "cache_control": marker},
+            {"type": "text", "text": sys_txt[i:]}]
+
+
 def _apply_anthropic_cache(payload: dict, cache_ttl: str = "5m") -> None:
     """Áp prompt caching 'system_and_3' cho Anthropic Messages API: đánh cache_control
     trên system prompt + 3 message cuối → cache read 0.1x cost (giảm ~75% input token)
@@ -391,7 +407,7 @@ def _apply_anthropic_cache(payload: dict, cache_ttl: str = "5m") -> None:
         marker["ttl"] = "1h"
     sys_val = payload.get("system")
     if isinstance(sys_val, str) and sys_val:
-        payload["system"] = [{"type": "text", "text": sys_val, "cache_control": marker}]
+        payload["system"] = _system_blocks(sys_val, marker)
     elif isinstance(sys_val, list) and sys_val:
         last = sys_val[-1]
         if isinstance(last, dict):
@@ -446,7 +462,7 @@ def _or_mark_system(messages):
     for m in messages:
         if not marked and m.get("role") == "system" and isinstance(m.get("content"), str) and m["content"]:
             m = dict(m)
-            m["content"] = [{"type": "text", "text": m["content"], "cache_control": {"type": "ephemeral"}}]
+            m["content"] = _system_blocks(m["content"], {"type": "ephemeral"})
             marked = True
         out.append(m)
     return out
@@ -1446,6 +1462,63 @@ def _clip_tool_result(result, max_chars: int = 8000, head_ratio: float = 0.6) ->
             + text[-tail_n:])
 
 
+# Thu gọn kết quả tool CŨ trong một lượt (chuẩn Joyce Harness, giai đoạn 0A). Vòng tool của engine
+# API gửi lại NGUYÊN hội thoại mỗi vòng, nên lượt đọc 20 trang POS chở theo cả 20 trang tới vòng 30.
+# Chỉ chạy khi tổng kết quả vượt ngân sách (thu gọn là đổi phần đầu hội thoại, tức mất cache từ đó:
+# làm hiếm và một lần đủ mạnh, đừng làm mỗi vòng). Giữ nguyên mấy kết quả cuối và kết quả của tool
+# GHIM: số liệu Sổ Shop là sự thật kinh doanh, cắt đi thì model tính lại sai.
+TOOL_CU_NGAN_SACH = 80_000     # ký tự, tổng mọi kết quả tool trong lượt (~10 kết quả cỡ trần 8k)
+TOOL_CU_GIU_CUOI = 4           # số kết quả mới nhất không bao giờ thu gọn
+TOOL_CU_DAU = 700              # phần đầu giữ lại của một kết quả cũ
+TOOL_GHIM = frozenset({"joyce_shop"})
+
+
+def _thu_gon_ket_qua_cu(seq: list, ngan_sach: int = TOOL_CU_NGAN_SACH,
+                        giu_cuoi: int = TOOL_CU_GIU_CUOI) -> int:
+    """Thu gọn tại chỗ kết quả tool cũ khi tổng vượt `ngan_sach`. Trả số kết quả đã thu gọn.
+
+    Nhận cả ba dạng hội thoại của engine: Anthropic (block tool_result trong tin user), OpenAI chat
+    (tin role=tool) và Responses của Codex (item function_call_output)."""
+    ten: dict = {}
+    o: list = []    # (dict chứa, khoá chữ, tên tool)
+    for m in seq:
+        if not isinstance(m, dict):
+            continue
+        for tc in m.get("tool_calls") or []:
+            if isinstance(tc, dict):
+                ten[tc.get("id")] = (tc.get("function") or {}).get("name") or ""
+        if m.get("type") == "function_call":
+            ten[m.get("call_id")] = m.get("name") or ""
+        elif m.get("type") == "function_call_output" and isinstance(m.get("output"), str):
+            o.append((m, "output", ten.get(m.get("call_id"), "")))
+        elif m.get("role") == "tool" and isinstance(m.get("content"), str):
+            o.append((m, "content", ten.get(m.get("tool_call_id"), "")))
+        elif isinstance(m.get("content"), list):
+            for b in m["content"]:
+                if not isinstance(b, dict):
+                    continue
+                if b.get("type") == "tool_use":
+                    ten[b.get("id")] = b.get("name") or ""
+                elif b.get("type") == "tool_result" and isinstance(b.get("content"), str):
+                    o.append((b, "content", ten.get(b.get("tool_use_id"), "")))
+    tong = sum(len(d[k]) for d, k, _ in o)
+    if tong <= ngan_sach:
+        return 0
+    da = 0
+    for d, k, fn in o[:max(0, len(o) - giu_cuoi)]:
+        if tong <= ngan_sach // 2:
+            break
+        s = d[k]
+        if fn in TOOL_GHIM or len(s) <= TOOL_CU_DAU * 2 or "[KẾT QUẢ CŨ ĐÃ THU GỌN" in s:
+            continue
+        moi = (s[:TOOL_CU_DAU] + f"\n… [KẾT QUẢ CŨ ĐÃ THU GỌN để giữ ngữ cảnh: bỏ {len(s) - TOOL_CU_DAU:,} "
+               f"ký tự. Cần lại chi tiết thì gọi lại `{fn or 'tool này'}`.]")
+        tong -= len(s) - len(moi)
+        d[k] = moi
+        da += 1
+    return da
+
+
 def _mcp_to_openai_tools(mcp_tools):
     return [{"type": "function", "function": {
         "name": t["fn"], "description": (t.get("description") or t["fn"])[:1024],
@@ -1881,6 +1954,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         })
         requirement_pending = False
     for _ in range(_max_tool_rounds()):
+        _thu_gon_ket_qua_cu(msgs)   # 0A: kết quả tool cũ quá ngân sách thì thu gọn
         payload = {"model": model, "messages": msgs, "stream": False}
         # Bỏ hẳn khoá "tools" khi rỗng: vài endpoint OpenAI-compat từ chối mảng rỗng, và
         # nhánh cứu hộ ở dưới (model vấp cú pháp gọi tool) dựa vào đúng chỗ này.
@@ -2238,6 +2312,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
         usage_in = usage_out = 0
         guard = _LapGuard()   # phanh chống kẹt vòng lặp (xem _LapGuard)
         for _ in range(_max_tool_rounds()):
+            _thu_gon_ket_qua_cu(items)   # 0A: kết quả tool cũ quá ngân sách thì thu gọn
             # Backend Codex BẮT BUỘC stream=True → đọc SSE, lấy response.completed.output để chạy vòng tool
             payload = {"model": model, "instructions": instructions, "input": items,
                        "tools": tools, "stream": True, "store": False}
@@ -2410,12 +2485,13 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             # Cache theo lối không-mutate (system dựng mới mỗi vòng, conv copy-khi-đánh-dấu)
             # → marker KHÔNG tích luỹ qua vòng tool, tối đa 3 breakpoint/request (trần API là 4).
             # Vòng tool là nơi cache lãi nhất: mỗi vòng 1 request chở lại nguyên system+tools+conv.
+            _thu_gon_ket_qua_cu(conv)   # 0A: kết quả tool cũ quá ngân sách thì thu gọn
             payload = {"model": model or "claude-sonnet-4-6", "max_tokens": 4096,
                        "messages": _anthropic_mark_last(conv), "tools": tools, "stream": False}
             payload.update(extras or {})
             payload.update(fast_b)
             if sys_txt:
-                payload["system"] = [{"type": "text", "text": sys_txt, "cache_control": {"type": "ephemeral"}}]
+                payload["system"] = _system_blocks(sys_txt, {"type": "ephemeral"})
             try:
                 r = await _gui_vong(lambda: client.post(ANTHROPIC_URL, headers={**headers, **fast_h}, json=payload),
                                     "Anthropic")

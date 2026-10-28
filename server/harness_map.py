@@ -1,0 +1,72 @@
+"""Ảnh chụp chuẩn Joyce Harness cho trang Sơ đồ (1.3.39).
+
+Chuẩn nằm ở `docs/dev/Joyce-harness.md` (v1.0.0), lộ trình ở `docs/dev/Joyce-harness-rollout.md`.
+Trang Sơ đồ cần thấy chuẩn đó đang CHẠY tới đâu, không phải đọc lại tài liệu: mỗi thành phần một
+đèn, đèn lấy từ số thật (plugin có bật không, brain nào có bộ ca thử, đề xuất nào đang chờ chủ).
+Thứ chưa làm thì đèn `off` và nói thẳng là chưa làm, đừng tô xanh cho đẹp.
+
+Ba tầng (chuẩn mục 3):
+- A. Lõi chạy: giống nhau ở mọi brain (cache, chốt chặn, thu gọn ngữ cảnh, ranh giới quyền, phanh).
+- B. Bề mặt phòng ban: của brain đang xem (trợ lý, trợ lý dùng chung, bộ ca thử, khai phạm vi).
+- C. Vòng cải tiến: toàn hệ (tự cải tiến, giám định, cổng quyền, canary, trần token).
+
+Hàm thuần: nơi gọi (main) gom số rồi đưa vào, nên test không cần dựng server.
+"""
+from __future__ import annotations
+
+STANDARD_VERSION = "1.0.0"
+TOKEN_CAP = 500_000
+TOKEN_CAP_MAX = 1_000_000
+
+
+def _o(ten, state, **v):
+    return {"k": ten, "state": state, "v": v}
+
+
+def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: int,
+             trim_chars: int, brains_total: int, brains_self_improve: int,
+             agents: list, evals_brain: int) -> dict:
+    """`agents`: frontmatter (dict) của trợ lý trong brain đang xem, gồm cả trợ lý dùng chung hiện ở đó."""
+    sg = stages or {}
+    pp = sg.get("proposals") or {}
+    vd = sg.get("verdicts") or {}
+    cn = sg.get("canary") or {}
+    n_ag = len(agents or [])
+    co_skill = sum(1 for a in agents or [] if (a or {}).get("skills"))
+    khai_pham_vi = sum(1 for a in agents or [] if (a or {}).get("allowed_effects"))
+    cho_chu = int(pp.get("cho_chu_duyet") or 0)
+    evf = int(pp.get("eval_failed") or 0)
+
+    a = [
+        _o("cache", "ok"),
+        _o("guard", "ok" if guard_on else "bad", n=3),
+        _o("trim", "ok", n=trim_chars),
+        _o("perm", "ok"),
+        _o("brake", "ok", n=tool_rounds),
+    ]
+    b = [
+        _o("agents", "ok" if n_ag else "off", n=n_ag, s=co_skill),
+        _o("shared", "ok" if shared_agents else "warn", n=shared_agents),
+        _o("evals", "ok" if evals_brain else "off", n=evals_brain),
+        _o("scope", "ok" if n_ag and khai_pham_vi == n_ag else "off", n=khai_pham_vi, m=n_ag),
+    ]
+    c = [
+        _o("self", "ok" if brains_self_improve else "off", n=brains_self_improve, m=brains_total),
+        _o("judge", "ok", w=int(vd.get("win") or 0), k=int(vd.get("keep") or 0),
+           i=int(vd.get("inconclusive") or 0)),
+        _o("gate", "warn" if (cho_chu or evf) else "ok", n=cho_chu, e=evf),
+        _o("canary", "warn" if cn.get("reverted") else "ok", n=int(cn.get("canary") or 0),
+           r=int(cn.get("reverted") or 0)),
+        # Đã chốt (28/10/2026) nhưng CHƯA ép trong code: vòng cải tiến chưa đếm token theo lượt.
+        _o("budget", "off", n=TOKEN_CAP, m=TOKEN_CAP_MAX),
+    ]
+    tiers = [{"id": "A", "items": a}, {"id": "B", "items": b}, {"id": "C", "items": c}]
+    tong = sum(len(t["items"]) for t in tiers)
+    xanh = sum(1 for t in tiers for x in t["items"] if x["state"] == "ok")
+    return {
+        "version": STANDARD_VERSION, "tiers": tiers, "ok": xanh, "total": tong,
+        # Giai đoạn rollout (Joyce-harness-rollout.md mục 3): 0A xong ở 1.3.39; 0B mới xong ba lỗ
+        # đã xác minh (B-01, B-10, B-12), phần còn lại (kiểm schema hợp đồng lúc chạy) chưa làm.
+        "phases": [{"k": "0A", "state": "ok"}, {"k": "0B", "state": "warn"},
+                   {"k": "1", "state": "off"}, {"k": "2", "state": "off"}],
+    }

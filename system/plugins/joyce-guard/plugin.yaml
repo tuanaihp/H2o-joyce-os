@@ -1,0 +1,12 @@
+name: Chốt chặn Joyce
+name_en: "Joyce guard"
+slug: joyce-guard
+version: 1.0.0
+description: Ba luật cố định chạy TRƯỚC mỗi lời gọi tool, mọi engine. Không ghi đè file đã có trong sources/, không ghi vào Memory/ viết hoa; người không phải chủ không gửi Zalo dồn dập; khoản chi lớn phải gắn hợp đồng hoặc ghi rõ hạng mục. Chuẩn Joyce Harness, giai đoạn 0A.
+description_en: "Three fixed rules that run BEFORE every tool call, on every engine. No overwriting files already in sources/ and no writing into a capitalised Memory/; non-owners cannot send Zalo messages in bulk; a large expense must name its contract or its category. Joyce Harness standard, phase 0A."
+author: Joyce (bundled)
+enabled: true
+min_mode: readonly
+tools: []
+hooks:
+  - pre_tool_call

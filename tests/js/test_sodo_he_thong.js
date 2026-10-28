@@ -129,6 +129,34 @@ async function main() {
     check("không dùng em dash trong HTML", !h.includes("—"));
     check("màu chỉ dùng token theme, không còn --tx/--bd/--tx2 không ai định nghĩa", !/var\(--(tx2?|bd|bg2|bg3)/.test(SODO));
   }
+  // ---- 1.3.39: chuẩn Joyce Harness, ba tầng A/B/C, đèn theo số thật từ /work/factory -> harness ----
+  {
+    const c4 = JSON.parse(JSON.stringify(FULL));
+    const o = (k, state, v) => ({ k, state, v: v || {} });
+    c4["/work/factory"] = { ok: true, stages: {}, agents: [], autonomy: {}, harness: { version: "1.0.0", ok: 9, total: 14,
+      tiers: [
+        { id: "A", items: [o("cache", "ok"), o("guard", "ok", { n: 3 }), o("trim", "ok", { n: 80000 }), o("perm", "ok"), o("brake", "ok", { n: 30 })] },
+        { id: "B", items: [o("agents", "ok", { n: 3, s: 2 }), o("shared", "ok", { n: 9 }), o("evals", "off", { n: 0 }), o("scope", "off", { n: 0, m: 3 })] },
+        { id: "C", items: [o("self", "ok", { n: 61, m: 61 }), o("judge", "ok", { w: 2, k: 1, i: 0 }), o("gate", "warn", { n: 1, e: 0 }),
+                           o("canary", "ok", { n: 0, r: 0 }), o("budget", "off", { n: 500000, m: 1000000 })] }],
+      phases: [{ k: "0A", state: "ok" }, { k: "0B", state: "warn" }, { k: "1", state: "off" }] } };
+    const { ctx, el } = makeCtx(c4);
+    await ctx.window.JoyceSoDo.render(el);
+    const h = el.innerHTML;
+    check("harness: có khối Joyce Harness với ba tầng", h.includes("sd-hx") && (h.match(/class="sd-hx-col"/g) || []).length === 3
+      && h.includes(VI["sodo.hx.tA"]) && h.includes(VI["sodo.hx.tC"]));
+    check("harness: đủ 14 thành phần, mỗi cái một đèn", (h.match(/class="sd-hx-r /g) || []).length === 14);
+    check("harness: số thật đi vào chữ (9 bản gốc, 1 chờ chủ, 61/61 brain)", h.includes("9 bản gốc") && h.includes("1 chờ chủ duyệt") && h.includes("61/61"));
+    check("harness: số lớn có dấu chấm nghìn", h.includes("500.000") && h.includes("1.000.000"));
+    check("harness: thứ chưa làm hiện đèn xám, cổng có việc chờ hiện vàng", h.includes("sd-hx-r sd-st-off") && h.includes("sd-hx-r sd-st-warn"));
+    check("harness: điểm tổng và giai đoạn rollout", h.includes(">9/14</b>") && h.includes("Giai đoạn 0A"));
+    check("harness: không rò key i18n", !h.includes("THIEU_I18N"));
+  }
+  {
+    const { ctx, el } = makeCtx(FULL);
+    await ctx.window.JoyceSoDo.render(el);
+    check("không có harness trong /work/factory thì không vẽ khối rỗng", !el.innerHTML.includes("sd-hx-grid") && !el.innerHTML.includes(VI["sodo.hx.sect"]));
+  }
   // ---- một nguồn lỗi: khối liên quan báo "Không tải được", các khối khác vẫn bình thường ----
   {
     const c3 = JSON.parse(JSON.stringify(FULL));

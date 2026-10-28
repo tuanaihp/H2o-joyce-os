@@ -60,10 +60,12 @@
 - Schema và ví dụ đã kiểm bằng `jsonschema` 4.26 (Draft 2020-12). Compiler, permission gate v1 và runner eval hành vi chưa tồn tại.
 - Chưa chạy ca hành vi nào với model thật. Chưa chạy demo của Harness².
 - Số liệu phòng ban và cache lấy từ audit ngày 2026-10-28, sẽ lệch khi dữ liệu đổi.
+- 1.3.39 đã vá B-01, B-10, B-12 và xong giai đoạn 0A bằng test không gọi model. Tỷ lệ cache sau khi tách khối tĩnh chưa đo lại trên dữ liệu thật; trần token đã chốt nhưng chưa ép trong code.
 
 ## Nhật ký
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | 1.3.39: ba lỗ thật đã vá, giai đoạn 0A xong, 9 trợ lý dùng chung về một bản gốc, khối Joyce Harness lên trang Sơ đồ |
 | 2026-10-28 | Ghi hai quyết định của chủ: cách xếp 0A song song 0B, trần token 500.000 đến 1.000.000 theo mức cần |
 | 2026-10-28 | Bản đầu: liệt kê bộ chuẩn, ba lỗi draft đã sửa, các điểm đã khóa, xác minh sáu nhận định trong code, gỡ bốn mâu thuẫn |

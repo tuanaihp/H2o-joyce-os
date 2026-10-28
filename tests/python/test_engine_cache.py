@@ -97,6 +97,24 @@ _apply_anthropic_cache(payload)
 check("chat thuần: system thành block có marker", "cache_control" in payload["system"][0])
 check("chat thuần: tổng breakpoint <= 4", count_markers(payload) <= 4)
 
+# ---- 7. 1.3.39: đuôi đổi theo lượt (đồng hồ, ngôn ngữ, mức dùng) không làm trượt cache phần tĩnh ----
+tinh = "# JOYCE OS\nluật..." * 50
+def _sys(gio, token):
+    return tinh + f"\n\n# === BÂY GIỜ ===\n{gio}\n\n# === MỨC DÙNG HÔM NAY (Joyce tự đo) ===\n{token} token"
+p1 = {"system": _sys("09:01", 1000), "messages": [{"role": "user", "content": "a"}]}
+p2 = {"system": _sys("09:07", 5321), "messages": [{"role": "user", "content": "a"}]}
+_apply_anthropic_cache(p1)
+_apply_anthropic_cache(p2)
+check("tách đôi: phần tĩnh mang marker, đuôi không", "cache_control" in p1["system"][0]
+      and "cache_control" not in p1["system"][1] and p1["system"][1]["text"].startswith("\n\n# === BÂY GIỜ"))
+check("tách đôi: hai lượt khác giờ có phần tĩnh giống hệt (trúng cache)", p1["system"][0] == p2["system"][0])
+check("tách đôi: ghép lại đúng bản gốc", p1["system"][0]["text"] + p1["system"][1]["text"] == _sys("09:01", 1000))
+check("tách đôi: vẫn <= 4 breakpoint", count_markers(p1) <= 4)
+o2 = _or_mark_system([{"role": "system", "content": _sys("10:00", 1)}])
+check("or: tách đôi, chỉ phần tĩnh có marker", len(o2[0]["content"]) == 2 and count_markers(o2) == 1)
+from engine import _system_blocks  # noqa: E402
+check("không có đuôi thì giữ một khối như cũ", len(_system_blocks("chỉ có luật", {"type": "ephemeral"})) == 1)
+
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")
     sys.exit(1)

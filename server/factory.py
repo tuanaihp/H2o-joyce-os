@@ -710,8 +710,21 @@ def _extract_draft(body: str) -> str:
     if not m:
         return ""
     rest = body[m.end():]
-    nxt = re.search(r"^##\s+", rest, re.M)
-    draft = (rest[:nxt.start()] if nxt else rest).strip()
+    # Bản nháp trong khối ```: lấy tới dấu đóng khối mà sau nó là hết file hoặc mục `## ` kế tiếp.
+    # Trước 1.3.39 cắt ở `## ` đầu tiên, tức cắt cụt ngay ở mục `## Quy trình` TRONG thân agent.
+    if rest.lstrip().startswith("```"):
+        for f in re.finditer(r"^```[ \t]*\r?$", rest, re.M):
+            sau = rest[f.end():].lstrip()
+            if not sau or sau.startswith("## "):
+                rest = rest[:f.end()]
+                break
+        else:
+            nxt = re.search(r"^##\s+", rest, re.M)
+            rest = rest[:nxt.start()] if nxt else rest
+        draft = rest.strip()
+    else:
+        nxt = re.search(r"^##\s+", rest, re.M)
+        draft = (rest[:nxt.start()] if nxt else rest).strip()
     if draft.startswith("```"):
         draft = re.sub(r"^```[a-zA-Z]*\s*\n", "", draft)
         draft = re.sub(r"\n```\s*$", "", draft)
@@ -761,6 +774,50 @@ def _target_relpath(raw) -> str:
     return rel
 
 
+# Trường frontmatter chạm QUYỀN, công cụ, model, phạm vi hay cách kiểm. Đề xuất đổi bất kỳ trường nào
+# trong đây KHÔNG bao giờ tự áp, dù frontmatter đề xuất ghi `risk: low` (1.3.39, Joyce Harness B-12):
+# `risk` và `verdict` do agent giám định viết, model không được tự quyết chuyện nới quyền của mình.
+_KHOA_QUYEN = frozenset({
+    "agent", "tools", "allowed_tools", "verify_agent", "max_retries", "mode", "execution_mode",
+    "muc_quyen", "enabled", "model", "model_provider", "skills", "harness", "min_mode", "risk",
+    "capability", "scope", "system_shared", "delegates", "allowed_effects", "deny", "budget",
+    "max_rounds", "max_minutes", "reasoning", "notify", "owner_chat", "interval_min",
+})
+
+
+def _dau_van_quyen(text: str) -> list:
+    """Các dòng frontmatter thuộc `_KHOA_QUYEN` (kể cả mục danh sách ngay dưới chúng), đã chuẩn hoá
+    và sắp xếp. Hai bản có cùng dấu vân thì không đổi gì về quyền. Nhận cả khoá lồng trong `steps`."""
+    t = (text or "").replace("\r\n", "\n")
+    if not t.startswith("---"):
+        return []
+    end = re.search(r"^---[ \t]*$", t[3:], re.M)
+    head = t[3:3 + end.start()] if end else ""
+    out, dang = [], None
+    for ln in head.split("\n"):
+        m = re.match(r"^(\s*)(?:-\s*)?([\w-]+)\s*:(.*)$", ln)
+        if m:
+            key, indent = m.group(2), len(m.group(1))
+            if key in _KHOA_QUYEN:
+                out.append(f"{key}:{m.group(3).strip()}")
+                dang = (key, indent)
+            else:
+                dang = None
+            continue
+        if dang and re.match(r"^\s*-\s+\S", ln):
+            out.append(f"{dang[0]}[]:{ln.strip()[1:].strip()}")
+    return sorted(out)
+
+
+def diff_quyen(original: str, draft: str) -> list:
+    """Tên các trường quyền bị đổi giữa bản gốc và bản nháp (rỗng = chỉ đổi nội dung)."""
+    a, b = _dau_van_quyen(original), _dau_van_quyen(draft)
+    if a == b:
+        return []
+    doi = {x.split(":", 1)[0].rstrip("[]") for x in set(a) ^ set(b)}
+    return sorted(doi)
+
+
 async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
                           text: str, fm: dict, cfg: dict) -> str:
     """Áp 1 proposal đã qua kiểm. Trả 'applied'|'canary'|'skipped'."""
@@ -788,6 +845,23 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
         new_fm, _ = _proposal_front(draft)
         if not isinstance(new_fm, dict) or new_fm.get("type") != old_fm.get("type"):
             return "skipped"
+
+    # Host tự phân loại thay đổi, không tin `risk: low` (B-12). Đổi quyền thì chờ chủ duyệt.
+    doi_quyen = diff_quyen(original, draft)
+    if doi_quyen:
+        try:
+            fp.write_text(_fm_patch(text, {
+                "status": "cho_chu_duyet",
+                "ly_do_cho": ("đổi trường quyền hoặc cách chạy: " + ", ".join(doi_quyen))[:180],
+            }), encoding="utf-8")
+            await deps.inbox(
+                f"🔐 **Tự cải tiến**: proposal `{fp.stem}` thắng giám định nhưng đổi "
+                f"{', '.join(doi_quyen[:5])} của `{rel}`. Thay đổi về quyền không tự áp - chờ anh xem.",
+                kind="system", label="self-improve", source="factory",
+                dedup=f"quyen:{fp.stem}")
+        except Exception:  # noqa: BLE001
+            pass
+        return "skipped"
 
     # Perf harness: bộ eval deterministic (nếu chủ đã khai cho file này) chạy lên
     # bản nháp TRƯỚC khi áp. Case FAIL → không tự áp, đánh dấu eval_failed để chủ
@@ -1003,14 +1077,18 @@ def _eval_run(cases: list, text: str) -> list:
 
 
 def eval_for_draft(root: str, rel: str, draft: str) -> Optional[dict]:
-    """Chạy eval cases của file mục tiêu lên bản nháp. None = không có bộ eval."""
+    """Chạy eval cases của file mục tiêu lên bản nháp. None = không có bộ eval.
+
+    Case không kiểm được (loại check lạ, lỗi khi chạy) tính là RỚT kèm nhãn "không kiểm được"
+    (1.3.39, Joyce Harness B-10): "không thấy lỗi" không phải "đạt". Trước đây nó bị bỏ qua, nên
+    một bộ eval gõ sai tên check thành ra luôn cho bản nháp qua."""
     cases = _eval_cases(root, Path(rel).stem)
     if not cases:
         return None
     res = _eval_run(cases, draft)
     fails = [r["name"] for r in res if r["ok"] is False]
-    return {"total": len(res), "fails": fails,
-            "passed": len(res) - len(fails) - sum(1 for r in res if r["ok"] is None)}
+    fails += [f"{r['name']} (không kiểm được)" for r in res if r["ok"] is None]
+    return {"total": len(res), "fails": fails, "passed": len(res) - len(fails)}
 
 
 # ── Số liệu sống cho tab Sơ đồ ──────────────────────────────────────────────
@@ -1030,7 +1108,7 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
         k = str(c.get("state") or "?")
         c_by[k] = c_by.get(k, 0) + 1
 
-    props = {"pending": 0, "applied": 0, "eval_failed": 0, "other": 0}
+    props = {"pending": 0, "applied": 0, "eval_failed": 0, "cho_chu_duyet": 0, "other": 0}
     verdicts = {"win": 0, "keep": 0, "inconclusive": 0}
     evals_n = ckpt_n = art_lines = 0
     risk_ct = {"low": 0, "standard": 0, "high": 0}

@@ -3,8 +3,14 @@
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
 ## [1.3.39] - 2026-10-28
+### Added
+- **Joyce Harness on the Diagram page.** Three tiers (runtime core, department surface, improvement loop), 14 components, each with a light driven by live numbers; anything not built yet shows grey and says so.
+- **joyce-guard on by default.** No overwriting source documents in sources/, outsiders cannot get Joyce to send Zalo messages in bulk, an expense of 5 million or more must name its contract or category.
 ### Changed
-- (in progress) One source for the 9 shared assistants, permission boundary fixes from the Joyce Harness standard, the harness standard on the Diagram tab.
+- **The 9 shared assistants now live as one source.** Five reviewers, the improvement engineer, two overhaul assistants and the Onboarding assistant change everywhere when edited once; the 549 copies inside brains were removed (backed up). A department that needs its own saves an override.
+- **Fewer tokens.** The fixed part of Joyce's instructions is really cached now instead of missing every turn because of the clock; turns that read many pages of data trim old results, Shop ledger numbers stay whole.
+### Fixed
+- A job declared with "no tools" used to run with full access on the Claude engine; a self-improvement that changes an assistant's permissions now waits for the owner; an eval case that cannot be checked counts as a fail.
 
 ## [1.3.38] - 2026-10-27
 ### Added

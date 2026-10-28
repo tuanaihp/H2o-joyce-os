@@ -43,12 +43,20 @@ Chủ đã chốt thứ tự này. Ba việc đều nhỏ, đo được trước
 
 Giai đoạn 0A và 0B chạy song song (chủ đồng ý cách xếp ngày 28/10/2026). Không việc nào của 0A được làm yếu ranh giới quyền.
 
+**Đã làm ở 1.3.39:**
+
+1. Cache: `engine._system_blocks` cắt system prompt ở tiêu đề `# === BÂY GIỜ ===`; phần tĩnh mang dấu cache, đuôi (giờ, ngôn ngữ, mức dùng) không. Áp cho Anthropic API (chat và vòng tool) và OpenRouter model Claude. Engine Claude Code CLI tự lo cache của nó, chưa đo lại tỷ lệ 90%. Test `test_engine_cache.py` mục 7.
+2. `system/plugins/joyce-guard` bật sẵn, hook `pre_tool_call`, ba luật: không ghi đè file đã có trong `sources/` (ghi file mới vẫn được vì skill notes cần) và không ghi `Memory/` viết hoa; người không phải chủ tối đa 3 tin Zalo mỗi 10 phút, việc nền tối đa 30; chi từ 5 triệu phải có `khach` hoặc `hang_muc`. Ghi ra ngoài brain vốn đã bị `_safe_path` của hub chặn. Hook chỉ bọc tool đi qua MCP Hub, không bọc Bash/Write native của CLI. Số lần chặn: chưa đếm riêng, `tool-audit` thấy lời gọi bị chặn qua cờ `denied`. Test `test_joyce_guard.py`.
+3. `engine._thu_gon_ket_qua_cu`: tổng kết quả tool trong lượt quá 80.000 ký tự thì thu kết quả cũ còn 700 ký tự đầu kèm lời dặn gọi lại; giữ 4 kết quả mới nhất và mọi kết quả `joyce_shop`. Áp cho cả ba vòng tool API (OpenAI chat, Codex Responses, Anthropic). Phần ghim Sổ Shop khi NÉN hội thoại giữa các lượt chưa làm. Test `test_thu_gon_tool_cu.py`.
+
 ## 3B. Giai đoạn 0B: schema và enforcement tối thiểu
 
 Hai lỗ thật đã xác minh trong code, làm TRƯỚC các việc còn lại của 0B (xem [ma trận nghiệm thu](./joyce-harness/acceptance.md)):
 
 - B-01: allowlist rỗng ở `claude_sdk_engine` thành `bypassPermissions`. Sửa: phân biệt "chưa khai" với "khai rỗng"; khai rỗng là không tool, có test hồi quy.
 - B-12: `factory.proposal_tick` tin `risk: low` do model ghi. Sửa: host tự phân loại diff; đổi grant, effect, delegate, budget, policy, hook thì không tự áp. Vẫn giữ `self_improve` và `low_risk_auto` bật theo quyết định của chủ.
+
+Cả ba lỗ (B-01, B-10, B-12) đã vá ở 1.3.39, xem cột hiện trạng của ma trận nghiệm thu. Công việc 4 bên dưới (`tools: []` là không tool) xong cùng B-01; các việc còn lại của 0B chưa làm.
 
 ### Công việc
 
@@ -200,14 +208,14 @@ Mỗi phòng cần:
 | P1 | Trace và management metrics | Biết hệ thống có tốt lên không |
 | P0 (0A) | Prefix cache và dọn context | Chủ chốt làm trước trong giai đoạn 0A; không đổi ranh giới quyền |
 | P2 | Probe và kinh nghiệm | Chỉ làm khi sandbox và baseline sẵn sàng |
-| P3 | UI sức khỏe harness | Hiển thị sau khi dữ liệu đo đáng tin |
+| P3 | UI sức khỏe harness | 1.3.39 đã có khối Joyce Harness trên trang Sơ đồ (ba tầng, đèn theo số thật, thứ chưa làm hiện xám); chỉ số quản trị mục 15 vẫn chờ dữ liệu đo |
 
 ## 10. Cổng quyết định
 
 Trước khi đụng dữ liệu `brains/`, cần chốt:
 
 - Schema v1 có được coi là ổn định để migration không.
-- Danh sách agent hệ thống nào thật sự dùng chung.
+- Danh sách agent hệ thống nào thật sự dùng chung. Chủ chốt 28/10/2026 và đã làm ở 1.3.39: 9 trợ lý về một bản gốc trong `system/agents/` (`server/system_agents.py`), 549 bản chép trong 61 brain đã xoá sau khi sao lưu.
 - Trần token, thời gian và số lần Probe. Chủ chốt 28/10/2026: trần token mỗi lượt cải tiến mặc định 500.000, nâng tới tối đa 1.000.000 khi việc cần (nhắm agent dùng chung nhiều brain, từ 5 ca thử trở lên, hoặc ca có vòng tool dài như đối soát cả tháng); không bao giờ vượt 1.000.000; mức đã chọn và lý do ghi vào file đề xuất; vẫn 2 lượt mỗi target mỗi tuần.
 - Health signal nào làm canary rollback.
 - Thời gian giữ backup.
@@ -233,6 +241,7 @@ Các quyết định trên không ngăn việc xây validator, golden profiles v
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | 1.3.39: xong giai đoạn 0A (cache, joyce-guard, thu gọn kết quả tool cũ), vá B-01, B-10, B-12, gom 9 trợ lý dùng chung, khối Joyce Harness trên trang Sơ đồ |
 | 2026-10-28 | Chủ duyệt cách xếp 0A song song 0B (B-01, B-12 làm đầu 0B) và chốt trần token 500.000 đến 1.000.000 theo mức cần |
 | 2026-10-28 | Chỉnh cho khớp quyết định của chủ: thêm giai đoạn 0A (cache, joyce-guard, dọn ngữ cảnh), đổi giai đoạn 0 cũ thành 0B và đưa hai lỗ thật B-01, B-12 lên đầu; bỏ chữ `max_effect` còn sót; ghi trần chi phí chưa chốt số |
 | 2026-10-28 | Tạo rollout mới theo thứ tự chuẩn, enforcement, golden manager, lát cắt end-to-end, sáu phòng pilot, Probe rồi mới mở rộng |

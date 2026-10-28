@@ -668,7 +668,7 @@ class ClaudeSDK:
                 return str(self.mcp_config), self.mcp_strict
             servers = self._gan_khoa_luot(servers)
         only = None
-        if self.allowed_tools:
+        if self.allowed_tools is not None:
             # Gated fork: no plugin server, EXCEPT the tools the allowlist names one by one
             # (a Kanban "image" job, a workflow step with `tools:`). The allowlist and the
             # permission gate still stop everything else.
@@ -857,7 +857,11 @@ class ClaudeSDK:
                                "PostToolUseFailure": [HookMatcher(matcher=None, hooks=[self._steer_hook])]}
             except Exception:
                 pass
-        if self.allowed_tools:
+        # `is not None` chứ không phải truthy (1.3.39, Joyce Harness B-01): `allowed_tools=[]` nghĩa là
+        # KHÔNG CÓ công cụ nào, không phải "không giới hạn". Kiểm truthy như trước thì [] rơi xuống
+        # nhánh `bypassPermissions` bên dưới, tức mở TOÀN QUYỀN đúng lúc nơi gọi định khoá chặt nhất
+        # (một bước workflow khai `tools: []`). Chỉ `None` (nơi gọi không khai gì) mới là chat thường.
+        if self.allowed_tools is not None:
             # Chế độ nền an toàn: whitelist auto-allow, MỌI tool khác rơi vào _permission_gate → DENY.
             # KHÔNG nạp settings filesystem: allow-rule trong settings user có thể che gate.
             kw["allowed_tools"] = list(self.allowed_tools)

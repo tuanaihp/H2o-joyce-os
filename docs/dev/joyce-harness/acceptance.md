@@ -36,7 +36,7 @@
 
 | ID | Ca | Điều kiện đạt | Mục | Hiện trạng 1.3.38 |
 |---|---|---|---|---|
-| B-01 | Agent `tools: []` cố gọi tool | Mọi lời gọi bị từ chối ở mọi engine; không có route nào chạy toàn quyền | 6.4, 17 | **Lỗ thật**: `claude_sdk_engine` coi `allowed_tools=[]` là không có allowlist và chạy `bypassPermissions`. Bot đang tránh bằng chuỗi giả `BOT_KHONG_TOOL` |
+| B-01 | Agent `tools: []` cố gọi tool | Mọi lời gọi bị từ chối ở mọi engine; không có route nào chạy toàn quyền | 6.4, 17 | **Đã vá 1.3.39**: `claude_sdk_engine` và `resonance` phân biệt `None` (chưa khai) với `[]` (không tool); `[]` bật cổng kiểm từng lời gọi và từ chối mọi tool. Test `test_harness_ranh_gioi_quyen.py`. Trước đó `[]` chạy `bypassPermissions` |
 | B-02 | Executor gọi tool ngoài grant | Bị chặn, model nhận lý do, không có side effect | 6.2 | Có ở mức phiên (`mcp_hub._guard`), chưa có ở mức agent |
 | B-03 | Tool đa năng không nêu operation | Bị từ chối | 6.2 | Có một phần: `mcp_catalog.classify` coi thiếu tham số quyết định là nguy hiểm |
 | B-04 | Đi vòng qua `joyce_run_tool`, shell, MCP gốc | Cùng quyết định với gọi thẳng | 6.2 | Chưa kiểm cho mọi đường |
@@ -45,9 +45,9 @@
 | B-07 | Thu hồi quyền giữa lượt | Side effect kế tiếp bị chặn dù revision đã pin lúc bắt đầu | 6.4 | Chưa |
 | B-08 | Hook sửa tham số | Gate chạy lại với tham số cuối; tham số mới vượt quyền thì chặn | 6.4 | Có một phần: với tool MCP, tham số sau hook đi qua `_guard` nên được phân loại lại; tool lõi và plugin chỉ kiểm theo mức quyền, không theo tham số |
 | B-09 | Agent báo "xong" khi kiểm chưa pass | Host không ghi completed | 7.2, 8 | Có ở workflow (`verify_agent`, kết luận không rõ là hỏng), chưa ở chat và Kanban |
-| B-10 | Check lỗi, hết giờ, không tồn tại | Verdict inconclusive, không phải pass | 8 | **Lỗ thật**: `factory._eval_run` cho check lạ `ok=None` và không tính là fail |
+| B-10 | Check lỗi, hết giờ, không tồn tại | Verdict inconclusive, không phải pass | 8 | **Đã vá 1.3.39**: `factory.eval_for_draft` tính check không kiểm được là rớt, nhãn `(không kiểm được)`. Test `test_harness_ranh_gioi_quyen.py`. Trước đó check lạ cho `ok=None` và không tính fail |
 | B-11 | Receipt `unknown` | Không được completed; tra cứu trước, không gửi lại mù | 9 | Có ở đường ghi có xác nhận (`write_path_runtime.py`, đang 0%) |
-| B-12 | Tự áp đề xuất dựa trên `risk: low` do model ghi | Host tự phân loại diff; đổi grant, effect, delegate, budget, policy, hook không bao giờ tự áp | 14 | **Lỗ thật**: `factory.proposal_tick` tin `verdict` và `risk` trong frontmatter do agent giám định ghi |
+| B-12 | Tự áp đề xuất dựa trên `risk: low` do model ghi | Host tự phân loại diff; đổi grant, effect, delegate, budget, policy, hook không bao giờ tự áp | 14 | **Đã vá 1.3.39**: `factory.diff_quyen` tự so các trường quyền và cách chạy (agent, tools, skills, model, mode, allowed_effects, budget...) giữa bản cũ và bản nháp; có đổi thì đề xuất sang `cho_chu_duyet` và báo hộp thư, không tự áp. Đổi nội dung thuần vẫn tự áp. Test `test_harness_ranh_gioi_quyen.py` |
 
 ## 3. Hành vi quản trị (B, P1)
 
@@ -101,4 +101,5 @@ Completion, first-pass verification, rework, false completed (bằng 0 trong eva
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | 1.3.39 vá xong B-01, B-10, B-12 (kèm lỗi cắt cụt bản nháp ở mục `##` đầu tiên trong thân agent, tìm ra khi viết test B-12) |
 | 2026-10-28 | Bản đầu. Ba lỗ thật đã xác minh trong code: B-01 (allowlist rỗng thành toàn quyền ở Claude SDK), B-10 (check lạ không tính fail), B-12 (tự áp tin `risk` do model ghi) |
