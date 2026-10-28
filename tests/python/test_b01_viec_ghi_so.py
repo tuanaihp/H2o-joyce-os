@@ -52,6 +52,9 @@ r = L.lay(rid)
 check("việc giao cho trợ lý: mở lượt, ghi agent, brain, cửa task, revision từ file agent thật",
       r and r["agent_id"] == "tro-ly" and r["brain_id"] == "Ban Hang" and r["entrypoint"] == "task" and len(r["agent_revision"]) == 64
       and r["logical_execution_id"] == "task:t1" and r["attempt_id"] == "run-t1", r)
+import hashlib  # noqa: E402
+check("agent_revision = SHA-256 của đúng nội dung file agent (so được với candidate_hash của canary)",
+      r["agent_revision"] == hashlib.sha256((BRAIN / "agents" / "tro-ly.md").read_text(encoding="utf-8").encode("utf-8")).hexdigest())
 check("việc thường (không giao cho trợ lý) không vào sổ", tf._so_mo_viec(viec("t2", "khac:abc")) == "")
 
 # 2. chốt theo trạng thái việc

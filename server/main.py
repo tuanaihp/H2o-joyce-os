@@ -11000,12 +11000,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         slug = str(getattr(node, "agent", "") or "")
         if not slug:
             return ""
-        texte = ""
-        try:
-            m, b = _read_md(_agent_path(brain_id, slug)) if brain_id else ({}, "")
-            texte = (b or "") + chr(10) + repr(sorted((m or {}).items()))
-        except Exception:  # noqa: BLE001 - agent không đọc được thì revision rỗng, không giả vờ biết
-            pass
+        texte = run_ledger.doc_file_agent(_brain_root(brain_id) if brain_id else "", slug)   # NỘI DUNG THÔ, khớp băm của canary
         rv = run_ledger.chup_cho_agent(_brain_root(brain_id) if brain_id else "", slug, texte, harness_version=harness_map.STANDARD_VERSION)
         return run_ledger.bat_dau(brain_id=brain_id, agent_id=slug, entrypoint="workflow",
                                   ref=f"wf:{session_id}:{getattr(node, 'id', '')}"[:200], revision=rv,

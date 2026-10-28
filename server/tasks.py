@@ -706,13 +706,7 @@ class TasksFeature:
             if not got:
                 return ""
             root, slug = str(task.get("brain_root") or ""), got["slug"]
-            texte = ""
-            try:
-                fp = Path(root) / "agents" / f"{slug}.md"
-                if fp.is_file():
-                    texte = fp.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                pass
+            texte = run_ledger.doc_file_agent(root, slug)      # cùng một cách đọc ở cả ba cửa: bot, task, workflow
             rv = run_ledger.chup_cho_agent(root, slug, texte, harness_version=harness_map.STANDARD_VERSION)
             return run_ledger.bat_dau(brain_id=Path(root).name, agent_id=slug, entrypoint="task", ref="task:" + str(task.get("id")),
                                       logical_execution_id="task:" + str(task.get("id")), attempt_id=str(task.get("current_run_id") or ""),

@@ -251,3 +251,21 @@ def bo(run_id: str) -> bool:
     """Gỡ một lượt `running` chưa làm gì (lượt im lặng). Chỉ gỡ được lượt còn đang chạy: lượt đã chốt là bằng chứng, không xoá."""
     with _LOCK:
         return _db().execute("DELETE FROM agent_runs WHERE run_id=? AND status='running'", (run_id,)).rowcount == 1
+
+
+def doc_file_agent(root, slug: str) -> str:
+    """Nội dung THÔ của file agent sắp chạy: `<root>/agents/<slug>.md`, rơi về bản dùng chung của hệ thống nếu brain không có bản
+    riêng. `agent_revision` là băm đúng chuỗi này nên so được với `candidate_hash` của canary (cùng băm nội dung file). Không đọc
+    được thì trả rỗng và revision rỗng: lượt vẫn ghi nhưng không bao giờ được tính làm bằng chứng cho một bản cụ thể."""
+    try:
+        if root:
+            p = Path(str(root)) / "agents" / f"{slug}.md"
+            if p.is_file():
+                return p.read_text(encoding="utf-8", errors="replace")
+        import system_agents
+        sp = system_agents.path(slug)
+        if sp is not None and Path(sp).is_file():
+            return Path(sp).read_text(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
+    return ""

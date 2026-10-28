@@ -12,6 +12,9 @@ from pathlib import Path
 os.environ["JOYCE_STATE_DIR"] = tempfile.mkdtemp(prefix="joyce-b01bot-state-")
 TEMP = Path(tempfile.mkdtemp(prefix="joyce-b01bot-"))
 (TEMP / "Joyce" / "evals").mkdir(parents=True)
+(TEMP / "agents").mkdir(parents=True)
+AGENT_FILE = TEMP / "agents" / "tro-ly-ban-hang.md"
+AGENT_FILE.write_text("Ban dau", encoding="utf-8")
 (TEMP / "Joyce" / "evals" / "tro-ly-ban-hang.json").write_text('{"cases": []}', encoding="utf-8")
 
 import chatbot_runtime as CR  # noqa: E402
@@ -50,7 +53,7 @@ CR._so_chot(rid, "completed")
 check("chốt lượt hoàn tất, chưa kiểm chứng", L.lay(rid)["status"] == "completed" and L.lay(rid)["verification_status"] == "unverified")
 
 # 2. agent đổi nội dung thì revision đổi
-NOI_DUNG["v"] = "Bạn là trợ lý bán hàng. Luôn chào khách trước."
+AGENT_FILE.write_text("Đã sửa: luôn chào khách trước", encoding="utf-8")
 rid2 = CR._so_mo("bot1", {"chat_id": "c1"})
 check("agent đổi nội dung: revision lượt mới khác lượt cũ (bằng chứng không lẫn giữa hai bản)",
       L.lay(rid2)["agent_revision"] != L.lay(rid)["agent_revision"])
@@ -62,6 +65,7 @@ check("bot không gắn agent thì không có lượt trong sổ (không có gì
 chatbot_store.get_bot = lambda bid: dict(CFG)
 
 # 4. sổ hỏng không làm hỏng lượt
+AGENT_FILE.unlink()
 CR._deps["read_agent"] = lambda brain, slug: (_ for _ in ()).throw(RuntimeError("không đọc được agent"))
 rid3 = CR._so_mo("bot1", {})
 check("agent đọc không được: vẫn ghi lượt với revision rỗng (không giả vờ biết), không ném lỗi",

@@ -1498,9 +1498,10 @@ def _so_mo(bot_id: str, meta) -> str:
         rd, root = _deps.get("read_agent"), _deps.get("brain_root")
         texte, rt = "", ""
         try:
-            m, b = rd(brain, slug)
-            texte = (b or "") + chr(10) + repr(sorted((m or {}).items()))
             rt = root(brain) if root else ""
+            texte = run_ledger.doc_file_agent(rt, slug)      # NỘI DUNG THÔ của file, để revision so được với bản canary
+            if not texte and rd:
+                rd(brain, slug)       # chỉ để biết agent có đọc được không; không dùng để băm (đã parse, mất bản thô)
         except Exception:      # noqa: BLE001 - agent đọc không được thì lượt vẫn ghi, revision rỗng (không giả vờ biết)
             pass
         rv = run_ledger.chup_cho_agent(rt, slug, texte, harness_version=harness_map.STANDARD_VERSION)
