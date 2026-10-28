@@ -6616,6 +6616,7 @@
   "sodo.dp.grade.pass": "Pass",
   "sodo.dp.grade.fail": "Fail",
   "sodo.dp.grade.reason": "Why this grade? (a few words at least)",
+  "sodo.dp.grade.empty": "No runs are waiting for a grade. The run log only records a bot replying to a customer, a task given to an assistant finishing, or a workflow step running; direct chat with Joyce is not in it yet. Once there are runs they appear here with Pass and Fail buttons.",
   "sodo.dp.title": "Self-improvement deployments",
   "sodo.dp.sub": "Which fix runs where, and what you can decide",
   "sodo.dp.none": "No deployments yet. Behaviour changes and shared files all wait for you, so this list may be empty.",

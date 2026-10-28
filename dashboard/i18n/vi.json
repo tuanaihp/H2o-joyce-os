@@ -6616,6 +6616,7 @@
   "sodo.dp.grade.pass": "Đạt",
   "sodo.dp.grade.fail": "Rớt",
   "sodo.dp.grade.reason": "Vì sao chấm vậy? (ít nhất vài chữ)",
+  "sodo.dp.grade.empty": "Chưa có lượt nào chờ chấm. Sổ lượt chạy chỉ ghi khi một bot trả lời khách, một việc giao cho trợ lý chạy xong, hoặc một bước workflow chạy; chat trực tiếp với Joyce chưa vào sổ. Có lượt rồi thì nó hiện ở đây kèm nút Đạt và Rớt.",
   "sodo.dp.title": "Triển khai tự cải tiến",
   "sodo.dp.sub": "Bản sửa nào đang chạy ở đâu, và anh quyết định được",
   "sodo.dp.none": "Chưa có triển khai nào. Thay đổi hành vi hay file dùng chung đều chờ anh duyệt, nên bảng này có thể trống.",

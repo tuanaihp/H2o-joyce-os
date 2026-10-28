@@ -390,7 +390,9 @@
     const cham = (dp.luot_can_cham || []).slice(0, 6).map(r => `<div class="sd-dp-r"><div class="sd-dp-h"><b>${esc(r.agent)}</b><span class="sd-dp-m">${esc(r.brain)} · ${esc(r.cua)} · ${esc(r.ban)}</span></div>
         <div class="sd-dp-act"><button type="button" class="sd-dp-b" data-dp="cham" data-run="${esc(r.run_id)}" data-kq="pass">${esc(t("sodo.dp.grade.pass"))}</button>
         <button type="button" class="sd-dp-b" data-dp="cham" data-run="${esc(r.run_id)}" data-kq="fail">${esc(t("sodo.dp.grade.fail"))}</button></div></div>`).join("");
-    const khungCham = cham ? `<div class="sd-dp-m" style="margin-top:10px"><b>${esc(t("sodo.dp.grade.title"))}</b> ${esc(t("sodo.dp.grade.sub"))}</div><div class="sd-dp-list">${cham}</div>` : "";
+    // Luôn hiện khung này: ẩn khi trống làm anh tưởng tính năng không có. Trống thì nói rõ vì sao.
+    const khungCham = `<div class="sd-dp-m" style="margin-top:10px"><b>${esc(t("sodo.dp.grade.title"))}</b> ${esc(t("sodo.dp.grade.sub"))}</div>`
+      + (cham ? `<div class="sd-dp-list">${cham}</div>` : `<div class="sd-empty">${esc(t("sodo.dp.grade.empty"))}</div>`);
     return `<section class="sd-fac sd-dp"><div class="sd-fac-h"><span class="sd-t">${esc(t("sodo.dp.title"))}</span><span class="sd-sub">${esc(t("sodo.dp.sub"))}</span>
         <button type="button" class="sd-dp-b" style="margin-left:auto" data-dp="pause" data-on="${dp.tam_dung ? "0" : "1"}">${esc(t(dp.tam_dung ? "sodo.dp.btn.resume" : "sodo.dp.btn.pause"))}</button></div>
       ${banner}<div class="sd-dp-list">${rows || `<div class="sd-empty">${esc(t("sodo.dp.none"))}</div>`}</div>${khungCham}

@@ -134,7 +134,9 @@ async function main() {
   const hc = J._dpSection(FC([], { luot_can_cham: [{ run_id: "r1", brain: "B", agent: "tro-ly-a", cua: "task", ref: "x", luc: 1, ban: "abcd1234" }] }));
   check("có lượt chờ chấm: hiện tiêu đề, tên trợ lý và hai nút Đạt/Rớt mang run_id", hc.includes(VI["sodo.dp.grade.title"]) && hc.includes("tro-ly-a")
         && /data-dp="cham" data-run="r1" data-kq="pass"/.test(hc) && /data-dp="cham" data-run="r1" data-kq="fail"/.test(hc));
-  check("không có lượt chờ chấm: không vẽ khối chấm", !J._dpSection(FC([])).includes(VI["sodo.dp.grade.title"]));
+  const h00 = J._dpSection(FC([]));
+  check("không có lượt chờ chấm: VẪN hiện khung kèm dòng giải thích vì sao trống, không có nút Đạt/Rớt",
+        h00.includes(VI["sodo.dp.grade.title"]) && h00.includes(VI["sodo.dp.grade.empty"]) && !/data-dp="cham"/.test(h00));
   const gc = ctxFor();
   await gc.J._dpAct({ dp: "cham", run: "r1", kq: "fail" });
   const pg = gc.goi.filter(x => x.method === "POST");
