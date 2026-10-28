@@ -393,14 +393,19 @@ t("eval đạt → áp + proposal ghi điểm eval",
   and "eval:" in (brain1 / "Joyce" / "proposals" / "2026-10-24-evalok.md")
       .read_text(encoding="utf-8"))
 
-# ── 22. Eval file hỏng JSON → coi như không có eval, áp bình thường ────────
+# ── 22. Eval file hỏng JSON → CHẶN, giữ bản hiện tại (FIX-02, JHA-02) ───────
+# Trước 1.3.41 test này khẳng định ngược lại ("hỏng thì vẫn áp, đừng để kẹt"). Chủ khai eval là để có cổng chặn;
+# cổng hỏng mà vẫn mở thì không còn là cổng. Chi tiết các dạng hỏng ở test_fix02_eval_loader.py.
 (brain1 / "agents" / "x.md").write_text(old_text, encoding="utf-8")
 (evdir / "x.json").write_text("{hỏng json", encoding="utf-8")
 _make_proposal(str(brain1), "2026-10-24-evalbad.md")
 deps, sent, calls = make_deps()
 rep = asyncio.run(factory.proposal_tick(deps))
-t("eval hỏng → fail-safe vẫn áp (không vì eval hỏng mà kẹt)",
-  "nội dung mới" in (brain1 / "agents" / "x.md").read_text(encoding="utf-8"))
+t("eval hỏng → KHÔNG áp, giữ nguyên bản hiện tại",
+  (brain1 / "agents" / "x.md").read_text(encoding="utf-8") == old_text)
+t("eval hỏng → proposal sang eval_failed và báo inbox",
+  "status: eval_failed" in (brain1 / "Joyce" / "proposals" / "2026-10-24-evalbad.md").read_text(encoding="utf-8")
+  and any("bộ eval" in str(x) for x in sent))
 
 # ── 23. Artifact index: done + artifacts → ghi index, dedup, giữ mới đầu ───
 deps, sent, calls = make_deps()

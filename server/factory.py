@@ -162,6 +162,9 @@ def load_factory_cfg(root: str) -> dict:
         "discovery": bool(cfg.get("discovery", True)),
         "recipes": bool(cfg.get("recipes", True)),
         "self_improve": bool(cfg.get("self_improve", True)),
+        # Chủ đặt true thì brain này KHÔNG tự áp đề xuất cho file chưa có bộ eval (FIX-02). Mặc định tắt: giữ
+        # hành vi cũ cho 61 brain đang chạy, chỉ bộ eval HỎNG mới chặn.
+        "eval_bat_buoc": bool(cfg.get("eval_bat_buoc", False)),
         "canary_hours": max(1, min(24 * 14, int(cfg.get("canary_hours", CANARY_DEFAULT_HOURS)))),
     }
 
@@ -839,7 +842,23 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
     # Perf harness: bộ eval deterministic (nếu chủ đã khai cho file này) chạy lên
     # bản nháp TRƯỚC khi áp. Case FAIL → không tự áp, đánh dấu eval_failed để chủ
     # thấy đề xuất đã qua đường chứng mà vấp ở đâu.
-    ev = eval_for_draft(root, rel, draft)
+    # FIX-02 (1.3.41): bộ eval HỎNG hoặc thiếu khi chủ đặt bắt buộc cũng CHẶN, không được hiểu là "không có eval".
+    ev = eval_for_draft(root, rel, draft, bat_buoc=bool(cfg.get("eval_bat_buoc")))
+    if ev and ev.get("status") != "valid":
+        try:
+            ly_do = "; ".join(ev.get("errors") or [])[:170]
+            fp.write_text(_fm_patch(text, {
+                "status": "eval_failed",
+                "eval": (f"bộ eval không dùng được ({ev['status']}): " + ly_do)[:180],
+            }), encoding="utf-8")
+            await deps.inbox(
+                f"🧪 **Perf harness**: proposal `{fp.stem}` không tự áp vì bộ eval của `{rel}` không dùng được "
+                f"({ly_do}). Giữ nguyên bản hiện tại - chờ anh sửa bộ eval hoặc xem đề xuất.",
+                kind="system", label="self-improve", source="factory",
+                dedup=f"evalbad:{fp.stem}")
+        except Exception:  # noqa: BLE001
+            pass
+        return "skipped"
     if ev and ev["fails"]:
         try:
             fp.write_text(_fm_patch(text, {
@@ -1009,21 +1028,86 @@ async def artifact_index(deps: FactoryDeps, root: str, task: dict) -> bool:
 #              {"name": "không quá dài", "check": "max_len", "value": 20000},
 #              {"name": "không hứa hẹn", "check": "not_contains", "value": "em sẽ quay lại"}]}
 
-def _eval_cases(root: str, slug: str) -> list:
+EVAL_MAX_CASES = 20             # quá số này là bộ hỏng, KHÔNG cắt âm thầm còn 20 ca rồi cho qua
+EVAL_MAX_BYTES = 256 * 1024
+_EVAL_CHECK_CAN_GIA_TRI = ("contains", "not_contains", "has_key", "max_len", "regex")
+
+
+def eval_load(root: str, slug: str) -> dict:
+    """Đọc bộ eval của một file mục tiêu. Luôn trả một dict có `status`, không bao giờ trả "rỗng" cho lỗi.
+
+    Trước 1.3.41 hàm này nuốt mọi lỗi và trả `[]`, nên JSON hỏng, root sai kiểu hay ca thiếu `check` đều bị
+    hiểu là "chủ chưa khai eval" rồi bản nháp được áp (FIX-02, JHA-02).
+
+        status "missing"  không có file (không phải lỗi; chỉ chặn khi `eval_bat_buoc`)
+        status "invalid"  có file mà không dùng được: `errors` nêu từng lỗi, `cases` rỗng
+        status "valid"    `cases` dùng được, `read` = số ca đọc
+
+    Không bỏ ca nào âm thầm: MỘT ca sai là cả bộ invalid. Không tự sửa đáp án để cho qua."""
+    out = {"status": "missing", "cases": [], "read": 0, "errors": []}
+    p = Path(root) / "Joyce" / "evals" / f"{slug}.json"
     try:
-        p = Path(root) / "Joyce" / "evals" / f"{slug}.json"
         if not p.is_file():
-            return []
+            return out
+        out["status"] = "invalid"
+        if p.stat().st_size > EVAL_MAX_BYTES:
+            out["errors"].append(f"file eval lớn hơn {EVAL_MAX_BYTES // 1024}KB")
+            return out
         data = json.loads(p.read_text(encoding="utf-8"))
-        cases = data.get("cases") if isinstance(data, dict) else data
-        out = []
-        for c in (cases or [])[:20]:
-            if isinstance(c, dict) and c.get("name") and c.get("check"):
-                out.append({"name": str(c["name"])[:80], "check": str(c["check"]),
-                            "value": c.get("value")})
+    except Exception as e:  # noqa: BLE001
+        out["status"] = "invalid"
+        out["errors"].append(f"không đọc được file eval: {type(e).__name__}")
         return out
-    except Exception:  # noqa: BLE001
-        return []
+    cases = data.get("cases") if isinstance(data, dict) else data
+    if not isinstance(cases, list):
+        out["errors"].append("`cases` phải là danh sách (hoặc cả file là danh sách các ca)")
+        return out
+    out["read"] = len(cases)
+    if not cases:
+        out["errors"].append("bộ eval rỗng: file có mà không có ca nào")
+        return out
+    if len(cases) > EVAL_MAX_CASES:
+        out["errors"].append(f"quá số ca cho phép ({len(cases)} > {EVAL_MAX_CASES})")
+        return out
+    ok = []
+    for i, c in enumerate(cases, 1):
+        if not isinstance(c, dict):
+            out["errors"].append(f"ca {i}: không phải mapping")
+            continue
+        ten, chk, val = c.get("name"), c.get("check"), c.get("value")
+        ma = str(ten)[:60] if isinstance(ten, str) and ten.strip() else f"#{i}"
+        if not (isinstance(ten, str) and ten.strip()):
+            out["errors"].append(f"ca {i}: thiếu name")
+        if not (isinstance(chk, str) and chk.strip()):
+            out["errors"].append(f"ca {ma}: thiếu check")
+            continue
+        if chk in _EVAL_CHECK_CAN_GIA_TRI:
+            if chk == "max_len":
+                if isinstance(val, bool) or not isinstance(val, int) or val <= 0:
+                    out["errors"].append(f"ca {ma}: max_len cần số nguyên dương")
+                    continue
+            elif not isinstance(val, str) or not val:
+                out["errors"].append(f"ca {ma}: check {chk} cần value là chuỗi không rỗng")
+                continue
+            elif chk == "regex":
+                try:
+                    if len(val) > 500:
+                        raise ValueError("quá dài")
+                    re.compile(val, re.S)
+                except Exception:  # noqa: BLE001
+                    out["errors"].append(f"ca {ma}: regex không biên dịch được hoặc quá dài")
+                    continue
+        if isinstance(ten, str) and ten.strip():
+            ok.append({"name": ten[:80], "check": chk, "value": val})
+    if out["errors"]:
+        return out
+    out.update(status="valid", cases=ok)
+    return out
+
+
+def _eval_cases(root: str, slug: str) -> list:
+    """Giữ tên cũ cho mã đã trỏ vào: chỉ trả các ca của bộ HỢP LỆ. Muốn biết vì sao rỗng thì gọi `eval_load`."""
+    return eval_load(root, slug)["cases"]
 
 
 def _eval_run(cases: list, text: str) -> list:
@@ -1049,19 +1133,28 @@ def _eval_run(cases: list, text: str) -> list:
     return res
 
 
-def eval_for_draft(root: str, rel: str, draft: str) -> Optional[dict]:
-    """Chạy eval cases của file mục tiêu lên bản nháp. None = không có bộ eval.
+def eval_for_draft(root: str, rel: str, draft: str, bat_buoc: bool = False) -> Optional[dict]:
+    """Chạy bộ eval của file mục tiêu lên bản nháp.
+
+    None = không khai eval và không bắt buộc (không có gì để kiểm). Còn lại luôn là dict có `status`:
+    "valid" (có `total`, `fails`, `passed`, `read`), "invalid" (`errors`, bộ hỏng), "missing_required"
+    (chủ đặt `eval_bat_buoc` mà không có file). Hai trạng thái sau KHÔNG phải "đạt": người gọi phải chặn.
 
     Case không kiểm được (loại check lạ, lỗi khi chạy) tính là RỚT kèm nhãn "không kiểm được"
-    (1.3.39, Joyce Harness B-10): "không thấy lỗi" không phải "đạt". Trước đây nó bị bỏ qua, nên
-    một bộ eval gõ sai tên check thành ra luôn cho bản nháp qua."""
-    cases = _eval_cases(root, Path(rel).stem)
-    if not cases:
-        return None
-    res = _eval_run(cases, draft)
+    (1.3.39, Joyce Harness B-10): "không thấy lỗi" không phải "đạt"."""
+    ld = eval_load(root, Path(rel).stem)
+    if ld["status"] == "missing":
+        if not bat_buoc:
+            return None
+        return {"status": "missing_required", "total": 0, "passed": 0, "read": 0, "fails": [],
+                "errors": ["chủ đặt eval bắt buộc cho brain này mà file này chưa có bộ eval"]}
+    if ld["status"] == "invalid":
+        return {"status": "invalid", "total": 0, "passed": 0, "read": ld["read"], "fails": [], "errors": ld["errors"]}
+    res = _eval_run(ld["cases"], draft)
     fails = [r["name"] for r in res if r["ok"] is False]
     fails += [f"{r['name']} (không kiểm được)" for r in res if r["ok"] is None]
-    return {"total": len(res), "fails": fails, "passed": len(res) - len(fails)}
+    return {"status": "valid", "total": len(res), "fails": fails, "passed": len(res) - len(fails),
+            "read": ld["read"], "errors": []}
 
 
 # ── Số liệu sống cho tab Sơ đồ ──────────────────────────────────────────────
