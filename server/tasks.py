@@ -193,6 +193,7 @@ class TasksFeature:
         self._workers: dict[str, asyncio.Task] = {}
         self._worker_ids: dict[str, str] = {}
         self._worker_brains: dict[str, str] = {}
+        self._so_luot: dict[str, str] = {}       # task_id -> run_id trong sổ lượt chạy (B01)
         self._dispatcher_task: Optional[asyncio.Task] = None
         self._wake = asyncio.Event()
         self._closing = False
@@ -686,6 +687,7 @@ class TasksFeature:
             self._run_worker(claimed, worker_id),
             name=f"joyce-task-{task_id}",
         )
+        self._so_luot[task_id] = self._so_mo_viec(claimed)
         self._workers[task_id] = worker
         self._worker_ids[task_id] = worker_id
         self._worker_brains[task_id] = root
@@ -693,7 +695,59 @@ class TasksFeature:
         await self._asnapshot(root)
         return True
 
+    def _so_mo_viec(self, task: dict) -> str:
+        """Ghi lượt chạy của một việc GIAO CHO TRỢ LÝ vào sổ lượt chạy (B01). Việc không gắn với trợ lý không vào sổ: không có agent thì
+        không có bản cấu hình nào để gán bằng chứng. Không bao giờ ném lỗi."""
+        def _lam():
+            import agent_jobs
+            import harness_map
+            import run_ledger
+            got = agent_jobs.parse_assign(task.get("idempotency_key"))
+            if not got:
+                return ""
+            root, slug = str(task.get("brain_root") or ""), got["slug"]
+            texte = ""
+            try:
+                fp = Path(root) / "agents" / f"{slug}.md"
+                if fp.is_file():
+                    texte = fp.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                pass
+            rv = run_ledger.chup_cho_agent(root, slug, texte, harness_version=harness_map.STANDARD_VERSION)
+            return run_ledger.bat_dau(brain_id=Path(root).name, agent_id=slug, entrypoint="task", ref="task:" + str(task.get("id")),
+                                      logical_execution_id="task:" + str(task.get("id")), attempt_id=str(task.get("current_run_id") or ""),
+                                      engine=str(task.get("execution_mode") or ""), revision=rv)
+        import run_ledger
+        return run_ledger.ghi_an_toan(_lam) or ""
+
+    def _so_chot_viec(self, task_id: str, rid: str) -> None:
+        """Chốt lượt trong sổ theo trạng thái việc SAU khi worker xong. Chờ duyệt hay chờ nhập không phải lỗi của trợ lý; việc bị trả
+        về hàng đợi hay chặn tạm là `interrupted`, không bao giờ tự thành đạt."""
+        def _lam():
+            import run_ledger
+            t = self.store.get_task(task_id) or {}
+            stt, bk = str(t.get("status") or ""), str(t.get("block_kind") or "")
+            if stt == "done":
+                run_ledger.ket_thuc(rid, "completed")
+            elif stt == "review":
+                run_ledger.ket_thuc(rid, "needs_approval", block_kind="waiting")
+            elif stt == "blocked" and bk in ("approval", "input", "capability"):
+                run_ledger.ket_thuc(rid, "needs_input", block_kind="waiting")
+            elif stt in ("blocked", "ready", "triage", "todo"):
+                run_ledger.ket_thuc(rid, "interrupted")
+            elif stt in ("cancelled", "archived"):
+                run_ledger.ket_thuc(rid, "canceled")
+            elif stt in ("failed", "error"):
+                run_ledger.ket_thuc(rid, "failed", block_kind="unknown")
+            else:
+                run_ledger.ket_thuc(rid, "unknown")
+        import run_ledger
+        run_ledger.ghi_an_toan(_lam)
+
     def _worker_done(self, task_id: str) -> None:
+        rid = self._so_luot.pop(task_id, "")
+        if rid:
+            self._so_chot_viec(task_id, rid)
         root = self._worker_brains.get(task_id, "")
         self._workers.pop(task_id, None)
         self._worker_ids.pop(task_id, None)
