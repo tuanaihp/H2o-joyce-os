@@ -1,6 +1,6 @@
 # Joyce Harness: kế hoạch giao Sonnet 5.5 khép G1 và nối G2
 
-> **Trạng thái (28/10/2026): chủ đã duyệt GÓI A, riêng D4 chọn phương án nhẹ hơn (xem mục 2.4). Gói B CHƯA được duyệt. Các task A00 trở đi được làm trên nhánh `claude/crm-v2-final-1-3-35`, không merge main; tiến độ ghi ở mục 8.**
+> **Trạng thái (28/10/2026): chủ đã duyệt GÓI A, riêng D4 chọn phương án nhẹ hơn (xem mục 2.4). Gói B CHƯA được duyệt. Gói A (A00..A07) đã làm xong trên nhánh `claude/crm-v2-final-1-3-35`, không merge main; riêng gate A07.1 CHƯA đạt (xem mục 8).**
 >
 > Ngày: 28/10/2026. Audit code tại Joyce OS `1.3.41`, commit `8a981e6`; cập nhật báo cáo test theo commit tài liệu `6b22a33` và thông tin chủ bổ sung. Nhánh `claude/crm-v2-final-1-3-35`. Working tree sạch trước lượt viết plan đầu tiên; các thay đổi tài liệu của lượt đó được giữ khi cập nhật.
 >
@@ -288,3 +288,6 @@ B chỉ triển khai sau khi được giao; production rollout theo hồ sơ duy
 | 2026-10-28 | Đọc G1 tại 1.3.41/8a981e6, đối chiếu apply/evidence/promote/parser/file policy/UI và task store; diagnostic helper trong RAM xác nhận ba ca trả diff rỗng. Viết plan A/B, chưa sửa runtime, chưa xác nhận full suite |
 | 2026-10-28 | A00 (Sonnet): đặt chỗ phiên bản 1.3.42; lưu log full suite thô và `README.md` bằng chứng nền ở `docs/dev/evidence/2026-10-28-g1/`; thêm `test_a00_cach_ly_state.py`; ghi quyết định của chủ ở mục 2.4 (gói A, D4 nhẹ) |
 | 2026-10-28 | Cập nhật theo 6b22a33 và thông tin chủ bổ sung: full suite 865/894; benchmark 1.3.39 4,69..4,94, 1.3.41 4,82..4,99; resonance_perf được báo xanh lại. Tách A07.1 tối ưu startup và A07.2 nghiệm thu, giữ ngưỡng 5,0; làm rõ đề xuất D2/D4 vẫn chờ duyệt. Chỉ sửa plan, không chạy lại suite, sửa code hay bật config |
+| 2026-10-28 | A03 làm TRƯỚC A01 (cổng của A01 gọi bộ phân loại của A03), rồi A01, A02, A04, A05, A06; mỗi task một commit: d5e847e (A00), 1689c1a (A03), 4978d42 (A01), 6ddec67 (A02), 487f899 (A04), e51b4f3 (A05), 8bb9a6c (A06) |
+| 2026-10-28 | A07.1: profile `-X importtime` và đo xen kẽ 12 vòng trên venv dev và venv sạch (log thô ở `evidence/2026-10-28-g1/40..44`). Bản 1.3.39 đã chạm trần 5,0 trên máy này trước mọi thay đổi gói A. Chỉ bỏ nạp sớm `cryptography` (~36ms, webpush) vì là phần tuỳ chọn có bằng chứng; không động `messenger_ops`, `httpx`, `fastapi`. **Gate chưa đạt**: p95 tỉ lệ 5,17 > 5,0, chênh lệch trong biên độ nhiễu. Giữ A07.1 mở, không nâng trần |
+| 2026-10-28 | A07.2: test đầu cuối sandbox `test_a07_dau_cuoi.py` (đề xuất, phân loại, eval, chờ chủ, áp được phép, baseline và override, chết giữa chừng, khởi động lại, khôi phục, tạm dừng). Kết quả full suite và các ca không chạy được ghi ở `evidence/2026-10-28-g1/README.md` |

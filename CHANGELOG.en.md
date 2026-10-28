@@ -4,7 +4,10 @@
 
 ## [1.3.42] - 2026-10-28
 ### Fixed
-- (in progress) Package A of the Joyce Harness plan: closing the remaining auto-apply paths, keeping a department's own edits, locked and recoverable file writes, lower startup cost.
+- **Self-improvement only auto-applies display changes.** A change to instructions, role or permissions waits for you, with the reason shown. There is a pause switch for auto-deploy on the Map page.
+- **A department's own edit is never overwritten.** A department with its own variant stays put until you decide. Every write keeps the old copy so each department can be restored, even if the machine stops mid-write.
+- **The Map has a deployment panel:** see the diff, restore per department, mark as read. A broken eval set blocks; no eval set does not block.
+- **Plainly:** the canary is still not certified because runs are not tied to agents, so files shared by several departments do not auto-apply yet. Startup is slightly lighter, but the startup test is still close to its limit on this machine.
 
 ## [1.3.41] - 2026-10-28
 ### Fixed

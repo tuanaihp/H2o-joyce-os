@@ -241,6 +241,7 @@ Các quyết định trên không ngăn việc xây validator, golden profiles v
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-28 | 1.3.42 (gói A, chưa merge main): cổng host chặn tự áp thay đổi hành vi và quyền, baseline chung và override, cổng eval bốn trạng thái, writer có khoá và phục hồi sau crash, khung quản trị triển khai trên Sơ đồ. Trạng thái: G1 đã gia cố, canary chưa chứng nhận; chưa làm gói B |
 | 2026-10-28 | 1.3.41: gói G1 của kế hoạch phòng ban (FIX-01..05: so quyền theo cây YAML, eval loader chặt, chính sách file dùng chung kiểm sát lúc ghi, canary từng đích và đòi bằng chứng); chưa làm G2 |
 | 2026-10-28 | 1.3.39: xong giai đoạn 0A (cache, joyce-guard, thu gọn kết quả tool cũ), vá B-01, B-10, B-12, gom 9 trợ lý dùng chung, khối Joyce Harness trên trang Sơ đồ |
 | 2026-10-28 | Chủ duyệt cách xếp 0A song song 0B (B-01, B-12 làm đầu 0B) và chốt trần token 500.000 đến 1.000.000 theo mức cần |

@@ -1,5 +1,7 @@
 # Joyce Harness: kế hoạch tổng tổ chức agent, vá lỗi và nâng cấp
 
+> **Cập nhật 28/10 (gói A 1.3.42):** gói A đã làm xong trên nhánh, trạng thái "G1 đã gia cố, canary chưa chứng nhận"; xem mục 3.5. Gói B chưa duyệt.
+>
 > **Bổ sung sau audit G1:** [Plan giao Sonnet 5.5 khép G1 và nối G2](./2026-10-28-joyce-harness-g1-g2-sonnet-plan.md) đang **chờ anh duyệt**. Bản này chốt đề xuất xử lý đủ G1-01..12, tách gói gia cố A và gói bằng chứng/route B. G1 hiện chưa đạt toàn bộ tiêu chí kết thúc; trạng thái “đã làm” bên dưới chỉ nói phần code FIX-01..05 đã có. Đặc biệt, canary chưa nhân sang đích nhưng ứng viên đã chạy ở nguồn, nên thiếu telemetry không chỉ làm chậm nhân bản.
 >
 > **Cập nhật kết quả test:** plan Sonnet đã tiếp nhận báo cáo 865/894 ở `6b22a33`, phân biệt baseline suite 1.3.38 với benchmark 1.3.39, thêm A07.1 để profile và tối ưu startup, giữ ngưỡng 5,0. D2/G1-02 đề xuất giữ bản riêng; D4/G1-09 đề xuất mặc định bắt buộc eval cho phòng ban ở đường tự áp. Các đề xuất vẫn chờ duyệt, chưa đổi runtime hoặc config.
@@ -158,6 +160,31 @@ Ghi ngày 28/10/2026 sau khi làm xong G1. Mục tiêu: người review (đề x
 **Điều kiện coi G1 là xong thật (đề xuất):** G1-01 có hướng xử lý được duyệt (hoặc canary file chung bị khóa tạm ở trạng thái chỉ-chặn, ghi rõ trên Sơ đồ), G1-02 được sửa và có test, G1-05 và G1-06 có người nhận trong G2, G1-09 có quyết định của chủ. Các mục P2 và P3 ghi nhận, không chặn G2.
 
 **Việc đang làm tạm ổn nhờ thiết kế an toàn:** các tồn đọng G1-01, G1-03, G1-10 đều lệch về phía KHÔNG nhân bản và KHÔNG ghi, tức là chậm chứ không hại. Riêng G1-02 và G1-07 là hai chỗ có thể áp thay đổi mà chủ không mong muốn; G1-02 có sao lưu từng đích, G1-07 hiện chỉ giảm nhờ giám định ẩn danh.
+
+
+### 3.5 Kết quả gói A (1.3.42, Sonnet 5.5, nhánh `claude/crm-v2-final-1-3-35`, chưa merge main)
+
+**Tên trạng thái: "G1 đã gia cố, canary chưa chứng nhận".** Không phải "harness hoàn chỉnh". Chủ duyệt gói A ngày 28/10/2026 với D4 nhẹ
+(chỉ chặn khi bộ ca thử hỏng hoặc rớt; chưa có ca thử thì không chặn; `eval_bat_buoc` vẫn mặc định tắt). Gói B chưa được duyệt, chưa làm.
+Thứ tự làm thực tế: A00, **A03 trước A01** (cổng của A01 cần bộ phân loại của A03), A01, A02, A04, A05, A06, A07.
+
+| Mục | Trạng thái sau gói A | Còn lại |
+|---|---|---|
+| G1-01 | **Chưa đóng.** A01 đóng đường "thử mù": file dùng chung không còn tự vào nguồn khi chưa có telemetry (D1, cờ `telemetry_ready` đang False), canary cũ chuyển `legacy_review`. Bằng chứng chạy thật vẫn chưa có nguồn | B01 (hợp đồng lượt chạy) và B02 (canary theo run) |
+| G1-02 | **Đóng ở mức code.** Baseline chung, đích khác baseline là `override` chờ chủ, hash SHA-256 đầy đủ, nguồn cũng kiểm phiên bản (`reviewed_source_hash`) | Chưa chạy trên brain thật |
+| G1-03 | **Đóng.** Sơ đồ có khung triển khai: xem diff, khôi phục từng đích từ receipt, tạm dừng, đã đọc, yêu cầu nhân (đi qua cùng cổng). Chỉ chủ, nhân viên bị 403 | Không |
+| G1-04 | **Đóng trong phạm vi Joyce.** Một writer dùng chung với khoá liên tiến trình, nhật ký trước ghi, đối soát sau crash | Editor ngoài hoặc công cụ native của CLI không đi qua khoá; thuộc B03 |
+| G1-05 | **Chưa đóng** | B03 (chứng nhận từng route) |
+| G1-06 | **Một phần.** Test khoá, crash, junction chạy thật trên Windows | Ca symlink file bị bỏ qua vì máy thiếu quyền; chưa có Linux hoặc macOS. Coi là khoảng hở độ phủ, chưa chứng nhận các nền tảng đó |
+| G1-07 | **Đóng ở mức code.** Phân loại `display_only` / `behavior_change` / `permission_change` / `unknown` / `invalid`; chỉ `display_only` tự áp. Thân bài, vai trò, lời giao việc là hành vi (D3) | Gói A không tự áp thay đổi hành vi; bộ kiểm hành vi thật ở G4 |
+| G1-08 | **Đóng.** Bộ đọc YAML từ chối khoá trùng, `---` thiếu đóng, bước trùng id; `_fm_patch` từng làm mất dòng `---` đã sửa | 30 skill lỗi YAML có báo cáo riêng (`30-skill-loi-yaml.md`), chưa sửa hàng loạt |
+| G1-09 | **Đóng theo D4 nhẹ.** Bốn trạng thái eval, kết quả gắn băm bản nháp và băm file eval, evaluator ném lỗi thì chặn; eval chuỗi gắn nhãn "chưa phải hành vi" | 43/44 phòng vẫn chưa có bộ ca thử; quyết định `eval_bat_buoc` mặc định để G4 |
+| G1-10 | **Chưa đóng** | Hiệu chỉnh ngưỡng sau khi có dữ liệu thật (B02) |
+| G1-11 | **Đóng.** Mỗi task gói A một commit riêng, không viết lại commit đã đẩy | Không |
+| G1-12 | **Một phần.** Đã có test đầu cuối trong sandbox (`test_a07_dau_cuoi.py`), full suite với exit code, profile khởi động. **Gate A07.1 chưa đạt**: p95 tỉ lệ khởi động vẫn trên 5,0 (5,17 sau khi bỏ nạp sớm `cryptography`); trần giữ 5,0, không nâng | Giảm số route nạp lúc import hoặc tách `main.py`; xem `evidence/2026-10-28-g1/44-khoi-dong-ket-luan.md` |
+
+**Chưa chứng nhận sau gói A:** canary (G1-01, G1-10), mọi đường ghi ngoài MCP Hub (G1-05), nền tảng Linux và macOS (G1-06), hành vi thật của
+bản nháp (chỉ có eval chuỗi). Việc "tự cải tiến" ở production vì vậy chỉ nên coi là: tự áp thay đổi hiển thị, còn lại chờ chủ.
 
 ## 4. Bằng chứng kiểm tra và giới hạn
 
@@ -499,3 +526,4 @@ Quyết định duyệt ghi rõ gói và phạm vi được làm. Trước quy�
 | 2026-10-28 | Chủ yêu cầu triển khai theo plan: làm xong G1 (FIX-01..05) ở 1.3.41 theo thứ tự ticket, mỗi ticket có test tái hiện đỏ trước vá; thêm mục 3.3 ghi trạng thái và giới hạn. G2 chưa làm |
 | 2026-10-28 | Bộ test đầy đủ ở worktree sạch cho 1.3.41: 865/894 xanh. So với 1.3.38, chỉ `test_khoi_dong_nhe` đỏ thêm; đo lại lúc máy rảnh cho thấy chi phí nạp `main` tăng nhẹ thật (đã ghi vào G1-12) |
 | 2026-10-28 | Chủ yêu cầu ghi tồn đọng G1 để Astra hoặc Fable xem lại: thêm mục 3.4 (12 mục G1-01..G1-12). Phát hiện lớn nhất: kho việc thật không có việc nào gắn khóa agent, nên bằng chứng canary của FIX-05 chưa có nguồn. Đồng thời sửa mục 3.3 để không đọc như "đã xong hẳn" |
+| 2026-10-28 | Gói A (A00..A07) xong ở 1.3.42 theo plan Sonnet và quyết định của chủ (D4 nhẹ). Thêm mục 3.5; A07.1 gate p95 chưa đạt, ghi thẳng; G1-01/05/10 và nền tảng Linux, macOS còn cần gói B hoặc máy khác |

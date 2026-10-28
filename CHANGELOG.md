@@ -4,7 +4,10 @@
 
 ## [1.3.42] - 2026-10-28
 ### Sửa
-- (đang làm) Gói A của kế hoạch Joyce Harness: khép các đường tự áp còn hở, giữ bản sửa riêng của phòng, ghi file có khoá và phục hồi được, giảm chi phí khởi động.
+- **Tự cải tiến chỉ tự áp thay đổi hiển thị.** Đổi lời giao việc, vai trò hay quyền thì chờ anh xem; lý do hiện rõ trong thông báo. Có công tắc tạm dừng tự triển khai trên trang Sơ đồ.
+- **Không đè bản phòng tự sửa.** Phòng có biến thể riêng từ trước thì đứng yên chờ anh quyết, không bị nhân bản ghi đè. Mỗi lần ghi đều lưu bản cũ để khôi phục từng phòng, kể cả khi máy tắt giữa chừng.
+- **Sơ đồ có khung quản trị triển khai:** xem phần khác biệt, khôi phục từng phòng, đánh dấu đã đọc. Bộ ca thử hỏng thì chặn, chưa có ca thử thì không chặn.
+- **Nói thẳng:** canary vẫn chưa được chứng nhận vì việc chạy chưa gắn với agent, nên file dùng chung nhiều phòng chưa tự áp. Khởi động nhẹ hơn một chút, nhưng test khởi động vẫn sát trần trên máy này.
 
 ## [1.3.41] - 2026-10-28
 ### Sửa
