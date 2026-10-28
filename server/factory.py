@@ -47,6 +47,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import uuid
 import os
 import re
 import sys
@@ -800,11 +801,31 @@ def _fm_patch(text: str, extra: dict) -> str:
     for k, v in extra.items():
         if k not in seen:
             out.append(f"{k}: {v}")
-    return "---" + "\n".join(out) + "\n" + body
+    # PHẢI giữ dòng đóng `---`. Bản trước (có từ 1.3.38) bỏ nó, nên mọi đề xuất từng bị đổi trạng thái mất khả năng đọc lại
+    # frontmatter ở lượt quét sau (`_proposal_front` trả None). Phát hiện khi A02 bắt đầu ghi dấu vào đề xuất đang pending.
+    return "---" + "\n".join(out) + "\n---" + body
 
 
 def _sha(text: str) -> str:
+    """Hash NGẮN (16 ký tự) giữ cho bản ghi cũ và hiển thị. Hash mới dùng `_sha256`."""
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _sha256(text: str) -> str:
+    """SHA-256 ĐẦY ĐỦ (64 ký tự) của văn bản. A02 (1.3.42): bản ghi triển khai mới lưu hash đầy đủ, chỉ rút ngắn khi hiển thị.
+
+    Tính trên văn bản đã đọc bằng `read_text` (xuống dòng chuẩn hoá về `\\n`), nhất quán với mọi chỗ so sánh trong module này.
+    Chưa phải hash bytes đĩa; writer dùng chung của A05 sẽ ghi bytes xác định rồi đối chiếu."""
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def _khop(text: Optional[str], day_du: str = "", ngan: str = "") -> bool:
+    """Văn bản có đúng bằng hash đã lưu không. Ưu tiên SHA-256 đầy đủ; bản ghi cũ chỉ có hash ngắn thì so hash ngắn."""
+    if text is None:
+        return False
+    if day_du:
+        return _sha256(text) == day_du
+    return bool(ngan) and _sha(text) == ngan
 
 
 def _target_relpath(raw) -> str:
@@ -891,6 +912,17 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
                 f"🔐 **Tự cải tiến**: proposal `{fp.stem}` đổi `{rel}` nhưng bản nháp mất frontmatter hoặc đổi `type`. "
                 f"Không tự áp - chờ anh xem.", f"type:{fp.stem}")
 
+    # A02: bản nháp đã được xem khi nguồn ở phiên bản X thì không được ghi lên nguồn đã đổi sang phiên bản khác. Host đóng dấu
+    # `reviewed_source_hash` lần đầu thấy đề xuất (xem proposal_tick); đề xuất chưa có dấu (viết trước 1.3.42) thì đóng dấu
+    # ngay bây giờ, tức là chỉ chắc chắn từ lúc này.
+    xem = str(fm.get("reviewed_source_hash") or "")
+    if xem and xem != _sha256(original):
+        return await _cho_chu(
+            deps, fp, text, "cho_chu_duyet",
+            "bản nguồn đã đổi sau khi đề xuất được xem (stale), cần giám định lại trên bản hiện tại",
+            f"🔐 **Tự cải tiến**: proposal `{fp.stem}` được xem khi `{rel}` còn ở phiên bản cũ; sau đó file đã đổi. "
+            f"Không ghi đè bản hiện tại - chờ anh xem hoặc giám định lại.", f"stale:{fp.stem}")
+
     # CỔNG HOST (A01, 1.3.42), áp cho CẢ direct lẫn canary và chạy TRƯỚC mọi thao tác ghi. Host tự phân loại, không tin
     # `risk: low` hay `verdict: win` do model viết (B-12). Chỉ `display_only` được qua; mọi loại khác, kể cả loại chưa phân
     # loại được, chờ chủ. Thân bài, `role`, `name`, `description`, `goal`, lời giao việc là HÀNH VI (D3).
@@ -976,14 +1008,30 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
     if sharers:
         # FIX-04 (1.3.41): chụp hash TỪNG đích ngay lúc áp. Lúc nhân chỉ ghi đích còn đúng bản này; đích đã bị chủ
         # sửa riêng kể từ đó là xung đột và được giữ nguyên.
+        # A02 (1.3.42, D2 của chủ): đích CHỈ được tự nhân khi nội dung của nó ĐÚNG BẰNG bản nguồn TRƯỚC khi sửa (baseline chung).
+        # Đích khác baseline từ trước là `override` (phòng có biến thể riêng), chờ chủ. Cùng tên file chưa đủ để chứng minh kế
+        # thừa; hệ chưa có khái niệm package nên `package_id` để trống thay vì tự khai.
+        goc_h = _sha256(original)
         targets = []
         for r in sharers:
             d = _doc_file(Path(r) / rel)
-            targets.append({"root": r, "base_hash": _sha(d) if d is not None else "", "state": "pending", "tries": 0})
+            oh = _sha256(d) if d is not None else ""
+            if d is None:
+                qh, tt = "thieu", "missing"
+            elif oh == _sha256(written):
+                qh, tt = "da_bang_ung_vien", "pending"   # đã đúng bản mới từ trước: sẽ ghi nhận `already`, không có receipt
+            elif oh == goc_h:
+                qh, tt = "ke_thua", "pending"
+            else:
+                qh, tt = "override", "override"
+            targets.append({"root": r, "target_observed_hash": oh, "base_hash": _sha(d) if d is not None else "",
+                            "quan_he": qh, "state": tt, "tries": 0})
         st["canaries"].append({
-            "id": _sha(f"{root}:{rel}:{time.time()}"),
+            "id": _sha(f"{root}:{rel}:{time.time()}"), "deployment_id": uuid.uuid4().hex, "schema_version": STATE_SCHEMA,
+            "package_id": None,
             "brain": brain, "root": str(Path(root)), "target": rel,
             "slug": target.stem.lower(), "hash": _sha(written), "revision": _sha(written),
+            "source_baseline_hash": goc_h, "candidate_hash": _sha256(written),
             "backup": str(bpath), "proposal": fp.name,
             "applied_at": time.time(),
             "promote_at": time.time() + float(cfg.get("canary_hours") or CANARY_DEFAULT_HOURS) * 3600,
@@ -1042,6 +1090,17 @@ async def proposal_tick(deps: FactoryDeps) -> dict:
                         continue
                     if str(fm.get("status") or "").lower() != "pending":
                         continue
+                    # A02: đóng dấu bản nguồn LẦN ĐẦU thấy đề xuất, trước cả khi nó có verdict. Giám định có thể kéo dài; nguồn đổi
+                    # trong lúc đó thì _proposal_apply nhận ra. Chỉ ghi khi chưa có dấu; giám định viết lại frontmatter làm mất
+                    # dấu thì lần quét sau đóng dấu lại (chắc chắn yếu hơn, ghi ở plan).
+                    if not fm.get("reviewed_source_hash"):
+                        rel0 = _target_relpath(fm.get("target_file"))
+                        nguon0 = _doc_file(Path(root) / rel0) if rel0 else None
+                        if nguon0 is not None:
+                            dau = _sha256(nguon0)
+                            text = _fm_patch(text, {"reviewed_source_hash": dau})
+                            fp.write_text(text, encoding="utf-8")
+                            fm["reviewed_source_hash"] = dau
                     if str(fm.get("verdict") or "").lower() != "win":
                         continue
                     if str(fm.get("risk") or "").lower() != "low":
@@ -1483,20 +1542,32 @@ async def _bao(deps: FactoryDeps, text: str, dedup: str) -> None:
 
 
 def _nhan_mot_dich(deps: FactoryDeps, c: dict, tg: dict, cand_hash: str, cand_text: str) -> None:
-    """Nhân bản ứng viên sang MỘT đích. Chỉ ghi khi đích còn ĐÚNG bản đã chụp lúc áp (so-rồi-ghi); đích đã đổi là xung
-    đột và được giữ nguyên. Sao lưu đích trước khi ghi. Đặt tg['state'] = promoted | already | conflict | missing | error."""
+    """Nhân bản ứng viên sang MỘT đích. Điều kiện ghi (A02, D2): đích có quan hệ KẾ THỪA với bản nguồn trước sửa VÀ vẫn đúng
+    bằng snapshot ngay trước khi ghi. Khác snapshot là `conflict`, khác baseline từ trước là `override`; cả hai giữ nguyên.
+    Sao lưu đích trước khi ghi. Đặt tg['state'] = promoted | already | conflict | override | missing | error."""
     rel = str(c.get("target") or "")
     dst = Path(str(tg.get("root") or "")) / rel
     d = _doc_file(dst)
     if d is None:
         tg["state"] = "missing"        # đích bị xoá: KHÔNG tạo lại
         return
-    h = _sha(d)
-    if h == cand_hash:
-        tg["state"] = "already"        # đã là bản ứng viên (vd lần chạy trước chết sau khi ghi, trước khi kịp lưu trạng thái)
+    if _khop(d, str(c.get("candidate_hash") or ""), cand_hash):
+        tg["state"] = "already"        # đã là bản ứng viên: đúng bản, nhưng KHÔNG kết luận do hệ thống ghi nên không có receipt
+        tg["co_receipt"] = False
         return
-    base = str(tg.get("base_hash") or "")
-    if not base or h != base:
+    quan_he = str(tg.get("quan_he") or "")
+    if not quan_he:
+        # Bản ghi tạo trước 1.3.42 không có xếp loại: lấy bản sao lưu của nguồn làm baseline chung. Đích khác bản đó là override.
+        goc_chung = _doc_file(Path(str(c.get("backup") or "")))
+        ref = _sha(goc_chung) if goc_chung is not None else ""
+        quan_he = "ke_thua" if (ref and ref == str(tg.get("base_hash") or "")) else "override"
+        tg["quan_he"] = quan_he
+    if quan_he != "ke_thua":
+        tg["state"] = "override"       # phòng có biến thể riêng từ trước: không tự ghi đè, chờ chủ (hợp nhất bằng đề xuất riêng)
+        return
+    chup_day_du = str(tg.get("target_observed_hash") or "")
+    chup_ngan = str(tg.get("base_hash") or "")
+    if not _khop(d, chup_day_du, chup_ngan):
         tg["state"] = "conflict"       # chủ đã sửa riêng kể từ lúc chụp: nhường
         return
     try:
@@ -1505,11 +1576,12 @@ def _nhan_mot_dich(deps: FactoryDeps, c: dict, tg: dict, cand_hash: str, cand_te
         bp = bdir / f"{dst.stem}-canary-{int(time.time())}.bak"
         bp.write_text(d, encoding="utf-8")
         d2 = _doc_file(dst)            # đọc lại sát lúc ghi: đổi trong khoảng này thì thôi
-        if d2 is None or _sha(d2) != base:
+        if not _khop(d2, chup_day_du, chup_ngan):
             tg["state"] = "conflict"
             return
         _ghi_nguyen_tu(deps, dst, cand_text)
         tg["state"] = "promoted"
+        tg["co_receipt"] = True
         tg["backup"] = str(bp)
     except Exception as e:  # noqa: BLE001
         tg["tries"] = int(tg.get("tries") or 0) + 1
@@ -1548,7 +1620,7 @@ async def canary_tick(deps: FactoryDeps) -> dict:
         target = Path(str(c.get("root") or "")) / str(c.get("target") or "")
         cand_hash = str(c.get("hash") or "")
         cur = _doc_file(target)
-        if not cur or _sha(cur) != cand_hash:
+        if not cur or not _khop(cur, str(c.get("candidate_hash") or ""), cand_hash):
             c["state"] = "superseded"   # chủ sửa/xoá tay trong cửa sổ canary -> nhường chủ
             _save_state(deps, st)
             rep["superseded"] += 1
@@ -1558,7 +1630,7 @@ async def canary_tick(deps: FactoryDeps) -> dict:
         if bad:
             goc = _doc_file(Path(str(c.get("backup") or "")))
             cur2 = _doc_file(target)
-            if cur2 is None or _sha(cur2) != cand_hash:
+            if cur2 is None or not _khop(cur2, str(c.get("candidate_hash") or ""), cand_hash):
                 c["state"] = "superseded"      # chủ vừa sửa tay ngay lúc canary sắp lật: không đè
                 _save_state(deps, st)
                 rep["superseded"] += 1
@@ -1632,12 +1704,15 @@ async def canary_tick(deps: FactoryDeps) -> dict:
             await _bao(deps, f"🐤 **Canary qua**: `{c.get('target')}` chạy ổn {gio}h ở {c.get('brain')} ({ev['ok']}/{ev['tasks']} việc đạt) "
                              f"- đã nhân bản sang {len(dat)} brain còn lại.", f"canaryok:{c.get('id')}")
         else:
+            ov = [_ten_dich(t) for t in tgs if t.get("state") == "override"]
             gi = [_ten_dich(t) for t in tgs if t.get("state") == "conflict"]
             thieu = [_ten_dich(t) for t in tgs if t.get("state") == "missing"]
             loi = [_ten_dich(t) for t in tgs if t.get("state") == "error"]
             c["state"] = "partial" if dat else "conflict"
             rep["partial" if dat else "conflict"] += 1
             chi_tiet = []
+            if ov:
+                chi_tiet.append(f"{len(ov)} brain có bản riêng từ trước (override) nên không tự ghi đè ({', '.join(ov[:4])})")
             if gi:
                 chi_tiet.append(f"{len(gi)} brain đã được sửa riêng nên giữ nguyên bản riêng ({', '.join(gi[:4])})")
             if thieu:
