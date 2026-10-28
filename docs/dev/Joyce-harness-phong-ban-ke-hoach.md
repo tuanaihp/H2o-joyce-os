@@ -205,7 +205,7 @@ Thứ tự làm thực tế: A00, **A03 trước A01** (cổng của A01 cần b
 ### 3.6 Việc chờ anh quyết định (để sau, không chặn phần đã làm)
 
 1. **Cổng hoàn thành (G2 #4)**: bắt việc có tiêu chí nghiệm thu phải qua kiểm chứng trước khi sang `done`. Việc này đổi cách Joyce tự vận hành mà ngày 10/09/2026 anh đã chủ động bỏ rào (tiền, đơn hàng, đăng bài, nhắn tin giao tự động). Em không tự đặt lại rào đó; cần anh nói rõ muốn rào ở loại việc nào.
-2. **Sổ ngân sách token (G2 #3, JHA-11)**: trần 500.000 và tối đa 1.000.000 mỗi lượt cải tiến đã chốt, nhưng lượt cải tiến chạy qua nhiều đường (Kanban, CLI) mà nhiều đường không trả số token thật. Cần anh chọn: chỉ đếm số lượt (2 lượt mỗi target mỗi tuần, làm được ngay) hay đòi đo token thật (cần sửa từng adapter).
+2. **Sổ ngân sách token (G2 #3, JHA-11)**: phần '2 lượt tự cải tiến mỗi file mỗi tuần' ĐÃ ép trong code (`factory.TRAN_AP_TUAN`, cấu hình `max_ap_tuan`, test `test_g2_tran_tuan.py`). Trần token 500.000 và tối đa 1.000.000 mỗi lượt vẫn CHƯA ép, vì lượt cải tiến chạy qua nhiều đường (Kanban, CLI) mà nhiều đường không trả số token thật. Cần anh chọn: có đòi đo token thật không (phải sửa từng adapter).
 3. **Chấm lượt chạy**: hiện chỉ có chủ chấm tay và `verify_agent` của workflow. Muốn canary chạy được ở quy mô lớn cần bộ chấm tự động hoặc nhóm ca bắt buộc theo từng phòng (G4). Anh chọn phòng thử đầu tiên.
 4. **Pilot Đối Soát (chỉ đọc)**: hồ sơ riêng, cần anh duyệt trước khi mở. Gate B đã chạy trong sandbox.
 5. **Giá trị `eval_bat_buoc` mặc định** cho brain phòng ban (hiện tắt; 43/44 phòng chưa có bộ ca thử).

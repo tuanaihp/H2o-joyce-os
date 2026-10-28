@@ -6660,7 +6660,7 @@
   "sodo.dp.diff_same": "No difference.",
   "sodo.hx.budget": "Token cap per round",
   "sodo.hx.budget.m": "{n} by default, at most {m}",
-  "sodo.hx.budget.d": "Owner decision of 28/10/2026: 500,000 tokens per improvement round, up to 1,000,000 when needed, 2 rounds per assistant per week. Decided, not yet enforced in code.",
+  "sodo.hx.budget.d": "Owner decision of 28/10/2026: 500,000 tokens per improvement round, up to 1,000,000 when needed, 2 rounds per file per week. The '2 rounds per file per week' part is enforced in code (the third waits for you). The token cap is NOT enforced because many paths do not report real token counts, so this light stays grey.",
   "sodo.fac.sect": "Joyce factory - lifecycle after a task completes",
   "sodo.fac.title": "Joyce factory",
   "sodo.fac.sub": "9 automated stages after each task - live numbers",

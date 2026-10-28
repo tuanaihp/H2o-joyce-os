@@ -134,6 +134,7 @@ def _migrate_state(d: dict) -> dict:
     return d
 
 
+TRAN_AP_TUAN = 2                 # chủ chốt 28/10/2026: số lượt tự cải tiến tối đa mỗi file mỗi 7 ngày
 TELEMETRY_MIN_RUNS = 5          # số lượt chạy tối thiểu trong cửa sổ để coi là "quan sát được"
 TELEMETRY_CUA_SO_NGAY = 30
 
@@ -163,6 +164,33 @@ def telemetry_quan_sat_duoc() -> int:
         return run_ledger.agent_quan_sat_duoc(tu=time.time() - TELEMETRY_CUA_SO_NGAY * 86400, toi_thieu=TELEMETRY_MIN_RUNS)
     except Exception:  # noqa: BLE001
         return 0
+
+
+def _so_lan_ap_tuan(deps: FactoryDeps, root: str, rel: str, bo_qua: Optional[Path] = None) -> int:
+    """Số lần file `rel` ở brain `root` đã được TỰ áp trong 7 ngày qua, đếm từ chính các file đề xuất có trạng thái `applied` (áp thẳng hay
+    qua canary đều đánh dấu như nhau). Giờ lấy từ `applied_at` host đã ghi, rơi về giờ sửa file nếu không đọc được. Đề xuất đang xét
+    (`bo_qua`) không tự đếm mình. Không tin lời model."""
+    now = time.time()
+    n = 0
+    try:
+        pdir = Path(root) / "Joyce" / "proposals"
+        for fp in pdir.glob("*.md") if pdir.is_dir() else []:
+            if bo_qua is not None and fp.resolve() == Path(bo_qua).resolve():
+                continue
+            if fp.stat().st_size > PROPOSAL_MAX_BYTES:
+                continue
+            fm, _ = _proposal_front(fp.read_text(encoding="utf-8", errors="replace"))
+            if not (isinstance(fm, dict) and str(fm.get("status") or "").lower() == "applied" and _target_relpath(fm.get("target_file")) == rel):
+                continue
+            try:
+                luc = time.mktime(time.strptime(str(fm.get("applied_at")), "%Y-%m-%d %H:%M"))
+            except (ValueError, TypeError, OverflowError):
+                luc = fp.stat().st_mtime
+            if now - luc <= 7 * 86400:
+                n += 1
+    except OSError:
+        pass
+    return n
 
 
 def _dang_tam_dung(deps: FactoryDeps, cfg: Optional[dict] = None) -> bool:
@@ -229,6 +257,8 @@ def load_factory_cfg(root: str) -> dict:
         "auto_deploy": bool(cfg.get("auto_deploy", True)),
         "canary_hours": max(1, min(24 * 14, int(cfg.get("canary_hours", CANARY_DEFAULT_HOURS)))),
         "canary_min_tasks": max(1, min(200, int(cfg.get("canary_min_tasks", CANARY_MIN_TASKS)))),
+        # Chủ chốt 28/10/2026: tối đa 2 lượt tự cải tiến mỗi file mục tiêu mỗi 7 ngày. 0 = không giới hạn (chỉ chủ đặt tay).
+        "max_ap_tuan": max(0, min(50, int(cfg.get("max_ap_tuan", TRAN_AP_TUAN)))),
     }
 
 
@@ -955,6 +985,14 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
     # loại được, chờ chủ. Thân bài, `role`, `name`, `description`, `goal`, lời giao việc là HÀNH VI (D3).
     if _dang_tam_dung(deps, cfg):
         return "paused"      # cờ dừng tự triển khai: giữ nguyên đề xuất, KHÔNG đổi trạng thái, KHÔNG tắt giám định hay phục vụ
+    tran = int(cfg.get("max_ap_tuan", TRAN_AP_TUAN) or 0)
+    if tran:
+        da = _so_lan_ap_tuan(deps, root, rel, fp)
+        if da >= tran:
+            return await _cho_chu(
+                deps, fp, text, "cho_chu_duyet", f"file này đã tự cải tiến {da} lần trong 7 ngày (trần {tran} lần mỗi tuần mỗi file)",
+                f"⏱️ **Tự cải tiến**: proposal `{fp.stem}` sửa `{rel}` nhưng file này đã được tự cải tiến {da} lần trong 7 ngày qua "
+                f"(trần anh chốt: {tran} lần mỗi tuần). Không tự áp - chờ anh xem.", f"tuan:{fp.stem}")
     pl = _phan_loai(original, draft)
     loai = pl["class"]
     if loai != "display_only":

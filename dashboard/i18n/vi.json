@@ -6660,7 +6660,7 @@
   "sodo.dp.diff_same": "Không có khác biệt.",
   "sodo.hx.budget": "Trần token mỗi lượt",
   "sodo.hx.budget.m": "{n} mặc định, tối đa {m}",
-  "sodo.hx.budget.d": "Chủ chốt 28/10/2026: mỗi lượt cải tiến 500.000 token, nâng tới 1.000.000 khi cần, 2 lượt mỗi trợ lý mỗi tuần. Đã chốt, chưa ép trong code.",
+  "sodo.hx.budget.d": "Chủ chốt 28/10/2026: mỗi lượt cải tiến 500.000 token, nâng tới 1.000.000 khi cần, 2 lượt mỗi file mỗi tuần. Phần '2 lượt mỗi file mỗi tuần' đã được ép trong code (lượt thứ ba chờ anh duyệt). Trần token thì CHƯA ép vì nhiều đường không trả số token thật, nên đèn này vẫn xám.",
   "sodo.fac.sect": "Nhà máy Joyce - vòng đời sau khi việc xong",
   "sodo.fac.title": "Nhà máy Joyce (factory)",
   "sodo.fac.sub": "9 mắt xích tự động sau khi task xong - số liệu thật",
