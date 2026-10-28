@@ -194,6 +194,23 @@ Thứ tự làm thực tế: A00, **A03 trước A01** (cổng của A01 cần b
 
 **Gate B (đã chạy trong sandbox, `tests/python/test_b_dau_cuoi.py`):** bot gắn agent trả lời, host ghi lượt kèm revision thật, chủ chấm, đủ 20 lượt đạt thì nhân, một lượt rớt thì lật lại, lượt của bản cũ không tính cho bản mới. **Chưa mở pilot Đối Soát**: đó là hồ sơ riêng, cần chủ duyệt.
 
+#### G2 (1.3.43): làm phần nhỏ và kiểm chứng được; phần còn lại nói thẳng là chưa làm
+
+| Hạng mục G2 (mục 13.1) | Đã làm | Chưa làm |
+|---|---|---|
+| 2. Một quyết định quyền chung | `server/run_context.py`: ngữ cảnh lượt chạy do host đặt (bot, việc giao trợ lý, bước workflow), `cho_phep(effect)` đọc `allowed_effects` của agent; nối vào `joyce_write_file` của MCP Hub. Agent đã khai mà thiếu `internal_write` thì bị chặn, test `test_g2_ngu_canh_quyen.py` | Agent chưa khai `allowed_effects` vẫn chạy như cũ (phần lớn); các tool khác của hub (gửi tin, đặt hàng, thanh toán) chưa hỏi quyết định này; chat trực tiếp với Joyce và CLI native chạy không ngữ cảnh; chưa có grant theo tham số |
+| 5. Sổ đăng ký triển khai | Đèn "Bản đang chạy theo trợ lý": lượt chạy mới nhất có khớp nội dung file hiện tại không, báo bản đã đổi mà chưa chạy lại | Mới là sổ đọc, KHÔNG phải khóa phiên bản: nâng trợ lý dùng chung vẫn đổi cho mọi phòng cùng lúc (JHA-12 chưa làm) |
+| 1. Compiler, 3. Sổ ngân sách, 4. Cổng hoàn thành | Chưa làm | Xem mục 3.6 bên dưới: cần anh quyết định hướng trước khi làm |
+
+### 3.6 Việc chờ anh quyết định (để sau, không chặn phần đã làm)
+
+1. **Cổng hoàn thành (G2 #4)**: bắt việc có tiêu chí nghiệm thu phải qua kiểm chứng trước khi sang `done`. Việc này đổi cách Joyce tự vận hành mà ngày 10/09/2026 anh đã chủ động bỏ rào (tiền, đơn hàng, đăng bài, nhắn tin giao tự động). Em không tự đặt lại rào đó; cần anh nói rõ muốn rào ở loại việc nào.
+2. **Sổ ngân sách token (G2 #3, JHA-11)**: trần 500.000 và tối đa 1.000.000 mỗi lượt cải tiến đã chốt, nhưng lượt cải tiến chạy qua nhiều đường (Kanban, CLI) mà nhiều đường không trả số token thật. Cần anh chọn: chỉ đếm số lượt (2 lượt mỗi target mỗi tuần, làm được ngay) hay đòi đo token thật (cần sửa từng adapter).
+3. **Chấm lượt chạy**: hiện chỉ có chủ chấm tay và `verify_agent` của workflow. Muốn canary chạy được ở quy mô lớn cần bộ chấm tự động hoặc nhóm ca bắt buộc theo từng phòng (G4). Anh chọn phòng thử đầu tiên.
+4. **Pilot Đối Soát (chỉ đọc)**: hồ sơ riêng, cần anh duyệt trước khi mở. Gate B đã chạy trong sandbox.
+5. **Giá trị `eval_bat_buoc` mặc định** cho brain phòng ban (hiện tắt; 43/44 phòng chưa có bộ ca thử).
+6. **Sửa 30 skill lỗi YAML** (báo cáo ở `evidence/2026-10-28-g1/30-skill-loi-yaml.md`), em chưa sửa hàng loạt.
+
 **Chưa chứng nhận sau gói A (đọc cùng bảng gói B ở trên):** canary (G1-01, G1-10), mọi đường ghi ngoài MCP Hub (G1-05), nền tảng Linux và macOS (G1-06), hành vi thật của
 bản nháp (chỉ có eval chuỗi). Việc "tự cải tiến" ở production vì vậy chỉ nên coi là: tự áp thay đổi hiển thị, còn lại chờ chủ.
 
