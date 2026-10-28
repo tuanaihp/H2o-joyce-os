@@ -37,6 +37,7 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
     cho_chu = int(pp.get("cho_chu_duyet") or 0)
     evf = int(pp.get("eval_failed") or 0)
     c7 = sg.get("cong7") or {}
+    lc = sg.get("luot_chay") or {}
     nk = sg.get("nhat_ky") or {}
     xem = sum(int(cn.get(k) or 0) for k in ("legacy_review", "het_han", "partial", "conflict"))
 
@@ -69,6 +70,9 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
         # Những thứ này KHÔNG được hiện xanh: chưa đủ dữ liệu khác với không có lỗi.
         _o("canary", "warn" if (cn.get("reverted") or xem) else "ok", n=int(cn.get("canary") or 0),
            r=int(cn.get("reverted") or 0), l=xem),
+        # Lượt chạy thật do host ghi (B01): chat bot, việc giao cho trợ lý, bước workflow. Xám khi 7 ngày qua chưa ghi lượt nào.
+        _o("runs", "ok" if int(lc.get("logical") or 0) else "off", n=int(lc.get("logical") or 0), v=int(lc.get("verified_pass") or 0),
+           u=int(lc.get("chua_kiem") or 0), i=int(lc.get("gian_doan") or 0)),
         # Nguồn bằng chứng để kiểm chứng canary. XÁM khi chưa có (gói B): khi đó file dùng chung không được tự áp.
         _o("telemetry", "ok" if telemetry_ready else "off", ready=1 if telemetry_ready else 0),
         # Đã chốt (28/10/2026) nhưng CHƯA ép trong code: vòng cải tiến chưa đếm token theo lượt.

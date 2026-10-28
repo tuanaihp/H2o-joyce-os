@@ -1465,8 +1465,14 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
                     pacing_n += 1
         except Exception as e:  # noqa: BLE001
             print(f"[factory] stages {name}: {type(e).__name__}: {e}", file=sys.stderr)
+    luot = {}
+    try:
+        import run_ledger
+        luot = run_ledger.thong_ke(tu=now - 7 * 86400)       # lượt chạy host đã ghi trong 7 ngày (B01)
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] so luot chay: {type(e).__name__}: {e}", file=sys.stderr)
     return {
-        "watch": w_by, "canary": c_by,
+        "luot_chay": luot, "watch": w_by, "canary": c_by,
         "perf_cooldowns": len(st.get("perf_cd") or {}),
         "sev_sent": len(st.get("sev_sent") or {}),
         "proposals": props, "verdicts": verdicts, "evals": evals_n, "cong7": cong7, "nhat_ky": nhat_ky,
