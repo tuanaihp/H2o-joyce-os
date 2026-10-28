@@ -22,7 +22,6 @@ import re
 import threading
 import time
 from collections import deque
-from pathlib import Path
 
 ZALO_CUA_KHACH = 3          # tin mỗi cửa sổ, người không phải chủ
 ZALO_VIEC_NEN = 30          # tin mỗi cửa sổ, việc nền không rõ người gọi, mỗi brain
@@ -31,40 +30,27 @@ CHI_LON = 5_000_000         # đồng
 _ZALO_GUI = re.compile(r"(?:^|_)zalo_send_(?:message|image|mention)$")
 
 
-def _tuong_doi(vault_root, path) -> str:
-    """Đường dẫn tương đối so với gốc brain, dạng a/b/c; rỗng nếu không xác định được."""
-    p = str(path or "").strip().replace("\\", "/")
-    if not p:
-        return ""
-    if vault_root:
-        try:
-            pp = Path(p)
-            if pp.is_absolute():
-                return pp.resolve().relative_to(Path(vault_root).resolve()).as_posix()
-        except (ValueError, OSError):
-            return ""
-    while p.startswith("./"):
-        p = p[2:]
-    return p.lstrip("/")
-
-
 def luat_file(args, vault_root):
-    rel = _tuong_doi(vault_root, (args or {}).get("path"))
-    if not rel:
+    """Lời báo SỚM cho model. Chốt bắt buộc nằm ở `mcp_hub._write` (FIX-03): hook này fail-open theo thiết kế của
+    plugins_host nên không được là chốt duy nhất. Cả hai dùng CHUNG `file_policy` và CHUNG bộ giải đường dẫn của
+    tool ghi (`mcp_hub._safe_path`), để mọi cách viết cùng một file cho cùng một kết quả."""
+    if not vault_root:
         return None
-    dau = rel.split("/", 1)[0]
-    if dau == "Memory":
-        return ("Thư mục trí nhớ là `memory/` viết thường. `Memory/` là thư mục khác trên Linux, ghi "
-                "vào đó là mất. Ghi lại với đường dẫn bắt đầu bằng `memory/`.")
-    if dau == "sources" and vault_root:
-        try:
-            if (Path(vault_root) / rel).is_file():
-                return ("`sources/` là tài liệu gốc bất biến: không ghi đè file đã có. Muốn lưu bản "
-                        "mới thì ghi file tên khác (thêm ngày hoặc số), muốn sửa kiến thức thì sửa "
-                        "trang trong `wiki/`.")
-        except OSError:
-            return None
-    return None
+    raw = (args or {}).get("path")
+    if not str(raw or "").strip():
+        return None
+    try:
+        import file_policy
+        import mcp_hub
+    except Exception:      # noqa: BLE001 - không nạp được chính sách thì TỪ CHỐI, không đoán
+        return "Không nạp được chính sách ghi file nên từ chối để an toàn."
+    try:
+        dich = mcp_hub._safe_path(vault_root, raw)
+    except ValueError:
+        return None        # ngoài brain: tool ghi tự quyết (thư mục làm việc của phiên Coding)
+    except Exception:      # noqa: BLE001
+        return file_policy.MSG_KHONG_XAC_DINH
+    return file_policy.deny_reason(vault_root, dich)
 
 
 class _DemZalo:

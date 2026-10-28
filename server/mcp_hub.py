@@ -682,9 +682,37 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                         "Nói với người dùng rằng ghi nhớ đang tắt (bật lại ở Joyce Core > Trí nhớ).")
         except Exception:
             pass
+        # CHỐT BẮT BUỘC ghi file (1.3.41, FIX-03 của gói G1). Hook joyce-guard chỉ là lời báo sớm và fail-open theo thiết kế
+        # (plugins_host), nên chốt thật phải nằm ở đây, trên ĐÚNG đường dẫn đã giải mà tool sắp ghi.
+        import file_policy
+        if p.is_dir():
+            # Đường dẫn rỗng hay chỉ tới thư mục: không có file nào để ghi. Trả lời nói được thay vì để PermissionError bay ra.
+            return "ERROR: đường dẫn này là một thư mục, cần đường dẫn tới một FILE (vd `wiki/ten-trang.md`)."
+        ly_do = file_policy.deny_reason(vault_root, p)
+        if ly_do:
+            return "ERROR: " + ly_do
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(str((args or {}).get("content") or ""), encoding="utf-8")
-        return f"Đã ghi {p.name} ({len(str((args or {}).get('content') or ''))} ký tự)"
+        # Giải lại SÁT lúc ghi: nếu đích bị tráo (symlink hay junction mới) kể từ lần kiểm trên thì kiểm lại trên đích
+        # thật và ghi vào đích thật, không ghi theo đường dẫn cũ.
+        try:
+            dich = file_policy.thuc(p)
+        except (OSError, ValueError):
+            return "ERROR: " + file_policy.MSG_KHONG_XAC_DINH
+        if os.path.normcase(str(dich)) != os.path.normcase(str(p)):
+            ly_do = file_policy.deny_reason(vault_root, dich)
+            if ly_do:
+                return "ERROR: " + ly_do
+        noi_dung = str((args or {}).get("content") or "")
+        if file_policy.trong_sources(vault_root, dich):
+            # `sources/` bất biến: tạo ĐỘC QUYỀN. File xuất hiện sau lúc kiểm thì lỗi chứ không bị ghi đè.
+            try:
+                with open(dich, "x", encoding="utf-8") as f:
+                    f.write(noi_dung)
+            except FileExistsError:
+                return "ERROR: " + file_policy.MSG_SOURCES
+        else:
+            dich.write_text(noi_dung, encoding="utf-8")
+        return f"Đã ghi {dich.name} ({len(noi_dung)} ký tự)"
 
     async def _skill(args):
         name = str((args or {}).get("name") or "").strip()
