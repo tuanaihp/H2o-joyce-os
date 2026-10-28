@@ -774,48 +774,20 @@ def _target_relpath(raw) -> str:
     return rel
 
 
-# Trường frontmatter chạm QUYỀN, công cụ, model, phạm vi hay cách kiểm. Đề xuất đổi bất kỳ trường nào
-# trong đây KHÔNG bao giờ tự áp, dù frontmatter đề xuất ghi `risk: low` (1.3.39, Joyce Harness B-12):
-# `risk` và `verdict` do agent giám định viết, model không được tự quyết chuyện nới quyền của mình.
-_KHOA_QUYEN = frozenset({
-    "agent", "tools", "allowed_tools", "verify_agent", "max_retries", "mode", "execution_mode",
-    "muc_quyen", "enabled", "model", "model_provider", "skills", "harness", "min_mode", "risk",
-    "capability", "scope", "system_shared", "delegates", "allowed_effects", "deny", "budget",
-    "max_rounds", "max_minutes", "reasoning", "notify", "owner_chat", "interval_min",
-})
+# So sánh quyền theo CÂY YAML nằm ở `harness_diff` (1.3.41, FIX-01 của gói G1). Bản 1.3.39 lọc dòng rồi sắp
+# xếp nên bỏ sót khoá lồng (`harness.budgets.*`) và việc tráo `tools` giữa hai bước. Chỗ này chỉ giữ tên cũ
+# để mã và test đã trỏ vào `factory.diff_quyen` / `factory._KHOA_QUYEN` không phải đổi.
+import harness_diff  # noqa: E402
 
-
-def _dau_van_quyen(text: str) -> list:
-    """Các dòng frontmatter thuộc `_KHOA_QUYEN` (kể cả mục danh sách ngay dưới chúng), đã chuẩn hoá
-    và sắp xếp. Hai bản có cùng dấu vân thì không đổi gì về quyền. Nhận cả khoá lồng trong `steps`."""
-    t = (text or "").replace("\r\n", "\n")
-    if not t.startswith("---"):
-        return []
-    end = re.search(r"^---[ \t]*$", t[3:], re.M)
-    head = t[3:3 + end.start()] if end else ""
-    out, dang = [], None
-    for ln in head.split("\n"):
-        m = re.match(r"^(\s*)(?:-\s*)?([\w-]+)\s*:(.*)$", ln)
-        if m:
-            key, indent = m.group(2), len(m.group(1))
-            if key in _KHOA_QUYEN:
-                out.append(f"{key}:{m.group(3).strip()}")
-                dang = (key, indent)
-            else:
-                dang = None
-            continue
-        if dang and re.match(r"^\s*-\s+\S", ln):
-            out.append(f"{dang[0]}[]:{ln.strip()[1:].strip()}")
-    return sorted(out)
+_KHOA_QUYEN = harness_diff.KHOA_QUYEN
+KHONG_DOC_DUOC = harness_diff.KHONG_DOC_DUOC
 
 
 def diff_quyen(original: str, draft: str) -> list:
-    """Tên các trường quyền bị đổi giữa bản gốc và bản nháp (rỗng = chỉ đổi nội dung)."""
-    a, b = _dau_van_quyen(original), _dau_van_quyen(draft)
-    if a == b:
-        return []
-    doi = {x.split(":", 1)[0].rstrip("[]") for x in set(a) ^ set(b)}
-    return sorted(doi)
+    """Tên các khoá quyền bị đổi giữa bản gốc và bản nháp (rỗng = chỉ đổi nội dung).
+
+    Trả `[KHONG_DOC_DUOC]` khi không đọc chắc được cấu hình: coi như CẦN CHỦ XEM, không bao giờ tự áp."""
+    return harness_diff.diff_quyen(original, draft)
 
 
 async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
@@ -852,7 +824,8 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
         try:
             fp.write_text(_fm_patch(text, {
                 "status": "cho_chu_duyet",
-                "ly_do_cho": ("đổi trường quyền hoặc cách chạy: " + ", ".join(doi_quyen))[:180],
+                "ly_do_cho": (("không đọc chắc được cấu hình (frontmatter), cần anh xem" if doi_quyen == [KHONG_DOC_DUOC]
+                               else "đổi trường quyền hoặc cách chạy: " + ", ".join(doi_quyen)))[:180],
             }), encoding="utf-8")
             await deps.inbox(
                 f"🔐 **Tự cải tiến**: proposal `{fp.stem}` thắng giám định nhưng đổi "
