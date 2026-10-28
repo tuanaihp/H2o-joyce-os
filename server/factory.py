@@ -842,6 +842,7 @@ def _target_relpath(raw) -> str:
 # xếp nên bỏ sót khoá lồng (`harness.budgets.*`) và việc tráo `tools` giữa hai bước. Chỗ này chỉ giữ tên cũ
 # để mã và test đã trỏ vào `factory.diff_quyen` / `factory._KHOA_QUYEN` không phải đổi.
 import harness_diff  # noqa: E402
+import deploy_writer  # noqa: E402
 from harness_diff import classify as _phan_loai  # noqa: E402
 
 _KHOA_QUYEN = harness_diff.KHOA_QUYEN
@@ -1000,17 +1001,24 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
             pass
         return "skipped"
 
-    backup_dir = Path(root) / "Joyce" / "proposals" / ".backup"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    bpath = backup_dir / f"{target.stem}-{int(time.time())}.bak"
-    bpath.write_text(original, encoding="utf-8")
+    # A05 (1.3.42): MỘT writer chung. Khoá liên tiến trình, so-rồi-ghi theo hash bản đã xem, sao lưu tên duy nhất, nhật ký
+    # prepared/committed, ghi nguyên tử bằng bytes xác định. Dùng đường dẫn CHƯA giải để thấy symlink/junction ở giữa đường.
+    deployment_id = uuid.uuid4().hex
+    try:
+        rc = _ghi_dich(deps, root, Path(root) / rel, written, deployment_id=deployment_id, target_id="nguon", truoc_hash=_sha256(original))
+    except deploy_writer.DuongKhongAnToan as e:
+        return await _cho_chu(deps, fp, text, "cho_chu_duyet", f"đường dẫn đích có liên kết hoặc nằm ngoài brain: {e}"[:180],
+                              f"🔐 **Tự cải tiến**: proposal `{fp.stem}` không tự áp vì đường dẫn của `{rel}` có liên kết (symlink hoặc "
+                              f"junction) hoặc nằm ngoài brain. Chờ anh xem.", f"duong:{fp.stem}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] áp {rel}: {type(e).__name__}: {e}", file=sys.stderr)
+        return "skipped"
+    if rc.get("ket_qua") != "committed":
+        return await _cho_chu(deps, fp, text, "cho_chu_duyet", "bản nguồn đã đổi giữa lúc kiểm và lúc ghi, không ghi đè",
+                              f"🔐 **Tự cải tiến**: proposal `{fp.stem}` bị dừng vì `{rel}` vừa đổi đúng lúc sắp ghi. "
+                              f"Không ghi đè - chờ anh xem.", f"doi-luc-ghi:{fp.stem}")
+    bpath = rc["backup"]
 
-    if deps.atomic_write_text:
-        deps.atomic_write_text(target, written)
-    else:
-        target.write_text(written, encoding="utf-8")
-
-    st = _load_state(deps)
     sharers = chung
     mode = "canary" if sharers else "direct"
     if sharers:
@@ -1034,20 +1042,22 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
                 qh, tt = "override", "override"
             targets.append({"root": r, "target_observed_hash": oh, "base_hash": _sha(d) if d is not None else "",
                             "quan_he": qh, "state": tt, "tries": 0})
-        st["canaries"].append({
-            "id": _sha(f"{root}:{rel}:{time.time()}"), "deployment_id": uuid.uuid4().hex, "schema_version": STATE_SCHEMA,
-            "package_id": None,
-            "brain": brain, "root": str(Path(root)), "target": rel,
-            "slug": target.stem.lower(), "hash": _sha(written), "revision": _sha(written),
-            "source_baseline_hash": goc_h, "candidate_hash": _sha256(written),
-            "backup": str(bpath), "proposal": fp.name,
-            "applied_at": time.time(),
-            "promote_at": time.time() + float(cfg.get("canary_hours") or CANARY_DEFAULT_HOURS) * 3600,
-            "min_tasks": int(cfg.get("canary_min_tasks") or CANARY_MIN_TASKS),
-            "sharers": sharers, "targets": targets, "state": "canary",
-        })
-        st["canaries"] = st["canaries"][-50:]
-        _save_state(deps, st)
+        with _khoa_state(deps):
+            st = _load_state(deps)           # đọc lại TRONG khoá: worker khác có thể vừa ghi
+            st["canaries"].append({
+                "id": _sha(f"{root}:{rel}:{time.time()}"), "deployment_id": deployment_id, "schema_version": STATE_SCHEMA,
+                "package_id": None,
+                "brain": brain, "root": str(Path(root)), "target": rel,
+                "slug": target.stem.lower(), "hash": _sha(written), "revision": _sha(written),
+                "source_baseline_hash": goc_h, "candidate_hash": _sha256(written),
+                "backup": str(bpath), "proposal": fp.name,
+                "applied_at": time.time(),
+                "promote_at": time.time() + float(cfg.get("canary_hours") or CANARY_DEFAULT_HOURS) * 3600,
+                "min_tasks": int(cfg.get("canary_min_tasks") or CANARY_MIN_TASKS),
+                "sharers": sharers, "targets": targets, "state": "canary",
+            })
+            st["canaries"] = _cat_canary(st["canaries"])
+            _save_state(deps, st)
 
     fp.write_text(_fm_patch(text, dict({
         "status": "applied", "applied_by": "factory",
@@ -1077,6 +1087,7 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
 async def proposal_tick(deps: FactoryDeps) -> dict:
     """Quét Joyce/proposals/ mọi brain: verdict=win + risk=low → tự áp (self-improve)."""
     rep = {"scanned": 0, "applied": 0, "canary": 0, "paused": 0}
+    _doi_soat(deps)
     for name in deps.brains() or []:
         try:
             root = deps.task_root(str(name))
@@ -1512,30 +1523,65 @@ def agent_scoreboard(deps: FactoryDeps, root: str) -> list:
 
 # ── #11 Canary rollout: file chung giữ ở 1 brain, canh rồi mới nhân ─────────
 
+def _thu_muc_khoa(deps: FactoryDeps) -> Path:
+    """Thư mục tệp khoá liên tiến trình. Nằm ở state dir (chung mọi brain) vì một triển khai chạm nhiều brain."""
+    return Path(deps.state_dir) / "deploy-locks"
+
+
+def _ghi_dich(deps: FactoryDeps, goc, dich, text: str, *, deployment_id: str, target_id: str,
+              truoc_hash: Optional[str] = None, dung_tai=None) -> dict:
+    """MỘT cổng ghi file triển khai (áp nguồn, nhân đích, lật lại): khoá liên tiến trình, so-rồi-ghi, sao lưu tên duy nhất,
+    nhật ký prepared/committed, ghi nguyên tử bằng bytes xác định. Xem deploy_writer. Trả receipt có `ket_qua`."""
+    return deploy_writer.ghi_co_dieu_kien(Path(goc), Path(dich), text, thu_muc_khoa=_thu_muc_khoa(deps), deployment_id=deployment_id,
+                                          target_id=target_id, truoc_hash=truoc_hash, dung_tai=dung_tai)
+
+
+def _khoa_state(deps: FactoryDeps):
+    """Khoá liên tiến trình cho chuỗi đọc-sửa-ghi của factory-state.json: hai worker không còn đè state của nhau.
+    KHÔNG tái nhập; người gọi phải đọc lại state BÊN TRONG khoá."""
+    return deploy_writer.khoa(_thu_muc_khoa(deps), "state:" + os.path.normcase(str(_state_path(deps))))
+
+
+_CANARY_KET_THUC = ("promoted", "reverted", "superseded", "het_han")
+
+
+def _cat_canary(ds: list, giu_ket_thuc: int = 50) -> list:
+    """Giữ MỌI canary chưa kết thúc (đang canh, legacy_review, partial, conflict, ...) và chỉ cắt các bản ghi đã kết thúc quá
+    `giu_ket_thuc` bản mới nhất. Bản cũ cắt thẳng `[-50:]` có thể loại một canary còn cần khôi phục. Không bao giờ xoá file sao lưu."""
+    ket_thuc = [c for c in ds if c.get("state") in _CANARY_KET_THUC]
+    bo = {id(c) for c in ket_thuc[:max(0, len(ket_thuc) - giu_ket_thuc)]}
+    return [c for c in ds if id(c) not in bo]
+
+
+def _doi_soat(deps: FactoryDeps, roots: Optional[list] = None) -> list:
+    """Đối soát nhật ký `prepared` của các brain sau một lần chết giữa chừng. Xung đột chỉ ghi log, không đoán và không đè."""
+    ra = []
+    try:
+        if roots is None:
+            roots = [deps.task_root(str(n)) for n in (deps.brains() or [])]
+            for c in _load_state(deps).get("canaries", []):
+                roots.append(str(c.get("root") or ""))
+                roots.extend(str(t.get("root") or "") for t in (c.get("targets") or []))
+        for r in sorted({str(x) for x in roots if x}):
+            for v in deploy_writer.doi_soat(Path(r), thu_muc_khoa=_thu_muc_khoa(deps)):
+                ra.append({"goc": r, **v})
+                if v.get("viec") == "xung_dot":
+                    print(f"[factory] đối soát: {v.get('duong_dan')} khác cả bản trước lẫn bản sau, giữ nguyên", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001
+        print(f"[factory] đối soát lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    return ra
+
+
+def _xep(ds: list, text: str, dedup: str) -> None:
+    ds.append((text, dedup))
+
+
 def _doc_file(path: Path) -> Optional[str]:
     """Nội dung file, hoặc None khi không có hay không đọc được."""
     try:
         return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else None
     except Exception:  # noqa: BLE001
         return None
-
-
-def _ghi_nguyen_tu(deps: FactoryDeps, path: Path, text: str) -> None:
-    """Ghi file nguyên tử (tệp tạm cùng thư mục rồi đổi tên): người đọc không bao giờ thấy nửa file, lỗi giữa chừng
-    không để lại tệp tạm."""
-    if deps.atomic_write_text:
-        deps.atomic_write_text(path, text)
-        return
-    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}-{int(time.time() * 1000)}")
-    try:
-        tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
-        try:
-            if tmp.exists():
-                tmp.unlink()
-        except OSError:
-            pass
 
 
 def _canary_evidence(deps: FactoryDeps, c: dict) -> dict:
@@ -1587,16 +1633,25 @@ async def _bao(deps: FactoryDeps, text: str, dedup: str) -> None:
 def _nhan_mot_dich(deps: FactoryDeps, c: dict, tg: dict, cand_hash: str, cand_text: str) -> None:
     """Nhân bản ứng viên sang MỘT đích. Điều kiện ghi (A02, D2): đích có quan hệ KẾ THỪA với bản nguồn trước sửa VÀ vẫn đúng
     bằng snapshot ngay trước khi ghi. Khác snapshot là `conflict`, khác baseline từ trước là `override`; cả hai giữ nguyên.
-    Sao lưu đích trước khi ghi. Đặt tg['state'] = promoted | already | conflict | override | missing | error."""
+    Ghi qua writer chung (A05): khoá liên tiến trình, so-rồi-ghi, sao lưu tên duy nhất, nhật ký.
+    Đặt tg['state'] = promoted | already | conflict | override | missing | error."""
     rel = str(c.get("target") or "")
-    dst = Path(str(tg.get("root") or "")) / rel
+    goc = Path(str(tg.get("root") or ""))
+    dst = goc / rel
+    dep_id = str(c.get("deployment_id") or c.get("id") or "")
+    tid = _sha(str(goc))
     d = _doc_file(dst)
     if d is None:
         tg["state"] = "missing"        # đích bị xoá: KHÔNG tạo lại
         return
     if _khop(d, str(c.get("candidate_hash") or ""), cand_hash):
-        tg["state"] = "already"        # đã là bản ứng viên: đúng bản, nhưng KHÔNG kết luận do hệ thống ghi nên không có receipt
-        tg["co_receipt"] = False
+        # Đã là bản ứng viên. Nếu NHẬT KÝ của chính triển khai này đã `committed` đúng bản đó thì là do ta ghi (lần chạy trước chết
+        # sau khi ghi, trước khi kịp lưu state): nhận lại receipt và đường khôi phục. Không có nhật ký thì chỉ nói "đã đúng bản".
+        rc = deploy_writer.doc_receipt(goc, dep_id, tid) if dep_id else None
+        if rc and rc.get("trang_thai") == "committed" and rc.get("sau_hash") == _sha256(d):
+            tg["state"], tg["co_receipt"], tg["backup"] = "promoted", True, rc.get("backup") or ""
+        else:
+            tg["state"], tg["co_receipt"] = "already", False
         return
     quan_he = str(tg.get("quan_he") or "")
     if not quan_he:
@@ -1614,23 +1669,23 @@ def _nhan_mot_dich(deps: FactoryDeps, c: dict, tg: dict, cand_hash: str, cand_te
         tg["state"] = "conflict"       # chủ đã sửa riêng kể từ lúc chụp: nhường
         return
     try:
-        bdir = dst.parent.parent / "Joyce" / "proposals" / ".backup"
-        bdir.mkdir(parents=True, exist_ok=True)
-        bp = bdir / f"{dst.stem}-canary-{int(time.time())}.bak"
-        bp.write_text(d, encoding="utf-8")
-        d2 = _doc_file(dst)            # đọc lại sát lúc ghi: đổi trong khoảng này thì thôi
-        if not _khop(d2, chup_day_du, chup_ngan):
-            tg["state"] = "conflict"
-            return
-        _ghi_nguyen_tu(deps, dst, cand_text)
-        tg["state"] = "promoted"
-        tg["co_receipt"] = True
-        tg["backup"] = str(bp)
+        rc = _ghi_dich(deps, goc, dst, cand_text, deployment_id=dep_id or uuid.uuid4().hex, target_id=tid, truoc_hash=_sha256(d))
+    except deploy_writer.DuongKhongAnToan as e:
+        tg["state"], tg["error"] = "conflict", f"đường dẫn không an toàn: {e}"[:140]
+        return
     except Exception as e:  # noqa: BLE001
         tg["tries"] = int(tg.get("tries") or 0) + 1
         tg["state"] = "error"
         tg["error"] = f"{type(e).__name__}: {e}"[:140]
         print(f"[factory] canary nhân {tg.get('root')}: {tg['error']}", file=sys.stderr)
+        return
+    kq = rc.get("ket_qua")
+    if kq == "committed":
+        tg["state"], tg["co_receipt"], tg["backup"] = "promoted", True, rc.get("backup") or ""
+    elif kq == "missing":
+        tg["state"] = "missing"
+    else:
+        tg["state"] = "conflict"       # đích đổi giữa lúc kiểm và lúc ghi (writer so-rồi-ghi dưới khoá)
 
 
 def _ten_dich(tg: dict) -> str:
@@ -1642,7 +1697,7 @@ def _dich_dang_do(tgs: list) -> bool:
                for t in tgs)
 
 
-async def canary_tick(deps: FactoryDeps) -> dict:
+def _canary_loi(deps: FactoryDeps, thong_bao: list) -> dict:
     """Mỗi nhịp, với từng canary đang canh:
 
     1. File nguồn không còn đúng bản ứng viên (chủ sửa/xoá tay) -> superseded, nhường chủ.
@@ -1681,12 +1736,20 @@ async def canary_tick(deps: FactoryDeps) -> dict:
             try:
                 if goc is None:
                     raise FileNotFoundError("không còn bản sao lưu để lật lại")
-                _ghi_nguyen_tu(deps, target, goc)
+                rc = _ghi_dich(deps, c.get("root"), target, goc, deployment_id=str(c.get("deployment_id") or c.get("id")),
+                               target_id="lat-lai", truoc_hash=_sha256(cur2))
+                if rc.get("ket_qua") == "conflict":
+                    c["state"] = "superseded"        # chủ sửa tay đúng lúc lật: so-rồi-ghi dưới khoá nhận ra, không đè
+                    _save_state(deps, st)
+                    rep["superseded"] += 1
+                    continue
+                if rc.get("ket_qua") != "committed":
+                    raise OSError("lật lại không thành: " + str(rc.get("ket_qua")))
             except Exception as e:  # noqa: BLE001
                 c["rollback_error"] = f"{type(e).__name__}: {e}"[:140]
                 _save_state(deps, st)
                 print(f"[factory] canary rollback {c.get('id')}: {c['rollback_error']}", file=sys.stderr)
-                await _bao(deps, f"🐤 **Canary KHÔNG lật lại được**: `{c.get('target')}` ở {c.get('brain')} có {len(bad)} việc lỗi "
+                _xep(thong_bao, f"🐤 **Canary KHÔNG lật lại được**: `{c.get('target')}` ở {c.get('brain')} có {len(bad)} việc lỗi "
                                  f"nhưng không trả file về bản cũ được ({c['rollback_error']}). Anh kiểm tra tay giúp.",
                            f"canaryrevfail:{c.get('id')}")
                 continue
@@ -1694,7 +1757,7 @@ async def canary_tick(deps: FactoryDeps) -> dict:
             c["evidence"] = {k: v for k, v in _canary_evidence(deps, c).items() if k != "bad_ids"}
             _save_state(deps, st)
             rep["reverted"] += 1
-            await _bao(deps, f"🐤 **Canary lật lại**: `{c.get('target')}` ở {c.get('brain')} có {len(bad)} việc lỗi chạy trên "
+            _xep(thong_bao, f"🐤 **Canary lật lại**: `{c.get('target')}` ở {c.get('brain')} có {len(bad)} việc lỗi chạy trên "
                              f"bản mới (gắn đúng agent `{c.get('slug')}`). Đã trả file về bản cũ - không nhân sang brain khác.",
                        f"canaryrev:{c.get('id')}")
             continue
@@ -1714,7 +1777,7 @@ async def canary_tick(deps: FactoryDeps) -> dict:
                 c["state"] = "het_han"
                 _save_state(deps, st)
                 rep["het_han"] += 1
-                await _bao(deps, f"🐤 **Canary hết hạn**: `{c.get('target')}` ở {c.get('brain')} sau {CANARY_HET_HAN_NGAY} ngày chỉ có "
+                _xep(thong_bao, f"🐤 **Canary hết hạn**: `{c.get('target')}` ở {c.get('brain')} sau {CANARY_HET_HAN_NGAY} ngày chỉ có "
                                  f"{ev['tasks']}/{can} việc chạy trên bản mới, chưa đủ bằng chứng nên KHÔNG nhân sang brain khác. "
                                  f"Bản mới vẫn đang chạy ở {c.get('brain')}; anh quyết định giữ hay lật lại.",
                            f"canaryexp:{c.get('id')}")
@@ -1744,7 +1807,7 @@ async def canary_tick(deps: FactoryDeps) -> dict:
         if len(dat) == tong:
             c["state"] = "promoted"
             rep["promoted"] += 1
-            await _bao(deps, f"🐤 **Canary qua**: `{c.get('target')}` chạy ổn {gio}h ở {c.get('brain')} ({ev['ok']}/{ev['tasks']} việc đạt) "
+            _xep(thong_bao, f"🐤 **Canary qua**: `{c.get('target')}` chạy ổn {gio}h ở {c.get('brain')} ({ev['ok']}/{ev['tasks']} việc đạt) "
                              f"- đã nhân bản sang {len(dat)} brain còn lại.", f"canaryok:{c.get('id')}")
         else:
             ov = [_ten_dich(t) for t in tgs if t.get("state") == "override"]
@@ -1762,11 +1825,23 @@ async def canary_tick(deps: FactoryDeps) -> dict:
                 chi_tiet.append(f"{len(thieu)} brain không còn file ({', '.join(thieu[:4])})")
             if loi:
                 chi_tiet.append(f"{len(loi)} brain ghi lỗi ({', '.join(loi[:4])})")
-            await _bao(deps, f"🐤 **Canary qua MỘT PHẦN**: `{c.get('target')}` ({ev['ok']}/{ev['tasks']} việc đạt) chỉ nhân được "
+            _xep(thong_bao, f"🐤 **Canary qua MỘT PHẦN**: `{c.get('target')}` ({ev['ok']}/{ev['tasks']} việc đạt) chỉ nhân được "
                              f"{len(dat)}/{tong} brain; " + "; ".join(chi_tiet) + ". Không ghi đè bản riêng của phòng nào.",
                        f"canarypart:{c.get('id')}")
         _save_state(deps, st)
     _save_state(deps, st)
+    return rep
+
+
+async def canary_tick(deps: FactoryDeps) -> dict:
+    """Xem `_canary_loi`. Toàn bộ đọc-sửa-ghi state nằm dưới khoá liên tiến trình; thông báo hộp thư gửi SAU khi nhả khoá để một
+    cuộc gọi hộp thư chậm không giữ khoá của worker khác. Đầu mỗi nhịp đối soát nhật ký của lần chết giữa chừng."""
+    thong_bao: list = []
+    _doi_soat(deps)
+    with _khoa_state(deps):
+        rep = _canary_loi(deps, thong_bao)
+    for text, dedup in thong_bao:
+        await _bao(deps, text, dedup)
     return rep
 
 

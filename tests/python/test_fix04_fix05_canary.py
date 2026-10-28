@@ -210,20 +210,20 @@ check("canary xong sạch: promoted, mọi đích promoted", trang_thai(deps)["s
 # Chỉ một đích ghi lỗi
 roots, kho, hop, deps = dung()
 dich_xong(roots, kho, deps)
-goc_ghi = factory._ghi_nguyen_tu
+goc_ghi = factory._ghi_dich      # A05: cổng ghi chung của triển khai (trước đó là _ghi_nguyen_tu)
 
 
-def ghi_hong_mot_dich(deps_, path, text):
-    if str(roots["dich0"]) in str(path):
+def ghi_hong_mot_dich(deps_, goc, dich, text, **kw):
+    if str(roots["dich0"]) in str(dich):
         raise OSError("đĩa đầy giả lập")
-    return goc_ghi(deps_, path, text)
+    return goc_ghi(deps_, goc, dich, text, **kw)
 
 
-factory._ghi_nguyen_tu = ghi_hong_mot_dich
+factory._ghi_dich = ghi_hong_mot_dich
 try:
     rep = tick(deps)
 finally:
-    factory._ghi_nguyen_tu = goc_ghi
+    factory._ghi_dich = goc_ghi
 c = trang_thai(deps)
 check("một đích ghi lỗi: các đích khác vẫn nhân, đích lỗi còn nguyên và KHÔNG báo toàn bộ thành công",
       doc(roots, "dich0") == GOC and doc(roots, "dich1").strip() == NHAP.strip() and c["state"] in ("canary", "partial") and rep["promoted"] == 0, (rep, c["state"]))
@@ -241,21 +241,21 @@ class Chet(BaseException):
 dem = {"n": 0}
 
 
-def chet_o_dich_hai(deps_, path, text):
+def chet_o_dich_hai(deps_, goc, dich, text, **kw):
     dem["n"] += 1
     if dem["n"] == 2:
         raise Chet()
-    return goc_ghi(deps_, path, text)
+    return goc_ghi(deps_, goc, dich, text, **kw)
 
 
-factory._ghi_nguyen_tu = chet_o_dich_hai
+factory._ghi_dich = chet_o_dich_hai
 try:
     try:
         tick(deps)
     except Chet:
         pass
 finally:
-    factory._ghi_nguyen_tu = goc_ghi
+    factory._ghi_dich = goc_ghi
 c = trang_thai(deps)
 tt = {pathlib.Path(t["root"]).name: t["state"] for t in c["targets"]}
 check("process chết giữa chừng: đích đã xong được GHI NHẬN ngay, canary chưa kết thúc", c["state"] == "canary" and list(tt.values()).count("promoted") == 1 and "pending" in tt.values(), tt)
