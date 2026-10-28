@@ -138,14 +138,18 @@ async function main() {
         { id: "A", items: [o("cache", "ok"), o("guard", "ok", { n: 3 }), o("trim", "ok", { n: 80000 }), o("perm", "ok"), o("brake", "ok", { n: 30 })] },
         { id: "B", items: [o("agents", "ok", { n: 3, s: 2 }), o("shared", "ok", { n: 9 }), o("evals", "off", { n: 0 }), o("scope", "off", { n: 0, m: 3 })] },
         { id: "C", items: [o("self", "ok", { n: 61, m: 61 }), o("judge", "ok", { w: 2, k: 1, i: 0 }), o("gate", "warn", { n: 1, e: 0 }),
-                           o("canary", "ok", { n: 0, r: 0 }), o("budget", "off", { n: 500000, m: 1000000 })] }],
+                           o("canary", "warn", { n: 0, r: 0, l: 2 }), o("telemetry", "off", { ready: 0 }), o("budget", "off", { n: 500000, m: 1000000 })] }],
       phases: [{ k: "0A", state: "ok" }, { k: "0B", state: "warn" }, { k: "1", state: "off" }] } };
     const { ctx, el } = makeCtx(c4);
     await ctx.window.JoyceSoDo.render(el);
     const h = el.innerHTML;
     check("harness: có khối Joyce Harness với ba tầng", h.includes("sd-hx") && (h.match(/class="sd-hx-col"/g) || []).length === 3
       && h.includes(VI["sodo.hx.tA"]) && h.includes(VI["sodo.hx.tC"]));
-    check("harness: đủ 14 thành phần, mỗi cái một đèn", (h.match(/class="sd-hx-r /g) || []).length === 14);
+    check("harness: đủ 15 thành phần, mỗi cái một đèn", (h.match(/class="sd-hx-r /g) || []).length === 15);
+    check("harness (A01): đèn bằng chứng canary XÁM và nói thẳng chưa có dữ liệu, không xanh",
+      h.includes(VI["sodo.hx.telemetry"]) && h.includes(VI["sodo.hx.telemetry.m"]) && !h.includes(VI["sodo.hx.telemetry.m_ok"])
+      && /sd-hx-r sd-st-off[^]*?Bằng chứng canary/.test(h));
+    check("harness (A01): canary cần xem hiện số \"cần xem\" và đèn vàng", h.includes("2 cần xem") && /sd-hx-r sd-st-warn[^]*?Canary và lật lại/.test(h));
     check("harness: số thật đi vào chữ (9 bản gốc, 1 chờ chủ, 61/61 brain)", h.includes("9 bản gốc") && h.includes("1 chờ chủ duyệt") && h.includes("61/61"));
     check("harness: số lớn có dấu chấm nghìn", h.includes("500.000") && h.includes("1.000.000"));
     check("harness: thứ chưa làm hiện đèn xám, cổng có việc chờ hiện vàng", h.includes("sd-hx-r sd-st-off") && h.includes("sd-hx-r sd-st-warn"));

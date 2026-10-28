@@ -227,12 +227,16 @@ s2 = factory._signature("TimeoutError 10.0.0.3:9000 conn reset")
 t("signature gom cùng gốc", s1 == s2 and s1)
 
 
+_THAN = "# X\n" + "nội dung mới đầy đủ. " * 12
+
+
 def _make_proposal(root, name, *, verdict="win", risk="low", target="agents/x.md",
                    draft=None, status="pending"):
     pdir = Path(root) / "Joyce" / "proposals"
     pdir.mkdir(parents=True, exist_ok=True)
-    draft = draft if draft is not None else (
-        "---\ntype: agent\nname: X\n---\n# X mới\n" + "nội dung mới đầy đủ. " * 12)
+    # A01/A03 (1.3.42): cổng tự áp chỉ cho thay đổi `display_only` qua (thân bài là hành vi, D3). Bản nháp mặc định vì thế
+    # CHỈ đổi `updated:` trong frontmatter, giữ nguyên thân bài; thân bài đổi thì đã có test riêng ở test_a01_cong_tu_ap.py.
+    draft = draft if draft is not None else ("---\ntype: agent\nname: X\nupdated: 2026-10-24\n---\n" + _THAN)
     text = f"""---
 type: proposal
 target: x
@@ -260,14 +264,14 @@ WIN
 # ── 14. Self-improve: WIN + low + có nháp → tự áp, backup có sẵn ────────────
 brain1 = TMP / "brain"
 (brain1 / "agents").mkdir(parents=True, exist_ok=True)
-old_text = "---\ntype: agent\nname: X\n---\n# X cũ\nnội dung cũ\n"
+old_text = "---\ntype: agent\nname: X\nupdated: 2026-10-01\n---\n" + _THAN
 (brain1 / "agents" / "x.md").write_text(old_text, encoding="utf-8")
 fp = _make_proposal(str(brain1), "2026-10-24-x.md")
 deps, sent, calls = make_deps()
 rep = asyncio.run(factory.proposal_tick(deps))
 new_text = (brain1 / "agents" / "x.md").read_text(encoding="utf-8")
 t("proposal WIN+low+nháp → file được áp",
-  rep["applied"] == 1 and "# X mới" in new_text and "nội dung cũ" not in new_text)
+  rep["applied"] == 1 and "updated: 2026-10-24" in new_text and "updated: 2026-10-01" not in new_text)
 t("proposal đổi status applied", "status: applied" in fp.read_text(encoding="utf-8"))
 t("backup bản cũ tồn tại",
   any((brain1 / "Joyce" / "proposals" / ".backup").glob("x-*.bak")))
@@ -287,6 +291,9 @@ for name, kw, expect_unchanged in [
     t(f"{name} → không tự áp", cur == old_text)
 
 # ── 16. Canary: file chung 2 brain → áp 1 brain, tới hạn mới nhân ───────────
+# D1 (A01): chưa có telemetry thì file dùng chung KHÔNG được tự áp. Các ca canary dưới đây bật telemetry giả CÓ CHỦ Ý bằng
+# monkeypatch (không phải cờ cấu hình) để thử riêng logic canary; ca không bật nằm ngay bên dưới.
+_tele0 = factory.telemetry_ready
 brain2 = TMP / "brain2"
 (brain2 / "agents").mkdir(parents=True, exist_ok=True)
 (brain2 / "agents" / "x.md").write_text(old_text, encoding="utf-8")
@@ -297,9 +304,16 @@ fp2 = _make_proposal(str(brain1), "2026-10-24-x2.md")
 deps, sent, calls = make_deps()
 deps.brains = lambda: ["brain", "brain2"]
 rep = asyncio.run(factory.proposal_tick(deps))
+t("D1: file dùng chung mà chưa có telemetry → KHÔNG tự áp, không tạo canary, đề xuất chờ chủ",
+  rep["canary"] == 0 and rep["applied"] == 0 and (brain1 / "agents" / "x.md").read_text(encoding="utf-8") == old_text
+  and "cho_chu_duyet" in fp2.read_text(encoding="utf-8"))
+fp2.unlink()
+factory.telemetry_ready = lambda *a, **k: True
+fp2 = _make_proposal(str(brain1), "2026-10-24-x2b.md")
+rep = asyncio.run(factory.proposal_tick(deps))
 same2 = (brain2 / "agents" / "x.md").read_text(encoding="utf-8") == old_text
-t("file chung → áp brain gốc, brain kia CHƯA đổi (canary)",
-  rep["canary"] == 1 and "# X mới" in (brain1 / "agents" / "x.md").read_text(
+t("file chung (có telemetry giả) → áp brain gốc, brain kia CHƯA đổi (canary)",
+  rep["canary"] == 1 and "updated: 2026-10-24" in (brain1 / "agents" / "x.md").read_text(
       encoding="utf-8") and same2)
 # giả hết hạn canary
 stf = json.loads((TMP / "factory-state.json").read_text(encoding="utf-8"))
@@ -315,7 +329,7 @@ deps.store = FakeStore({str(brain1): _chay})
 rep = asyncio.run(factory.canary_tick(deps))
 t("canary qua cửa sổ + đủ 20 việc đạt → nhân sang brain2",
   rep["promoted"] == 1
-  and "# X mới" in (brain2 / "agents" / "x.md").read_text(encoding="utf-8"))
+  and "updated: 2026-10-24" in (brain2 / "agents" / "x.md").read_text(encoding="utf-8"))
 
 # ── 17. Canary có tín hiệu xấu → rollback, không nhân ───────────────────────
 (brain1 / "agents" / "x.md").write_text(old_text, encoding="utf-8")
@@ -341,6 +355,8 @@ t("canary thấy việc lỗi gắn đúng agent → rollback, brain2 không đ�
   rep["reverted"] == 1
   and (brain1 / "agents" / "x.md").read_text(encoding="utf-8") == old_text
   and (brain2 / "agents" / "x.md").read_text(encoding="utf-8") == old_text)
+
+factory.telemetry_ready = _tele0
 
 # ── 18. Autonomy: việc xong có operator_move = cần người ─────────────────────
 done_tasks = [{"id": f"a{i}", "title": f"v{i}", "status": "done",
@@ -397,7 +413,7 @@ _make_proposal(str(brain1), "2026-10-24-evalok.md")
 deps, sent, calls = make_deps()
 rep = asyncio.run(factory.proposal_tick(deps))
 t("eval đạt → áp + proposal ghi điểm eval",
-  "nội dung mới" in (brain1 / "agents" / "x.md").read_text(encoding="utf-8")
+  "updated: 2026-10-24" in (brain1 / "agents" / "x.md").read_text(encoding="utf-8")
   and "eval:" in (brain1 / "Joyce" / "proposals" / "2026-10-24-evalok.md")
       .read_text(encoding="utf-8"))
 

@@ -35,7 +35,7 @@ base = dict(stages={}, guard_on=True, shared_agents=9, tool_rounds=30, trim_char
             brains_total=61, brains_self_improve=61, agents=[], evals_brain=0)
 s = harness_map.snapshot(**base)
 check("ba tầng A, B, C", [t["id"] for t in s["tiers"]] == ["A", "B", "C"])
-check("đếm tổng và số xanh khớp các đèn", s["total"] == 14 and s["ok"] == sum(
+check("đếm tổng và số xanh khớp các đèn", s["total"] == 15 and s["ok"] == sum(
     1 for t in s["tiers"] for x in t["items"] if x["state"] == "ok"))
 check("trần token đã chốt nhưng chưa ép: đèn xám, không tô xanh", _st(s, "budget")["state"] == "off"
       and _st(s, "budget")["v"] == {"n": 500000, "m": 1000000})
@@ -49,6 +49,13 @@ check("trợ lý: đếm số có skill", _st(s2, "agents")["v"] == {"n": 2, "s"
 check("khai phạm vi: 1/2 thì chưa xanh", _st(s2, "scope")["state"] == "off" and _st(s2, "scope")["v"] == {"n": 1, "m": 2})
 check("có đề xuất chờ chủ thì cổng quyền vàng", _st(s2, "gate")["state"] == "warn" and _st(s2, "gate")["v"]["n"] == 1)
 check("canary đã lật thì vàng", _st(s2, "canary")["state"] == "warn")
+# A01 (1.3.42): chưa đủ dữ liệu KHÔNG được hiện xanh.
+check("chưa có telemetry: đèn bằng chứng canary XÁM (off), không xanh", _st(s, "telemetry")["state"] == "off")
+check("có telemetry thì xanh", _st(harness_map.snapshot(**dict(base, telemetry_ready=True)), "telemetry")["state"] == "ok")
+for tt in ("legacy_review", "het_han", "partial", "conflict"):
+    sx = harness_map.snapshot(**dict(base, stages={"canary": {tt: 2}}))
+    check(f"canary ở trạng thái {tt}: vàng và đếm vào 'cần xem', không xanh", _st(sx, "canary")["state"] == "warn" and _st(sx, "canary")["v"]["l"] == 2)
+check("không có canary nào cần xem: canary xanh", _st(harness_map.snapshot(**dict(base, stages={"canary": {"canary": 1}})), "canary")["state"] == "ok")
 
 js = (pathlib.Path(ROOT) / "dashboard" / "sodo.js").read_text(encoding="utf-8")
 hx_keys = set(re.findall(r"^\s{4}([a-z]+): \[\"sodo\.hx\.", js, re.M))

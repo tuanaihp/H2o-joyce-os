@@ -75,6 +75,7 @@ CANARY_DEFAULT_HOURS = 24         # file chung: áp 1 brain, canh 24h mới nhâ
 CANARY_MIN_TASKS = 20              # và phải có đủ ngần ấy việc ĐÃ CHẠY trên bản ứng viên (FIX-05, plan mục 9.1)
 CANARY_HET_HAN_NGAY = 14          # chờ bằng chứng quá lâu thì dừng, báo chủ, KHÔNG nhân
 CANARY_LOI_THU_LAI = 3            # một đích ghi lỗi được thử lại ngần ấy lần rồi bỏ
+STATE_SCHEMA = 2                  # 1.3.42 (A01): có phiên bản; canary cũ chưa có telemetry chuyển legacy_review
 PROPOSAL_MAX_GROW = 4.0           # bản nháp không được phình quá 4x file gốc (chống viết đè bừa)
 PROPOSAL_MIN_LEN = 120            # draft dưới mức này coi như rỗng - không tự áp
 PROPOSAL_MAX_BYTES = 400 * 1024   # proposal quá lớn không đọc
@@ -116,6 +117,37 @@ def _state_path(deps: FactoryDeps) -> Path:
     return Path(deps.state_dir) / "factory-state.json"
 
 
+def _migrate_state(d: dict) -> dict:
+    """Đưa state về STATE_SCHEMA. CHẠY LẶP KHÔNG ĐỔI KẾT QUẢ (cổng là `schema`) và KHÔNG chạm vào file nào của brain.
+
+    A01 (1.3.42): canary tạo trước khi có telemetry không có gì chứng minh bản ứng viên đã chạy ra sao, nên không được tiếp
+    tục "canh" như thể đang kiểm chứng. Chuyển sang `legacy_review` (chờ chủ xem). Bản ghi gốc giữ NGUYÊN trong `legacy`
+    (nguồn, hash, sao lưu, các đích), không tự giữ hay xoá ứng viên, không tự viết lại file nguồn."""
+    if int(d.get("schema") or 1) >= STATE_SCHEMA:
+        return d
+    for c in d.get("canaries", []):
+        if c.get("state") == "canary" and "legacy" not in c:
+            c["legacy"] = {"state": "canary", "luc": time.time(), "ly_do": "tạo trước khi có telemetry để kiểm chứng canary"}
+            c["state"] = "legacy_review"
+    d["schema"] = STATE_SCHEMA
+    return d
+
+
+def telemetry_ready(deps: FactoryDeps, brain: str = "", rel: str = "") -> bool:
+    """Có nguồn bằng chứng đáng tin để kiểm chứng một canary chưa.
+
+    HIỆN LUÔN False (A01, D1 của plan): chưa có hợp đồng lượt chạy gắn agent và revision (B01), và Kanban thật không có việc
+    nào gắn khoá agent. Canary mới vì thế KHÔNG được tạo và file dùng chung KHÔNG được tự áp. Gói B đổi hàm này thành
+    kiểm thật. Test dùng monkeypatch có chủ ý, không phải cờ cấu hình, để không ai bật nó bằng một dòng JSON."""
+    return False
+
+
+def _dang_tam_dung(deps: FactoryDeps, cfg: Optional[dict] = None) -> bool:
+    if cfg is not None and cfg.get("auto_deploy") is False:
+        return True
+    return bool(_load_state(deps).get("tam_dung"))
+
+
 def _load_state(deps: FactoryDeps) -> dict:
     try:
         p = _state_path(deps)
@@ -126,10 +158,10 @@ def _load_state(deps: FactoryDeps) -> dict:
                 d.setdefault("perf_cd", {})
                 d.setdefault("sev_sent", {})
                 d.setdefault("canaries", [])
-                return d
+                return _migrate_state(d)
     except Exception as e:  # noqa: BLE001
         print(f"[factory] đọc state: {type(e).__name__}: {e}", file=sys.stderr)
-    return {"watches": [], "perf_cd": {}, "sev_sent": {}, "canaries": []}
+    return {"watches": [], "perf_cd": {}, "sev_sent": {}, "canaries": [], "schema": STATE_SCHEMA}
 
 
 def _save_state(deps: FactoryDeps, st: dict) -> None:
@@ -169,6 +201,9 @@ def load_factory_cfg(root: str) -> dict:
         # Chủ đặt true thì brain này KHÔNG tự áp đề xuất cho file chưa có bộ eval (FIX-02). Mặc định tắt: giữ
         # hành vi cũ cho 61 brain đang chạy, chỉ bộ eval HỎNG mới chặn.
         "eval_bat_buoc": bool(cfg.get("eval_bat_buoc", False)),
+        # Cờ DỪNG tự triển khai (A01): false thì không tự áp và không tự nhân. KHÔNG tắt giám định, đọc, tạo đề xuất,
+        # thử trong sandbox hay phục vụ bằng bản đã duyệt. Mặc định bật như trước.
+        "auto_deploy": bool(cfg.get("auto_deploy", True)),
         "canary_hours": max(1, min(24 * 14, int(cfg.get("canary_hours", CANARY_DEFAULT_HOURS)))),
         "canary_min_tasks": max(1, min(200, int(cfg.get("canary_min_tasks", CANARY_MIN_TASKS)))),
     }
@@ -786,6 +821,7 @@ def _target_relpath(raw) -> str:
 # xếp nên bỏ sót khoá lồng (`harness.budgets.*`) và việc tráo `tools` giữa hai bước. Chỗ này chỉ giữ tên cũ
 # để mã và test đã trỏ vào `factory.diff_quyen` / `factory._KHOA_QUYEN` không phải đổi.
 import harness_diff  # noqa: E402
+from harness_diff import classify as _phan_loai  # noqa: E402
 
 _KHOA_QUYEN = harness_diff.KHOA_QUYEN
 KHONG_DOC_DUOC = harness_diff.KHONG_DOC_DUOC
@@ -796,6 +832,29 @@ def diff_quyen(original: str, draft: str) -> list:
 
     Trả `[KHONG_DOC_DUOC]` khi không đọc chắc được cấu hình: coi như CẦN CHỦ XEM, không bao giờ tự áp."""
     return harness_diff.diff_quyen(original, draft)
+
+
+def _brain_chung(deps: FactoryDeps, root: str, rel: str) -> list:
+    """Gốc các brain KHÁC cũng có file `rel` (file dùng chung)."""
+    ra = []
+    for n in deps.brains() or []:
+        try:
+            r = deps.task_root(str(n))
+            if r != str(Path(root)) and (Path(r) / rel).is_file():
+                ra.append(r)
+        except Exception:  # noqa: BLE001
+            continue
+    return ra
+
+
+async def _cho_chu(deps: FactoryDeps, fp: Path, text: str, trang_thai: str, ly_do: str, tin: str, dedup: str) -> str:
+    """Đánh dấu một đề xuất sang trạng thái chờ chủ, ghi lý do, báo hộp thư một lần. Luôn trả 'skipped'."""
+    try:
+        fp.write_text(_fm_patch(text, {"status": trang_thai, "ly_do_cho": ly_do[:180]}), encoding="utf-8")
+        await deps.inbox(tin, kind="system", label="self-improve", source="factory", dedup=dedup)
+    except Exception:  # noqa: BLE001
+        pass
+    return "skipped"
 
 
 async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
@@ -824,25 +883,44 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
     if old_fm is not None:
         new_fm, _ = _proposal_front(draft)
         if not isinstance(new_fm, dict) or new_fm.get("type") != old_fm.get("type"):
-            return "skipped"
+            # Trước 1.3.42 chặn NÀY im lặng: đề xuất nằm `pending` mãi, chủ không biết vì sao không được áp. Nay chuyển sang
+            # chờ chủ kèm lý do (cùng lớp bảo vệ, chỉ thêm khả năng nhìn thấy).
+            return await _cho_chu(
+                deps, fp, text, "cho_chu_duyet",
+                "bản nháp không giữ được frontmatter hoặc đổi `type` của file (không đọc chắc được cấu hình)",
+                f"🔐 **Tự cải tiến**: proposal `{fp.stem}` đổi `{rel}` nhưng bản nháp mất frontmatter hoặc đổi `type`. "
+                f"Không tự áp - chờ anh xem.", f"type:{fp.stem}")
 
-    # Host tự phân loại thay đổi, không tin `risk: low` (B-12). Đổi quyền thì chờ chủ duyệt.
-    doi_quyen = diff_quyen(original, draft)
-    if doi_quyen:
-        try:
-            fp.write_text(_fm_patch(text, {
-                "status": "cho_chu_duyet",
-                "ly_do_cho": (("không đọc chắc được cấu hình (frontmatter), cần anh xem" if doi_quyen == [KHONG_DOC_DUOC]
-                               else "đổi trường quyền hoặc cách chạy: " + ", ".join(doi_quyen)))[:180],
-            }), encoding="utf-8")
-            await deps.inbox(
-                f"🔐 **Tự cải tiến**: proposal `{fp.stem}` thắng giám định nhưng đổi "
-                f"{', '.join(doi_quyen[:5])} của `{rel}`. Thay đổi về quyền không tự áp - chờ anh xem.",
-                kind="system", label="self-improve", source="factory",
-                dedup=f"quyen:{fp.stem}")
-        except Exception:  # noqa: BLE001
-            pass
-        return "skipped"
+    # CỔNG HOST (A01, 1.3.42), áp cho CẢ direct lẫn canary và chạy TRƯỚC mọi thao tác ghi. Host tự phân loại, không tin
+    # `risk: low` hay `verdict: win` do model viết (B-12). Chỉ `display_only` được qua; mọi loại khác, kể cả loại chưa phân
+    # loại được, chờ chủ. Thân bài, `role`, `name`, `description`, `goal`, lời giao việc là HÀNH VI (D3).
+    if _dang_tam_dung(deps, cfg):
+        return "paused"      # cờ dừng tự triển khai: giữ nguyên đề xuất, KHÔNG đổi trạng thái, KHÔNG tắt giám định hay phục vụ
+    pl = _phan_loai(original, draft)
+    loai = pl["class"]
+    if loai != "display_only":
+        ten = [t for c in ("permission_change", "unknown", "behavior_change", "invalid") for t in pl["paths"][c]]
+        if loai == "invalid":
+            ly_do = "không đọc chắc được cấu hình (frontmatter), cần anh xem: " + "; ".join(pl["errors"][:2])
+            tin = f"🔐 **Tự cải tiến**: proposal `{fp.stem}` đổi `{rel}` nhưng cấu hình không đọc chắc được. Không tự áp - chờ anh xem."
+        elif loai == "behavior_change":
+            ly_do = "đổi hành vi (thân bài, vai trò, lời giao việc hoặc cấu trúc): " + ", ".join(pl["paths"]["behavior_change"][:5])
+            tin = (f"🧭 **Tự cải tiến**: proposal `{fp.stem}` thắng giám định nhưng đổi hành vi của `{rel}` "
+                   f"({', '.join(pl['paths']['behavior_change'][:5])}). Chưa có bộ kiểm hành vi nên chưa tự áp - chờ anh xem.")
+        else:
+            ly_do = "đổi trường quyền hoặc cách chạy: " + ", ".join(ten)
+            tin = (f"🔐 **Tự cải tiến**: proposal `{fp.stem}` thắng giám định nhưng đổi {', '.join(ten[:5])} của `{rel}`. "
+                   f"Thay đổi về quyền không tự áp - chờ anh xem.")
+        return await _cho_chu(deps, fp, text, "cho_chu_duyet", ly_do, tin, f"quyen:{fp.stem}:{loai}")
+
+    # Thay đổi dùng chung nhiều brain cần canary, mà canary cần telemetry (D1): chưa có thì KHÔNG tự đưa vào nguồn.
+    chung = _brain_chung(deps, root, rel)
+    if chung and not telemetry_ready(deps, brain, rel):
+        return await _cho_chu(
+            deps, fp, text, "cho_chu_duyet",
+            f"file dùng chung {len(chung) + 1} brain, chưa có telemetry để canary kiểm chứng (D1)",
+            f"🐤 **Tự cải tiến**: proposal `{fp.stem}` sửa `{rel}` dùng chung {len(chung) + 1} brain, mà chưa có dữ liệu chạy thật "
+            f"để canary kiểm chứng. Không tự áp, không tự nhân - chờ anh xem.", f"telemetry:{fp.stem}")
 
     # Perf harness: bộ eval deterministic (nếu chủ đã khai cho file này) chạy lên
     # bản nháp TRƯỚC khi áp. Case FAIL → không tự áp, đánh dấu eval_failed để chủ
@@ -893,14 +971,7 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
         target.write_text(written, encoding="utf-8")
 
     st = _load_state(deps)
-    sharers = []
-    for n in deps.brains() or []:
-        try:
-            r = deps.task_root(str(n))
-            if r != str(Path(root)) and (Path(r) / rel).is_file():
-                sharers.append(r)
-        except Exception:  # noqa: BLE001
-            continue
+    sharers = chung
     mode = "canary" if sharers else "direct"
     if sharers:
         # FIX-04 (1.3.41): chụp hash TỪNG đích ngay lúc áp. Lúc nhân chỉ ghi đích còn đúng bản này; đích đã bị chủ
@@ -949,7 +1020,7 @@ async def _proposal_apply(deps: FactoryDeps, brain: str, root: str, fp: Path,
 
 async def proposal_tick(deps: FactoryDeps) -> dict:
     """Quét Joyce/proposals/ mọi brain: verdict=win + risk=low → tự áp (self-improve)."""
-    rep = {"scanned": 0, "applied": 0, "canary": 0}
+    rep = {"scanned": 0, "applied": 0, "canary": 0, "paused": 0}
     for name in deps.brains() or []:
         try:
             root = deps.task_root(str(name))
@@ -981,6 +1052,8 @@ async def proposal_tick(deps: FactoryDeps) -> dict:
                         rep["canary"] += 1
                     elif mode == "applied":
                         rep["applied"] += 1
+                    elif mode == "paused":
+                        rep["paused"] += 1
                 except Exception as e:  # noqa: BLE001
                     print(f"[factory] proposal {fp.name}: {type(e).__name__}: {e}",
                           file=sys.stderr)
@@ -1465,9 +1538,10 @@ async def canary_tick(deps: FactoryDeps) -> dict:
     4. Đủ giờ, đủ việc, không lỗi -> nhân TỪNG đích (FIX-04): đích còn đúng bản đã chụp mới được ghi, đích đã sửa riêng
        giữ nguyên, trạng thái từng đích lưu ngay nên chết giữa chừng chạy lại không làm lại, báo đúng số đích thành công."""
     rep = {"promoted": 0, "reverted": 0, "superseded": 0, "waiting": 0, "partial": 0, "conflict": 0,
-           "cho_bang_chung": 0, "het_han": 0}
+           "cho_bang_chung": 0, "het_han": 0, "paused": 0, "legacy_review": 0}
     st = _load_state(deps)
     now = time.time()
+    rep["legacy_review"] = sum(1 for x in st.get("canaries", []) if x.get("state") == "legacy_review")
     for c in st.get("canaries", []):
         if c.get("state") != "canary":
             continue
@@ -1512,6 +1586,9 @@ async def canary_tick(deps: FactoryDeps) -> dict:
 
         if now < float(c.get("promote_at") or 0):
             rep["waiting"] += 1
+            continue
+        if _dang_tam_dung(deps):
+            rep["paused"] += 1       # dừng chỉ chặn bước NHÂN; phát hiện lỗi và lật lại ở trên vẫn chạy
             continue
 
         ev = _canary_evidence(deps, c)

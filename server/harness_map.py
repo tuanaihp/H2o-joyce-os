@@ -25,7 +25,7 @@ def _o(ten, state, **v):
 
 def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: int,
              trim_chars: int, brains_total: int, brains_self_improve: int,
-             agents: list, evals_brain: int) -> dict:
+             agents: list, evals_brain: int, telemetry_ready: bool = False) -> dict:
     """`agents`: frontmatter (dict) của trợ lý trong brain đang xem, gồm cả trợ lý dùng chung hiện ở đó."""
     sg = stages or {}
     pp = sg.get("proposals") or {}
@@ -36,6 +36,7 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
     khai_pham_vi = sum(1 for a in agents or [] if (a or {}).get("allowed_effects"))
     cho_chu = int(pp.get("cho_chu_duyet") or 0)
     evf = int(pp.get("eval_failed") or 0)
+    xem = sum(int(cn.get(k) or 0) for k in ("legacy_review", "het_han", "partial", "conflict"))
 
     a = [
         _o("cache", "ok"),
@@ -55,8 +56,12 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
         _o("judge", "ok", w=int(vd.get("win") or 0), k=int(vd.get("keep") or 0),
            i=int(vd.get("inconclusive") or 0)),
         _o("gate", "warn" if (cho_chu or evf) else "ok", n=cho_chu, e=evf),
-        _o("canary", "warn" if cn.get("reverted") else "ok", n=int(cn.get("canary") or 0),
-           r=int(cn.get("reverted") or 0)),
+        # Canary "cần xem" (A01): cũ chưa có telemetry (legacy_review), hết hạn thiếu bằng chứng, một phần hay xung đột.
+        # Những thứ này KHÔNG được hiện xanh: chưa đủ dữ liệu khác với không có lỗi.
+        _o("canary", "warn" if (cn.get("reverted") or xem) else "ok", n=int(cn.get("canary") or 0),
+           r=int(cn.get("reverted") or 0), l=xem),
+        # Nguồn bằng chứng để kiểm chứng canary. XÁM khi chưa có (gói B): khi đó file dùng chung không được tự áp.
+        _o("telemetry", "ok" if telemetry_ready else "off", ready=1 if telemetry_ready else 0),
         # Đã chốt (28/10/2026) nhưng CHƯA ép trong code: vòng cải tiến chưa đếm token theo lượt.
         _o("budget", "off", n=TOKEN_CAP, m=TOKEN_CAP_MAX),
     ]

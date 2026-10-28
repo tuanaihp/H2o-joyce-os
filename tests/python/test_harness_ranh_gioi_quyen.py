@@ -21,10 +21,12 @@ from claude_sdk_engine import ClaudeSDK  # noqa: E402
 fails = []
 
 
-def check(name, cond):
+def check(name, cond, detail=""):
     print(("ok   " if cond else "FAIL ") + name)
     if not cond:
         fails.append(name)
+        if detail:
+            print("       " + str(detail)[:300])
 
 
 # ---------------- B-01
@@ -99,9 +101,15 @@ def _chay(draft):
     return rep, (r / "agents" / "truong-phong-chi.md").read_text(encoding="utf-8"), fp.read_text(encoding="utf-8"), hop_thu
 
 
-rep1, file1, prop1, _ = _chay(NOI_DUNG)
-check("B-12: đề xuất chỉ đổi nội dung vẫn tự áp (chủ giữ chế độ tự áp)", rep1["applied"] == 1 and "đơn vị nhận" in file1)
-check("bản nháp có mục ## trong thân agent không bị cắt cụt", "## Quy trình" in file1 and "chờ bổ sung" in file1)
+# A01/A03 (1.3.42): chỉ thay đổi HIỂN THỊ thuần (updated, tags, icon...) mới tự áp; thân bài là hành vi (D3) nên chờ chủ.
+HIEN_THI = GOC.replace("type: agent\n", "type: agent\nupdated: 2026-10-28\n")
+rep1, file1, prop1, _ = _chay(HIEN_THI)
+check("B-12: đề xuất chỉ đổi hiển thị vẫn tự áp (chủ giữ chế độ tự áp)", rep1["applied"] == 1 and "updated: 2026-10-28" in file1)
+rep1b, file1b, prop1b, hop1b = _chay(NOI_DUNG)
+check("A03: đề xuất đổi THÂN BÀI không tự áp nữa, chờ chủ (D3)", rep1b["applied"] == 0 and file1b == GOC and "status: cho_chu_duyet" in prop1b
+      and any("hành vi" in t for t in hop1b), (rep1b, prop1b[:200]))
+rut = factory._extract_draft("## Bản nháp đầy đủ\n\n```markdown\n" + NOI_DUNG + "```\n")
+check("bản nháp có mục ## trong thân agent không bị cắt cụt khi rút ra", "## Quy trình" in rut and "chờ bổ sung" in rut)
 check("bản nháp không khối ``` vẫn dừng ở mục ## kế tiếp",
       factory._extract_draft("## Bản nháp đầy đủ\nnội dung\n## Lý do\nx") == "nội dung")
 rep2, file2, prop2, hop2 = _chay(NOI_QUYEN)

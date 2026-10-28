@@ -101,8 +101,10 @@ check("cấu hình eval_bat_buoc của brain được đọc, mặc định tắ
       and factory.load_factory_cfg(str(brain()))["eval_bat_buoc"] is False)
 
 # ---------------- đường áp: bản nháp không được áp khi eval hỏng
-GOC = "---\ntype: agent\nname: A\n---\n## Vai trò\ncũ\n"
-NHAP = "---\ntype: agent\nname: A\n---\n## Vai trò\n" + "Nội dung mới đầy đủ hơn nhiều, có quy trình rõ ràng cho từng bước làm việc của phòng. " * 3 + "\n"
+# A01/A03: cổng tự áp chỉ cho thay đổi hiển thị thuần qua, nên bản nháp chỉ đổi `updated:` (thân bài giữ nguyên).
+THAN = "## Vai trò\n" + "Nội dung đầy đủ, có quy trình rõ ràng cho từng bước làm việc của phòng. " * 3 + "\n"
+GOC = "---\ntype: agent\nname: A\nupdated: 2026-10-01\n---\n" + THAN
+NHAP = "---\ntype: agent\nname: A\nupdated: 2026-10-28\n---\n" + THAN
 
 
 def chay(r):

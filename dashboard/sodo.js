@@ -351,6 +351,7 @@
     judge: ["sodo.hx.judge", "sodo.hx.judge.m", "sodo.hx.judge.d", "eye"],
     gate: ["sodo.hx.gate", "sodo.hx.gate.m", "sodo.hx.gate.d", "shield-alert"],
     canary: ["sodo.hx.canary", "sodo.hx.canary.m", "sodo.hx.canary.d", "undo-2"],
+    telemetry: ["sodo.hx.telemetry", ["sodo.hx.telemetry.m", "sodo.hx.telemetry.m_ok"], "sodo.hx.telemetry.d", "history"],
     budget: ["sodo.hx.budget", "sodo.hx.budget.m", "sodo.hx.budget.d", "hourglass"],
   };
   function hxSection(fc) {
@@ -365,7 +366,7 @@
         if (!m) return "";
         const st = STATE_KEY[x.state] ? x.state : "off";
         return `<div class="sd-hx-r sd-st-${st}" title="${esc(t(m[2]))}"><span class="sd-hx-ic">${ic(m[3])}</span>
-          <span class="sd-hx-in"><b>${esc(t(m[0]))}</b><span>${esc(t(m[1], fmt(x.v)))}</span></span>
+          <span class="sd-hx-in"><b>${esc(t(m[0]))}</b><span>${esc(t(Array.isArray(m[1]) ? m[1][x.state === "ok" ? 1 : 0] : m[1], fmt(x.v)))}</span></span>
           <span class="sd-dot sd-st-${st}" role="img" aria-label="${esc(t(STATE_KEY[st]))}"></span></div>`;
       }).join("");
       return `<div class="sd-hx-col"><div class="sd-hx-th"><b>${esc(t(tk[0]))}</b><span>${esc(t(tk[1]))}</span></div>${rows}</div>`;

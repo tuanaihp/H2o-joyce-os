@@ -33,8 +33,12 @@ def check(name, cond, detail=""):
 
 
 NOW = time.time()
-GOC = "---\ntype: agent\nname: Trợ lý A\nrole: Thu\n---\n## Vai trò\nBản gốc của phòng.\n"
-NHAP = "---\ntype: agent\nname: Trợ lý A\nrole: Thu\n---\n## Vai trò\n" + "Bản cải tiến đầy đủ hơn nhiều, có quy trình rõ ràng cho từng bước làm việc của phòng thu. " * 3 + "\n"
+# A01 (1.3.42): D1 chặn canary khi chưa có telemetry, và D3 chặn thay đổi hành vi. Test này thử RIÊNG logic canary nên bật
+# telemetry giả có chủ ý bằng monkeypatch, và dùng bản nháp chỉ đổi `updated:` (hiển thị thuần) để qua cổng phân loại.
+factory.telemetry_ready = lambda *a, **k: True
+THAN = "## Vai trò\n" + "Nội dung đầy đủ, có quy trình rõ ràng cho từng bước làm việc của phòng thu. " * 3 + "\n"
+GOC = "---\ntype: agent\nname: Trợ lý A\nrole: Thu\nupdated: 2026-10-01\n---\n" + THAN
+NHAP = "---\ntype: agent\nname: Trợ lý A\nrole: Thu\nupdated: 2026-10-28\n---\n" + THAN
 RIENG = GOC + "\nPhòng này tự thêm một dòng riêng.\n"
 
 
