@@ -1,0 +1,2298 @@
+{
+  "spec_version": "1.0.0",
+  "note": "Fixture tổng hợp cho Joyce Harness Standard v1.0.0. Không phải cấu hình đang chạy. Brain ID, slug, tool là ví dụ; khi áp vào H2O phải bind ID thật từ registry (mục 16). Sinh bằng script, mọi mục 'valid' qua schema, mọi mục 'invalid' bị schema từ chối.",
+  "valid": {
+    "manifests": {
+      "joyce-manager": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:3225918e4bbc0f015750422adcbdfa0a935997ea4c35be0cb6638accd8c354a3",
+        "agent": {
+          "brain_id": "fixture.system",
+          "slug": "joyce-manager",
+          "name": "Joyce Manager"
+        },
+        "role": "manager",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.manager",
+            "version": "1.0.0",
+            "hash": "sha256:7764006fbc5fa41ef5492464ff794645f2f0ae61ad6c9075bfeb37fb3e44cb3d"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.system",
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:*",
+            "crm:*",
+            "kanban"
+          ],
+          "write": [
+            "kanban"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_task",
+              "operation": "enqueue",
+              "effects": [
+                "internal_write"
+              ]
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "internal_write"
+          ]
+        },
+        "delegation": [
+          {
+            "target": {
+              "brain_id": "fixture.ke-toan-thu",
+              "slug": "truong-phong-thu"
+            },
+            "target_revision": "sha256:8045680adc5093399705c7f840726dd407183263bcd0f3fd59b88852102bb7bb",
+            "grants": [
+              {
+                "tool": "joyce_shop",
+                "operation": "xem",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_shop",
+                "operation": "ghi.thu",
+                "effects": [
+                  "business_write"
+                ],
+                "argument_policy": "h2o.thu-co-hop-dong"
+              },
+              {
+                "tool": "joyce_task",
+                "operation": "enqueue",
+                "effects": [
+                  "internal_write"
+                ]
+              }
+            ],
+            "allowed_effects": [
+              "read",
+              "business_write",
+              "internal_write"
+            ]
+          }
+        ],
+        "deny": [],
+        "budget": {
+          "max_rounds_per_run": 12,
+          "deadline_s": 900,
+          "max_concurrent_children": 2,
+          "max_delegate_depth": 2,
+          "max_model_calls": 24,
+          "max_tokens": 100000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      },
+      "truong-phong-thu": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:8045680adc5093399705c7f840726dd407183263bcd0f3fd59b88852102bb7bb",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "truong-phong-thu",
+          "name": "Agent Trưởng Phòng Thu"
+        },
+        "role": "department_manager",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.department_manager",
+            "version": "1.0.0",
+            "hash": "sha256:726ed928efb6939780ad7c0643a25ad4f8fe10778dae9b3114804df7d28442c9"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "wiki"
+          ],
+          "write": [
+            "kanban"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_task",
+              "operation": "enqueue",
+              "effects": [
+                "internal_write"
+              ]
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "internal_write"
+          ]
+        },
+        "delegation": [
+          {
+            "target": {
+              "brain_id": "fixture.ke-toan-thu",
+              "slug": "thu-ghi-so"
+            },
+            "target_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+            "grants": [
+              {
+                "tool": "joyce_shop",
+                "operation": "xem",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_shop",
+                "operation": "ghi.thu",
+                "effects": [
+                  "business_write"
+                ],
+                "argument_policy": "h2o.thu-co-hop-dong"
+              }
+            ],
+            "allowed_effects": [
+              "read",
+              "business_write"
+            ]
+          },
+          {
+            "target": {
+              "brain_id": "fixture.ke-toan-thu",
+              "slug": "thu-tra-cuu"
+            },
+            "target_revision": "sha256:64ac67ccd498779e5def15d8ed40737599d6b867dedfdadc743ddc3475448f3f",
+            "grants": [
+              {
+                "tool": "joyce_shop",
+                "operation": "xem",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_shop",
+                "operation": "gia",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_read_file",
+                "operation": "read",
+                "effects": [
+                  "read"
+                ]
+              }
+            ],
+            "allowed_effects": [
+              "read"
+            ]
+          }
+        ],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 12,
+          "deadline_s": 900,
+          "max_concurrent_children": 2,
+          "max_delegate_depth": 1,
+          "max_model_calls": 24,
+          "max_tokens": 100000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      },
+      "thu-ghi-so": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "name": "Chuyên viên ghi thu"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu"
+          ],
+          "write": [
+            "shop_so:quy"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu",
+              "effects": [
+                "business_write"
+              ],
+              "argument_policy": "h2o.thu-co-hop-dong"
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write"
+          ]
+        },
+        "delegation": [],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "skills": [
+          {
+            "id": "h2o-studio-ketoan-thu-cong-no",
+            "version": "1.0.0"
+          }
+        ],
+        "verification": {
+          "required_checks": [
+            {
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            }
+          ]
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      },
+      "thu-tra-cuu": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:64ac67ccd498779e5def15d8ed40737599d6b867dedfdadc743ddc3475448f3f",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-tra-cuu",
+          "name": "Tra cứu sổ thu"
+        },
+        "role": "explorer",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.explorer",
+            "version": "1.0.0",
+            "hash": "sha256:f58e557215e45261a2205cb035652a62379a6ea1bd880e7b3cda23adbf3665a2"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu",
+            "wiki"
+          ],
+          "write": []
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "gia",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_read_file",
+              "operation": "read",
+              "effects": [
+                "read"
+              ]
+            }
+          ],
+          "allowed_effects": [
+            "read"
+          ]
+        },
+        "delegation": [],
+        "deny": [],
+        "budget": {
+          "max_rounds_per_run": 6,
+          "deadline_s": 300,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 8,
+          "max_tokens": 30000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      },
+      "thu-kiem-chung": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:07c8de5aee91aaaa9bb0570d7270be36ed313eb18f22a4e94a4ae1d06653f177",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-kiem-chung",
+          "name": "Kiểm chứng phiếu thu"
+        },
+        "role": "verifier",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.verifier",
+            "version": "1.0.0",
+            "hash": "sha256:edb1c4bc20feac3233ca5ba560095110bef48cbea1a2bf82d0c900e2bce773cf"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:quy",
+            "shop_so:hop_dong"
+          ],
+          "write": []
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            }
+          ],
+          "allowed_effects": [
+            "read"
+          ]
+        },
+        "delegation": [],
+        "deny": [],
+        "budget": {
+          "max_rounds_per_run": 4,
+          "deadline_s": 300,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 6,
+          "max_tokens": 20000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      },
+      "soan-loi-nhan-khong-tool": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:5bfc0c20a57ec9a200eb47c36da7687840036f9641cd13d1fac0818a4f38ab59",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "soan-loi-nhan",
+          "name": "Soạn lời nhắn nháp"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [],
+          "write": []
+        },
+        "execution": {
+          "grants": [],
+          "allowed_effects": []
+        },
+        "delegation": [],
+        "deny": [],
+        "budget": {
+          "max_rounds_per_run": 4,
+          "deadline_s": 300,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 4,
+          "max_tokens": 10000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    "tasks": {
+      "ghi-thu-coc": {
+        "kind": "task",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "trace_id": "trace.20261028.0001",
+        "route": "task",
+        "state": "running",
+        "owner": "owner.chu-studio",
+        "assignee": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158"
+        },
+        "objective": "Ghi khoản thu cọc 1.500.000 đồng của khách Tuấn Thủy (0899252392) vào hợp đồng HD0001.",
+        "inputs": [
+          {
+            "name": "hop-dong",
+            "source": "shop_so:hop_dong/HD0001",
+            "revision": "r12",
+            "summary": "Gói chụp ảnh studio 15.000.000 đồng, đang báo giá"
+          },
+          {
+            "name": "so-tien",
+            "source": "chat:web/turn-42",
+            "as_of": "2026-10-28T09:00:00+07:00",
+            "value": 1500000
+          }
+        ],
+        "grant_ref": "grant.20261028.0001",
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "criteria": [
+          {
+            "id": "c1",
+            "description": "Có đúng một phiếu thu 1.500.000 đồng gắn HD0001",
+            "check_id": "check.kiem-so",
+            "required": true
+          },
+          {
+            "id": "c2",
+            "description": "Tổng thu của HD0001 không vượt giá trị hợp đồng",
+            "check_id": "check.kiem-so",
+            "required": true
+          }
+        ],
+        "verification": {
+          "mode": "deterministic",
+          "max_repair_retries": 1
+        },
+        "reporting": {
+          "channel": "web",
+          "recipient": "web:sess-8f2c"
+        }
+      }
+    },
+    "receipts": {
+      "ghi-thu-coc": {
+        "kind": "receipt",
+        "action_id": "act.ghi-thu.1",
+        "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "operation": {
+          "tool": "joyce_shop",
+          "operation": "ghi.thu"
+        },
+        "effects": [
+          "business_write"
+        ],
+        "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+        "before_revision": "quy:r40",
+        "after_revision": "quy:r41",
+        "remote_id": "quy:118",
+        "status": "confirmed",
+        "recorded_at": "2026-10-28T09:00:00+07:00"
+      }
+    },
+    "verdicts": {
+      "kiem-so-c1": {
+        "kind": "verdict",
+        "check_id": "check.kiem-so",
+        "criterion_id": "c1",
+        "subject_version": "quy:r41",
+        "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+        "verdict": "pass",
+        "evidence": [
+          "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+          "tong_thu(HD0001)=1500000 <= 15000000"
+        ],
+        "evaluated_by": {
+          "type": "script",
+          "id": "check.kiem-so",
+          "version": "1.0.0"
+        },
+        "evaluated_at": "2026-10-28T09:00:00+07:00"
+      },
+      "kiem-so-c2": {
+        "kind": "verdict",
+        "check_id": "check.kiem-so",
+        "criterion_id": "c2",
+        "subject_version": "quy:r41",
+        "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+        "verdict": "pass",
+        "evidence": [
+          "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+          "tong_thu(HD0001)=1500000 <= 15000000"
+        ],
+        "evaluated_by": {
+          "type": "script",
+          "id": "check.kiem-so",
+          "version": "1.0.0"
+        },
+        "evaluated_at": "2026-10-28T09:00:00+07:00"
+      }
+    },
+    "results": {
+      "ghi-thu-coc-completed": {
+        "kind": "result",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "status": "completed",
+        "artifacts": [
+          {
+            "uri": "shop_so:quy/118",
+            "hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "revision": "quy:r41"
+          }
+        ],
+        "verdicts": [
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c1",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          },
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c2",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "receipts": [
+          {
+            "kind": "receipt",
+            "action_id": "act.ghi-thu.1",
+            "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+            "task_id": "task.20261028.0001",
+            "task_version": 1,
+            "operation": {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu"
+            },
+            "effects": [
+              "business_write"
+            ],
+            "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+            "before_revision": "quy:r40",
+            "after_revision": "quy:r41",
+            "remote_id": "quy:118",
+            "status": "confirmed",
+            "recorded_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "summary": "Đã ghi thu cọc 1.500.000 đồng vào HD0001; hợp đồng chuyển Đã ký. Kiểm số đạt cả hai tiêu chí.",
+        "recorded_by": "host"
+      },
+      "ghi-thu-blocked": {
+        "kind": "result",
+        "task_id": "task.20261028.0002",
+        "task_version": 1,
+        "run_id": "run.20261028.0002.a",
+        "status": "blocked",
+        "artifacts": [],
+        "verdicts": [],
+        "receipts": [],
+        "summary": "Chưa ghi được thu vì không tìm thấy hợp đồng của số điện thoại đã cho.",
+        "blocker": "Không có hợp đồng của 0911000999",
+        "wake_condition": "Sales tạo hợp đồng cho khách này",
+        "recorded_by": "host"
+      }
+    }
+  },
+  "invalid": [
+    {
+      "name": "executor-giao-viec",
+      "why": "Executor không được có delegation (mục 3, 6.3).",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "name": "Chuyên viên ghi thu"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu"
+          ],
+          "write": [
+            "shop_so:quy"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu",
+              "effects": [
+                "business_write"
+              ],
+              "argument_policy": "h2o.thu-co-hop-dong"
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write"
+          ]
+        },
+        "delegation": [
+          {
+            "target": {
+              "brain_id": "fixture.ke-toan-thu",
+              "slug": "thu-tra-cuu"
+            },
+            "target_revision": "sha256:64ac67ccd498779e5def15d8ed40737599d6b867dedfdadc743ddc3475448f3f",
+            "grants": [
+              {
+                "tool": "joyce_shop",
+                "operation": "xem",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_shop",
+                "operation": "gia",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_read_file",
+                "operation": "read",
+                "effects": [
+                  "read"
+                ]
+              }
+            ],
+            "allowed_effects": [
+              "read"
+            ]
+          }
+        ],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "skills": [
+          {
+            "id": "h2o-studio-ketoan-thu-cong-no",
+            "version": "1.0.0"
+          }
+        ],
+        "verification": {
+          "required_checks": [
+            {
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            }
+          ]
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    {
+      "name": "explorer-ghi-so",
+      "why": "Explorer chỉ được effect read (mục 3).",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:64ac67ccd498779e5def15d8ed40737599d6b867dedfdadc743ddc3475448f3f",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-tra-cuu",
+          "name": "Tra cứu sổ thu"
+        },
+        "role": "explorer",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.explorer",
+            "version": "1.0.0",
+            "hash": "sha256:f58e557215e45261a2205cb035652a62379a6ea1bd880e7b3cda23adbf3665a2"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu",
+            "wiki"
+          ],
+          "write": []
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "gia",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_read_file",
+              "operation": "read",
+              "effects": [
+                "read"
+              ]
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write"
+          ]
+        },
+        "delegation": [],
+        "deny": [],
+        "budget": {
+          "max_rounds_per_run": 6,
+          "deadline_s": 300,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 8,
+          "max_tokens": 30000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    {
+      "name": "giao-theo-lop",
+      "why": "Không resolve 'class:executor' lúc chạy; phải bind slug cụ thể (JH-003).",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:8045680adc5093399705c7f840726dd407183263bcd0f3fd59b88852102bb7bb",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "truong-phong-thu",
+          "name": "Agent Trưởng Phòng Thu"
+        },
+        "role": "department_manager",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.department_manager",
+            "version": "1.0.0",
+            "hash": "sha256:726ed928efb6939780ad7c0643a25ad4f8fe10778dae9b3114804df7d28442c9"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "wiki"
+          ],
+          "write": [
+            "kanban"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_task",
+              "operation": "enqueue",
+              "effects": [
+                "internal_write"
+              ]
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "internal_write"
+          ]
+        },
+        "delegation": [
+          {
+            "target": {
+              "brain_id": "fixture.ke-toan-thu",
+              "slug": "class:executor"
+            },
+            "target_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+            "grants": [
+              {
+                "tool": "joyce_shop",
+                "operation": "xem",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_shop",
+                "operation": "ghi.thu",
+                "effects": [
+                  "business_write"
+                ],
+                "argument_policy": "h2o.thu-co-hop-dong"
+              }
+            ],
+            "allowed_effects": [
+              "read",
+              "business_write"
+            ]
+          },
+          {
+            "target": {
+              "brain_id": "fixture.ke-toan-thu",
+              "slug": "thu-tra-cuu"
+            },
+            "target_revision": "sha256:64ac67ccd498779e5def15d8ed40737599d6b867dedfdadc743ddc3475448f3f",
+            "grants": [
+              {
+                "tool": "joyce_shop",
+                "operation": "xem",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_shop",
+                "operation": "gia",
+                "effects": [
+                  "read"
+                ]
+              },
+              {
+                "tool": "joyce_read_file",
+                "operation": "read",
+                "effects": [
+                  "read"
+                ]
+              }
+            ],
+            "allowed_effects": [
+              "read"
+            ]
+          }
+        ],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 12,
+          "deadline_s": 900,
+          "max_concurrent_children": 2,
+          "max_delegate_depth": 1,
+          "max_model_calls": 24,
+          "max_tokens": 100000
+        },
+        "skills": [],
+        "verification": {
+          "required_checks": []
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    {
+      "name": "skill-latest",
+      "why": "Không dùng 'latest' trong production (mục 5.1).",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "name": "Chuyên viên ghi thu"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu"
+          ],
+          "write": [
+            "shop_so:quy"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu",
+              "effects": [
+                "business_write"
+              ],
+              "argument_policy": "h2o.thu-co-hop-dong"
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write"
+          ]
+        },
+        "delegation": [],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "skills": [
+          {
+            "id": "h2o-studio-ketoan-thu-cong-no",
+            "version": "latest"
+          }
+        ],
+        "verification": {
+          "required_checks": [
+            {
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            }
+          ]
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    {
+      "name": "operation-rong",
+      "why": "Tool đa năng phải nêu operation, rỗng bị từ chối (mục 6.2).",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "name": "Chuyên viên ghi thu"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu"
+          ],
+          "write": [
+            "shop_so:quy"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu",
+              "effects": [
+                "business_write"
+              ],
+              "argument_policy": "h2o.thu-co-hop-dong"
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write"
+          ]
+        },
+        "delegation": [],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "skills": [
+          {
+            "id": "h2o-studio-ketoan-thu-cong-no",
+            "version": "1.0.0"
+          }
+        ],
+        "verification": {
+          "required_checks": [
+            {
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            }
+          ]
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    {
+      "name": "effect-la",
+      "why": "Effect ngoài danh sách bị từ chối, không có 'none' hay 'admin'.",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "name": "Chuyên viên ghi thu"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu"
+          ],
+          "write": [
+            "shop_so:quy"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu",
+              "effects": [
+                "business_write"
+              ],
+              "argument_policy": "h2o.thu-co-hop-dong"
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write",
+            "admin"
+          ]
+        },
+        "delegation": [],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "skills": [
+          {
+            "id": "h2o-studio-ketoan-thu-cong-no",
+            "version": "1.0.0"
+          }
+        ],
+        "verification": {
+          "required_checks": [
+            {
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            }
+          ]
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ]
+      }
+    },
+    {
+      "name": "khoa-sai-chinh-ta",
+      "why": "Khóa lạ bị từ chối, không âm thầm bỏ (mục 5.1).",
+      "doc": {
+        "kind": "manifest",
+        "spec_version": "1.0.0",
+        "harness_version": "1.0.0",
+        "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158",
+        "agent": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "name": "Chuyên viên ghi thu"
+        },
+        "role": "executor",
+        "layers": [
+          {
+            "kind": "platform",
+            "id": "joyce.platform",
+            "version": "1.0.0",
+            "hash": "sha256:a4e96caaa4e4a7fbde9f2a85ab08239461259f6805ab26ffebeff073a3ba4ffb"
+          },
+          {
+            "kind": "role_profile",
+            "id": "joyce.role.executor",
+            "version": "1.0.0",
+            "hash": "sha256:2f3abac24aca627043c74cf6a297aadc5e4c1c44ff15422a63254641be5da099"
+          },
+          {
+            "kind": "organization",
+            "id": "h2o.org",
+            "version": "1.0.0",
+            "hash": "sha256:b4ef57d450bb5ce34fb27a3d58c94f9079881bbed9f45b24fd92de5038982323"
+          },
+          {
+            "kind": "department",
+            "id": "h2o.ke-toan-thu",
+            "version": "1.0.0",
+            "hash": "sha256:05d9d4dd698755e8e8d53c13ee418bd4bca440d0185ca7840f4143a81613877c"
+          }
+        ],
+        "scope": {
+          "brains": [
+            "fixture.ke-toan-thu"
+          ],
+          "read": [
+            "shop_so:hop_dong",
+            "shop_so:quy",
+            "shop_so:dich_vu"
+          ],
+          "write": [
+            "shop_so:quy"
+          ]
+        },
+        "execution": {
+          "grants": [
+            {
+              "tool": "joyce_shop",
+              "operation": "xem",
+              "effects": [
+                "read"
+              ]
+            },
+            {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu",
+              "effects": [
+                "business_write"
+              ],
+              "argument_policy": "h2o.thu-co-hop-dong"
+            }
+          ],
+          "allowed_effects": [
+            "read",
+            "business_write"
+          ]
+        },
+        "delegation": [],
+        "deny": [
+          {
+            "tool": "zalo_send_message",
+            "operation": "*",
+            "reason": "Phòng Thu không nhắn khách"
+          }
+        ],
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "skills": [
+          {
+            "id": "h2o-studio-ketoan-thu-cong-no",
+            "version": "1.0.0"
+          }
+        ],
+        "verification": {
+          "required_checks": [
+            {
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            }
+          ]
+        },
+        "contracts": {
+          "task": {
+            "id": "joyce.task",
+            "version": "1.0.0"
+          },
+          "result": {
+            "id": "joyce.result",
+            "version": "1.0.0"
+          }
+        },
+        "required_features": [
+          "v1.manifest-compiler",
+          "v1.operation-gate",
+          "v1.no-tools-explicit",
+          "v1.budget-tree",
+          "v1.host-verdict"
+        ],
+        "delegates": []
+      }
+    },
+    {
+      "name": "doc-lap-thieu-verifier",
+      "why": "Kiểm độc lập phải nêu verifier (mục 7.1).",
+      "doc": {
+        "kind": "task",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "trace_id": "trace.20261028.0001",
+        "route": "task",
+        "state": "running",
+        "owner": "owner.chu-studio",
+        "assignee": {
+          "brain_id": "fixture.ke-toan-thu",
+          "slug": "thu-ghi-so",
+          "package_revision": "sha256:2b491b54d8020ba00bb29be7bdbe96ade28ed38b782281b5f97bb7810fc80158"
+        },
+        "objective": "Ghi khoản thu cọc 1.500.000 đồng của khách Tuấn Thủy (0899252392) vào hợp đồng HD0001.",
+        "inputs": [
+          {
+            "name": "hop-dong",
+            "source": "shop_so:hop_dong/HD0001",
+            "revision": "r12",
+            "summary": "Gói chụp ảnh studio 15.000.000 đồng, đang báo giá"
+          },
+          {
+            "name": "so-tien",
+            "source": "chat:web/turn-42",
+            "as_of": "2026-10-28T09:00:00+07:00",
+            "value": 1500000
+          }
+        ],
+        "grant_ref": "grant.20261028.0001",
+        "budget": {
+          "max_rounds_per_run": 8,
+          "deadline_s": 600,
+          "max_concurrent_children": 0,
+          "max_delegate_depth": 0,
+          "max_model_calls": 12,
+          "max_tokens": 50000
+        },
+        "criteria": [
+          {
+            "id": "c1",
+            "description": "Có đúng một phiếu thu 1.500.000 đồng gắn HD0001",
+            "check_id": "check.kiem-so",
+            "required": true
+          },
+          {
+            "id": "c2",
+            "description": "Tổng thu của HD0001 không vượt giá trị hợp đồng",
+            "check_id": "check.kiem-so",
+            "required": true
+          }
+        ],
+        "verification": {
+          "mode": "independent",
+          "max_repair_retries": 1
+        },
+        "reporting": {
+          "channel": "web",
+          "recipient": "web:sess-8f2c"
+        }
+      }
+    },
+    {
+      "name": "completed-chua-pass",
+      "why": "Completed khi có verdict inconclusive (mục 7.2, 8).",
+      "doc": {
+        "kind": "result",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "status": "completed",
+        "artifacts": [
+          {
+            "uri": "shop_so:quy/118",
+            "hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "revision": "quy:r41"
+          }
+        ],
+        "verdicts": [
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c1",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          },
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c2",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "inconclusive",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "receipts": [
+          {
+            "kind": "receipt",
+            "action_id": "act.ghi-thu.1",
+            "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+            "task_id": "task.20261028.0001",
+            "task_version": 1,
+            "operation": {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu"
+            },
+            "effects": [
+              "business_write"
+            ],
+            "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+            "before_revision": "quy:r40",
+            "after_revision": "quy:r41",
+            "remote_id": "quy:118",
+            "status": "confirmed",
+            "recorded_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "summary": "Đã ghi thu cọc 1.500.000 đồng vào HD0001; hợp đồng chuyển Đã ký. Kiểm số đạt cả hai tiêu chí.",
+        "recorded_by": "host"
+      }
+    },
+    {
+      "name": "completed-tac-dong-chua-ro",
+      "why": "Completed khi còn receipt status unknown (mục 7.2, 9).",
+      "doc": {
+        "kind": "result",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "status": "completed",
+        "artifacts": [
+          {
+            "uri": "shop_so:quy/118",
+            "hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "revision": "quy:r41"
+          }
+        ],
+        "verdicts": [
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c1",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          },
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c2",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "receipts": [
+          {
+            "kind": "receipt",
+            "action_id": "act.ghi-thu.1",
+            "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+            "task_id": "task.20261028.0001",
+            "task_version": 1,
+            "operation": {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu"
+            },
+            "effects": [
+              "business_write"
+            ],
+            "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+            "before_revision": "quy:r40",
+            "after_revision": "quy:r41",
+            "remote_id": "quy:118",
+            "status": "unknown",
+            "recorded_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "summary": "Đã ghi thu cọc 1.500.000 đồng vào HD0001; hợp đồng chuyển Đã ký. Kiểm số đạt cả hai tiêu chí.",
+        "recorded_by": "host"
+      }
+    },
+    {
+      "name": "completed-khong-verdict",
+      "why": "Completed mà không có verdict nào (mục 8).",
+      "doc": {
+        "kind": "result",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "status": "completed",
+        "artifacts": [
+          {
+            "uri": "shop_so:quy/118",
+            "hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "revision": "quy:r41"
+          }
+        ],
+        "verdicts": [],
+        "receipts": [
+          {
+            "kind": "receipt",
+            "action_id": "act.ghi-thu.1",
+            "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+            "task_id": "task.20261028.0001",
+            "task_version": 1,
+            "operation": {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu"
+            },
+            "effects": [
+              "business_write"
+            ],
+            "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+            "before_revision": "quy:r40",
+            "after_revision": "quy:r41",
+            "remote_id": "quy:118",
+            "status": "confirmed",
+            "recorded_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "summary": "Đã ghi thu cọc 1.500.000 đồng vào HD0001; hợp đồng chuyển Đã ký. Kiểm số đạt cả hai tiêu chí.",
+        "recorded_by": "host"
+      }
+    },
+    {
+      "name": "agent-tu-ghi-result",
+      "why": "Result record cuối do host ghi (mục 7.2).",
+      "doc": {
+        "kind": "result",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "run_id": "run.20261028.0001.a",
+        "status": "completed",
+        "artifacts": [
+          {
+            "uri": "shop_so:quy/118",
+            "hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "revision": "quy:r41"
+          }
+        ],
+        "verdicts": [
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c1",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          },
+          {
+            "kind": "verdict",
+            "check_id": "check.kiem-so",
+            "criterion_id": "c2",
+            "subject_version": "quy:r41",
+            "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+            "verdict": "pass",
+            "evidence": [
+              "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+              "tong_thu(HD0001)=1500000 <= 15000000"
+            ],
+            "evaluated_by": {
+              "type": "script",
+              "id": "check.kiem-so",
+              "version": "1.0.0"
+            },
+            "evaluated_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "receipts": [
+          {
+            "kind": "receipt",
+            "action_id": "act.ghi-thu.1",
+            "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+            "task_id": "task.20261028.0001",
+            "task_version": 1,
+            "operation": {
+              "tool": "joyce_shop",
+              "operation": "ghi.thu"
+            },
+            "effects": [
+              "business_write"
+            ],
+            "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+            "before_revision": "quy:r40",
+            "after_revision": "quy:r41",
+            "remote_id": "quy:118",
+            "status": "confirmed",
+            "recorded_at": "2026-10-28T09:00:00+07:00"
+          }
+        ],
+        "summary": "Đã ghi thu cọc 1.500.000 đồng vào HD0001; hợp đồng chuyển Đã ký. Kiểm số đạt cả hai tiêu chí.",
+        "recorded_by": "agent"
+      }
+    },
+    {
+      "name": "blocked-thieu-dieu-kien-danh-thuc",
+      "why": "Blocked phải ghi điều kiện đánh thức (mục 4.2).",
+      "doc": {
+        "kind": "result",
+        "task_id": "task.20261028.0002",
+        "task_version": 1,
+        "run_id": "run.20261028.0002.a",
+        "status": "blocked",
+        "artifacts": [],
+        "verdicts": [],
+        "receipts": [],
+        "summary": "Chưa ghi được thu vì không tìm thấy hợp đồng của số điện thoại đã cho.",
+        "blocker": "Không có hợp đồng của 0911000999",
+        "recorded_by": "host"
+      }
+    },
+    {
+      "name": "receipt-trang-thai-la",
+      "why": "Receipt chỉ có confirmed, failed, unknown (mục 9).",
+      "doc": {
+        "kind": "receipt",
+        "action_id": "act.ghi-thu.1",
+        "idempotency_key": "sha256:bd28a46886010981fcb5b97d20ea10e1651c8ce9c471cc115da8617803ff533b",
+        "task_id": "task.20261028.0001",
+        "task_version": 1,
+        "operation": {
+          "tool": "joyce_shop",
+          "operation": "ghi.thu"
+        },
+        "effects": [
+          "business_write"
+        ],
+        "args_hash": "sha256:c4130b8b01479d7c330a18ea4ede36cefb4e42f75d790e5985db81006856af2d",
+        "before_revision": "quy:r40",
+        "after_revision": "quy:r41",
+        "remote_id": "quy:118",
+        "status": "done",
+        "recorded_at": "2026-10-28T09:00:00+07:00"
+      }
+    },
+    {
+      "name": "verdict-boolean",
+      "why": "Verdict là pass, fail, inconclusive; không dùng boolean (mục 7.2).",
+      "doc": {
+        "kind": "verdict",
+        "check_id": "check.kiem-so",
+        "criterion_id": "c1",
+        "subject_version": "quy:r41",
+        "subject_hash": "sha256:41b2cf324731008a78bc4051d64c3c4cac1b252bed4d686abe2926cf13a56914",
+        "verdict": true,
+        "evidence": [
+          "shop_so:quy/118 so_tien=1500000 hop_dong=HD0001",
+          "tong_thu(HD0001)=1500000 <= 15000000"
+        ],
+        "evaluated_by": {
+          "type": "script",
+          "id": "check.kiem-so",
+          "version": "1.0.0"
+        },
+        "evaluated_at": "2026-10-28T09:00:00+07:00"
+      }
+    }
+  ]
+}

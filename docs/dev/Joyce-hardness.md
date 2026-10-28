@@ -1,6 +1,8 @@
-# Joyce Harness: khung harness của Joyce (bản 2)
+# Joyce Harness: báo cáo audit hiện trạng (bản 2, tên file cũ)
 
-> Tài liệu SỐNG. Đổi harness thì sửa bảng chấm điểm ở mục 3, mục kiểm tra ở mục 11, và thêm một dòng vào "Nhật ký cập nhật" ở cuối.
+> **Lưu ý:** Đây là báo cáo hiện trạng tại ngày 2026-10-28, không còn là đặc tả chuẩn để nhân bản agent. Đặc tả chính thức nằm ở [`Joyce-harness.md`](./Joyce-harness.md); kế hoạch triển khai nằm ở [`Joyce-harness-rollout.md`](./Joyce-harness-rollout.md). Tên file `Joyce-hardness.md` được giữ lại để không làm hỏng đường dẫn cũ.
+
+> Đây là snapshot audit lịch sử. Từ bản chuẩn v1, thay đổi quy tắc phải cập nhật `Joyce-harness.md`; thay đổi thứ tự triển khai phải cập nhật `Joyce-harness-rollout.md`. Chỉ sửa file audit này khi bổ sung hoặc đính chính bằng chứng của lần rà soát ngày 2026-10-28.
 > Bản 1: 2026-10-28 (chấm theo bài giảng). Bản 2: 2026-10-28, viết lại thành khung ba tầng, có ghép phương pháp của repo Harness² và sửa các nhận định sai của bản 1.
 > Soi trên nhánh `claude/crm-v2-final-1-3-35` (bản 1.3.38). Người đọc: chủ Joyce và các phiên Claude Code làm việc trên repo này.
 

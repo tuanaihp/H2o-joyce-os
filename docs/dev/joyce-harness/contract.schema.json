@@ -1,0 +1,1119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joyce.local/schema/joyce-harness/1.0.0/contract.schema.json",
+  "title": "Joyce Harness Standard v1.0.0 - manifest resolved và các contract host/agent",
+  "description": "Mô tả manifest SAU KHI compile và các bản ghi truyền giữa host và agent. Không khẳng định parser, compiler hay permission gate đã tồn tại trong runtime 1.3.38. Xem docs/dev/Joyce-harness.md mục 5 đến 10.",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/manifest"
+    },
+    {
+      "$ref": "#/$defs/task"
+    },
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "$ref": "#/$defs/verdict"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$",
+      "description": "ID máy đọc: chữ thường, số, dấu chấm, gạch, hai chấm. Không rỗng."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "description": "Phiên bản pin cụ thể. Không chấp nhận 'latest'."
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pinned_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        }
+      }
+    },
+    "role": {
+      "enum": [
+        "manager",
+        "department_manager",
+        "executor",
+        "explorer",
+        "verifier",
+        "harness_doctor"
+      ]
+    },
+    "effect": {
+      "enum": [
+        "read",
+        "internal_write",
+        "business_write",
+        "external_write",
+        "financial_write",
+        "policy_write",
+        "destructive"
+      ],
+      "description": "Effect là tập độc lập, không có thứ bậc ngầm (JH-004)."
+    },
+    "effect_set": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/effect"
+      },
+      "uniqueItems": true,
+      "description": "Mảng rỗng hợp lệ: chỉ tính toán, không tác động."
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "hash"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "platform",
+            "role_profile",
+            "organization",
+            "department",
+            "agent_override",
+            "task_constraints"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "hash": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "brains",
+        "read",
+        "write"
+      ],
+      "properties": {
+        "brains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "description": "Brain ID lấy từ registry, không đoán từ tên thư mục."
+        },
+        "read": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "write": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "operation_grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "operation",
+        "effects"
+      ],
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/id"
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Không cho rỗng: tool đa năng phải nêu operation."
+        },
+        "effects": {
+          "$ref": "#/$defs/effect_set"
+        },
+        "argument_policy": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "deny_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "properties": {
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "'*' cho mọi operation của tool."
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "delegation_grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "target_revision",
+        "grants",
+        "allowed_effects"
+      ],
+      "properties": {
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "brain_id",
+            "slug"
+          ],
+          "properties": {
+            "brain_id": {
+              "$ref": "#/$defs/id"
+            },
+            "slug": {
+              "$ref": "#/$defs/slug"
+            }
+          },
+          "description": "Bind đúng agent đích. Không chấp nhận 'class:executor' (JH-003)."
+        },
+        "target_revision": {
+          "$ref": "#/$defs/hash"
+        },
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/operation_grant"
+          }
+        },
+        "allowed_effects": {
+          "$ref": "#/$defs/effect_set"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_rounds_per_run",
+        "deadline_s",
+        "max_concurrent_children",
+        "max_delegate_depth",
+        "max_model_calls",
+        "max_tokens"
+      ],
+      "properties": {
+        "max_rounds_per_run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "deadline_s": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_concurrent_children": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_delegate_depth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "max_model_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "amount",
+            "currency"
+          ],
+          "properties": {
+            "amount": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "currency": {
+              "enum": [
+                "VND",
+                "USD"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "spec_version",
+        "harness_version",
+        "package_revision",
+        "agent",
+        "role",
+        "layers",
+        "scope",
+        "execution",
+        "delegation",
+        "deny",
+        "budget",
+        "skills",
+        "verification",
+        "contracts",
+        "required_features"
+      ],
+      "properties": {
+        "kind": {
+          "const": "manifest"
+        },
+        "spec_version": {
+          "const": "1.0.0"
+        },
+        "harness_version": {
+          "$ref": "#/$defs/semver"
+        },
+        "package_revision": {
+          "$ref": "#/$defs/hash"
+        },
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "brain_id",
+            "slug",
+            "name"
+          ],
+          "properties": {
+            "brain_id": {
+              "$ref": "#/$defs/id"
+            },
+            "slug": {
+              "$ref": "#/$defs/slug"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string"
+            },
+            "model_provider": {
+              "type": "string"
+            }
+          }
+        },
+        "role": {
+          "$ref": "#/$defs/role"
+        },
+        "layers": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/layer"
+          },
+          "description": "Chuỗi overlay có thứ tự, layer đầu luôn là platform."
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "grants",
+            "allowed_effects"
+          ],
+          "properties": {
+            "grants": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/operation_grant"
+              },
+              "description": "Mảng rỗng = KHÔNG có tool (JH-005). Không phải toàn quyền."
+            },
+            "allowed_effects": {
+              "$ref": "#/$defs/effect_set"
+            }
+          }
+        },
+        "delegation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/delegation_grant"
+          },
+          "description": "Mảng rỗng = không được giao việc."
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deny_rule"
+          }
+        },
+        "budget": {
+          "$ref": "#/$defs/budget"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pinned_ref"
+          }
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required_checks"
+          ],
+          "properties": {
+            "required_checks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/pinned_ref"
+              }
+            }
+          }
+        },
+        "contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "task",
+            "result"
+          ],
+          "properties": {
+            "task": {
+              "$ref": "#/$defs/pinned_ref"
+            },
+            "result": {
+              "$ref": "#/$defs/pinned_ref"
+            }
+          }
+        },
+        "required_features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "description": "Tính năng runtime route phải có. Thiếu thì route không đủ điều kiện v1."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "enum": [
+                  "explorer",
+                  "verifier",
+                  "harness_doctor"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "execution": {
+                "properties": {
+                  "allowed_effects": {
+                    "items": {
+                      "const": "read"
+                    }
+                  }
+                }
+              },
+              "delegation": {
+                "maxItems": 0
+              },
+              "budget": {
+                "properties": {
+                  "max_concurrent_children": {
+                    "const": 0
+                  },
+                  "max_delegate_depth": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "const": "executor"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "delegation": {
+                "maxItems": 0
+              },
+              "budget": {
+                "properties": {
+                  "max_concurrent_children": {
+                    "const": 0
+                  },
+                  "max_delegate_depth": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "input_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/id"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "string"
+        },
+        "as_of": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "value": {}
+      },
+      "anyOf": [
+        {
+          "required": [
+            "revision"
+          ]
+        },
+        {
+          "required": [
+            "as_of"
+          ]
+        }
+      ]
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "check_id",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "check_id": {
+          "$ref": "#/$defs/id"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "task_state": {
+      "enum": [
+        "received",
+        "scoped",
+        "planned",
+        "queued",
+        "running",
+        "verifying",
+        "paused",
+        "waiting_owner",
+        "blocked",
+        "completed",
+        "partial",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "task_id",
+        "task_version",
+        "run_id",
+        "trace_id",
+        "route",
+        "state",
+        "owner",
+        "assignee",
+        "objective",
+        "inputs",
+        "grant_ref",
+        "budget",
+        "criteria",
+        "verification",
+        "reporting"
+      ],
+      "properties": {
+        "kind": {
+          "const": "task"
+        },
+        "task_id": {
+          "$ref": "#/$defs/id"
+        },
+        "task_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "run_id": {
+          "$ref": "#/$defs/id"
+        },
+        "parent_run_id": {
+          "$ref": "#/$defs/id"
+        },
+        "trace_id": {
+          "$ref": "#/$defs/id"
+        },
+        "route": {
+          "enum": [
+            "direct",
+            "task",
+            "durable"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/task_state"
+        },
+        "owner": {
+          "$ref": "#/$defs/id",
+          "description": "Người chịu trách nhiệm cuối (accountable)."
+        },
+        "assignee": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "brain_id",
+            "slug",
+            "package_revision"
+          ],
+          "properties": {
+            "brain_id": {
+              "$ref": "#/$defs/id"
+            },
+            "slug": {
+              "$ref": "#/$defs/slug"
+            },
+            "package_revision": {
+              "$ref": "#/$defs/hash"
+            }
+          }
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/input_ref"
+          }
+        },
+        "grant_ref": {
+          "$ref": "#/$defs/id",
+          "description": "Host cấp. Model không tự khai."
+        },
+        "budget": {
+          "$ref": "#/$defs/budget"
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/criterion"
+          }
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "max_repair_retries"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "inline",
+                "deterministic",
+                "independent"
+              ]
+            },
+            "max_repair_retries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
+            },
+            "verifier": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "brain_id",
+                "slug"
+              ],
+              "properties": {
+                "brain_id": {
+                  "$ref": "#/$defs/id"
+                },
+                "slug": {
+                  "$ref": "#/$defs/slug"
+                }
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "independent"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "verifier"
+            ]
+          }
+        },
+        "reporting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "channel",
+            "recipient"
+          ],
+          "properties": {
+            "channel": {
+              "enum": [
+                "web",
+                "telegram",
+                "zalo",
+                "inbox",
+                "cli"
+              ]
+            },
+            "recipient": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Lấy từ kênh nguồn, ví dụ web:<session id>."
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uri",
+        "hash",
+        "revision"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "check_id",
+        "subject_version",
+        "subject_hash",
+        "verdict",
+        "evidence",
+        "evaluated_by",
+        "evaluated_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "verdict"
+        },
+        "check_id": {
+          "$ref": "#/$defs/id"
+        },
+        "criterion_id": {
+          "$ref": "#/$defs/id"
+        },
+        "subject_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ],
+          "description": "Lỗi check, timeout, check bị bỏ qua = inconclusive."
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evaluated_by": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "id"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "script",
+                "agent",
+                "human"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string"
+            },
+            "run_id": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        },
+        "evaluated_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "action_id",
+        "idempotency_key",
+        "task_id",
+        "task_version",
+        "operation",
+        "effects",
+        "args_hash",
+        "status",
+        "recorded_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "receipt"
+        },
+        "action_id": {
+          "$ref": "#/$defs/id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/hash",
+          "description": "Host sinh từ task_id + task_version + action_id + đích chuẩn hóa."
+        },
+        "task_id": {
+          "$ref": "#/$defs/id"
+        },
+        "task_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tool",
+            "operation"
+          ],
+          "properties": {
+            "tool": {
+              "$ref": "#/$defs/id"
+            },
+            "operation": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "effects": {
+          "$ref": "#/$defs/effect_set"
+        },
+        "args_hash": {
+          "$ref": "#/$defs/hash",
+          "description": "Băm tham số đã che dữ liệu nhạy cảm."
+        },
+        "before_revision": {
+          "type": "string"
+        },
+        "after_revision": {
+          "type": "string"
+        },
+        "remote_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "failed",
+            "unknown"
+          ]
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "task_id",
+        "task_version",
+        "run_id",
+        "status",
+        "artifacts",
+        "verdicts",
+        "receipts",
+        "summary",
+        "recorded_by"
+      ],
+      "properties": {
+        "kind": {
+          "const": "result"
+        },
+        "task_id": {
+          "$ref": "#/$defs/id"
+        },
+        "task_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "run_id": {
+          "$ref": "#/$defs/id"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "partial",
+            "failed",
+            "blocked",
+            "waiting_owner",
+            "cancelled"
+          ]
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "verdicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/verdict"
+          }
+        },
+        "receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/receipt"
+          }
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "blocker": {
+          "type": "string"
+        },
+        "wake_condition": {
+          "type": "string"
+        },
+        "owner_question": {
+          "type": "string"
+        },
+        "next_step": {
+          "type": "string"
+        },
+        "recorded_by": {
+          "const": "host",
+          "description": "Host tạo result record cuối, không phải agent."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "verdicts": {
+                "minItems": 1,
+                "items": {
+                  "properties": {
+                    "verdict": {
+                      "const": "pass"
+                    }
+                  }
+                }
+              },
+              "receipts": {
+                "items": {
+                  "properties": {
+                    "status": {
+                      "const": "confirmed"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "blocked"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "blocker",
+              "wake_condition"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "waiting_owner"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "owner_question"
+            ]
+          }
+        }
+      ]
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+      "description": "Slug agent: chữ thường, số, gạch. Không có ':' nên 'class:executor' bị từ chối."
+    }
+  }
+}
