@@ -46,13 +46,14 @@ hashes = serialization = ec = asym_utils = AESGCM = HKDF = None
 
 def _nap_crypto() -> None:
     global hashes, serialization, ec, asym_utils, AESGCM, HKDF
-    if hashes is not None:
+    if HKDF is not None:          # HKDF được gán CUỐI CÙNG: thấy nó là đủ cả sáu tên, kể cả khi hai luồng gọi lần đầu cùng lúc
         return
     from cryptography.hazmat.primitives import hashes as _h, serialization as _s
     from cryptography.hazmat.primitives.asymmetric import ec as _ec, utils as _u
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _A
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF as _K
-    hashes, serialization, ec, asym_utils, AESGCM, HKDF = _h, _s, _ec, _u, _A, _K
+    hashes, serialization, ec, asym_utils, AESGCM = _h, _s, _ec, _u, _A
+    HKDF = _K
 
 from config import STATE_DIR
 

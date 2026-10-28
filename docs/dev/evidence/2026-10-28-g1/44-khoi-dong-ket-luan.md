@@ -29,3 +29,27 @@ Kết luận trung thực:
   `uvicorn` (tiết kiệm ít, rủi ro lớn hơn lợi).
 - Hàng rào mới trong `test_khoi_dong_nhe`: `cryptography` vào danh sách phải nạp lười, cấm `import cryptography` ở cột 0 của webpush,
   secrets_store, config. Trần 5,0 giữ nguyên.
+
+## Gate của plan A07.1: CHƯA đạt, giữ A07.1 mở
+
+Gate yêu cầu median giảm so với 1.3.41 và p95 của tỉ lệ dưới 5,0. Tỉ lệ từng vòng (main trừ interpreter, chia fastapi trừ interpreter,
+cùng một vòng xen kẽ), 12 vòng mỗi bản, tính từ phần `raw` của file `41` và `42`:
+
+| Lần đo | Bản | Tỉ lệ trung vị | p95 | Lớn nhất | Số vòng >= 5,0 |
+|---|---|---|---|---|---|
+| 41 | 1.3.39 | 3,94 | 5,68 | 5,87 | 3/12 |
+| 41 | 1.3.41 | 4,60 | 5,51 | 5,98 | 3/12 |
+| 41 | ứng viên trước A07.1 | 5,04 | 5,52 | 5,88 | 6/12 |
+| 42 | 1.3.39 | 4,93 | 5,52 | 5,58 | 6/12 |
+| 42 | ứng viên trước A07.1 | 4,99 | 5,48 | 5,51 | 6/12 |
+| 42 | ứng viên SAU A07.1 | 4,84 | 5,17 | 5,44 | 3/12 |
+
+- Hai lần đo cho thứ tự khác nhau giữa 1.3.39 và ứng viên, chứng tỏ biến động máy lớn hơn mọi chênh lệch giữa các bản. Không thể
+  khẳng định bản nào nhanh hơn bản nào chỉ từ các số này.
+- Sau A07.1 trung vị giảm nhẹ (4,99 xuống 4,84) và p95 giảm (5,48 xuống 5,17), cùng chiều với khoản ~36ms đã bỏ, nhưng p95 vẫn
+  trên 5,0 và chênh lệch nằm trong biên độ nhiễu. **Gate chưa đạt.** Em không nâng trần 5,0 và không chọn lần xanh để báo xanh.
+- Phép đo của chính `test_khoi_dong_nhe` (nhỏ nhất của 5 vòng) xanh sau A07.1 ở cả hai lần chạy (4,30 và 4,75) nhưng đó là thước thô,
+  không thay cho gate p95 ở trên.
+- Phần còn lại của chi phí khởi động là thư viện không tuỳ chọn (fastapi, httpx, asyncio, yaml, config) và thân main.py khai hơn
+  300 route. Muốn xuống dưới 5,0 chắc chắn cần giảm số route nạp lúc import hoặc tách main.py, việc lớn hơn gói A; ghi vào tồn đọng
+  G1-12.
