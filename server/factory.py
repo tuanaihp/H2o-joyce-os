@@ -1488,13 +1488,27 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
         except Exception as e:  # noqa: BLE001
             print(f"[factory] stages {name}: {type(e).__name__}: {e}", file=sys.stderr)
     luot = {}
+    dang_chay = {"theo_doi": 0, "dung_ban_hien_tai": 0, "ban_da_doi": 0}
     try:
         import run_ledger
         luot = run_ledger.thong_ke(tu=now - 7 * 86400)       # lượt chạy host đã ghi trong 7 ngày (B01)
+        # Sổ đăng ký triển khai tối thiểu (G2): với mỗi trợ lý có lượt chạy, lượt MỚI NHẤT chạy trên đúng nội dung file hiện tại chưa?
+        # Khác nghĩa là file đã đổi (đã triển khai hay chủ sửa tay) mà chưa lượt nào chạy trên bản mới: bản mới chưa được quan sát.
+        for b in run_ledger.ban_gan_nhat(tu=now - TELEMETRY_CUA_SO_NGAY * 86400):
+            dang_chay["theo_doi"] += 1
+            try:
+                root = deps.task_root(b["brain"])
+                cur = run_ledger.doc_file_agent(root, b["agent"])
+            except Exception:  # noqa: BLE001
+                continue
+            if cur and _sha256(cur) == b["revision"]:
+                dang_chay["dung_ban_hien_tai"] += 1
+            elif cur:
+                dang_chay["ban_da_doi"] += 1
     except Exception as e:  # noqa: BLE001
         print(f"[factory] so luot chay: {type(e).__name__}: {e}", file=sys.stderr)
     return {
-        "luot_chay": luot, "watch": w_by, "canary": c_by,
+        "luot_chay": luot, "dang_chay": dang_chay, "watch": w_by, "canary": c_by,
         "perf_cooldowns": len(st.get("perf_cd") or {}),
         "sev_sent": len(st.get("sev_sent") or {}),
         "proposals": props, "verdicts": verdicts, "evals": evals_n, "cong7": cong7, "nhat_ky": nhat_ky,

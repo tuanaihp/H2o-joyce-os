@@ -138,14 +138,14 @@ async function main() {
         { id: "A", items: [o("cache", "ok"), o("guard", "ok", { n: 3 }), o("trim", "ok", { n: 80000 }), o("perm", "ok"), o("brake", "ok", { n: 30 })] },
         { id: "B", items: [o("agents", "ok", { n: 3, s: 2 }), o("shared", "ok", { n: 9 }), o("evals", "off", { n: 0 }), o("scope", "off", { n: 0, m: 3 })] },
         { id: "C", items: [o("self", "ok", { n: 61, m: 61 }), o("judge", "ok", { w: 2, k: 1, i: 0 }), o("gate", "warn", { n: 1, e: 0 }),
-                           o("routes", "warn", { c: 0, p: 2, u: 6, n: 8 }), o("runs", "ok", { n: 4, v: 1, u: 2, i: 0 }), o("week", "ok", { a: 1, h: 2, q: 0, o: 0, f: 0 }), o("writer", "ok", { d: 0, c: 3, x: 0 }), o("canary", "warn", { n: 0, r: 0, l: 2 }), o("telemetry", "off", { ready: 0, n: 0 }), o("budget", "off", { n: 500000, m: 1000000 })] }],
+                           o("registry", "ok", { n: 3, o: 3, s: 0 }), o("routes", "warn", { c: 0, p: 2, u: 6, n: 8 }), o("runs", "ok", { n: 4, v: 1, u: 2, i: 0 }), o("week", "ok", { a: 1, h: 2, q: 0, o: 0, f: 0 }), o("writer", "ok", { d: 0, c: 3, x: 0 }), o("canary", "warn", { n: 0, r: 0, l: 2 }), o("telemetry", "off", { ready: 0, n: 0 }), o("budget", "off", { n: 500000, m: 1000000 })] }],
       phases: [{ k: "0A", state: "ok" }, { k: "0B", state: "warn" }, { k: "1", state: "off" }] } };
     const { ctx, el } = makeCtx(c4);
     await ctx.window.JoyceSoDo.render(el);
     const h = el.innerHTML;
     check("harness: có khối Joyce Harness với ba tầng", h.includes("sd-hx") && (h.match(/class="sd-hx-col"/g) || []).length === 3
       && h.includes(VI["sodo.hx.tA"]) && h.includes(VI["sodo.hx.tC"]));
-    check("harness: đủ 19 thành phần, mỗi cái một đèn", (h.match(/class="sd-hx-r /g) || []).length === 19);
+    check("harness: đủ 20 thành phần, mỗi cái một đèn", (h.match(/class="sd-hx-r /g) || []).length === 20);
     check("harness (A01): đèn bằng chứng canary XÁM và nói thẳng chưa có dữ liệu, không xanh",
       h.includes(VI["sodo.hx.telemetry"]) && h.includes(VI["sodo.hx.telemetry.m"]) && !h.includes(VI["sodo.hx.telemetry.m_ok"])
       && /sd-hx-r sd-st-off[^]*?Bằng chứng canary/.test(h));

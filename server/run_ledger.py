@@ -272,6 +272,21 @@ def agent_quan_sat_duoc(*, tu: float, toi_thieu: int) -> int:
     return int(r["n"] if r else 0)
 
 
+def ban_gan_nhat(*, tu: float, gioi_han: int = 300) -> list:
+    """Với mỗi cặp (brain, agent) có lượt chạy kể từ `tu`: revision của lượt chạy MỚI NHẤT có revision đọc được, kèm số lượt trên chính
+    revision đó. Cho bảng "bản đang chạy theo phòng"."""
+    with _LOCK:
+        rows = _db().execute(
+            "SELECT brain_id, agent_id, agent_revision, COUNT(*) AS n, MAX(started_at) AS moi FROM agent_runs "
+            "WHERE started_at>=? AND agent_revision<>'' GROUP BY brain_id, agent_id, agent_revision", (float(tu),)).fetchall()
+    best: dict = {}
+    for r in rows:
+        k = (r["brain_id"], r["agent_id"])
+        if k not in best or r["moi"] > best[k]["moi"]:
+            best[k] = {"brain": r["brain_id"], "agent": r["agent_id"], "revision": r["agent_revision"], "so_luot": int(r["n"]), "moi": float(r["moi"])}
+    return sorted(best.values(), key=lambda x: -x["moi"])[:gioi_han]
+
+
 def doc_file_agent(root, slug: str) -> str:
     """Nội dung THÔ của file agent sắp chạy: `<root>/agents/<slug>.md`, rơi về bản dùng chung của hệ thống nếu brain không có bản
     riêng. `agent_revision` là băm đúng chuỗi này nên so được với `candidate_hash` của canary (cùng băm nội dung file). Không đọc

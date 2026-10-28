@@ -122,6 +122,10 @@ tid = fa.trang_thai(deps)["canaries"][0]["dich"][0]["target_id"]
 h, kq = fa.thuc_hien(deps, "restore", canary_id=c["id"], target_id=tid, expected_revision=factory._sha256(MOI), action_id="b-khoi-phuc", reason="thử đầu cuối")
 check("chủ khôi phục đích về đúng byte cũ", h == 200 and (roots["dich0"] / REL).read_text(encoding="utf-8") == GOC, (h, kq))
 
+sg1 = factory.stages_snapshot(deps)
+check("sổ đăng ký: sau khi nhân, lượt mới nhất chạy đúng nội dung file hiện tại (1 trợ lý, 0 bản đã đổi)",
+      sg1["dang_chay"] == {"theo_doi": 1, "dung_ban_hien_tai": 1, "ban_da_doi": 0}, sg1["dang_chay"])
+
 # ---------------------------------------------------------------- nhánh 2: có lượt rớt thì lật lại
 roots, deps = dung()
 asyncio.run(factory.proposal_tick(deps))
@@ -132,6 +136,10 @@ rep = canary_tick(deps)
 check("phát hiện lỗi đã kiểm: LẬT LẠI nguồn về bản cũ, không nhân, báo trạng thái reverted",
       rep["reverted"] == 1 and (roots["nguon"] / REL).read_text(encoding="utf-8") == GOC and (roots["dich0"] / REL).read_text(encoding="utf-8") == GOC
       and factory._load_state(deps)["canaries"][0]["state"] == "reverted")
+
+sg2 = factory.stages_snapshot(deps)
+check("sổ đăng ký: sau khi LẬT LẠI, file đã về bản cũ mà lượt chạy cuối là trên bản mới: báo 'bản đã đổi', không báo khớp",
+      sg2["dang_chay"]["ban_da_doi"] == 1 and sg2["dang_chay"]["dung_ban_hien_tai"] == 0, sg2["dang_chay"])
 
 # ---------------------------------------------------------------- Sơ đồ phản ánh đúng
 sg = factory.stages_snapshot(deps)

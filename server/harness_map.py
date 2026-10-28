@@ -39,6 +39,7 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
     evf = int(pp.get("eval_failed") or 0)
     c7 = sg.get("cong7") or {}
     rt = routes or {}
+    dr = sg.get("dang_chay") or {}
     lc = sg.get("luot_chay") or {}
     nk = sg.get("nhat_ky") or {}
     xem = sum(int(cn.get(k) or 0) for k in ("legacy_review", "het_han", "partial", "conflict"))
@@ -72,6 +73,10 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
         # Những thứ này KHÔNG được hiện xanh: chưa đủ dữ liệu khác với không có lỗi.
         _o("canary", "warn" if (cn.get("reverted") or xem) else "ok", n=int(cn.get("canary") or 0),
            r=int(cn.get("reverted") or 0), l=xem),
+        # Sổ đăng ký triển khai tối thiểu (G2): lượt chạy mới nhất của mỗi trợ lý có đúng khớp nội dung file hiện tại không. "Bản đã đổi" là
+        # file đã khác mà chưa lượt nào chạy trên bản mới. Xám khi chưa theo dõi trợ lý nào.
+        _o("registry", "warn" if int(dr.get("ban_da_doi") or 0) else "ok" if int(dr.get("theo_doi") or 0) else "off",
+           n=int(dr.get("theo_doi") or 0), o=int(dr.get("dung_ban_hien_tai") or 0), s=int(dr.get("ban_da_doi") or 0)),
         # Chứng nhận đường thực thi và ghi (B03): bản kê trung thực. Xanh chỉ khi MỌI đường đạt; có đường một phần thì vàng; còn lại xám.
         _o("routes", "ok" if rt.get("tong") and rt.get("chung_nhan") == rt.get("tong") else "warn" if rt.get("mot_phan") else "off",
            c=int(rt.get("chung_nhan") or 0), p=int(rt.get("mot_phan") or 0), u=int(rt.get("chua_chung_nhan") or 0), n=int(rt.get("tong") or 0)),
