@@ -81,7 +81,7 @@ check("chốt với run_id rỗng là no-op", True)
 
 # 5. đường đi thật qua _make_answer_fn: lượt im lặng không vào sổ, lượt lỗi được chốt failed
 import config  # noqa: E402
-config.STATE_DIR = Path(tempfile.mkdtemp(prefix="joyce-b01bot-state2-"))
+os.environ["JOYCE_RUN_LEDGER_DIR"] = tempfile.mkdtemp(prefix="joyce-b01bot-state2-")      # sổ mới, sạch
 L.dong()
 CR._deps["read_agent"] = lambda brain, slug: ({"type": "agent"}, "ND")
 fn = CR._make_answer_fn("bot1")

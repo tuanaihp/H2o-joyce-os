@@ -14,7 +14,9 @@ ràng buộc đó, kể cả với các test mở file nguồn bằng đường 
 Ngoài đường dẫn, file này giữ `moi_duong_dan(app)`: cách DUY NHẤT đúng để liệt kê đường dẫn
 của app. Xem chú thích của hàm - đọc thẳng `app.routes` là sai từ fastapi 0.141.
 """
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 # tests/python/_paths.py -> parents[0]=python, [1]=tests, [2]=gốc repo
@@ -79,3 +81,7 @@ def correr(coro):
     vòng lặp ở luồng chính, nên test dùng hàm này (chạy được trên 3.12 của CI lẫn 3.14 trên máy dev)."""
     import asyncio
     return asyncio.run(coro)
+
+# Sổ lượt chạy (run_ledger.sqlite3) của test nằm trong thư mục tạm, KHÔNG rơi vào server/ thật dù test không đặt JOYCE_STATE_DIR: nhiều test
+# chạy bước workflow hay lượt bot, mà mỗi lượt như vậy ghi một dòng vào sổ. Chỉ sổ này; các state khác giữ nguyên cách tách cũ.
+os.environ.setdefault("JOYCE_RUN_LEDGER_DIR", tempfile.mkdtemp(prefix="joyce-run-ledger-"))

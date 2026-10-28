@@ -11,7 +11,12 @@ from pathlib import Path
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "server"))
+import os  # noqa: E402
+os.environ["JOYCE_STATE_DIR"] = tempfile.mkdtemp(prefix="factory-test-state-")      # sổ lượt chạy KHÔNG được rơi vào server/ thật
 import factory  # noqa: E402
+import _so_luot_chay  # noqa: E402
+_so_luot_chay.cai_dat(factory)      # bằng chứng canary nay đọc từ sổ lượt chạy; đổi danh sách việc giả thành lượt đã chấm
+factory.TRAN_AP_TUAN = 0      # test này áp nhiều đề xuất liên tiếp lên cùng một file; trần 2 lần mỗi tuần có test riêng ở test_g2_tran_tuan
 
 PASS = [0]
 FAIL = [0]

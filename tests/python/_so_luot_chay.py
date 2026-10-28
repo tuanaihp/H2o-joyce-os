@@ -9,7 +9,14 @@ from pathlib import Path
 
 
 def cai_dat(factory):
+    import pathlib
+    import tempfile
     import run_ledger
+    # Sổ lượt chạy của test nằm trong thư mục tạm RIÊNG của tiến trình này, không bao giờ rơi vào server/ thật, kể cả khi test không đặt
+    # JOYCE_STATE_DIR. (Chạy song song nhiều test dùng chung sổ thì giàn giáo xoá nhầm lượt của nhau.)
+    thu_muc = pathlib.Path(tempfile.mkdtemp(prefix="joyce-ledger-test-"))
+    run_ledger.dong()
+    run_ledger._duong_dan = lambda: thu_muc / "run_ledger.sqlite3"
     goc = factory._canary_evidence
 
     def boc(deps, c):

@@ -55,8 +55,8 @@ def doc_allowed_effects(agent_text: str) -> Optional[Tuple[str, ...]]:
         m = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", agent_text or "", re.S)
         if not m:
             return None
-        import yaml
-        d = yaml.safe_load(m.group(1))
+        import fastyaml
+        d = fastyaml.safe_load(m.group(1))
         if not isinstance(d, dict) or "allowed_effects" not in d:
             return None
         v = d["allowed_effects"]

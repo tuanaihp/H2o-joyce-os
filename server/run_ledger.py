@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -37,7 +38,9 @@ _CONN: dict = {}
 
 
 def _duong_dan() -> Path:
-    return config.STATE_DIR / "run_ledger.sqlite3"
+    # JOYCE_RUN_LEDGER_DIR chỉ để test cô lập sổ khỏi server/ thật (tests/python/_paths.py đặt nó); chạy thật không đặt.
+    d = os.environ.get("JOYCE_RUN_LEDGER_DIR")
+    return (Path(d) if d else config.STATE_DIR) / "run_ledger.sqlite3"
 
 
 def _db() -> sqlite3.Connection:
