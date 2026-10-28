@@ -1,6 +1,6 @@
 # Joyce Harness: kế hoạch tổng tổ chức agent, vá lỗi và nâng cấp
 
-> **Trạng thái: ĐỀ XUẤT CHỜ ANH DUYỆT. Chỉ lập plan, chưa triển khai các hạng mục bên dưới.**
+> **Trạng thái (cập nhật 28/10/2026): chủ yêu cầu triển khai theo plan. Gói G1 (FIX-01..05) ĐÃ LÀM ở 1.3.41, xem mục 3.3. G2 trở đi (JHA-06..12, compiler, ledger ngân sách, pilot) CHƯA làm. Phần còn lại của tài liệu giữ nguyên là kế hoạch; migration production và mở quyền từng phòng vẫn theo hồ sơ từng pilot.**
 >
 > Ngày audit: 2026-10-28. Baseline: Joyce OS **1.3.39**, commit `48cee2defdd7412aeb25c80e22aec8ff9335519e`.
 >
@@ -100,6 +100,20 @@ Nguồn code để đội triển khai mở đúng chỗ:
 - JHA-08: [harness_map](../../server/harness_map.py#L26).
 - JHA-09: [loader shared agent](../../server/main.py#L7448) và [registry shared](../../server/system_agents.py).
 - JHA-10: [lắp prompt agent](../../server/main.py#L11242), [schema tham chiếu](./joyce-harness/contract.schema.json).
+
+### 3.3 Trạng thái triển khai G1 (1.3.41)
+
+Mỗi ticket có test tái hiện chạy ĐỎ trên code cũ trước khi vá, rồi xanh sau khi vá. Test mới chỉ dùng thư mục tạm, không gọi model hay kết nối thật.
+
+| Ticket | Commit | Đã làm | Giới hạn còn lại |
+|---|---|---|---|
+| FIX-01 (JHA-01) | `9f706b3` | `server/harness_diff.py`: so cây YAML, khoá lồng, tráo giữa nút, alias, đổi kiểu, khoá lạ; không đọc chắc thì không tự áp. Thử trên 51 agent, 239 workflow, 530 skill, 66 loop thật: 0 bị chặn oan khi chỉ sửa thân bài | 30 skill có đầu file YAML sai cú pháp từ trước nay phải chờ chủ xem (đúng điều kiện dừng); khoá `x-...` coi là trung tính |
+| FIX-02 (JHA-02) | `b066349` | `factory.eval_load`: missing / invalid / valid, lỗi từng ca; JSON hỏng, bộ rỗng, thiếu name/check/value, regex hỏng, quá 20 ca đều chặn; `eval_bat_buoc` tuỳ chọn | `eval_bat_buoc` mặc định tắt để không đổi hành vi 61 brain; đảo quyết định cũ "eval hỏng vẫn áp" |
+| FIX-03 (JHA-03) | `30419de` | `server/file_policy.py` dùng chung; `mcp_hub._write` kiểm sát lúc ghi, giải lại đích, tạo-độc-quyền cho `sources/`; hook chỉ còn báo sớm | Mới phủ tool `joyce_write_file` đi qua hub. Tool ghi native của CLI vẫn do JHA-06/G2. Ca symlink file chưa chạy được trên máy Windows thiếu quyền (junction thì đã chạy) |
+| FIX-04 (JHA-04) | `9184b84` | Chụp hash từng đích, CAS, sao lưu, ghi nguyên tử, lưu trạng thái từng đích, kết quả promoted/partial/conflict, rollback có kiểm phiên bản | CAS là so-rồi-ghi trong cùng tiến trình, không có khoá liên tiến trình |
+| FIX-05 (JHA-05) | `9184b84` | Cần đủ giờ và 20 việc đã chạy trên bản ứng viên, gắn qua khoá agent; lỗi dừng ngay; hết hạn 14 ngày thì dừng và báo chủ | Việc chạy qua workflow (`route=wf:`) chưa gắn được vào agent nên chưa tính làm bằng chứng; ngưỡng 20 là đề xuất của plan, chỉnh được bằng `canary_min_tasks` |
+
+Bảy bộ test có sẵn (schema, ranh giới quyền, joyce-guard, system_agents, harness_map, thu gọn tool, cache) vẫn đạt. Chưa làm: JHA-06..12 và toàn bộ G2.
 
 ### 3.2 Các chỗ đặc tả cần hợp nhất sau duyệt
 
@@ -453,3 +467,4 @@ Quyết định duyệt ghi rõ gói và phạm vi được làm. Trước quy�
 | 2026-10-28 | Kế hoạch phòng ban ban đầu dựa trên snapshot 61 brain |
 | 2026-10-28 | Thay bằng master plan chờ duyệt: tái đo skill/registry, xác minh 195 check có sẵn, tái hiện lỗi biên diff/eval/guard/canary/context, chốt đề xuất tổ chức, backlog, gates và migration; chưa triển khai các đề xuất |
 | 2026-10-28 | Hoàn thiện gói G1 thành năm ticket, gói G2 tối thiểu, ma trận chứng nhận route và mẫu hồ sơ duyệt phòng; giữ trạng thái plan chờ duyệt |
+| 2026-10-28 | Chủ yêu cầu triển khai theo plan: làm xong G1 (FIX-01..05) ở 1.3.41 theo thứ tự ticket, mỗi ticket có test tái hiện đỏ trước vá; thêm mục 3.3 ghi trạng thái và giới hạn. G2 chưa làm |
