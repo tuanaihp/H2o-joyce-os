@@ -432,6 +432,8 @@
     self: ["sodo.hx.self", "sodo.hx.self.m", "sodo.hx.self.d", "sparkles"],
     judge: ["sodo.hx.judge", "sodo.hx.judge.m", "sodo.hx.judge.d", "eye"],
     gate: ["sodo.hx.gate", "sodo.hx.gate.m", "sodo.hx.gate.d", "shield-alert"],
+    week: ["sodo.hx.week", "sodo.hx.week.m", "sodo.hx.week.d", "activity"],
+    writer: ["sodo.hx.writer", "sodo.hx.writer.m", "sodo.hx.writer.d", "hard-drive"],
     canary: ["sodo.hx.canary", "sodo.hx.canary.m", "sodo.hx.canary.d", "undo-2"],
     telemetry: ["sodo.hx.telemetry", ["sodo.hx.telemetry.m", "sodo.hx.telemetry.m_ok"], "sodo.hx.telemetry.d", "history"],
     budget: ["sodo.hx.budget", "sodo.hx.budget.m", "sodo.hx.budget.d", "hourglass"],

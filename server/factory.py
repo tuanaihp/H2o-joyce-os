@@ -872,7 +872,11 @@ def _brain_chung(deps: FactoryDeps, root: str, rel: str) -> list:
 async def _cho_chu(deps: FactoryDeps, fp: Path, text: str, trang_thai: str, ly_do: str, tin: str, dedup: str) -> str:
     """Đánh dấu một đề xuất sang trạng thái chờ chủ, ghi lý do, báo hộp thư một lần. Luôn trả 'skipped'."""
     try:
-        fp.write_text(_fm_patch(text, {"status": trang_thai, "ly_do_cho": ly_do[:180]}), encoding="utf-8")
+        # `quyet_dinh` là mã ổn định lấy từ khoá chống trùng (quyen:<id>:<loai>, stale:, telemetry:, type:) để Sơ đồ đếm lý do chờ
+        # mà không phải đoán từ câu chữ tiếng Việt của lý do.
+        ma = str(dedup or "").split(":")
+        quyet_dinh = ma[0] + (":" + ma[2] if ma[0] == "quyen" and len(ma) > 2 else "")
+        fp.write_text(_fm_patch(text, {"status": trang_thai, "ly_do_cho": ly_do[:180], "quyet_dinh": quyet_dinh}), encoding="utf-8")
         await deps.inbox(tin, kind="system", label="self-improve", source="factory", dedup=dedup)
     except Exception:  # noqa: BLE001
         pass
@@ -1379,6 +1383,8 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
     auto_n = escalated_n = ci_open = pacing_n = 0
     done_24h = blocked_n = active_n = 0
     now = time.time()
+    cong7 = {"tu_ap": 0, "hanh_vi": 0, "quyen": 0, "loi_thoi": 0, "telemetry": 0, "khung": 0, "eval_hong": 0, "khac": 0}
+    nhat_ky = {"dang_do": 0, "da_chot": 0, "huy": 0}
     for name in deps.brains() or []:
         try:
             root = deps.task_root(str(name))
@@ -1396,6 +1402,16 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
                             encoding="utf-8", errors="replace"))
                         s2 = str((fm or {}).get("status") or "").lower()
                         props[s2 if s2 in props else "other"] += 1
+                        if now - fp.stat().st_mtime <= 7 * 86400:      # quyết định của cổng trong 7 ngày gần nhất
+                            qd = str((fm or {}).get("quyet_dinh") or "")
+                            if s2 == "applied":
+                                cong7["tu_ap"] += 1
+                            elif s2 == "eval_failed":
+                                cong7["eval_hong"] += 1
+                            elif s2 == "cho_chu_duyet":
+                                cong7[{"quyen:behavior_change": "hanh_vi", "quyen:permission_change": "quyen", "quyen:unknown": "quyen",
+                                       "quyen:invalid": "khung", "type": "khung", "stale": "loi_thoi",
+                                       "telemetry": "telemetry"}.get(qd, "khac")] += 1
                         # Kết quả giám định (win/keep/inconclusive) - "công đoạn
                         # review" hiện ra trên Sơ đồ thay vì chỉ có trạng thái.
                         v2 = str((fm or {}).get("verdict") or "").lower()
@@ -1406,6 +1422,14 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
             ed = Path(root) / "Joyce" / "evals"
             if ed.is_dir():
                 evals_n += sum(1 for _ in ed.glob("*.json"))
+            dd = Path(root) / "Joyce" / "proposals" / ".deploy"      # nhật ký của bộ ghi file (A05)
+            if dd.is_dir():
+                for jf in dd.glob("*.json"):
+                    try:
+                        tt = str(json.loads(jf.read_text(encoding="utf-8")).get("trang_thai") or "")
+                    except (OSError, ValueError):
+                        continue
+                    nhat_ky["dang_do" if tt == "prepared" else "da_chot" if tt == "committed" else "huy"] += 1
             cd = Path(root) / "Joyce" / "checkpoints"
             if cd.is_dir():
                 ckpt_n += sum(1 for _ in cd.glob("*.md"))
@@ -1445,7 +1469,7 @@ def stages_snapshot(deps: FactoryDeps) -> dict:
         "watch": w_by, "canary": c_by,
         "perf_cooldowns": len(st.get("perf_cd") or {}),
         "sev_sent": len(st.get("sev_sent") or {}),
-        "proposals": props, "verdicts": verdicts, "evals": evals_n,
+        "proposals": props, "verdicts": verdicts, "evals": evals_n, "cong7": cong7, "nhat_ky": nhat_ky,
         "checkpoints": ckpt_n, "artifacts": art_lines,
         "risk": risk_ct, "auto_approved": auto_n, "escalated": escalated_n,
         "ci_open": ci_open, "pacing_deferred": pacing_n,

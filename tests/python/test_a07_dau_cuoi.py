@@ -195,6 +195,11 @@ http2, kq2 = fa.thuc_hien(deps, "restore", canary_id=c["id"], target_id=dich["di
 check("bấm lặp lại cùng action_id: trả kết quả cũ, không khôi phục lần hai", http2 == 200 and kq2.get("lap_lai") is True and doc("dich0", REL_A) == A_CU)
 check("đích 1 (biến thể của chủ) và nguồn không bị khôi phục nhầm", doc("dich1", REL_A) == BIEN_THE and doc("nguon", REL_A) == A_MOI)
 
+# ---------------- số liệu cho Sơ đồ phản ánh đúng việc vừa xảy ra
+sg = factory.stages_snapshot(deps)
+check("Sơ đồ: cổng 7 ngày đếm đúng (1 tự áp, 1 chờ vì đổi hành vi)", sg["cong7"]["tu_ap"] == 1 and sg["cong7"]["hanh_vi"] == 1, sg["cong7"])
+check("Sơ đồ: bộ ghi file thấy các lần ghi đã chốt và không còn nhật ký dở sau khi đối soát", sg["nhat_ky"]["da_chot"] >= 2 and sg["nhat_ky"]["dang_do"] == 0, sg["nhat_ky"])
+
 # ============================================================
 # 6. Tạm dừng
 # ============================================================

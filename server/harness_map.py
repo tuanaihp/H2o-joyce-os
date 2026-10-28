@@ -36,6 +36,8 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
     khai_pham_vi = sum(1 for a in agents or [] if (a or {}).get("allowed_effects"))
     cho_chu = int(pp.get("cho_chu_duyet") or 0)
     evf = int(pp.get("eval_failed") or 0)
+    c7 = sg.get("cong7") or {}
+    nk = sg.get("nhat_ky") or {}
     xem = sum(int(cn.get(k) or 0) for k in ("legacy_review", "het_han", "partial", "conflict"))
 
     a = [
@@ -56,6 +58,13 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
         _o("judge", "ok", w=int(vd.get("win") or 0), k=int(vd.get("keep") or 0),
            i=int(vd.get("inconclusive") or 0)),
         _o("gate", "warn" if (cho_chu or evf) else "ok", n=cho_chu, e=evf),
+        # Cổng đã làm gì trong 7 ngày qua (đếm từ chính các file đề xuất): cho thấy cổng đang CHẠY, không chỉ có cấu hình.
+        _o("week", "ok" if sum(c7.values()) else "off", a=int(c7.get("tu_ap") or 0),
+           h=int(c7.get("hanh_vi") or 0) + int(c7.get("khung") or 0), q=int(c7.get("quyen") or 0),
+           o=int(c7.get("loi_thoi") or 0) + int(c7.get("telemetry") or 0) + int(c7.get("khac") or 0), f=int(c7.get("eval_hong") or 0)),
+        # Bộ ghi file triển khai: nhật ký chưa chốt (chết giữa chừng và chưa được đối soát) là đèn vàng.
+        _o("writer", "warn" if int(nk.get("dang_do") or 0) else "ok" if int(nk.get("da_chot") or 0) else "off",
+           d=int(nk.get("dang_do") or 0), c=int(nk.get("da_chot") or 0), x=int(nk.get("huy") or 0)),
         # Canary "cần xem" (A01): cũ chưa có telemetry (legacy_review), hết hạn thiếu bằng chứng, một phần hay xung đột.
         # Những thứ này KHÔNG được hiện xanh: chưa đủ dữ liệu khác với không có lỗi.
         _o("canary", "warn" if (cn.get("reverted") or xem) else "ok", n=int(cn.get("canary") or 0),
