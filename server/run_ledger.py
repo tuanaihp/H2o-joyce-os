@@ -157,7 +157,8 @@ def danh_dau_kiem_chung(run_id: str, verification: str, evidence_refs: Optional[
 
 
 def _trang_thai(run_id: str) -> str:
-    r = _db().execute("SELECT status FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+    with _LOCK:
+        r = _db().execute("SELECT status FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
     return r["status"] if r else ""
 
 
@@ -169,6 +170,12 @@ def don_mo_coi(truoc: float, *, now: Optional[float] = None) -> int:
             (float(now if now is not None else time.time()), float(truoc))).rowcount
 
 
+def don_cu(truoc: float) -> int:
+    """Xoá lượt ĐÃ KẾT THÚC bắt đầu trước `truoc` (giữ sổ không phình mãi). Lượt đang chạy không xoá. Trả số dòng đã xoá."""
+    with _LOCK:
+        return _db().execute("DELETE FROM agent_runs WHERE status<>'running' AND started_at<?", (float(truoc),)).rowcount
+
+
 # ---------------------------------------------------------------- đọc
 def _dong(r) -> dict:
     d = dict(r)
@@ -178,7 +185,8 @@ def _dong(r) -> dict:
 
 
 def lay(run_id: str) -> Optional[dict]:
-    r = _db().execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+    with _LOCK:
+        r = _db().execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
     return _dong(r) if r else None
 
 
@@ -190,7 +198,9 @@ def danh_sach(*, brain_id: str = "", agent_id: str = "", agent_revision: str = "
             a.append(v)
     q += " ORDER BY started_at DESC LIMIT ?"
     a.append(int(gioi_han))
-    return [_dong(r) for r in _db().execute(q, a).fetchall()]
+    with _LOCK:
+        rows = _db().execute(q, a).fetchall()
+    return [_dong(r) for r in rows]
 
 
 def thong_ke(*, brain_id: str = "", agent_id: str = "", agent_revision: str = "", tu: float = 0.0) -> dict:
@@ -255,9 +265,10 @@ def bo(run_id: str) -> bool:
 
 def agent_quan_sat_duoc(*, tu: float, toi_thieu: int) -> int:
     """Số cặp (brain, agent) có ít nhất `toi_thieu` lượt chạy đọc được revision kể từ `tu`."""
-    r = _db().execute(
-        "SELECT COUNT(*) AS n FROM (SELECT brain_id, agent_id FROM agent_runs WHERE started_at>=? AND agent_revision<>'' "
-        "GROUP BY brain_id, agent_id HAVING COUNT(*)>=?)", (float(tu), int(toi_thieu))).fetchone()
+    with _LOCK:
+        r = _db().execute(
+            "SELECT COUNT(*) AS n FROM (SELECT brain_id, agent_id FROM agent_runs WHERE started_at>=? AND agent_revision<>'' "
+            "GROUP BY brain_id, agent_id HAVING COUNT(*)>=?)", (float(tu), int(toi_thieu))).fetchone()
     return int(r["n"] if r else 0)
 
 

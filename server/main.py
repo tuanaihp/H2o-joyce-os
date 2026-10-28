@@ -29055,3 +29055,4 @@ async def _so_luot_chay_don_mo_coi():
     n = run_ledger.ghi_an_toan(run_ledger.don_mo_coi, time.time())
     if n:
         print(f"[run_ledger] {n} lượt chạy dở từ lần trước được đánh dấu interrupted", file=sys.stderr)
+    run_ledger.ghi_an_toan(run_ledger.don_cu, time.time() - 365 * 86400)      # giữ tối đa một năm lượt đã kết thúc

@@ -108,6 +108,16 @@ for t in ts:
 check("10 luồng cùng chốt một lượt: đúng một lần có hiệu lực", kq.count(True) == 1 and L.lay(x)["trung_lap"] == 9,
       (kq.count(True), L.lay(x)["trung_lap"]))
 
+# giữ sổ không phình mãi: chỉ xoá lượt ĐÃ kết thúc và đủ cũ
+cu_xong = L.bat_dau(brain_id="b7", agent_id="old", entrypoint="chat", now=t0 - 10_000_000)
+L.ket_thuc(cu_xong, "completed", now=t0 - 9_999_990)
+cu_chay = L.bat_dau(brain_id="b7", agent_id="old", entrypoint="chat", now=t0 - 10_000_000)
+moi_xong = L.bat_dau(brain_id="b7", agent_id="old", entrypoint="chat", now=t0)
+L.ket_thuc(moi_xong, "completed", now=t0 + 1)
+n_xoa = L.don_cu(t0 - 1_000_000)
+check("don_cu xoá lượt đã kết thúc quá cũ, GIỮ lượt còn đang chạy và lượt mới",
+      n_xoa == 1 and L.lay(cu_xong) is None and L.lay(cu_chay) is not None and L.lay(moi_xong) is not None, n_xoa)
+
 L.dong()
 print()
 if fails:
