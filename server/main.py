@@ -11007,7 +11007,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
                                   logical_execution_id=f"wf:{session_id}:{getattr(node, 'id', '')}")
     rid = run_ledger.ghi_an_toan(_mo) or ""
     import run_context
-    _ctx = run_ledger.ghi_an_toan(run_ledger.ngu_canh, rid, _brain_root(brain_id) if brain_id else "") if rid else None
+    _ctx = run_ledger.ghi_an_toan(lambda: run_ledger.ngu_canh(rid, _brain_root(brain_id) if brain_id else "")) if rid else None
     _tok = run_context.dat(_ctx) if _ctx else None
     try:
         kq = await _run_workflow_step_loi(node, prompt, mk, agent_sysprompt, sink, router=router, session_id=session_id,
