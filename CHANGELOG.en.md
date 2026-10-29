@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.45] - 2026-10-29
+### Added
+- **Every hub tool asks for permission before running.** An assistant that declared its permissions (say, read-only) and calls a tool that sends a message, writes the ledger or deletes is blocked, and the block is logged for you. An assistant that declared nothing runs as before.
+- **Your chat window, Telegram and the CLI now enter the run log.** Chat with an assistant is recorded under that assistant; tokens and run counts are measured, and the token cap applies to chat too.
+
 ## [1.3.44] - 2026-10-29
 ### Added
 - **A completion gate for jobs that act outside:** an outward job (send, post, pay) that has not been independently checked no longer jumps to "done"; it waits in the review column for you to confirm. Change or turn off with `tasks.rao_hoan_thanh`.

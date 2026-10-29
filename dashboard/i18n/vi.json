@@ -6597,7 +6597,7 @@
   "sodo.hx.writer.d": "Mỗi lần ghi file triển khai đều có khóa và nhật ký trước ghi. 'Đang dở' là máy dừng giữa chừng và chưa được đối soát; lượt quét kế tiếp sẽ hoàn tất hoặc hủy, nếu còn vàng lâu thì cần xem.",
   "sodo.hx.runs": "Lượt chạy thật",
   "sodo.hx.runs.m": "{n} việc trong 7 ngày · {v} đã kiểm đạt · {u} chưa kiểm · {i} gián đoạn · {t} token đo được · {k} lần chưa đo được token",
-  "sodo.hx.runs.d": "Host tự ghi mỗi lượt trợ lý chạy thật (bot trả lời khách, việc giao cho trợ lý, bước workflow) cùng bản cấu hình đã dùng. Retry của một việc chỉ tính một lần. 'Chưa kiểm' là xong nhưng chưa ai chấm, chưa được tính là đạt. Xám nghĩa là 7 ngày qua chưa ghi lượt nào; chat với Joyce chưa vào sổ này.",
+  "sodo.hx.runs.d": "Host tự ghi mỗi lượt trợ lý chạy thật (khung chat của anh, Telegram, bot trả lời khách, việc giao cho trợ lý, bước workflow) cùng bản cấu hình đã dùng. Retry của một việc chỉ tính một lần. 'Chưa kiểm' là xong nhưng chưa ai chấm, chưa được tính là đạt. Chat với Joyce (không chọn trợ lý) được ghi nhưng chưa có bản cấu hình nên không làm bằng chứng canary. Xám nghĩa là 7 ngày qua chưa ghi lượt nào.",
   "sodo.hx.routes": "Chứng nhận đường ghi",
   "sodo.hx.routes.m": "{c} đạt · {p} một phần · {u} chưa chứng nhận (tổng {n} đường)",
   "sodo.hx.routes.d": "Bản kê các đường mà một lượt agent có thể ghi file hay tác động ra ngoài: MCP Hub, shell, công cụ native của CLI, plugin, route dashboard, bot khách. Mới có chính sách đường dẫn cho ghi qua MCP Hub; chưa đường nào có ủy quyền theo từng thao tác nên chưa đường nào 'đạt'. Chưa chứng nhận thì không nên chạy canary có tác dụng ngoài trên đường đó.",

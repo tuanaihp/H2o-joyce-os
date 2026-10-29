@@ -13,7 +13,7 @@ Một luồng thật từ đầu đến cuối ở phòng **Kế Toán - Đối 
 | Ghi lại mọi lượt agent chạy, kèm đúng bản cấu hình | Có (bot, việc giao trợ lý, bước workflow) |
 | Anh chấm Đạt hoặc Rớt từng lượt trên trang Sơ đồ | Có |
 | Canary chỉ nhân sau 20 lượt anh chấm đạt, một lượt rớt là lật lại | Có |
-| Chặn agent đã khai quyền mà thiếu quyền ghi | Có, nhưng chỉ cho agent **đã khai** `allowed_effects` |
+| Chặn agent đã khai quyền mà gọi tool ngoài quyền (mọi tool của hub, từ 1.3.45) | Có, nhưng chỉ cho agent **đã khai** `allowed_effects`; mỗi lần chặn được ghi vào sổ |
 | Rào hoàn thành cho việc tác động ra ngoài | Có (không áp cho Đối Soát vì việc chỉ đọc) |
 | Đo token thật theo từng lượt, trần cấu hình được | Có (trần mặc định không chặn) |
 
@@ -21,7 +21,7 @@ Một luồng thật từ đầu đến cuối ở phòng **Kế Toán - Đối 
 
 1. **Agent Đối Soát chưa khai quyền.** `0` agent trong brain này có `allowed_effects`. Chưa khai thì luật chặn ghi không áp, tức pilot "chỉ đọc" mới là lời hứa chứ chưa phải rào. Việc cần làm: khai `allowed_effects: [read]` cho agent pilot.
 2. **Chưa có bộ ca thử cho phòng này** (`Joyce/evals/`). Không có bộ ca thử thì chưa có chuẩn "đúng" tự động; em đề xuất 5 đến 10 ca đối chiếu mẫu với số đã biết trước để làm chuẩn.
-3. **Chat trực tiếp với Joyce chưa vào sổ lượt chạy.** Pilot phải chạy qua việc giao cho trợ lý hoặc workflow, không qua khung chat chính.
+3. **Đường vào của pilot.** Từ 1.3.45 khung chat với một trợ lý, việc giao trợ lý và workflow đều vào sổ; chat với Joyce (không chọn trợ lý) cũng vào sổ nhưng không làm bằng chứng canary. Engine CLI native (Claude Code, Codex...) tự gọi tool ngoài hub nên pilot chỉ chạy bằng engine API hoặc qua hub.
 4. **Chưa đặt trần token** (`settings.tasks.tran_token_luot`). Em đề xuất 500.000 cho pilot.
 5. **Chưa có người chấm tự động.** Mọi lượt cần anh hoặc người anh chỉ định chấm tay trên Sơ đồ; 20 lượt đạt mới đủ ngưỡng canary.
 

@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.45] - 2026-10-29
+### Thêm
+- **Mọi tool của hub hỏi quyền trước khi chạy.** Trợ lý đã khai quyền (ví dụ chỉ đọc) mà gọi tool gửi tin, ghi sổ hay xóa thì bị chặn, và lần chặn được ghi lại để anh xem. Trợ lý chưa khai quyền vẫn chạy như cũ.
+- **Khung chat của anh, Telegram và CLI nay vào sổ lượt chạy.** Chat với một trợ lý được ghi theo trợ lý đó; đo được token và số lượt, và trần token áp cho cả chat.
+
 ## [1.3.44] - 2026-10-29
 ### Thêm
 - **Rào hoàn thành cho việc tác động ra ngoài:** việc làm ngoài (gửi, đăng, thanh toán) mà chưa được nghiệm thu độc lập thì không tự sang "xong", nằm ở cột duyệt chờ anh xác nhận. Chỉnh hoặc tắt bằng `tasks.rao_hoan_thanh`.

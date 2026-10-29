@@ -12734,6 +12734,41 @@ def _resonance_turn_provider(brain) -> str:
         return ""
 
 
+def _so_mo_luot_chat(row, brain, conv_sid, user_mid):
+    """Mở một lượt CHAT trong sổ lượt chạy và đặt ngữ cảnh lượt (run_context). Trả (run_id, token) hoặc ("", None). Không bao giờ ném lỗi.
+
+    Phiên của một trợ lý (kênh `agent:<slug>`) ghi theo trợ lý, revision = băm nội dung thô file agent. Chat thường ghi agent_id "joyce" không có
+    revision. brain_id là TÊN thư mục brain, cùng cách với việc giao trợ lý, để canary khớp được."""
+    def _lam():
+        import harness_map
+        import run_context
+        import run_ledger
+        root = str(_brain_root(brain))
+        persona = workflow_chat.persona_cua_phien(row)
+        if persona and persona[0] == "agent":
+            slug = persona[1]
+            rv = run_ledger.chup_cho_agent(root, slug, run_ledger.doc_file_agent(root, slug), harness_version=harness_map.STANDARD_VERSION)
+        else:
+            slug, rv = "joyce", {}
+        ref = f"chat:{conv_sid}:{user_mid}"
+        rid = run_ledger.bat_dau(brain_id=Path(root).name, agent_id=slug, entrypoint="chat", ref=ref[:200], revision=rv,
+                                 logical_execution_id=ref)
+        ctx = run_ledger.ngu_canh(rid, root)
+        return rid, (run_context.dat(ctx) if ctx else None)
+    import run_ledger
+    return run_ledger.ghi_an_toan(_lam) or ("", None)
+
+
+def _so_chot_luot_chat(rid, tok, status):
+    """Chốt lượt chat trong sổ và gỡ ngữ cảnh. An toàn khi rid rỗng."""
+    import run_ledger
+    if tok is not None:
+        import run_context
+        run_context.go(tok)
+    if rid:
+        run_ledger.ghi_an_toan(run_ledger.ket_thuc, rid, status, block_kind="system" if status == "failed" else "")
+
+
 def _resonance_turn_agent(conv_sid, brain, get_session):
     """A1: agent của phiên `conv_sid` (dòng phiên đọc bằng `get_session`), để gắn vào ngữ cảnh lượt
     (`turn_context`, khoá `agent`).
@@ -19163,6 +19198,11 @@ async def websocket_endpoint(ws: WebSocket):
             # tool joyce_goal biết ĐÚNG lượt nào gọi. A4: lượt có trợ lý chụp thứ tự quyền của
             # kho TRƯỚC khi engine chạy.
             _ag_luot = _resonance_turn_agent(conv_sid, brain, store.get_session)
+            # Sổ lượt chạy (B01, G2): khung chat của chủ cũng là một lượt chạy thật. Phiên của một TRỢ LÝ ghi theo trợ lý đó (kèm revision của file
+            # agent, và quyền `allowed_effects` đi theo ngữ cảnh xuống mọi tool của hub); chat với Joyce ghi là "joyce" (chưa có revision nên
+            # không làm bằng chứng canary, nhưng đo được token và số lượt).
+            _so_rid, _so_tok = _so_mo_luot_chat(store.get_session(conv_sid) or {}, brain, conv_sid, user_mid)
+            _so_status = "completed"
             _luot_token = turn_context.bind(turn_context.make(
                 "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
                 agent=_ag_luot, authority_seq=(_ag_luot or {}).get("authority_seq"),
@@ -19215,17 +19255,20 @@ async def websocket_endpoint(ws: WebSocket):
                     "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
                 )
             except asyncio.CancelledError:
+                _so_status = "canceled"
                 _engine_outcome_turn(conv_sid, "cancelled")
                 _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
                 await send_raw({"type": "system", "content": "Đã dừng lượt này.", "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace)})
             except Exception as e:
+                _so_status = "failed"
                 _engine_outcome_exception(conv_sid, e)
                 _CONTEXT_RUNTIME.note_error(runtime_trace, type(e).__name__)
                 _CONTEXT_RUNTIME.finish(runtime_trace, "FAILED", type(e).__name__)
                 await send_raw({"type": "error", "content": f"Lỗi xử lý: {type(e).__name__}: {e}",
                                 "session_id": conv_sid, **context_runtime.event_fields(runtime_trace)})
             finally:
+                _so_chot_luot_chat(_so_rid, _so_tok, _so_status)
                 luot_dang_chay.ket_thuc(_khoa_luot)
                 _steer_left = steer_inbox.INBOX.close(conv_sid, turn_tag, _steer_tok)
                 if _steer_left:
@@ -23878,6 +23921,39 @@ def _tg_lich_su_kho(store, conv_sid, text):
 
 async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None,
                      phien_kho="", ghi_kho=True):
+    """Lượt chat KHÔNG-WebSocket (Telegram của chủ, CLI, nhân viên) bọc sổ lượt chạy (G2): đo token và số lượt, và trần token áp được cho lượt này.
+    Lượt của BOT khách đã được `chatbot_runtime._answer` ghi sổ theo agent của bot, nên đi thẳng, không ghi hai lần."""
+    if bot is not None:
+        return await _tg_answer_goc(text, meta=meta, progress=progress, channel=channel, bot=bot, phien_kho=phien_kho, ghi_kho=ghi_kho)
+
+    def _lam():
+        import run_context
+        import run_ledger
+        root = str(_brain_root(""))
+        ref = f"{channel}:{(meta or {}).get('chat_id', '')}:{int(time.time() * 1000)}"
+        rid = run_ledger.bat_dau(brain_id=Path(root).name, agent_id="joyce", entrypoint="chat", ref=ref[:200], logical_execution_id=ref)
+        ctx = run_ledger.ngu_canh(rid, root)
+        return rid, (run_context.dat(ctx) if ctx else None)
+    import run_ledger
+    rid, tok = run_ledger.ghi_an_toan(_lam) or ("", None)
+    st = "completed"
+    try:
+        out = await _tg_answer_goc(text, meta=meta, progress=progress, channel=channel, bot=bot, phien_kho=phien_kho, ghi_kho=ghi_kho)
+        if isinstance(out, str):          # vỏ trả CHUỖI khi là thông báo lỗi (xem _tg_answer_engine)
+            st = "failed"
+        return out
+    except asyncio.CancelledError:
+        st = "canceled"
+        raise
+    except BaseException:
+        st = "failed"
+        raise
+    finally:
+        _so_chot_luot_chat(rid, tok, st)
+
+
+async def _tg_answer_goc(text, meta=None, progress=None, channel="telegram", bot=None,
+                         phien_kho="", ghi_kho=True):
     """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
 
     `channel` mở hàm này cho kênh thứ ba là CLI (xem docs/dev/2026-08-cli-spec.md). Cố ý

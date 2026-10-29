@@ -30,10 +30,10 @@ Ký hiệu: **XONG** = có mã + test + chạy trong sandbox; **MỘT PHẦN** =
 | A05 writer chung, khoá liên tiến trình, phục hồi sau crash | XONG | `deploy_writer.py` | nhánh `fcntl` (Linux/macOS) chưa chạy thật ở đâu |
 | A06 quản trị cho chủ | XONG | `factory_admin.py`, route cuối `main.py`, Sơ đồ | |
 | A07 nghiệm thu, đo khởi động | MỘT PHẦN | `evidence/.../44-khoi-dong-ket-luan.md` | gate p95 < 5,0 CHƯA đạt |
-| B01 sổ lượt chạy do host ghi | MỘT PHẦN | `run_ledger.py` + 3 cửa | chat trực tiếp với Joyce, CLI native chưa vào sổ; chưa `parent_run_id`; `grant_hash`, `effective_config_hash` đang băm rỗng |
+| B01 sổ lượt chạy do host ghi | MỘT PHẦN | `run_ledger.py` + 5 cửa (bot, việc, workflow, khung chat của chủ `main._so_mo_luot_chat`, Telegram/CLI `main._tg_answer`) | engine CLI native tự gọi tool của nó vẫn ngoài sổ; bot Zalo đi `_tg_answer(bot=...)` không qua chatbot_runtime nên chưa ghi; chưa `parent_run_id`; `grant_hash`, `effective_config_hash` đang băm rỗng |
 | B02 canary dựa trên lượt đã chấm | MỘT PHẦN | `factory._canary_evidence`, `factory_admin.cham_luot` | không có bộ chấm tự động; chưa nhóm ca bắt buộc theo phòng; chưa theo dõi lượt chạy TẠI đích sau nhân; ngưỡng 20/24h/14 ngày chưa hiệu chỉnh |
 | B03 chứng nhận đường ghi | MỘT PHẦN | `route_cert.py` | KHÔNG đường nào đạt `chung_nhan`; mới có bản kê và test chặn trượt |
-| G2 #2 quyết định quyền chung | MỘT PHẦN | `run_context.py`, `mcp_hub._write` | chỉ kiểm `joyce_write_file`, chỉ agent ĐÃ khai `allowed_effects` (0/13 ở brain mẫu); các tool hub khác chưa |
+| G2 #2 quyết định quyền chung | MỘT PHẦN | `run_context.py`, `mcp_hub._boc_quyen` và `hub_effect` (MỌI tool của hub, hỏi lúc GỌI), `mcp_hub._write` | chỉ agent ĐÃ khai `allowed_effects` (0/13 ở brain mẫu); hub phân loại effect thô (read, write, danger) rồi ánh xạ thận trọng sang external_write; chưa grant theo tham số; CLI native vẫn ngoài hub |
 | G2 #3 ngân sách token | MỘT PHẦN | `run_ledger.cong_token/ghi_usage`, hook ở `aux_engine` và `main._stream_chain` | đo được ở đường có sự kiện `usage`; trần theo LƯỢT, chưa theo CÂY (manager, con, retry, verifier, fallback); chưa gắn "lượt cải tiến" để áp mức 500k |
 | G2 #4 cổng hoàn thành | MỘT PHẦN | `tasks.TasksFeature._rao_hoan_thanh` | chỉ capability `external-write` và chỉ đường Kanban; chưa đòi receipt nghiệp vụ |
 | G2 #5 sổ đăng ký triển khai | MỘT PHẦN | đèn "Bản đang chạy", `run_ledger.ban_gan_nhat` | là sổ ĐỌC, không phải khóa phiên bản (JHA-12 chưa) |
@@ -83,8 +83,8 @@ Ký hiệu: **XONG** = có mã + test + chạy trong sandbox; **MỘT PHẦN** =
 
 ## 6. Việc làm tiếp, theo thứ tự đề xuất
 
-1. **Cho các tool khác của hub hỏi `run_context.cho_phep`** (gửi tin, đặt hàng, thanh toán, đăng bài), mỗi tool một effect đúng; rồi đo tỉ lệ agent đã khai `allowed_effects` và khai dần theo phòng (bắt đầu Đối Soát với `[read]`).
-2. **Đưa chat trực tiếp và đường CLI native vào sổ lượt chạy** (entrypoint `chat`); đây là điều kiện để canary có bằng chứng ở phần việc chính.
+1. ~~Cho các tool của hub hỏi `run_context.cho_phep`~~ **ĐÃ LÀM ở 1.3.45** (mọi tool). Còn: tinh chỉnh `hub_effect` cho từng tool quan trọng (tiền, tin nhắn) thay vì phân loại thô, và khai `allowed_effects` dần theo phòng (bắt đầu Đối Soát với `[read]`, cần chủ duyệt hồ sơ pilot).
+2. ~~Đưa chat vào sổ lượt chạy~~ **ĐÃ LÀM ở 1.3.45** (khung chat của chủ, Telegram, CLI). Còn: đường CLI native (Claude Code, Codex...) tự gọi tool ngoài hub, và bot Zalo.
 3. **Bộ chấm tự động hoặc nhóm ca bắt buộc theo phòng** (G4): hiện chỉ chủ chấm tay và `verify_agent` của workflow tạo `verified_pass`.
 4. **Trần theo CÂY** thay cho theo lượt (cộng manager, con, retry, verifier, fallback); xác định "lượt cải tiến" để áp mức 500k mà chủ đã chốt.
 5. **JHA-12**: gói phát hành bất biến + ánh xạ brain/agent sang revision; hiện nâng trợ lý dùng chung đổi cho mọi phòng cùng lúc.
