@@ -5410,10 +5410,18 @@ async def connect_oauth_start(request: Request):
     return res
 
 
+from html import escape as _html_escape  # noqa: E402
+
+
 @app.get("/connect/oauth/callback")
-async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
-    res = await oauth_mcp.handle_callback(state, code)
+async def connect_oauth_callback(state: str = Query(""), code: str = Query(""), error: str = Query(""),
+                                 error_description: str = Query("")):
+    # Nhà cung cấp có thể trả `error`/`error_description` ngay ở bước xin quyền (vd Clerk: invalid_scope); chuyển xuống oauth_mcp để nó thử lại
+    # không xin phạm vi bị từ chối, thay vì đem code rỗng đi đổi token và che mất lỗi thật.
+    res = await oauth_mcp.handle_callback(state, code, error, error_description)
     mcp_hub.invalidate_cache()
+    if res.get("retry_url"):
+        return RedirectResponse(res["retry_url"], status_code=302)
     if res.get("ok"):
         _write_codex_profile()
         # Vừa có token: kiểm lại đèn ngay, không thì chip vẫn báo "Kết nối lại" tới vòng quét
@@ -5443,7 +5451,7 @@ async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
                 "<h2>✓ Đã kết nối thành công</h2><p>Đóng tab này và quay lại Joyce, bấm Làm mới ở trang Kết nối.</p></body></html>")
     else:
         html = (f"<html><body style='font-family:sans-serif;background:#111;color:#eee;text-align:center;padding-top:80px'>"
-                f"<h2>⚠ Kết nối thất bại</h2><p>{res.get('error', '')}</p></body></html>")
+                f"<h2>⚠ Kết nối thất bại</h2><p>{_html_escape(str(res.get('error', '')))}</p></body></html>")
     return HTMLResponse(html)
 
 
