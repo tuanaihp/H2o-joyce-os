@@ -43,7 +43,8 @@ Ký hiệu: **XONG** = có mã + test + chạy trong sandbox; **MỘT PHẦN** =
 | JHA-08 đèn Sơ đồ theo bằng chứng | MỘT PHẦN | `harness_map.py` (20 đèn) | đèn cũ (cache, guard, trim, perm) vẫn gán `ok` theo cấu hình, chưa theo đo |
 | JHA-09 ACL dispatch cho shared agent | **CHƯA** | | |
 | JHA-12 ghim revision cho shared agent | **CHƯA** | | |
-| Rollout giai đoạn 1+ , pilot, 6 phòng | **CHƯA** | | hồ sơ Đối Soát chờ chủ |
+| G3 nền móng (Đối Soát chỉ đọc, trong sandbox) | MỘT PHẦN | `server/doi_soat_kiem.py` (bộ kiểm độc lập, thuần, tất định), `tests/fixtures/g3/doi_soat_mau.json`, `test_g3_doi_soat_sandbox.py` | CHƯA chạy trên brain thật: chưa khai `allowed_effects` cho agent thật, chưa có bộ ca thử trong `Joyce/evals/` của phòng, chưa có Phòng Thu thử; chờ chủ duyệt hồ sơ pilot |
+| Rollout giai đoạn 1+, G4 sáu phòng, G5, G6 | **CHƯA** | | |
 
 ## 3. Bản đồ mã (file mới hoặc đổi nhiều)
 
@@ -92,6 +93,13 @@ Ký hiệu: **XONG** = có mã + test + chạy trong sandbox; **MỘT PHẦN** =
 7. **A07.1**: giảm số route nạp lúc import hoặc tách `main.py`; gate p95 khởi động chưa đạt.
 8. **Độ phủ nền tảng**: chạy suite trên Linux và macOS (nhánh khóa `fcntl`, ca symlink file chưa chạy thật).
 9. **Compiler (JHA-10)** và **cập nhật đặc tả** `Joyce-harness.md` theo thực tế (hiện đặc tả chưa phản ánh `run_context`, sổ lượt chạy, rào hoàn thành).
+
+## 6b. Cách bắt đầu G3 thật khi chủ duyệt
+
+1. Sao lưu `agents/truong-phong-doi-soat.md` (thư mục `brains/` KHÔNG có git, sửa sai là mất), khai `allowed_effects: [read]`, kiểm agent vẫn làm được việc đọc của nó (nếu nó ghi memory hay wiki thì `[read]` sẽ chặn: khai thêm `internal_write` có chủ ý, đừng bỏ qua).
+2. Chuyển 5 đến 10 ca trong `test_g3_doi_soat_sandbox.py` thành bộ ca thử `Joyce/evals/<slug>.json` của phòng, dùng số của kỳ thật đã biết trước.
+3. Mỗi lượt đối soát thật: dùng `doi_soat_kiem.kiem` làm căn cứ chấm, không tin câu 'đã đối chiếu xong'; nhập kết quả bằng nút Đạt/Rớt hoặc nối `cham_luot` tự động chỉ cho kết quả của bộ kiểm.
+4. Theo dõi `lan_bi_chan_quyen` và token trên Sơ đồ; điều kiện dừng nằm ở hồ sơ pilot.
 
 ## 7. Điều chủ đã quyết (không hỏi lại)
 

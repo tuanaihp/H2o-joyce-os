@@ -1,0 +1,16 @@
+{
+  "_ghi_chu": "Dữ liệu TỔNG HỢP cho pilot Đối Soát (G3), không phải dữ liệu thật. Ví dụ HD-001 theo mục 7.1 của kế hoạch: hợp đồng 15 triệu, đã thu 1,5 triệu, ghi thêm 3 triệu thì tổng thu 4,5 triệu và còn phải thu 10,5 triệu.",
+  "ky": "2026-10",
+  "hop_dong": [
+    {"id": "HD-001", "gia_tri": 15000000},
+    {"id": "HD-002", "gia_tri": 8000000},
+    {"id": "HD-003", "gia_tri": 5000000}
+  ],
+  "phieu": [
+    {"id": "P-01", "hop_dong": "HD-001", "loai": "thu", "so_tien": 1500000},
+    {"id": "P-02", "hop_dong": "HD-001", "loai": "thu", "so_tien": 3000000},
+    {"id": "P-03", "hop_dong": "HD-002", "loai": "thu", "so_tien": 8000000},
+    {"id": "P-04", "hop_dong": "HD-002", "loai": "chi", "so_tien": 2000000},
+    {"id": "P-05", "hop_dong": "HD-001", "loai": "chi", "so_tien": 700000}
+  ]
+}
