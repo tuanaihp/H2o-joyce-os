@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.47] - 2026-10-29
+### Added
+- **Skill Learn Update tab redesigned:** paste a repo link and Joyce downloads it, finds **skills and plugins**, has an AI read and classify them as **Worth taking / Think about it / Not worth it**, with notes in Vietnamese: what it does, what Joyce gains, why, and whether it overlaps something already installed.
+- **Approve one by one, or tick several and approve at once.** Each card keeps the original text for cross-checking. Nothing is installed until you approve; an item the static scan flags as high risk is never labelled "Worth taking".
+- Plugins installed from a repo always start **switched off** until you turn them on from the Tools page. The daily scan also has the AI read new items (up to 30 per run).
+
 ## [1.3.46] - 2026-10-29
 ### Added
 - **Permission blocking per command, not just per tool name.** For example a read-only assistant can still view the Shop ledger figures but cannot write income or expense into the money ledger; multi-action tools from outside connections are also re-classified at call time.

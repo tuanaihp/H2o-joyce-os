@@ -103,6 +103,7 @@ import zalo_login
 import oauth_mcp
 import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định) - update theo phiên bản app
 import skill_router   # nguồn chân lý khám phá skill (canonical <brain>/skills) dùng chung mọi engine
+import skill_learn    # repo sources -> static scan -> owner review/install
 import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng qua joyce_use_skill (tín hiệu DƯƠNG một chiều)
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import share_store    # link CHIA SẺ CÔNG KHAI của một file trong brain (/s/<token>)
@@ -21710,7 +21711,7 @@ def _staff_chan(request) -> str:
 # Nhân viên KHÔNG được ghi vào các mặt quản trị này (GET vẫn cho đọc để trang
 # hiển thị hoạt động). Danh sách này là v1 - khi thêm endpoint admin mới, cân
 # nhắc xếp nó vào đây.
-_STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins",
+_STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins", "/skill-learn",
                "/mcp", "/packs", "/channels", "/providers", "/models",
                "/ollama-local", "/update", "/brand", "/domain", "/chatbots",
                "/secrets", "/brains", "/brain/", "/reminders", "/loops", "/h2o-projects",
@@ -29146,6 +29147,41 @@ async def work_factory_action(request: Request, action: str = Form(""), canary_i
                                        expected_revision=expected_revision, action_id=action_id, reason=reason,
                                        on=str(on).strip().lower() in ("1", "true", "yes", "on"))
     return JSONResponse(kq, status_code=http)
+
+
+def _skill_learn_spec(model: str) -> dict:
+    """Model phân loại của Skill Learn. Id kiểu `glm-*` là gói Z.ai (miễn phí) nếu máy có khoá; không thì về model việc nền."""
+    m = (model or "").strip().split(":")[0]
+    if m.lower().startswith("glm"):
+        sp = {"provider": "zai", "model": m}
+        if aux_engine.availability(sp)[0]:
+            return sp
+    return aux_engine.read_spec(tag="skill-learn")
+
+
+async def _skill_learn_ask(prompt: str, routing_model: str = "") -> tuple:
+    """Một lượt model rẻ để Skill Learn đọc, phân loại và dịch ghi chú cho chủ duyệt. Trả (chữ trả lời, nhãn model).
+
+    Prompt chứa nội dung repo của người lạ nên engine y hệt bộ phán xử nhóm: thư mục trống, không MCP, không công cụ;
+    có chèn lệnh vào SKILL.md thì model cũng không có gì để gọi. Kết quả chỉ là chữ hiện ra cho chủ đọc."""
+    spec = _skill_learn_spec(routing_model)
+    base = _reply_policy_sandbox_engine("Bạn là bộ phân loại skill/plugin cho Joyce. Chỉ trả về đúng khuôn JSON được yêu cầu, "
+                                        "không thêm lời dẫn.", "skill-learn", cwd_name="skill_learn_cwd")
+    cli = aux_engine.strip_tools(
+        aux_engine.swap(base, mode="suggest", tag="skill-learn", spec=spec, codex_profile=_write_codex_profile), base)
+    if not cli.is_available():
+        raise RuntimeError("engine việc nền chưa sẵn sàng (kiểm tra trang Models)")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "lỗi engine")[:200])
+    return final, f"{spec.get('provider')}:{spec.get('model') or 'mặc định'}"
+
+
+# Kho học skill từ repo. Đăng ký muộn để không làm xáo trộn thứ tự route cũ.
+skill_learn.register(app, skill_learn.Deps(brain_root=lambda b: _brain_root(b), ask=_skill_learn_ask))
 
 
 if __name__ == "__main__":

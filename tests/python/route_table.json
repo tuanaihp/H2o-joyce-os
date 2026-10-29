@@ -7097,6 +7097,94 @@
  },
  {
   "order": 714,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 715,
+  "type": "APIRoute",
+  "path": "/skill-learn",
+  "name": "get_state",
+  "methods": [
+   "GET"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 716,
+  "type": "APIRoute",
+  "path": "/skill-learn/sources",
+  "name": "add_source",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 717,
+  "type": "APIRoute",
+  "path": "/skill-learn/sources/{source_id}",
+  "name": "delete_source",
+  "methods": [
+   "DELETE"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 718,
+  "type": "APIRoute",
+  "path": "/skill-learn/sync",
+  "name": "sync",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 719,
+  "type": "APIRoute",
+  "path": "/skill-learn/analyze",
+  "name": "analyze",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 720,
+  "type": "APIRoute",
+  "path": "/skill-learn/review",
+  "name": "review",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 721,
+  "type": "APIRoute",
+  "path": "/skill-learn/review-batch",
+  "name": "review_batch",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 722,
+  "type": "APIRoute",
+  "path": "/skill-learn/schedule",
+  "name": "schedule",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 723,
   "type": "APIRoute",
   "path": "/work/factory/grade",
   "name": "work_factory_grade",

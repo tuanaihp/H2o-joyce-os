@@ -825,9 +825,11 @@
     // hệt như "tab hỏng" chứ không giống "ai đó cướp handler".
     row.innerHTML = ds.map((x, i) =>
         `<button class="tab-kho${x.chon ? " on" : ""}" data-tab-cb="${i}">${esc(x.nhan)}</button>`).join("")
-      + `<button class="tab-kho" data-mo-kho="${kind}">${ic("package")} Joyce Store</button>`;
+      + `<button class="tab-kho" data-mo-kho="${kind}">${ic("package")} Joyce Store</button>`
+      + (id === "skills" ? `<button class="tab-kho" data-skill-learn>${ic("rotate-cw")} Skill Learn Update</button>` : "");
     row.querySelectorAll("[data-tab-cb]").forEach(b => b.onclick = () => {
       const f = ds[Number(b.dataset.tabCb)];
+      row.querySelectorAll(".tab-kho").forEach(x => x.classList.toggle("on", x === b));
       if (f && f.bam) f.bam();
     });
     const nut = row.querySelector("[data-mo-kho]");
@@ -839,15 +841,25 @@
         window.JoycePacks.moKho(kind, id, VIEW_META[id] ? VIEW_META[id].label : id);
       } else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
     };
+    const learn = row.querySelector("[data-skill-learn]");
+    if (learn) learn.onclick = () => {
+      row.querySelectorAll(".tab-kho").forEach(x => x.classList.toggle("on", x === learn));
+      const panel = document.getElementById("panel-skills");
+      if (window.JoyceSkillLearn && window.JoyceSkillLearn.open) window.JoyceSkillLearn.open(panel);
+      else if (panel) panel.innerHTML = `<div class="empty">${esc(window.t("cs.mod_not_ready", { ten: "skill-learn.js" }))}</div>`;
+    };
     return row;
   }
 
   // Trang Studio: tạo panel-<id> trong cview rồi gọi loader cũ (studio.js fill vào đó).
   function renderStudioPage(el, id) {
     el.innerHTML = `<div class="stab-panel" id="panel-${id}"></div>`;
-    const tab = hangTabKho(id);
-    if (tab) el.insertBefore(tab, el.firstChild);
     const fn = window.JoyceStudio && window.JoyceStudio[id];
+    const tabs = id === "skills" ? [{ nhan: TEN_CUA_BAN.skills, chon: true, bam: () => {
+      if (fn) fn();
+    } }] : null;
+    const tab = hangTabKho(id, tabs);
+    if (tab) el.insertBefore(tab, el.firstChild);
     if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "studio.js" }));
   }

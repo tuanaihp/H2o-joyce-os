@@ -263,3 +263,4 @@ server/shop_so.sqlite3*
 server/shop_state.json
 # deploy-locks: file khoa lien tien trinh cua bo ghi file trien khai (A05), sinh luc chay, khong dua vao git.
 server/deploy-locks/
+server/skill-learn/
