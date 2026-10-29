@@ -127,8 +127,9 @@ S_NOKEY = {"model": {"auxiliary": {}}}
 out = aux_engine.swap(FakeEngine(), spec={"provider": "openrouter", "model": "x/y"}, settings=S_KEY)
 check("swap provider API → chuỗi fallback", type(out).__name__ == "_FallbackChain")
 base = FakeEngine()
-check("swap Claude KHÔNG key OpenRouter → trả nguyên engine, không bọc",
-      aux_engine.swap(base, spec={"provider": "anthropic-cli", "model": ""}, settings=S_NOKEY) is base)
+_o1 = aux_engine.swap(base, spec={"provider": "anthropic-cli", "model": ""}, settings=S_NOKEY)
+check("swap Claude KHÔNG key OpenRouter → chuỗi MỘT mắt trong suốt chứa đúng engine Claude (1.3.19: bọc để ghi mức dùng, không thêm mắt)",
+      _o1 is base or (type(_o1).__name__ == "_FallbackChain" and list(_o1._all()) == [base]))
 out = aux_engine.swap(FakeEngine(), spec={"provider": "anthropic-cli", "model": ""}, settings=S_KEY)
 check("swap Claude CÓ key OpenRouter → bọc chuỗi [Claude, OR-free]",
       type(out).__name__ == "_FallbackChain" and len(out._all()) == 2
@@ -159,9 +160,9 @@ check("main trùng provider phụ → chuỗi chỉ [Gemini, Claude], không nh�
 # main = provider không có builder nền (antigravity-cli) → bỏ qua êm, không nổ.
 S_MAIN_AGY = {"model": {"auxiliary": {}, "main": {"provider": "antigravity-cli", "model": "x"}}}
 base_agy = FakeEngine()
-check("main không có builder nền → giữ nguyên engine Claude",
-      aux_engine.swap(base_agy, spec={"provider": "anthropic-cli", "model": ""},
-                      settings=S_MAIN_AGY) is base_agy)
+_o2 = aux_engine.swap(base_agy, spec={"provider": "anthropic-cli", "model": ""}, settings=S_MAIN_AGY)
+check("main không có builder nền → chỉ còn engine Claude (chuỗi một mắt trong suốt)",
+      _o2 is base_agy or (type(_o2).__name__ == "_FallbackChain" and list(_o2._all()) == [base_agy]))
 
 # --- safe_retry (mức full): chỉ nhảy mắt khi mắt trước chết SẠCH (0 tool_call) ---
 # Việc full thao tác ra ngoài: engine đã gọi tool rồi mới gãy = có thể đã làm một phần,

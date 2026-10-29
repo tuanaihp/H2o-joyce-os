@@ -67,14 +67,20 @@ check("khong cau hinh gi -> Claude", aux_engine.is_claude(aux_engine.read_spec({
 check("provider API nhan dung", aux_engine.read_spec(S_OR)["provider"] == "openrouter")
 
 # ---- swap: Claude vẫn là Claude ----
+
+def _la_engine(out, e):
+    """Từ 1.3.19 `swap()` luôn bọc kết quả vào `_FallbackChain` (chuỗi một mắt trong suốt, gắn `_task_tag` để ghi mức dùng token theo
+    loại việc). Chuỗi một mắt chỉ chứa đúng engine đó thì coi là "chính engine đó"."""
+    return out is e or (type(out).__name__ == "_FallbackChain" and list(out._all()) == [e])
+
 c = FakeClaude()
 out = aux_engine.swap(c, settings=S_CLAUDE)
-check("Claude: tra lai dung engine cu", out is c)
+check("Claude: tra lai dung engine cu (chuoi mot mat trong suot boc dung engine do)", _la_engine(out, c))
 check("Claude: co dat model", out.model == "haiku")
 
 c2 = FakeClaude()
 out2 = aux_engine.swap(c2, settings=S_LEGACY)
-check("config cu: van la engine Claude", out2 is c2 and out2.model == "haiku")
+check("config cu: van la engine Claude", _la_engine(out2, c2) and out2.model == "haiku")
 
 # ---- swap: sang engine API ----
 c3 = FakeClaude()
@@ -87,9 +93,9 @@ check("API: thua huong mode (quyet dinh an toan dau kia)", api.joyce_mode == "su
 
 # ---- swap: hỏng cấu hình thì KHÔNG được làm chết việc nền ----
 c4 = FakeClaude()
-check("thieu API key -> giu Claude", aux_engine.swap(c4, settings=S_OR_NOKEY) is c4)
+check("thieu API key -> giu Claude", _la_engine(aux_engine.swap(c4, settings=S_OR_NOKEY), c4))
 c5 = FakeClaude()
-check("provider la -> giu Claude", aux_engine.swap(c5, settings=S_WEIRD) is c5)
+check("provider la -> giu Claude", _la_engine(aux_engine.swap(c5, settings=S_WEIRD), c5))
 
 ok, why = aux_engine.availability({"provider": "openrouter"})
 check("availability neu ro ly do thieu key", ok is False and "key" in why.lower())

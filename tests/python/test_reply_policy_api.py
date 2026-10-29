@@ -239,7 +239,9 @@ check("strip_tools giữ Claude hộp cát, Codex, API; bỏ engine không chứ
       _base in _links and _cx in _links and _api in _links and len(_links) == 3)
 check("API: không hỏi hub", getattr(_api, "no_tools", False) is True)
 check("Codex: không profile hub, xoá mọi MCP", _cx.profile is None and _cx.extra_config == ["mcp_servers={}"])
-check("không còn mắt nào an toàn thì về Claude hộp cát", _ae.strip_tools(_AgyGia(), _base) is _base)
+_r = _ae.strip_tools(_AgyGia(), _base)
+check("không còn mắt nào an toàn thì về Claude hộp cát (chuỗi một mắt trong suốt chứa đúng engine đó)",
+      _r is _base or (type(_r).__name__ == "_FallbackChain" and list(_r._all()) == [_base]))
 check("người phán xử và vòng tự soát đều đi qua strip_tools",
       "strip_tools(" in src_ask and "strip_tools(" in _src_rv)
 

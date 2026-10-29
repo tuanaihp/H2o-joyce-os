@@ -92,8 +92,10 @@ class _FakeCli:
 _S_OR = {"model": {"openrouter_key": "sk-or", "auxiliary": {"provider": "anthropic-cli", "model": ""}}}
 
 _out_full = aux_engine.swap(_FakeCli(), mode="full", tag="reminder", settings=_S_OR)
-check("CANARY: mức full KHÔNG dựng chuỗi dự phòng, dù có sẵn key OpenRouter",
-      not isinstance(_out_full, aux_engine._FallbackChain))
+# Hợp đồng hiện hành (1.3.19 trở đi): mức full CÓ chuỗi nhưng bị thắt chặt `safe_retry`: chỉ nhảy sang mắt kế khi mắt trước chết mà CHƯA gọi
+# tool nào (đổi engine lúc đó không thể nhân đôi hành động). Xem docstring `aux_engine.swap`.
+check("CANARY: mức full có chuỗi dự phòng NHƯNG ở chế độ safe_retry (không nhảy mắt sau khi đã gọi tool)",
+      isinstance(_out_full, aux_engine._FallbackChain) and object.__getattribute__(_out_full, "_safe_retry") is True)
 
 # Ở mức auto/suggest thì chuỗi dự phòng vẫn là thứ tốt: việc chỉ đọc/ghi vault chạy được trên
 # engine nào cũng xong, và "việc nền phải chạy chứ không chết" vẫn đúng ở đó.
@@ -107,14 +109,15 @@ _S_API = {"model": {"openrouter_key": "sk-or", "groq_api_key": "sk-groq",
 _out_api = aux_engine.swap(_FakeCli(), mode="full", tag="reminder", settings=_S_API)
 check("full + user chọn provider API -> dùng đúng provider đó",
       getattr(_out_api, "provider", None) == "groq")
-check("full + provider API -> vẫn KHÔNG có chuỗi dự phòng",
-      not isinstance(_out_api, aux_engine._FallbackChain))
+check("full + provider API -> chuỗi vẫn ở chế độ safe_retry",
+      isinstance(_out_api, aux_engine._FallbackChain) and object.__getattribute__(_out_api, "_safe_retry") is True)
 
 # Provider chưa có key thì lui về Claude chứ không chết - hành vi cũ, giữ nguyên ở mức full.
 _S_THIEU = {"model": {"auxiliary": {"provider": "groq", "model": "llama"}}}
 _cli_thieu = _FakeCli()
 check("full + provider chưa có key -> lui về Claude, không chết",
-      aux_engine.swap(_cli_thieu, mode="full", settings=_S_THIEU) is _cli_thieu)
+      (lambda o: o is _cli_thieu or (type(o).__name__ == "_FallbackChain" and list(o._all()) == [_cli_thieu]))(
+          aux_engine.swap(_cli_thieu, mode="full", settings=_S_THIEU)))
 
 
 # ============================================================
