@@ -287,8 +287,11 @@ check("cửa chung của bốn nhánh dịch bằng hàm đó",
 # mất mạch, cùng cách `_consume_codex`) nên thụt vào thêm một nấc - mẫu dưới đi theo, giống mẫu Codex.
 check("CANARY: nhánh Claude Code dùng câu đã dịch",
       '_limit_frame(\n                                event.get("content") or "", "claude-code"' in _MAIN_SRC)
+import re as _re  # noqa: E402
+# Nhánh Codex gom lỗi vào `_codex_errors` rồi phát MỘT khung đã dịch; câu "đã xong" mà thực chất là báo hết lượt cũng đi qua cùng hàm.
 check("CANARY: nhánh Codex dùng câu đã dịch",
-      '_limit_frame(\n                                    ev.get("content") or "", "codex"' in _MAIN_SRC)
+      bool(_re.search(r'_limit_frame\(\s*_codex_errors\[-1\], "codex"', _MAIN_SRC))
+      and bool(_re.search(r'_limit_frame\(final_text, "codex"', _MAIN_SRC)))
 # Antigravity CLI cũng chạy bằng gói Google nên cùng luật: hết lượt phải ra
 # câu tiếng Việt, không phải nguyên văn của Google.
 check("CANARY: nhánh Antigravity CLI dùng câu đã dịch",

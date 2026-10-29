@@ -12218,7 +12218,7 @@ def khoi_viec(viec) -> str:
     `strip_control_blocks` bóc nó cho Telegram/Zalo/hòm thư như mọi khối JOYCE_* khác."""
     if not isinstance(viec, dict):
         return ""
-    gon = {k: str(viec.get(k) or "")[:200] for k in ("kind", "status", "title", "id") if viec.get(k)}
+    gon = {k: str(viec.get(k) or "")[:200] for k in ("kind", "status", "title", "id", "call") if viec.get(k)}
     if not gon:
         return ""
     return "<!-- JOYCE_VIEC: " + json.dumps(gon, ensure_ascii=False).replace("-->", "- ->") + " -->"

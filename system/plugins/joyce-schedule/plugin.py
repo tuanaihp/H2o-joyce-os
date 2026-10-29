@@ -432,6 +432,9 @@ async def _do_create(vault_root: str, args: dict) -> str:
     # Bỏ trống thì máy chủ tự đặt mặc định; chỉ gửi khi model có ý hạ/nâng mức rõ ràng.
     if str(args.get("muc_quyen") or "").strip():
         payload["muc_quyen"] = str(args["muc_quyen"]).strip().lower()
+    # `call` (0.203.0): đến giờ thì Joyce GỌI (chuông) chứ không chỉ gửi tin. Chỉ gửi khi model đòi rõ ràng; thiếu thì kho tự coi là không gọi.
+    if args.get("call") is True or str(args.get("call") or "").strip().lower() in ("1", "true", "yes"):
+        payload["call"] = True
     payload.update(_reminder_time_payload(schedule))
     return await _post_reminder(payload, brain_name=brain_name)
 
@@ -508,12 +511,17 @@ async def _do_update(vault_root: str, args: dict) -> str:
         fields["prompt"] = str(args["prompt"]).strip()
     if str(args.get("schedule") or "").strip():
         fields["schedule"] = str(args["schedule"]).strip()
+    if "call" in args and args.get("call") is not None:
+        # Bật hoặc tắt riêng cờ gọi (kho reminders nhận chuỗi "true"/"false"); loop không có khái niệm này nên bỏ qua ở nhánh loop.
+        fields["call"] = "true" if (args["call"] is True or str(args["call"]).strip().lower() in ("1", "true", "yes")) else "false"
     if not fields:
-        return "ERROR: không có gì để sửa - truyền ít nhất một trong name / prompt / schedule."
+        return "ERROR: không có gì để sửa - truyền ít nhất một trong name / prompt / schedule / call."
     if (_loops_dir(vault_root) / f"{rid}.md").is_file():
-        return _update_loop_file(vault_root, rid, fields)
+        return _update_loop_file(vault_root, rid, {k: v for k, v in fields.items() if k != "call"})
     # Kho nhắc hẹn: đổi lịch thì dịch chuỗi lịch sang tham số thời gian như lúc tạo.
     payload = {}
+    if "call" in fields:
+        payload["call"] = fields["call"]
     if "name" in fields:
         payload["label"] = fields["name"]
     if "prompt" in fields:
@@ -627,6 +635,9 @@ def register(ctx) -> None:
                 "notify_only": {"type": "boolean",
                                  "description": ("true = ép thành nhắc MỘT LẦN (kho reminders) dù "
                                                  "schedule trông giống chu kỳ lặp. Mặc định false.")},
+                "call": {"type": "boolean",
+                         "description": ("true = đến giờ thì GỌI (chuông kèm tin) chứ không chỉ gửi tin; chỉ dùng khi người dùng đòi "
+                                         "rõ 'gọi tôi'. op=update đổi riêng được cờ này. Không áp cho việc lặp (loop).")},
                 "muc_quyen": {"type": "string", "enum": ["suggest", "auto", "full"],
                               "description": ("Quyền của việc lúc chạy, áp cho cả loop lẫn nhắc "
                                               "hẹn. 'full' (mặc định) = dùng được mọi công cụ đã "
