@@ -1,6 +1,6 @@
 # Hồ sơ pilot Đối Soát (chỉ đọc)
 
-> Viết 29/10/2026 theo mục 7 của [kế hoạch phòng ban](./Joyce-harness-phong-ban-ke-hoach.md). **Chưa mở.** File này là thứ anh duyệt hay không duyệt; em không bật gì cho tới khi anh nói.
+> Viết 29/10/2026 theo mục 7 của [kế hoạch phòng ban](./Joyce-harness-phong-ban-ke-hoach.md). **Chủ đã duyệt ngày 29/10.** Cái đã chuẩn bị: bản sao `doi-soat-pilot` (không sửa agent gốc; lý do ở [20 việc](./2026-10-29-pilot-doi-soat-20-viec.md)), bộ ca thử, danh sách 20 việc. Cái CHƯA làm: chạy 20 việc và chấm (anh làm), và bản này của hồ sơ viết `[read]` nhưng bản pilot khai `[read, internal_write]` vì agent cần ghi trí nhớ phòng; lệnh ghi sổ tiền vẫn bị chặn.
 
 ## 1. Pilot này chứng minh điều gì
 

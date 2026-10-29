@@ -1,0 +1,44 @@
+{
+  "cases": [
+    {
+      "name": "giữ khai báo quyền chỉ đọc cộng ghi nội bộ",
+      "check": "regex",
+      "value": "allowed_effects:\\s*\\n- read\\s*\\n- internal_write"
+    },
+    {
+      "name": "KHÔNG có quyền ngoài (không external_write, financial_write, destructive)",
+      "check": "not_contains",
+      "value": "financial_write"
+    },
+    {
+      "name": "nói rõ không ghi sổ Quản lý Shop",
+      "check": "contains",
+      "value": "KHÔNG ghi thu chi, hợp đồng hay báo giá vào Sổ Quản lý Shop"
+    },
+    {
+      "name": "đòi nguồn cho mọi con số",
+      "check": "contains",
+      "value": "kèm NGUỒN"
+    },
+    {
+      "name": "thu và chi báo riêng, không tự suy lãi gộp",
+      "check": "contains",
+      "value": "Thu và chi báo RIÊNG"
+    },
+    {
+      "name": "có khối DOI_SOAT cho bộ kiểm độc lập",
+      "check": "contains",
+      "value": "<!-- DOI_SOAT:"
+    },
+    {
+      "name": "giữ điều cấm bịa số liệu của phòng",
+      "check": "contains",
+      "value": "Không bịa số liệu"
+    },
+    {
+      "name": "không dùng dấu gạch dài",
+      "check": "not_contains",
+      "value": "—"
+    }
+  ]
+}

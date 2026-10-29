@@ -43,7 +43,8 @@ Ký hiệu: **XONG** = có mã + test + chạy trong sandbox; **MỘT PHẦN** =
 | JHA-08 đèn Sơ đồ theo bằng chứng | MỘT PHẦN | `harness_map.py` (20 đèn) | đèn cũ (cache, guard, trim, perm) vẫn gán `ok` theo cấu hình, chưa theo đo |
 | JHA-09 ACL dispatch cho shared agent | **CHƯA** | | |
 | JHA-12 ghim revision cho shared agent | **CHƯA** | | |
-| G3 nền móng (Đối Soát chỉ đọc, trong sandbox) | MỘT PHẦN | `server/doi_soat_kiem.py` (bộ kiểm độc lập, thuần, tất định), `tests/fixtures/g3/doi_soat_mau.json`, `test_g3_doi_soat_sandbox.py` | CHƯA chạy trên brain thật: chưa khai `allowed_effects` cho agent thật, chưa có bộ ca thử trong `Joyce/evals/` của phòng, chưa có Phòng Thu thử; chờ chủ duyệt hồ sơ pilot |
+| G3 pilot Đối Soát (chủ DUYỆT 29/10) | MỘT PHẦN | agent `doi-soat-pilot` + bộ ca thử đã tạo trong brain thật (bản sao ở `tests/fixtures/g3/doi-soat-pilot.*`), `docs/dev/2026-10-29-pilot-doi-soat-20-viec.md` | 20 việc CHƯA chạy (chủ chạy và chấm); sổ Quản lý Shop hiện RỖNG nên chỉ đối chiếu được file trong `sources/`; agent gốc dùng Codex nên chưa có rào (xem mục 6c) |
+| G3 nền móng (sandbox) | MỘT PHẦN | `server/doi_soat_kiem.py` (bộ kiểm độc lập, thuần, tất định), `tests/fixtures/g3/doi_soat_mau.json`, `test_g3_doi_soat_sandbox.py` | CHƯA chạy trên brain thật: chưa khai `allowed_effects` cho agent thật, chưa có bộ ca thử trong `Joyce/evals/` của phòng, chưa có Phòng Thu thử; chờ chủ duyệt hồ sơ pilot |
 | Rollout giai đoạn 1+, G4 sáu phòng, G5, G6 | **CHƯA** | | |
 
 ## 3. Bản đồ mã (file mới hoặc đổi nhiều)
@@ -101,10 +102,16 @@ Ký hiệu: **XONG** = có mã + test + chạy trong sandbox; **MỘT PHẦN** =
 3. Mỗi lượt đối soát thật: dùng `doi_soat_kiem.kiem` làm căn cứ chấm, không tin câu 'đã đối chiếu xong'; nhập kết quả bằng nút Đạt/Rớt hoặc nối `cham_luot` tự động chỉ cho kết quả của bộ kiểm.
 4. Theo dõi `lan_bi_chan_quyen` và token trên Sơ đồ; điều kiện dừng nằm ở hồ sơ pilot.
 
+## 6c. Lỗ hổng quan trọng: engine CLI không mang danh tính lượt chạy xuống hub
+
+Claude Code, Codex, Grok, Antigravity gọi hub bằng HTTP (`/hub/mcp`, header `Authorization`, `X-Joyce-Mode`, `X-Joyce-Vault`) ở TIẾN TRÌNH KHÁC, nên `run_context` (contextvars) không tới được hub: `allowed_effects` KHÔNG có hiệu lực ở đường đó. Chỉ engine API chạy trong tiến trình (Z.ai, OpenRouter, OpenAI API, Anthropic API, Gemini, Groq, DeepSeek, Ollama) mới được bảo vệ. Vì vậy pilot dùng bản sao `doi-soat-pilot` chạy Z.ai chứ không khai quyền cho agent gốc (gpt-5.6-sol qua Codex).
+
+Hướng sửa (chưa làm): thêm header `X-Joyce-Run: <run_id>` vào cấu hình hub MỖI tiến trình CLI (Codex qua `extra_config`/`codex_vault_override`, Claude qua file `--mcp-config` theo lượt) và để `/hub/mcp` dựng `run_context` từ dòng sổ đang `running`. Header chỉ làm quyền HẸP lại (không bao giờ cấp thêm). Riêng Grok, Antigravity và Gemini ghi cấu hình vào file dùng chung theo brain nên header theo lượt sẽ giẫm lên nhau giữa các lượt đồng thời: cần thiết kế riêng. Đây là việc ưu tiên số một trước khi khai `allowed_effects` cho agent chạy bằng CLI.
+
 ## 7. Điều chủ đã quyết (không hỏi lại)
 
 - 28/10: duyệt gói A; D2 như đề xuất; D4 nhẹ (chỉ chặn khi bộ ca thử hỏng, thiếu thì không chặn); hành vi không tự áp ở gói A.
 - 28/10: nhiều lần "tiếp tục hoàn thiện, phần cần duyệt để sau" nên gói B và phần G2 đã làm không hỏi từng bước.
 - 28/10: tắt máy 00:00 hằng đêm đã có tác vụ sẵn; tự bật Joyce cần chủ bật công tắc "Tự bật Joyce" (cài persistence bị chặn khi chưa được cho phép rõ).
-- 29/10: gộp `main` rồi sửa 28 test đỏ; có rào hoàn thành; đo token thật; trần 1.000.000 token mỗi lượt.
+- 29/10: duyệt pilot Đối Soát (em làm luôn); gộp `main` rồi sửa 28 test đỏ; có rào hoàn thành; đo token thật; trần 1.000.000 token mỗi lượt.
 - Còn chờ chủ: mở pilot Đối Soát, giá trị `eval_bat_buoc` mặc định, sửa 30 skill lỗi YAML, loại việc nào là "lượt cải tiến", có đặt rào hoàn thành cho loại việc khác ngoài `external-write`.
