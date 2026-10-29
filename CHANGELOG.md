@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.46] - 2026-10-29
+### Thêm
+- **Chặn quyền theo từng lệnh, không chỉ theo tên tool.** Ví dụ trợ lý chỉ đọc vẫn xem được số liệu sổ Quản lý Shop nhưng không ghi được thu chi vào sổ tiền; tool nhiều hành động của kết nối ngoài cũng được phân loại lại lúc gọi.
+- **Pilot Đối Soát đã sẵn sàng chạy:** có trợ lý bản thử "Agent Đối Soát (pilot G3)" (không sửa trợ lý gốc), bộ ca thử và 20 việc kèm bảng chấm để anh chạy và chấm trên trang Sơ đồ.
+
 ## [1.3.45] - 2026-10-29
 ### Thêm
 - **Mọi tool của hub hỏi quyền trước khi chạy.** Trợ lý đã khai quyền (ví dụ chỉ đọc) mà gọi tool gửi tin, ghi sổ hay xóa thì bị chặn, và lần chặn được ghi lại để anh xem. Trợ lý chưa khai quyền vẫn chạy như cũ.

@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.46] - 2026-10-29
+### Added
+- **Permission blocking per command, not just per tool name.** For example a read-only assistant can still view the Shop ledger figures but cannot write income or expense into the money ledger; multi-action tools from outside connections are also re-classified at call time.
+- **The Reconciliation pilot is ready to run:** a trial assistant "Reconciliation Agent (pilot G3)" (the original assistant is not touched), a set of test cases and 20 jobs with a grading sheet for you to run and grade on the Map page.
+
 ## [1.3.45] - 2026-10-29
 ### Added
 - **Every hub tool asks for permission before running.** An assistant that declared its permissions (say, read-only) and calls a tool that sends a message, writes the ledger or deletes is blocked, and the block is logged for you. An assistant that declared nothing runs as before.
