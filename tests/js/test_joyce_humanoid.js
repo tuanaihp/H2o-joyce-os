@@ -167,6 +167,7 @@ check("pause/resume/destroy không ném khi không GL", true);
       const self = this;
       self.loaded = false;
       self.root = el(); hostEl.appendChild(self.root);
+      self.root.querySelector = () => null;    // Apex thật có root DOM; joyce-humanoid tìm nút album/cử chỉ trong đó (syncAlbumButton, syncHandButton)
       self.ready = Promise.resolve().then(() => { self.loaded = behavior !== "fail"; });
       ["enter", "pause", "resume", "dispose"].forEach((m) => { self[m] = () => { calls[m]++; }; });
       self.setState = (s) => { calls.states.push(s); };
