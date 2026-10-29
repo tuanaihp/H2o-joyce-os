@@ -210,9 +210,15 @@ async function main() {
   for (const f of ["gesture-engine.mjs", "hand-controller.mjs", "hand-worker.js",
                    "joyce-bridge.mjs", "voice-quiet-gate.mjs", "hand-panel.mjs", "hand-panel.css"])
     check("có file joyce-hands/" + f, fs.existsSync(path.join(ROOT, "dashboard", "joyce-hands", f)));
-  for (const f of ["hand_landmarker.task", "mediapipe/vision_bundle.mjs",
-                   "mediapipe/wasm/vision_wasm_internal.wasm"])
-    check("dùng lại asset /static/humanoid/" + f, fs.existsSync(path.join(ROOT, "dashboard", "humanoid", f)));
+  // dashboard/humanoid/ được .gitignore GIỮ LOCAL (license artwork chưa xác minh, xem .gitignore), nên máy sạch hoặc CI không có nó.
+  // Không có thư mục thì BỎ QUA và nói rõ là bỏ qua (khoảng hở độ phủ, không phải pass); có thì kiểm như cũ.
+  if (!fs.existsSync(path.join(ROOT, "dashboard", "humanoid"))) {
+    console.log("skip dùng lại asset /static/humanoid/*: dashboard/humanoid/ không có trong checkout này (giữ local vì license)");
+  } else {
+    for (const f of ["hand_landmarker.task", "mediapipe/vision_bundle.mjs",
+                     "mediapipe/wasm/vision_wasm_internal.wasm"])
+      check("dùng lại asset /static/humanoid/" + f, fs.existsSync(path.join(ROOT, "dashboard", "humanoid", f)));
+  }
 
   // ---- Khớp nối apex ----
   const apex = read("dashboard/apex-humanoid.js");
