@@ -8338,7 +8338,7 @@ def _files_rel(root: Path, p: Path) -> str:
 
 
 @app.get("/files/list")
-async def files_list(brain: str = Query("brain"), path: str = Query(None)):
+async def files_list(brain: str = Query("brain"), path: str = Query(None), subdirs: int = Query(0)):
     root = _files_root(brain)
     broot = Path(_brain_root(brain)).resolve()
     try:
@@ -8386,9 +8386,17 @@ async def files_list(brain: str = Query("brain"), path: str = Query(None)):
             if nv and bi_khoa and p.name.startswith("."):
                 continue
             st = p.stat()
-            items.append({"name": p.name, "type": "dir" if p.is_dir() else "file",
-                          "size": st.st_size if p.is_file() else 0, "mtime": st.st_mtime,
-                          "ext": p.suffix.lower(), "locked": bi_khoa})
+            it = {"name": p.name, "type": "dir" if p.is_dir() else "file",
+                  "size": st.st_size if p.is_file() else 0, "mtime": st.st_mtime,
+                  "ext": p.suffix.lower(), "locked": bi_khoa}
+            if subdirs and p.is_dir():
+                # Dấu ">" của ô chọn thư mục (0.159.0): thư mục này còn thư mục con (không tính thư mục ẩn) không. Chỉ tính khi được hỏi, vì
+                # mỗi thư mục là một lần liệt kê đĩa.
+                try:
+                    it["dirs"] = any(c.is_dir() and not c.name.startswith(".") for c in p.iterdir())
+                except OSError:
+                    it["dirs"] = False
+            items.append(it)
         except (PermissionError, OSError):
             continue
     return {"root": root.name or str(root), "path": _files_rel(root, d),

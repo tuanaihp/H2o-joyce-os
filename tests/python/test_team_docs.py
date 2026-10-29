@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 os.environ["JOYCE_STATE_DIR"] = tempfile.mkdtemp(prefix="joyce-team-docs-")
+os.environ["JOYCE_FILES_ROOT"] = "brain"      # đường dẫn tương đối tính theo TRẦN duyệt file; cố định trần là gốc brain cho giống nhau ở mọi máy
 BR = Path(tempfile.mkdtemp(prefix="joyce-team-docs-brain-"))
 (BR / "agents").mkdir()
 for slug, name in (("lan", "Lan"), ("minh", "Minh")):
