@@ -193,6 +193,22 @@
       "camera",
       "languages",
       "list-checks"
+    ],
+    "giao-dien-bo-sung": [
+      "flask-conical",
+      "git-pull-request",
+      "circle-plus",
+      "circle-minus",
+      "wallet",
+      "shopping-cart",
+      "square-check",
+      "clock",
+      "shirt",
+      "music",
+      "pause",
+      "skip-back",
+      "skip-forward",
+      "list"
     ]
   }
 }

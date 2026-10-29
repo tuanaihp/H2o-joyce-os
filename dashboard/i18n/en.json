@@ -6604,6 +6604,7 @@
   "sodo.hx.registry": "Running version per assistant",
   "sodo.hx.registry.m": "{n} assistants with runs · {o} running the current version · {s} changed, not run again",
   "sodo.hx.registry.d": "For each assistant with logged runs, did the latest run use the file's current content. 'Changed' means the file differs (a deployment or your own edit) and no run has used the new version yet, so it has not been observed. This is a read-only registry, not a version lock: upgrading a shared assistant still changes it for every department at once.",
+  "sodo.model.main": "(main)",
   "sodo.hx.canary": "Canary and rollback",
   "sodo.hx.canary.m": "{n} watching · {r} rolled back · {l} need review",
   "sodo.hx.canary.d": "A file shared by several brains is tried in one place and then spread, and rolls back by itself if it gets worse. 'Need review' covers old canaries with no verification data, canaries that expired without enough evidence, and canaries that only partly spread or hit a conflict. These never show green.",

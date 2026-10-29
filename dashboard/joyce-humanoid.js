@@ -472,7 +472,7 @@
 
     // ---- Điều khiển tay qua camera (kit /static/joyce-hands/) ----
     // KHÔNG có khung xem trước: video sống ngoài DOM, giao diện chỉ là pho tượng.
-    // Bấm ✋ HAND CAM -> tự xin quyền camera + bật nhận diện; bấm lại/rời lớp nhìn
+    // Bấm HAND CAM -> tự xin quyền camera + bật nhận diện; bấm lại/rời lớp nhìn
     // -> tắt hẳn. Bridge: tracking -> apex.setAttention, pinch -> apex.pulse,
     // palm -> VoiceQuietGate -> đường ngắt thoại THẬT của app.js (stopCurrent()
     // = nút "Dừng": cắt TTS đang phát + huỷ lượt đúng phiên; mic/cuộc gọi giữ nguyên).
@@ -490,7 +490,7 @@
       var speaking = !!(os && (" " + os.className + " ").indexOf(" speaking ") >= 0);
       return { state: speaking ? "speaking" : "idle", responseId: sid || (speaking ? "live" : ""), sessionId: sid };
     }
-    // album.mjs nạp lười độc lập: nút 🖼 ALBUM phải mở được kể cả khi anh chưa
+    // album.mjs nạp lười độc lập: nút ALBUM phải mở được kể cả khi anh chưa
     // bao giờ bật HAND CAM (cụm module tay chỉ nạp khi toggleHands chạy).
     var albumMod = null, albumLoading = null;
     function loadAlbumMod() {
@@ -514,7 +514,7 @@
       var b = apex && apex.root && apex.root.querySelector("[data-action=album]");
       if (!b) return;
       b.setAttribute("aria-pressed", String(!!open));
-      b.textContent = open ? "🖼 ĐÓNG" : "🖼 ALBUM";
+      b.innerHTML = (window.ic ? window.ic("image") : "") + (open ? " ĐÓNG" : " ALBUM");
     }
     function openAlbum() {
       if (album && album.isOpen()) { album.close(); return; }   // bấm lần nữa = đóng
@@ -648,7 +648,7 @@
       if (!b) return;
       b.disabled = state === "starting";
       b.setAttribute("aria-pressed", String(state === "active"));
-      b.textContent = state === "active" ? "✋ CAM ON" : "✋ HAND CAM";
+      b.innerHTML = (window.ic ? window.ic("hand") : "") + (state === "active" ? " CAM ON" : " HAND CAM");
     }
     function toggleHands() {
       if (handsLoading) return;

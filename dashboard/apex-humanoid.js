@@ -4,6 +4,8 @@
  */
 (function (global) {
   'use strict';
+  // Icon Lucide dùng chung (window.ic từ icons.js); thiếu thì để trống chứ không làm vỡ nút. Không dùng emoji trong giao diện (test_icons).
+  const I = (n) => { try { return global.ic ? global.ic(n) : ''; } catch (e) { return ''; } };
   const FILES = {
     backdrop:'backdrop-v1.webp',idle:'apex-idle-v1.webp',listening:'apex-listening-v1.webp',
     thinking:'apex-thinking-v1.webp',speaking:'apex-speaking-v1.webp',strong:'apex-speaking-strong-v1.webp',
@@ -98,9 +100,9 @@
       this.mediaQuery=global.matchMedia('(prefers-reduced-motion: reduce)');this.reduced=options.reducedMotion??this.mediaQuery.matches;
       this.root=document.createElement('section');this.root.className='jh';this.root.setAttribute('aria-label','Animated cyan and gold humanoid');
       this.root.innerHTML=`<img class="jh-backdrop" alt="" draggable="false"><canvas class="jh-gl" aria-hidden="true"></canvas><img class="jh-fallback" alt="Cyan and gold humanoid" hidden><canvas class="jh-particles" aria-hidden="true"></canvas>
-        <div class="jh-top" hidden><button data-action="exit" aria-label="Exit humanoid view">EXIT</button><button data-action="album" aria-pressed="false" aria-label="Open photo album slideshow">🖼 ALBUM</button><button data-action="train" aria-label="Train hand gestures">🎓 DẠY</button><button data-action="gesture" aria-pressed="false" aria-label="Toggle hand tracking camera">✋ HAND CAM</button></div>
+        <div class="jh-top" hidden><button data-action="exit" aria-label="Exit humanoid view">EXIT</button><button data-action="album" aria-pressed="false" aria-label="Open photo album slideshow">${I('image')} ALBUM</button><button data-action="train" aria-label="Train hand gestures">${I('graduation-cap')} DẠY</button><button data-action="gesture" aria-pressed="false" aria-label="Toggle hand tracking camera">${I('hand')} HAND CAM</button></div>
         <div class="jh-status" role="status" aria-live="polite"></div>
-        <nav class="jh-controls" aria-label="Avatar demo controls" hidden>${['idle','listening','thinking','speaking'].map(s=>`<button data-state="${s}" aria-pressed="${s==='idle'}">${s}</button>`).join('')}<button data-action="mic" aria-pressed="false">♩ MIC OFF</button><button data-action="replay">↻ REPLAY</button><button data-action="sound" aria-pressed="false">♪ SOUND OFF</button></nav>
+        <nav class="jh-controls" aria-label="Avatar demo controls" hidden>${['idle','listening','thinking','speaking'].map(s=>`<button data-state="${s}" aria-pressed="${s==='idle'}">${s}</button>`).join('')}<button data-action="mic" aria-pressed="false">${I('mic')} MIC OFF</button><button data-action="replay">↻ REPLAY</button><button data-action="sound" aria-pressed="false">${I('volume-2')} SOUND OFF</button></nav>
         <aside class="jh-panel" aria-label="Gesture controls" hidden><strong>GESTURE · CAMERA</strong><p>Nút HAND CAM bật/tắt điều khiển tay - camera chạy ẩn, không hiện khung hình: đầu ngón trỏ lái sự chú ý của pho tượng, chụm ngón cái + trỏ tạo sóng năng lượng, xòe lòng bàn tay giữ yên yêu cầu Joyce ngừng nói.</p><p>Nhận diện chạy tại máy trong một Worker riêng (MediaPipe), camera chỉ bật khi anh bấm nút, không gửi hình ảnh đi đâu.</p><button data-action="close-gesture">Đã hiểu</button></aside>
         <div class="jh-notice" role="status" hidden></div>
         <div class="jh-entry"><div><h1>JOYCE</h1><p>a figure of light that assembles itself</p><button data-action="enter" disabled>LOADING</button><small class="jh-load-text">Đang nạp tài nguyên nhân vật…</small></div></div>`;
@@ -170,16 +172,16 @@
     // Cùng kênh pointer với chuột: nguồn nào emit sau thắng, -1..1 -> giữa là trung tâm.
     setAttention(x=0,y=0){this.pointer={x:clamp(x,-1,1),y:clamp(y,-1,1)};}
     pulse(x=.5,y=.45){this.ripples.push({x:clamp(x),y:clamp(y),at:performance.now()});if(this.ripples.length>5)this.ripples.shift();if(this.sound)this.tone(180,.24);}
-    setSound(enabled){this.sound=!!enabled&&!this.disposed;const b=this.$('[data-action=sound]');b.textContent=this.sound?'♪ SOUND ON':'♪ SOUND OFF';b.setAttribute('aria-pressed',String(this.sound));if(this.sound){this.tone(100,.5);}else{this.audio?.suspend();}}
+    setSound(enabled){this.sound=!!enabled&&!this.disposed;const b=this.$('[data-action=sound]');b.innerHTML=I('volume-2')+(this.sound?' SOUND ON':' SOUND OFF');b.setAttribute('aria-pressed',String(this.sound));if(this.sound){this.tone(100,.5);}else{this.audio?.suspend();}}
     tone(freq,duration){try{const AC=global.AudioContext||global.webkitAudioContext;if(!AC)return;this.audio=this.audio||new AC();this.audio.resume();const now=this.audio.currentTime,o=this.audio.createOscillator(),g=this.audio.createGain();o.type='sine';o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(freq*.55,now+duration);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.045,now+.03);g.gain.exponentialRampToValueAtTime(.0001,now+duration);o.connect(g);g.connect(this.audio.destination);o.start();o.stop(now+duration+.02);o.onended=()=>{o.disconnect();g.disconnect();};}catch(err){this.report(err);}}
     async toggleMic(){if(this.mic){this.stopMic();return;}if(this.micPending)return;
       if(!navigator.mediaDevices?.getUserMedia){this.notice('Mic cần HTTPS hoặc localhost. Các chế độ demo vẫn dùng được.');return;}
       this.micPending=true;const epoch=++this.micEpoch;const b=this.$('[data-action=mic]');b.disabled=true;let stream,context;
       try{stream=await navigator.mediaDevices.getUserMedia({audio:true});if(this.disposed||!this.running||epoch!==this.micEpoch){stream.getTracks().forEach(t=>t.stop());return;}
         const AC=global.AudioContext||global.webkitAudioContext;context=new AC();await context.resume();const source=context.createMediaStreamSource(stream),analyser=context.createAnalyser();analyser.fftSize=512;source.connect(analyser);
-        this.mic={stream,context,source,analyser,data:new Uint8Array(analyser.fftSize)};b.textContent='♩ MIC ON';b.setAttribute('aria-pressed','true');this.setState('listening');this.notice('Mic chỉ đo âm lượng tại thiết bị; không ghi hoặc gửi âm thanh.');
+        this.mic={stream,context,source,analyser,data:new Uint8Array(analyser.fftSize)};b.innerHTML=I('mic')+' MIC ON';b.setAttribute('aria-pressed','true');this.setState('listening');this.notice('Mic chỉ đo âm lượng tại thiết bị; không ghi hoặc gửi âm thanh.');
       }catch(err){stream?.getTracks().forEach(t=>t.stop());context?.close();this.notice('Không bật được mic: '+err.message);this.report(err);}finally{this.micPending=false;if(!this.disposed)b.disabled=false;}}
-    stopMic(){this.micEpoch++;if(this.mic){this.mic.stream.getTracks().forEach(t=>t.stop());this.mic.source.disconnect();this.mic.context.close();this.mic=null;}if(!this.disposed){const b=this.$('[data-action=mic]');b.textContent='♩ MIC OFF';b.setAttribute('aria-pressed','false');}}
+    stopMic(){this.micEpoch++;if(this.mic){this.mic.stream.getTracks().forEach(t=>t.stop());this.mic.source.disconnect();this.mic.context.close();this.mic=null;}if(!this.disposed){const b=this.$('[data-action=mic]');b.innerHTML=I('mic')+' MIC OFF';b.setAttribute('aria-pressed','false');}}
     notice(message){if(this.disposed)return;const n=this.$('.jh-notice');n.textContent=message;n.hidden=false;clearTimeout(this.noticeTimer);this.noticeTimer=setTimeout(()=>n.hidden=true,6000);}
     // ---------- Camera tay: do /static/joyce-hands/ điều phối (Worker + GestureEngine).
     // Avatar chỉ giữ nút mở panel + hook setAttention/pulse ở trên; không detect ở đây.

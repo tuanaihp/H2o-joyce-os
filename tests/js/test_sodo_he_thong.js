@@ -104,7 +104,7 @@ async function main() {
     const h = el.innerHTML;
     check("đủ 8 thẻ hệ thống", (h.match(/sd-card c\d/g) || []).length === 8);
     check("thẻ Models hiện engine+model chính", h.includes("anthropic-cli") && h.includes("opus"));
-    check("provider chính đánh dấu sao + configured", h.includes("Claude Code ★") && h.includes("Codex"));
+    check("provider chính được đánh dấu (chữ, không dùng ký hiệu sao) + configured", h.includes("Claude Code " + VI["sodo.model.main"]) && h.includes("Codex"));
     check("thẻ Agents hiện tên+vai trò", h.includes("Ky su Cai tien") && h.includes("Propose PPC"));
     check("board auto hiện đúng trạng thái", h.includes(VI["sodo.board.auto"]));
     check("harness hiện số bài học + đề xuất chờ", h.includes("20") && h.includes(VI["sodo.loop_dd"]));

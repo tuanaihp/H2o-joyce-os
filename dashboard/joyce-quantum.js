@@ -22,6 +22,8 @@
  * ========================================================================== */
 (function (global) {
   'use strict';
+  // Icon Lucide dùng chung (window.ic từ icons.js); thiếu thì để trống chứ không làm vỡ nút. Không dùng emoji trong giao diện (test_icons).
+  const I = (n) => { try { return global.ic ? global.ic(n) : ''; } catch (e) { return ''; } };
 
   const STATES = ['idle', 'listening', 'thinking', 'speaking', 'interrupting', 'reconnecting', 'error'];
   const STATE_LABEL = { idle: 'SẴN SÀNG', listening: 'ĐANG NGHE', thinking: 'ĐANG NGHĨ',
@@ -373,8 +375,8 @@ void main(){
       this.root.innerHTML = this.intro ? '<canvas class="jh-gl" aria-hidden="true"></canvas><div class="jh-status" hidden></div><div class="jh-top" hidden></div><div class="jh-notice" hidden></div>' :
         '<canvas class="jh-gl" aria-hidden="true"></canvas>' +
         '<div class="jh-top" hidden><button data-action="exit" aria-label="Thoát lớp nhìn 3D">EXIT</button>' +
-        '<button data-action="train" aria-label="Dạy cử chỉ tay">🎓 DẠY</button>' +
-        '<button data-action="gesture" aria-pressed="false" aria-label="Bật tắt camera cử chỉ tay">✋ HAND CAM</button></div>' +
+        '<button data-action="train" aria-label="Dạy cử chỉ tay">' + I('graduation-cap') + ' DẠY</button>' +
+        '<button data-action="gesture" aria-pressed="false" aria-label="Bật tắt camera cử chỉ tay">' + I('hand') + ' HAND CAM</button></div>' +
         '<div class="jh-status" role="status" aria-live="polite"></div>' +
         '<div class="jh-notice" role="status" hidden></div>';
       host.appendChild(this.root);

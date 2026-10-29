@@ -13,10 +13,12 @@
  *      /volume(d) ; isActive() ; status() ; try_ làm ở joyce-music-cmd.js.
  *
  * Autoplay: nếu trình duyệt chặn phát tự động (chưa từng tương tác), thanh
- * player vẫn hiện và bấm ▶ là chạy - lệnh giọng sau đó không bị chặn nữa.
+ * player vẫn hiện và bấm nút Phát là chạy - lệnh giọng sau đó không bị chặn nữa.
  * ========================================================================== */
 (function (global) {
   'use strict';
+  // Icon Lucide dùng chung (window.ic từ icons.js); thiếu thì để trống chứ không làm vỡ nút. Không dùng emoji trong giao diện (test_icons).
+  const I = (n) => { try { return global.ic ? global.ic(n) : ''; } catch (e) { return ''; } };
 
   const AUDIUS = 'https://api.audius.co';
   const APP = 'joyce';
@@ -137,13 +139,13 @@
     if (S.bar) return S.bar;
     const bar = el('div', 'jm-bar'); bar.id = 'joyce-music';
     bar.innerHTML =
-      '<button class="jm-btn jm-prev" title="Prev" aria-label="Previous">⏮</button>' +
-      '<button class="jm-btn jm-play" title="Play/Pause" aria-label="Play">▶</button>' +
-      '<button class="jm-btn jm-next" title="Next" aria-label="Next">⏭</button>' +
+      '<button class="jm-btn jm-prev" title="Prev" aria-label="Previous">' + I('skip-back') + '</button>' +
+      '<button class="jm-btn jm-play" title="Play/Pause" aria-label="Play">' + I('play') + '</button>' +
+      '<button class="jm-btn jm-next" title="Next" aria-label="Next">' + I('skip-forward') + '</button>' +
       '<div class="jm-meta"><div class="jm-title">-</div><div class="jm-sub">-</div></div>' +
       '<span class="jm-src"></span>' +
       '<input class="jm-vol" type="range" min="0" max="100" value="80" aria-label="Volume">' +
-      '<button class="jm-btn jm-close" title="Close" aria-label="Close">✕</button>';
+      '<button class="jm-btn jm-close" title="Close" aria-label="Close">' + I('x') + '</button>';
     document.body.appendChild(bar);
     bar.querySelector('.jm-play').addEventListener('click', () => { const a = audio(); a.paused ? a.play().catch(() => {}) : a.pause(); });
     bar.querySelector('.jm-prev').addEventListener('click', () => prev());
@@ -161,7 +163,7 @@
     if (!tr) { hideBar(); return; }
     const bar = buildBar(), a = audio();
     bar.classList.add('on');
-    bar.querySelector('.jm-play').textContent = a.paused ? '▶' : '⏸';
+    bar.querySelector('.jm-play').innerHTML = I(a.paused ? 'play' : 'pause');
     bar.querySelector('.jm-title').textContent = tr ? tr.title : '-';
     bar.querySelector('.jm-sub').textContent = tr ? (tr.artist || '') : '';
     bar.querySelector('.jm-src').textContent = S.source === 'local' ? t('music.srcLocal') : 'AUDIUS · FREE';
@@ -180,7 +182,7 @@
     a.src = tr.src;
     paint();
     const p = a.play();
-    if (p && p.catch) p.catch(() => { paint(); }); // autoplay bị chặn: bar vẫn mở, bấm ▶ chạy
+    if (p && p.catch) p.catch(() => { paint(); }); // autoplay bị chặn: bar vẫn mở, bấm nút Phát chạy
     return true;
   }
 

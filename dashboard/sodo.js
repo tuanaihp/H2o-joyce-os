@@ -610,7 +610,7 @@
       let prov = st.model.providers || [];
       if (!Array.isArray(prov)) prov = Object.values(prov);
       nProv = prov.length; nConn = prov.filter(p => p.configured).length;
-      mChips = prov.map(p => chip((p.label || p.id || "?") + (p.is_main ? " ★" : ""), p.configured ? "on" : "off")).join("");
+      mChips = prov.map(p => chip((p.label || p.id || "?") + (p.is_main ? " " + t("sodo.model.main") : ""), p.configured ? "on" : "off")).join("");
       mRows += row("plug", t("sodo.n_engine", { n: nProv }), nConn + " " + t("sodo.connected"));
     }
     const s1 = !st ? "off" : (!mainTxt || !nConn) ? "bad" : "ok";
