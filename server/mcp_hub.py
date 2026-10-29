@@ -1118,7 +1118,17 @@ def _store_mtime():
     return tong
 
 
-def hub_effect(entry: dict) -> str:
+# Tool ĐA HÀNH ĐỘNG của Joyce: cùng một tool, effect phụ thuộc tham số. Phân loại theo tên tool thì hoặc chặn cả việc đọc hoặc để lọt việc ghi sổ tiền
+# (`joyce_shop` có `op=xem` đọc số liệu lẫn `op=ghi` ghi thu chi). Thiếu hoặc lạ tham số thì lấy effect nặng nhất của tool.
+EFFECT_THEO_THAM_SO = {
+    "joyce_shop": {"param": "op", "map": {"xem": "read", "gia": "read", "do": "read", "bao_cao": "internal_write", "ghi": "financial_write"},
+                   "mac_dinh": "financial_write"},
+    "joyce_schedule": {"param": "op", "map": {"list": "read", "cancel": "internal_write", "create": "external_write", "update": "external_write"},
+                       "mac_dinh": "external_write"},
+}
+
+
+def hub_effect(entry: dict, args=None, fn: str = "") -> str:
     """Effect (theo contract.schema.json: read, internal_write, external_write, destructive...) của MỘT tool trong route của hub.
 
     Hub chỉ phân loại thô read, write, danger (MCP) hay mức quyền (plugin): ánh xạ THẬN TRỌNG sang phía nặng hơn khi không chắc. Tool MCP
@@ -1126,6 +1136,19 @@ def hub_effect(entry: dict) -> str:
     Effect không nhận ra thì external_write (agent đã khai quyền mà gặp tool lạ bị chặn, đúng tinh thần "không biết thì không cho")."""
     eff = str((entry or {}).get("effect") or "")
     nguon = str((entry or {}).get("source_type") or "")
+    # Tool đa hành động của Joyce: effect theo THAM SỐ của chính lời gọi này.
+    bang = EFFECT_THEO_THAM_SO.get(fn)
+    if bang:
+        op = str((args or {}).get(bang["param"]) or "").strip().lower() if isinstance(args, dict) else ""
+        return bang["map"].get(op, bang["mac_dinh"])
+    # Tool MCP đa hành động (tham số quyết định hành động, hoặc luật call_rules): lúc LIỆT KÊ chúng được coi là đọc, nên phải phân loại lại LÚC GỌI.
+    if nguon == "mcp" and (entry or {}).get("multiplexed") and isinstance(args, dict):
+        try:
+            conn = (entry or {}).get("conn") or {}
+            cls = mcp_catalog.classify(mcp_catalog.get(conn.get("connector_id")), (entry or {}).get("tool"), args)
+            eff = cls if cls in ("read", "write", "danger") else "danger"
+        except Exception:  # noqa: BLE001 - không phân loại được thì coi là nguy hiểm (thận trọng)
+            eff = "danger"
     if eff in ("none", "read"):
         return "read"
     if nguon == "builtin":
@@ -1143,11 +1166,13 @@ def _boc_quyen(fn: str, entry: dict) -> None:
     base = entry.get("call")
     if not base or getattr(base, "_joyce_quyen", False):
         return
-    effect = hub_effect(entry)
+    def _args(a, k):
+        return a[0] if a and isinstance(a[0], dict) else (k.get("args") if isinstance(k.get("args"), dict) else None)
 
     async def call(*a, **k):
         import run_context
         ctx = run_context.hien_tai()
+        effect = hub_effect(entry, _args(a, k), fn)
         ok, _ly = run_context.cho_phep(effect, ctx)
         if not ok:
             try:

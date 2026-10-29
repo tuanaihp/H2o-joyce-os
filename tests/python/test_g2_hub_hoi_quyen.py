@@ -130,6 +130,57 @@ check("tool ghi file của hub, qua route thật, bị chặn cho agent [read] v
       str(kq).startswith("ERROR") and not (v / "wiki" / "x.md").exists(), kq)
 check("... và lần chặn nằm trong sổ", L.lay(rid2)["quyen_bi_chan"] >= 1)
 
+# ---------------- tool ĐA HÀNH ĐỘNG: effect theo THAM SỐ của lời gọi
+SHOP = {"effect": "write", "source_type": "plugin", "required_mode": "safe"}
+check("joyce_shop op=xem/gia/do là read; bao_cao là internal_write; ghi là financial_write (sổ tiền thật)",
+      H(SHOP, {"op": "xem"}, "joyce_shop") == "read" and H(SHOP, {"op": "gia"}, "joyce_shop") == "read" and H(SHOP, {"op": "do"}, "joyce_shop") == "read"
+      and H(SHOP, {"op": "bao_cao"}, "joyce_shop") == "internal_write" and H(SHOP, {"op": "ghi"}, "joyce_shop") == "financial_write")
+check("joyce_shop thiếu hoặc lạ tham số op: lấy effect NẶNG nhất (financial_write)", H(SHOP, {}, "joyce_shop") == "financial_write" and H(SHOP, {"op": "la"}, "joyce_shop") == "financial_write"
+      and H(SHOP, None, "joyce_shop") == "financial_write")
+check("joyce_schedule: list đọc, create/update là external_write, cancel là internal_write",
+      H({}, {"op": "list"}, "joyce_schedule") == "read" and H({}, {"op": "create"}, "joyce_schedule") == "external_write" and H({}, {"op": "cancel"}, "joyce_schedule") == "internal_write")
+
+da = []
+
+
+async def shop_goc(args):
+    da.append(args.get("op"))
+    return "đã " + str(args.get("op"))
+
+
+e_shop = dict(SHOP, call=shop_goc)
+mcp_hub._boc_quyen("joyce_shop", e_shop)
+doi_soat = RX.RunContext("rd", "doi-soat", "b", "chat", ("read", "internal_write"))
+
+
+def goi_shop(op):
+    async def go():
+        tk = RX.dat(doi_soat)
+        try:
+            return await e_shop["call"]({"op": op, "su_kien": [{"loai": "thu", "so_tien": 1}]})
+        finally:
+            RX.go(tk)
+    return asyncio.run(go())
+
+
+check("agent Đối Soát [read, internal_write] ĐỌC số liệu sổ (op=xem) được", goi_shop("xem") == "đã xem")
+check("... giao Đối Soát báo cáo (op=bao_cao) được", goi_shop("bao_cao") == "đã bao_cao")
+r_ghi = goi_shop("ghi")
+check("... nhưng GHI thu chi vào sổ tiền (op=ghi) BỊ CHẶN, tool gốc không được gọi", str(r_ghi).startswith("ERROR") and "financial_write" in r_ghi and "ghi" not in da, (r_ghi, da))
+
+# MCP đa hành động: phân loại lại LÚC GỌI bằng args (lúc liệt kê chúng được coi là đọc)
+goc_classify, goc_get = mcp_hub.mcp_catalog.classify, mcp_hub.mcp_catalog.get
+mcp_hub.mcp_catalog.get = lambda cid: {"id": cid}
+mcp_hub.mcp_catalog.classify = lambda conn, tool, args=None: "write" if (args or {}).get("action") == "gui" else "read"
+try:
+    MUX = {"effect": "read", "source_type": "mcp", "multiplexed": True, "conn": {"connector_id": "pancake"}, "tool": "page_action"}
+    check("MCP đa hành động: args action=gui được phân loại LẠI thành write (external_write), không bị coi là đọc như lúc liệt kê",
+          H(MUX, {"action": "gui"}, "x") == "external_write" and H(MUX, {"action": "xem"}, "x") == "read")
+    mcp_hub.mcp_catalog.classify = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("hỏng"))
+    check("không phân loại được lúc gọi: thận trọng, coi là destructive", H(MUX, {"action": "gui"}, "x") == "destructive")
+finally:
+    mcp_hub.mcp_catalog.classify, mcp_hub.mcp_catalog.get = goc_classify, goc_get
+
 L.dong()
 print()
 if fails:
