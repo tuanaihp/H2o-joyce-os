@@ -166,8 +166,11 @@ check("tep: đường dẫn LẪN trong lệnh shell của Codex (Get-Content '.
       == ["E:\\b\\Brain Default\\wiki\\Bảng giá.md"]
       and tool_label.tep({"item": {"command": 'rg -n "báo giá" wiki sources'}}) == [])
 main_src = (SERVER / "main.py").read_text(encoding="utf-8")
-check("mọi chỗ gửi tool_call đều kèm files", main_src.count('"files": tool_label.tep(') == 8
-      and main_src.count("tool_label.chi_tiet(") == 8)
+# Bất biến, không phải số cố định: mỗi chỗ gửi `detail` của một lệnh gọi công cụ (tool_label.chi_tiet) PHẢI gửi kèm `files` (tool_label.tep). Số chỗ
+# gửi tăng khi thêm đường mới (1.3.x thêm đường fallback), nên so hai bộ đếm với nhau thay vì đóng đinh một con số.
+check("mọi chỗ gửi tool_call đều kèm files",
+      main_src.count('"files": tool_label.tep(') >= 8
+      and main_src.count('"files": tool_label.tep(') == main_src.count('"detail": tool_label.chi_tiet('))
 
 # ---- thiên hà phòng ban: /knowledge/galaxy ----
 import h2o_departments as _hd  # noqa: E402
