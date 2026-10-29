@@ -85,8 +85,10 @@ client = TestClient(main.app, base_url="http://localhost")
 seed()
 r = client.get("/whatsapp/status")
 c = cfgmod.read_settings()
-check("GET /whatsapp/status sinh verify_token mà giữ nguyên mọi trường khác",
-      r.status_code == 200 and not con_nguyen(c) and bool(c["whatsapp"].get("verify_token")), con_nguyen(c))
+# Kênh WhatsApp đã được gỡ khỏi bản này (channels.whatsapp không còn), nên route không còn. Điều cần ghim vẫn đúng: MỞ một trang trạng thái kênh
+# không được ghi mảnh nào đè lên settings.json (con_nguyen() rỗng nghĩa là mọi trường seed vẫn còn).
+check("GET /whatsapp/status (kênh đã gỡ): route không còn và KHÔNG làm mất trường nào của settings",
+      r.status_code == 404 and not con_nguyen(c), (r.status_code, con_nguyen(c)))
 
 seed()
 r = client.post("/zalo-bot/allow", data={"chat_id": "zalo-99", "on": "1"})
