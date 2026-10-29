@@ -372,6 +372,26 @@ class TasksFeature:
             str(task.get("title") or ""), str(task.get("intent") or ""),
             str(task.get("route") or ""), cap)
 
+    # Rào hoàn thành (chủ chốt 29/10/2026, G2 #4): câu "đã xong" của model chỉ là ỨNG VIÊN. Với loại việc nằm trong danh sách này, việc chưa được
+    # nghiệm thu ĐỘC LẬP (không có điều kiện hoàn thành, hoặc người nghiệm thu không chạy được) thì KHÔNG tự sang `done` mà vào cột duyệt
+    # để người xác nhận. Việc đã qua nghiệm thu độc lập (how="ai") vẫn chạy như cũ. Chỉnh bằng settings.tasks.rao_hoan_thanh (danh sách
+    # capability; rỗng = tắt). Mặc định chỉ việc làm tác động ra ngoài (external-write): đúng loại việc mà một câu "xong" sai gây hậu quả thật.
+    RAO_HOAN_THANH_MAC_DINH = ("external-write",)
+
+    @classmethod
+    def _rao_hoan_thanh(cls, task: dict, how: str) -> bool:
+        """True nếu việc này phải qua cột duyệt vì chưa được nghiệm thu độc lập. `how` là kết quả của `_check_acceptance`."""
+        if str(how or "") not in ("unverified", "none"):
+            return False
+        try:
+            import config as cfgmod
+            loai = (cfgmod.read_settings().get("tasks") or {}).get("rao_hoan_thanh", None)
+        except Exception:      # noqa: BLE001 - đọc cấu hình hỏng thì dùng mặc định (an toàn hơn là tắt rào)
+            loai = None
+        if not isinstance(loai, (list, tuple)):
+            loai = cls.RAO_HOAN_THANH_MAC_DINH
+        return str(task.get("capability") or "") in {str(x) for x in loai}
+
     @staticmethod
     def _high_risk_gate(task: dict) -> bool:
         """risk=high → ép lên cột review (đường chặt của OpenAI cho thay đổi nhạy cảm).
@@ -900,7 +920,13 @@ class TasksFeature:
                 #          specifier/caller đã tự đánh dấu nhạy cảm.
                 auto_ok = bool(task.get("needs_approval")) and self._low_risk_auto(task)
                 hi_gate = self._high_risk_gate(task)
+                rao_ht = self._rao_hoan_thanh(task, how)      # chưa nghiệm thu độc lập mà là việc tác động ra ngoài
                 verify = None
+                if rao_ht:
+                    metadata = dict(metadata or {}, completion_gate="chua_nghiem_thu_doc_lap")
+                    result += (chr(10) * 2 + "**Rào hoàn thành** - việc tác động ra ngoài này chưa được nghiệm thu độc lập (không có điều kiện hoàn thành "
+                               "để kiểm, hoặc người nghiệm thu không chạy được). Câu 'đã xong' ở trên mới là lời báo của worker, nên việc "
+                               "nằm ở cột duyệt chờ anh xác nhận.")
                 if (task.get("needs_approval") or hi_gate) and not auto_ok:
                     if not result:
                         verify = {"pass": False, "reason": "Kết quả rỗng, cần duyệt thủ công",
@@ -937,7 +963,7 @@ class TasksFeature:
                     tid,
                     worker_id,
                     result,
-                    needs_approval=(bool(task.get("needs_approval")) or hi_gate) and not auto_ok,
+                    needs_approval=(bool(task.get("needs_approval")) or hi_gate or rao_ht) and not auto_ok,
                     metadata=metadata,
                     artifacts=self._artifacts(result, root),
                 )
