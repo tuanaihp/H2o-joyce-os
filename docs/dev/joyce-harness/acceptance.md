@@ -101,6 +101,7 @@ Completion, first-pass verification, rework, false completed (bằng 0 trong eva
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-29 | 1.3.44: rào hoàn thành (`test_g2_rao_hoan_thanh`), đo token thật (`test_g2_do_token`), sửa 28 test đỏ cũ (không còn mục đỏ nào đã biết ở máy sạch, xem evidence). Chưa chứng nhận: canary ở quy mô lớn, các đường ghi ngoài hub, Linux/macOS |
 | 2026-10-28 | 1.3.43 (gói B): thêm test `test_b01_*`, `test_b02_*`, `test_b03_chung_nhan_route`, `test_b_dau_cuoi`. Bằng chứng lượt chạy do host ghi; canary chỉ tính lượt đã chấm đạt; bản kê chứng nhận route nói thẳng chưa đường nào đạt |
 | 2026-10-28 | 1.3.42 (gói A): thêm bằng chứng test cho cổng tự áp (`test_a01`..`test_a07`), có test đầu cuối sandbox. Chưa chứng nhận canary (cần B02), chưa chứng nhận Linux/macOS (xem master plan mục 3.5) |
 | 2026-10-28 | 1.3.41 (gói G1 của kế hoạch phòng ban): so quyền theo cây YAML (B-12 mở rộng ra khoá lồng, tráo tool giữa bước, alias), bộ eval hỏng chặn thay vì bị hiểu là không có (B-10 mở rộng), canary từng đích có CAS và đòi bằng chứng; xem `Joyce-harness-phong-ban-ke-hoach.md` mục 3.3 |

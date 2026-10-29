@@ -2,6 +2,13 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.44] - 2026-10-29
+### Added
+- **A completion gate for jobs that act outside:** an outward job (send, post, pay) that has not been independently checked no longer jumps to "done"; it waits in the review column for you to confirm. Change or turn off with `tasks.rao_hoan_thanh`.
+- **Real token measurement per run,** shown on the Map; a run whose engine reports nothing is recorded as "not measured", never as 0. Set a cap with `tasks.tran_token_luot` (at most 1,000,000): over the cap the run stops.
+### Fixed
+- **28 old red tests fixed:** the pinned working folder in normal chats, the ">" in the folder picker, the "call" flag of reminders, and provider errors returned during OAuth connect are reconnected. The UI no longer uses emoji (icons instead). The Reconciliation pilot dossier is written and waits for your approval.
+
 ## [1.3.43] - 2026-10-28
 ### Added
 - **Joyce now records every real assistant run** (bot replies to customers, tasks given to an assistant, workflow steps) with the exact configuration used. A retry counts once; if the machine stops mid-run it is recorded as interrupted, never as a pass.

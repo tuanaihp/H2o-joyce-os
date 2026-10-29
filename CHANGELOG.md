@@ -2,6 +2,13 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.44] - 2026-10-29
+### Thêm
+- **Rào hoàn thành cho việc tác động ra ngoài:** việc làm ngoài (gửi, đăng, thanh toán) mà chưa được nghiệm thu độc lập thì không tự sang "xong", nằm ở cột duyệt chờ anh xác nhận. Chỉnh hoặc tắt bằng `tasks.rao_hoan_thanh`.
+- **Đo token thật theo từng lượt chạy,** hiện trên Sơ đồ; lượt engine không báo thì ghi "chưa đo", không tính 0. Đặt trần bằng `tasks.tran_token_luot` (tối đa 1.000.000): vượt trần thì lượt dừng.
+### Sửa
+- **Sửa 28 test đỏ cũ:** nối lại ghim thư mục làm việc ở chat thường, dấu ">" của ô chọn thư mục, cờ "gọi" của nhắc việc, lỗi trả về từ nhà cung cấp khi kết nối OAuth. Giao diện không còn emoji (dùng icon). Hồ sơ pilot Đối Soát viết xong, chờ anh duyệt.
+
 ## [1.3.43] - 2026-10-28
 ### Thêm
 - **Joyce ghi lại mọi lượt trợ lý chạy thật** (bot trả lời khách, việc giao cho trợ lý, bước workflow) kèm đúng bản cấu hình đã dùng. Retry chỉ tính một lần; máy tắt giữa chừng ghi là gián đoạn, không tính đạt.

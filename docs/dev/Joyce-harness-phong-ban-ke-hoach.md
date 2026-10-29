@@ -202,10 +202,18 @@ Thứ tự làm thực tế: A00, **A03 trước A01** (cổng của A01 cần b
 | 5. Sổ đăng ký triển khai | Đèn "Bản đang chạy theo trợ lý": lượt chạy mới nhất có khớp nội dung file hiện tại không, báo bản đã đổi mà chưa chạy lại | Mới là sổ đọc, KHÔNG phải khóa phiên bản: nâng trợ lý dùng chung vẫn đổi cho mọi phòng cùng lúc (JHA-12 chưa làm) |
 | 1. Compiler, 3. Sổ ngân sách, 4. Cổng hoàn thành | Chưa làm | Xem mục 3.6 bên dưới: cần anh quyết định hướng trước khi làm |
 
-### 3.6 Việc chờ anh quyết định (để sau, không chặn phần đã làm)
+### 3.6 Việc chờ anh quyết định (cập nhật 29/10/2026)
 
-1. **Cổng hoàn thành (G2 #4)**: bắt việc có tiêu chí nghiệm thu phải qua kiểm chứng trước khi sang `done`. Việc này đổi cách Joyce tự vận hành mà ngày 10/09/2026 anh đã chủ động bỏ rào (tiền, đơn hàng, đăng bài, nhắn tin giao tự động). Em không tự đặt lại rào đó; cần anh nói rõ muốn rào ở loại việc nào.
-2. **Sổ ngân sách token (G2 #3, JHA-11)**: phần '2 lượt tự cải tiến mỗi file mỗi tuần' ĐÃ ép trong code (`factory.TRAN_AP_TUAN`, cấu hình `max_ap_tuan`, test `test_g2_tran_tuan.py`). Trần token 500.000 và tối đa 1.000.000 mỗi lượt vẫn CHƯA ép, vì lượt cải tiến chạy qua nhiều đường (Kanban, CLI) mà nhiều đường không trả số token thật. Cần anh chọn: có đòi đo token thật không (phải sửa từng adapter).
+**Anh đã quyết ngày 29/10 và em đã làm (1.3.44):**
+- **Rào hoàn thành (G2 #4):** việc `external-write` chưa nghiệm thu độc lập thì vào cột duyệt; chỉnh bằng `tasks.rao_hoan_thanh`. Em chọn loại `external-write` vì anh chưa nêu loại cụ thể; anh muốn thêm loại nào thì thêm vào danh sách đó.
+- **Đo token thật (G2 #3, JHA-11):** token được đo theo từng lượt chạy, `tasks.tran_token_luot` đặt trần (tối đa 1.000.000, vượt thì dừng cả chuỗi). Trần mặc định **chưa bật** vì chưa phân biệt được lượt nào là lượt cải tiến; anh đặt giá trị thì có hiệu lực ngay. Giới hạn: chỉ đo được ở các đường có phát sự kiện `usage`; lượt nào engine không báo thì ghi "chưa đo".
+- **Gộp main và sửa 28 test đỏ:** `main` đã tua nhanh tới bản 1.3.43; 28 test đỏ cũ đã được sửa ở 1.3.44, mỗi cái nêu nguyên nhân ở `evidence/2026-10-28-g1/README.md`.
+
+**Còn chờ anh (danh sách cũ, đã bớt):**
+
+1. ~~Cổng hoàn thành~~ (đã quyết và làm, xem trên).
+2. ~~Sổ ngân sách token~~ (đã quyết đo thật và làm, xem trên); còn: có đặt trần mặc định không, và gán loại việc nào là "lượt cải tiến".
+2b. **Sổ ngân sách token (G2 #3, JHA-11)**: phần '2 lượt tự cải tiến mỗi file mỗi tuần' ĐÃ ép trong code (`factory.TRAN_AP_TUAN`, cấu hình `max_ap_tuan`, test `test_g2_tran_tuan.py`). Trần token 500.000 và tối đa 1.000.000 mỗi lượt vẫn CHƯA ép, vì lượt cải tiến chạy qua nhiều đường (Kanban, CLI) mà nhiều đường không trả số token thật. Cần anh chọn: có đòi đo token thật không (phải sửa từng adapter).
 3. **Chấm lượt chạy**: hiện chỉ có chủ chấm tay và `verify_agent` của workflow. Muốn canary chạy được ở quy mô lớn cần bộ chấm tự động hoặc nhóm ca bắt buộc theo từng phòng (G4). Anh chọn phòng thử đầu tiên.
 4. **Pilot Đối Soát (chỉ đọc)**: hồ sơ riêng, cần anh duyệt trước khi mở. Gate B đã chạy trong sandbox.
 5. **Giá trị `eval_bat_buoc` mặc định** cho brain phòng ban (hiện tắt; 43/44 phòng chưa có bộ ca thử).
