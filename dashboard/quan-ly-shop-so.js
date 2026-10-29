@@ -1,3 +1,5 @@
+// Icon Lucide thay cho ký hiệu emoji (test_icons). Trang này chạy trong iframe riêng nên quan-ly-shop.html nạp icons.js trước file này.
+const G = (n) => (window.ic ? window.ic(n) : '');
 /* Quản lý Shop: nối các module của trang mẫu vào SỔ THẬT của Joyce (API /shop/so/*, xem server/shop_so.py).
    Trang mẫu (quan-ly-shop.html) vẽ số cứng; file này thay các hàm vẽ module bằng bản đọc dữ liệu thật,
    hiện agent của từng phòng trên văn phòng ảo, và để trống (có chú thích) những module chưa nối.
@@ -116,8 +118,8 @@
         '<div class="so-empty"><b>Chưa có phiếu nào trong kỳ này</b>Bấm "+ Phiếu thu" hoặc nhắn cho Joyce: "thu 15 triệu hợp đồng Tuấn Thủy".</div>';
     }
     return moduleHead('▣', 'Thu chi & công nợ', 'Sổ quỹ thật: phòng Thu và phòng Chi ghi, chủ duyệt các khoản chi lớn của nhân viên.') +
-      kpis([['⊕', 'Tổng thu', vnd(tq.thu), 'đã ghi sổ'], ['⊙', 'Tổng chi', vnd(tq.chi), 'đã ghi sổ'], ['▣', 'Lãi gộp', vnd(tq.lai_gop), 'thu trừ chi'], ['♨', 'Công nợ khách', vnd(tq.cong_no), cho.length ? cho.length + ' khoản chi chờ duyệt' : '']]) +
-      '<div class="subnav">' + tab('quy', '▤ Sổ quỹ　' + ghi.length) + tab('duyet', '◉ Chờ duyệt　' + cho.length) + tab('no', '♨ Công nợ khách') + '</div>' +
+      kpis([['⊕', 'Tổng thu', vnd(tq.thu), 'đã ghi sổ'], ['⊙', 'Tổng chi', vnd(tq.chi), 'đã ghi sổ'], ['▣', 'Lãi gộp', vnd(tq.lai_gop), 'thu trừ chi'], [G('receipt'), 'Công nợ khách', vnd(tq.cong_no), cho.length ? cho.length + ' khoản chi chờ duyệt' : '']]) +
+      '<div class="subnav">' + tab('quy', '▤ Sổ quỹ　' + ghi.length) + tab('duyet', '◉ Chờ duyệt　' + cho.length) + tab('no', G('receipt') + ' Công nợ khách') + '</div>' +
       '<div class="panel"><div class="toolbar"><button class="primary" onclick="soPhieu(\'thu\')">＋ Phiếu thu</button><button class="danger" onclick="soPhieu(\'chi\')">− Phiếu chi</button><select class="field" style="margin-left:auto" onchange="soKy(this.value)">' + kyOptions(ui.ky) + '</select></div>' + body + '</div>';
   }
   window.soFin = k => { ui.fin = k; rerender(); };
@@ -166,8 +168,8 @@
       ds.map(h => '<tr><td><b>' + esc(h.ma) + '</b><small style="display:block;color:#707b74">' + esc(h.ngay) + '</small></td><td>' + esc(h.ten_khach) + '<small style="display:block;color:#707b74">' + esc(h.sdt) + '</small></td><td>' + esc(h.goi) + (h.lich && h.lich.buoc_tiep ? '<small style="display:block;color:#bc7518">Chờ ' + esc(h.lich.buoc_tiep) + ' · cần thu thêm ' + vnd(h.lich.can_thu) + '</small>' : '') + '</td><td>' + vnd(h.gia_tri) + '</td><td>' + vnd(h.thu) + '</td><td>' + vnd(h.chi) + '</td><td><b style="color:' + (h.lai_gop >= 0 ? '#15955a' : '#e33150') + '">' + vnd(h.lai_gop) + '</b></td><td><select class="field" onchange="soHdTs(' + h.id + ',this.value)">' +
         Object.keys(HD).map(k => '<option value="' + k + '"' + (k === h.trang_thai ? ' selected' : '') + '>' + HD[k] + '</option>').join('') + '</select></td><td><button class="so-mini" onclick="soPhanCong(' + h.id + ',\'' + esc(h.ma) + '\')">Phân công</button><button class="so-mini" onclick="soChiaViec(' + h.id + ')">Chia việc</button><button class="so-mini" onclick="soBaoCao(' + h.id + ')">Đối soát</button></td></tr>').join('') + '</tbody></table></div>' :
       '<div class="so-empty"><b>Chưa có hợp đồng nào</b>Nhắn cho Joyce: "thêm hợp đồng Tuấn Thủy 0899252392, gói chụp ảnh studio 15 triệu" hoặc bấm "+ Hợp đồng".</div>';
-    return moduleHead('🛒', 'Đơn bán hàng', 'Mỗi hợp đồng là một đơn: báo giá, ký, thu tiền, chi phí và lãi gộp. Khách lấy từ CRM, Sales ghi.') +
-      kpis([['◉', 'Đã ký', String(tq.hop_dong.da_ky + tq.hop_dong.hoan_thanh), tq.hop_dong.hoan_thanh + ' hoàn thành'], ['▤', 'Đang báo giá', String(tq.hop_dong.bao_gia), 'tiềm năng ' + vnd(tq.pipeline)], ['⊕', 'Đã thu', vnd(tq.thu)], ['♨', 'Khách còn nợ', vnd(tq.cong_no)]]) +
+    return moduleHead(G('shopping-cart'), 'Đơn bán hàng', 'Mỗi hợp đồng là một đơn: báo giá, ký, thu tiền, chi phí và lãi gộp. Khách lấy từ CRM, Sales ghi.') +
+      kpis([['◉', 'Đã ký', String(tq.hop_dong.da_ky + tq.hop_dong.hoan_thanh), tq.hop_dong.hoan_thanh + ' hoàn thành'], ['▤', 'Đang báo giá', String(tq.hop_dong.bao_gia), 'tiềm năng ' + vnd(tq.pipeline)], ['⊕', 'Đã thu', vnd(tq.thu)], [G('receipt'), 'Khách còn nợ', vnd(tq.cong_no)]]) +
       '<div class="panel"><div class="toolbar"><button class="primary" onclick="soHopDong()">＋ Hợp đồng</button></div>' + rows + '</div>';
   }
   window.soHopDong = () => modal('Hợp đồng mới',
@@ -204,7 +206,7 @@
     window.__soBg = bg.items;
     return moduleHead('▤', 'Báo giá & hóa đơn', 'Lập báo giá, đổi trạng thái, in hoặc lưu PDF. Khách chấp nhận thì hợp đồng tự chuyển Đã ký.') +
       kpis([['▤', 'Báo giá', String(bg.items.length)], ['◴', 'Đang chờ khách', String(bg.items.filter(b => b.trang_thai === 'nhap' || b.trang_thai === 'da_gui').length)],
-        ['✓', 'Đã chấp nhận', String(bg.items.filter(b => b.trang_thai === 'chap_nhan').length)], ['◉', 'Tổng giá trị chờ', vnd(bg.items.filter(b => b.trang_thai === 'nhap' || b.trang_thai === 'da_gui').reduce((s, b) => s + b.tong, 0))]]) +
+        [G('circle-check'), 'Đã chấp nhận', String(bg.items.filter(b => b.trang_thai === 'chap_nhan').length)], ['◉', 'Tổng giá trị chờ', vnd(bg.items.filter(b => b.trang_thai === 'nhap' || b.trang_thai === 'da_gui').reduce((s, b) => s + b.tong, 0))]]) +
       '<div class="panel"><div class="toolbar"><button class="primary" onclick="soBgSua(0)">＋ Báo giá</button></div>' + rows + '</div>';
   }
   window.soBgTs = async (id, ts) => { try { await post('/shop/so/bao-gia/trang-thai', { id, trang_thai: ts }); toast('Báo giá: ' + BG[ts]); rerender(); } catch (e) { loi(e); } };
@@ -258,9 +260,9 @@
       window.__soNs = ns.items;
     }
     const coMau = ns.items.some(n => n.mau);
-    return moduleHead('♟', 'Nhân sự & lương', 'Hồ sơ nhân sự, phân công theo hợp đồng và bảng lương có hoa hồng tính tự động từ sổ.') +
-      kpis([['♙', 'Nhân sự đang làm', String(ns.items.filter(n => !n.nghi).length)], ['▣', 'Lương cơ bản', vnd(lg.dong.reduce((s, d) => s + d.luong_cb, 0))], ['⊕', 'Hoa hồng kỳ này', vnd(lg.tong_hoa_hong)], ['◉', 'Tổng lương kỳ ' + lg.ky, vnd(lg.tong_luong)]]) +
-      '<div class="subnav">' + tab('ns', '♙ Nhân sự') + tab('luong', '▤ Bảng lương') + tab('cfg', '⚙ Tỉ lệ & hạn mức') + '</div>' +
+    return moduleHead(G('users'), 'Nhân sự & lương', 'Hồ sơ nhân sự, phân công theo hợp đồng và bảng lương có hoa hồng tính tự động từ sổ.') +
+      kpis([[G('user'), 'Nhân sự đang làm', String(ns.items.filter(n => !n.nghi).length)], ['▣', 'Lương cơ bản', vnd(lg.dong.reduce((s, d) => s + d.luong_cb, 0))], ['⊕', 'Hoa hồng kỳ này', vnd(lg.tong_hoa_hong)], ['◉', 'Tổng lương kỳ ' + lg.ky, vnd(lg.tong_luong)]]) +
+      '<div class="subnav">' + tab('ns', G('user') + ' Nhân sự') + tab('luong', '▤ Bảng lương') + tab('cfg', G('settings') + ' Tỉ lệ & hạn mức') + '</div>' +
       '<div class="panel">' + (ui.hr === 'ns' ? '<div class="toolbar"><button class="primary" onclick="soNs(0)">＋ Nhân sự</button>' + (coMau ? '<button class="outline" onclick="soMauXoa()">Xóa nhân sự mẫu</button>' : '<button class="outline" onclick="soMau()">Nạp nhân sự mẫu để thử tính lương</button>') + '</div>' : '') + body + '</div>';
   }
   window.soHr = k => { ui.hr = k; rerender(); };
@@ -325,8 +327,8 @@
     }
     const mo = gv.items.filter(g => g.trang_thai !== 'done').length;
     return moduleHead('％', 'Bảng giá & hoa hồng', 'Bảng giá dịch vụ có lịch cọc, bảng đầu việc kèm hoa hồng cố định mỗi việc, chia việc theo hợp đồng. Hoa hồng tự vào bảng lương.') +
-      kpis([['▤', 'Gói dịch vụ', String(dvr.items.length), dvr.items.filter(d => d.don_gia > 0).length + ' gói đã có giá'], ['☰', 'Đầu việc trong bảng', String(cv.items.length), cv.items.filter(c => c.hoa_hong > 0).length + ' việc có hoa hồng'], ['☑', 'Việc đã chia', String(gv.items.length), mo + ' chưa xong'], ['⊕', 'Hoa hồng kỳ ' + lg.ky, vnd(lg.tong_hoa_hong), lg.dong.filter(d => d.hoa_hong > 0).length + ' người được tính']]) +
-      '<div class="subnav">' + tab('gia', '▤ Bảng giá dịch vụ') + tab('bang', '☰ Bảng việc & hoa hồng') + tab('chia', '☑ Việc đã chia') + tab('tong', '％ Hoa hồng từng người') + '</div><div class="panel">' + body + '</div>';
+      kpis([['▤', 'Gói dịch vụ', String(dvr.items.length), dvr.items.filter(d => d.don_gia > 0).length + ' gói đã có giá'], [G('list'), 'Đầu việc trong bảng', String(cv.items.length), cv.items.filter(c => c.hoa_hong > 0).length + ' việc có hoa hồng'], [G('square-check'), 'Việc đã chia', String(gv.items.length), mo + ' chưa xong'], ['⊕', 'Hoa hồng kỳ ' + lg.ky, vnd(lg.tong_hoa_hong), lg.dong.filter(d => d.hoa_hong > 0).length + ' người được tính']]) +
+      '<div class="subnav">' + tab('gia', '▤ Bảng giá dịch vụ') + tab('bang', G('list') + ' Bảng việc & hoa hồng') + tab('chia', G('square-check') + ' Việc đã chia') + tab('tong', '％ Hoa hồng từng người') + '</div><div class="panel">' + body + '</div>';
   }
   window.soDvLoc = v => { ui.dvLoai = v; rerender(); };
   window.soDvNap = async () => { try { const r = await post('/shop/so/dich-vu/nap-h2o', {}); toast(r.da_nap ? 'Đã bổ sung ' + r.da_nap + ' gói' : 'Bảng giá đã đủ, không thiếu gói nào'); rerender(); } catch (e) { loi(e); } };
@@ -404,8 +406,8 @@
         return '<tr' + (d.ap_dung ? '' : ' style="opacity:.55"') + '><td><b>' + esc(d.ten_do) + '</b>' + (d.la_mau ? '<span class="so-pill">mẫu</span>' : '') + '<small style="display:block;color:#707b74">' + esc(d.ma_dv) + (d.pb ? ' · ' + esc(d.pb) : '') + '</small></td><td>' + esc(d.nhom) + '<small style="display:block;color:#707b74">giặt ' + d.ngay_giat_hl + ' ngày</small></td><td>' + esc(d.co) + '</td><td>' + (d.don_gia ? vnd(d.don_gia) : '<span style="color:#bc7518">Chưa có giá</span>') + '</td><td><span class="so-st so-st-' + st[1] + '">' + st[0] + (d.san_lai ? ' đến ' + dmy(d.san_lai) : '') + '</span>' + lich + '</td><td>' + d.so_lan_thue + '</td><td style="max-width:220px">' + esc(d.mo_ta) + '</td><td><button class="so-mini" onclick="soThue(\'' + esc(d.ma_do) + '\')">Cho thuê</button><button class="so-mini" onclick="soDo(' + d.id + ')">Sửa</button><button class="so-mini" onclick="soDoXoa(' + d.id + ')">×</button></td></tr>';
       }).join('') + '</tbody></table></div>' :
       '<div class="so-empty"><b>Chưa có món đồ nào</b>Bấm "+ Đồ" để thêm, hoặc "Nạp đồ mẫu" để thử luồng thuê và trả. Anh có thể tự nhập dữ liệu thật vào bất cứ lúc nào.</div>';
-    return moduleHead('♛', 'Danh mục đồ', 'Váy, vest, áo dài cho thuê. Tình trạng tự tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê hay quá hạn chưa trả.') +
-      kpis([['▤', 'Tổng số đồ', String(ds.length), ds.filter(d => d.ap_dung).length + ' đang cho thuê'], ['✓', 'Sẵn sàng', String(dem('san_sang'))], ['◷', 'Đang thuê', String(dem('dang_thue') + dem('qua_han')), dem('qua_han') + ' quá hạn'], ['▭', 'Giữ chỗ', String(dem('giu_cho'))]]) +
+    return moduleHead(G('shirt'), 'Danh mục đồ', 'Váy, vest, áo dài cho thuê. Tình trạng tự tính từ lịch sử thuê: sẵn sàng, giữ chỗ, đang thuê hay quá hạn chưa trả.') +
+      kpis([['▤', 'Tổng số đồ', String(ds.length), ds.filter(d => d.ap_dung).length + ' đang cho thuê'], [G('circle-check'), 'Sẵn sàng', String(dem('san_sang'))], ['◷', 'Đang thuê', String(dem('dang_thue') + dem('qua_han')), dem('qua_han') + ' quá hạn'], ['▭', 'Giữ chỗ', String(dem('giu_cho'))]]) +
       '<div class="panel"><div class="toolbar"><button class="primary" onclick="soDo(0)">＋ Đồ</button><button class="outline" onclick="soThue(\'\')">Cho thuê</button>' +
       (coMau ? '<button class="outline" onclick="soDoMauXoa()">Xóa dữ liệu mẫu</button>' : '<button class="outline" onclick="soDoMau()">Nạp đồ mẫu để thử</button>') +
       '<select class="field" onchange="soDoLoc(this.value)" style="margin-left:auto"><option value="">Tất cả nhóm</option>' + nhoms.map(n => '<option value="' + esc(n) + '"' + (n === ui.doNhom ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div>' + rows + '</div>';
@@ -485,8 +487,8 @@
       (v.han ? '<div style="margin-top:4px;color:' + (v.han < homnay && k !== 'done' ? '#e33150' : '#707b74') + '">Hạn ' + esc(v.han) + '</div>' : '') +
       '<div>' + Object.keys(VIEC).filter(x => x !== k).map(x => '<button class="so-mini" onclick="soViec(' + v.id + ',\'' + x + '\')">→ ' + VIEC[x] + '</button>').join('') + '<button class="so-mini" onclick="soViecXoa(' + v.id + ')">×</button></div></div>').join('') + '</div>';
     const qua = vs.filter(v => v.trang_thai !== 'done' && v.han && v.han < homnay).length;
-    return moduleHead('☑', 'Công việc & dự án', 'Bảng việc theo hợp đồng và dự án. Joyce tạo việc khi anh nhắn "nhắc gọi khách Tuấn Thủy hôm thứ sáu".') +
-      kpis([['▭', 'Đang mở', String(vs.filter(v => v.trang_thai !== 'done').length)], ['◷', 'Đang làm', String(vs.filter(v => v.trang_thai === 'doing').length)], ['♨', 'Quá hạn', String(qua)], ['✓', 'Đã xong', String(vs.filter(v => v.trang_thai === 'done').length)]]) +
+    return moduleHead(G('square-check'), 'Công việc & dự án', 'Bảng việc theo hợp đồng và dự án. Joyce tạo việc khi anh nhắn "nhắc gọi khách Tuấn Thủy hôm thứ sáu".') +
+      kpis([['▭', 'Đang mở', String(vs.filter(v => v.trang_thai !== 'done').length)], ['◷', 'Đang làm', String(vs.filter(v => v.trang_thai === 'doing').length)], [G('receipt'), 'Quá hạn', String(qua)], [G('circle-check'), 'Đã xong', String(vs.filter(v => v.trang_thai === 'done').length)]]) +
       '<div class="panel"><div class="toolbar"><button class="primary" onclick="soViecMoi()">＋ Việc mới</button></div>' + (vs.length ? '<div class="so-cols">' + Object.keys(VIEC).map(cot).join('') + '</div>' : '<div class="so-empty"><b>Chưa có việc nào</b>Bấm "+ Việc mới" hoặc nhắn cho Joyce.</div>') + '</div>';
   }
   window.soViec = async (id, ts) => { try { await post('/shop/so/viec/buoc', { id, trang_thai: ts }); rerender(); } catch (e) { loi(e); } };
@@ -504,9 +506,9 @@
     const hd = tq.hop_dong;
     return moduleHead('◴', 'Tổng quan bán hàng', 'Doanh thu, lãi gộp, hợp đồng và công nợ, tính từ sổ thu chi và hợp đồng thật.') +
       '<div class="panel" style="margin-bottom:16px"><b style="font-size:12px">Cần xử lý</b>　' + (tq.cho_duyet ? '<span class="badge warn">◉ ' + tq.cho_duyet + ' khoản chi chờ duyệt (' + vnd(tq.cho_duyet_tien) + ')</span> ' : '') +
-      (tq.viec_qua_han ? '<span class="badge red">⏰ ' + tq.viec_qua_han + ' việc quá hạn</span> ' : '') + (hd.bao_gia ? '<span class="badge purple">▤ ' + hd.bao_gia + ' báo giá đang chờ khách</span>' : '') +
+      (tq.viec_qua_han ? '<span class="badge red">' + G('alarm-clock') + ' ' + tq.viec_qua_han + ' việc quá hạn</span> ' : '') + (hd.bao_gia ? '<span class="badge purple">▤ ' + hd.bao_gia + ' báo giá đang chờ khách</span>' : '') +
       (!tq.cho_duyet && !tq.viec_qua_han && !hd.bao_gia ? '<span class="so-note">Không có gì tồn đọng.</span>' : '') + '</div>' +
-      kpis([['◉', 'Doanh thu kỳ ' + tq.ky, vnd(tq.thu)], ['↗', 'Lãi gộp', vnd(tq.lai_gop), 'thu ' + vnd(tq.thu) + ' trừ chi ' + vnd(tq.chi)], ['▤', 'Hợp đồng đã ký', String(hd.da_ky + hd.hoan_thanh), hd.hoan_thanh + ' hoàn thành'], ['♧', 'Khách còn nợ', vnd(tq.cong_no)]]) +
+      kpis([['◉', 'Doanh thu kỳ ' + tq.ky, vnd(tq.thu)], ['↗', 'Lãi gộp', vnd(tq.lai_gop), 'thu ' + vnd(tq.thu) + ' trừ chi ' + vnd(tq.chi)], ['▤', 'Hợp đồng đã ký', String(hd.da_ky + hd.hoan_thanh), hd.hoan_thanh + ' hoàn thành'], [G('tag'), 'Khách còn nợ', vnd(tq.cong_no)]]) +
       '<div class="grid-2"><div class="panel"><h3>Phễu hợp đồng</h3>' + Object.keys(HD).map(k => '<div style="font-size:12px;margin:10px 0">' + HD[k] + '<span style="float:right">' + hd[k] + '</span></div>').join('') + '<div class="so-note">Tiềm năng đang báo giá: ' + vnd(tq.pipeline) + '</div></div>' +
       '<div class="panel"><h3>Chi theo hạng mục</h3>' + (top.length ? top.map(([k, v]) => '<div style="font-size:11px;margin:10px 0">' + esc(k) + '<span style="float:right">' + vnd(v) + '</span><div class="bar"><span style="width:' + Math.round(v / max * 100) + '%"></span></div></div>').join('') : '<div class="so-empty">Chưa có khoản chi nào.</div>') + '</div></div>';
   }
@@ -514,7 +516,7 @@
   /* ---------------- Trợ lý điều hành: nhật ký agent ---------------- */
   async function mAssistant() {
     const hd = (await get('/shop/so/hoat-dong?phut=1440')).items;
-    return moduleHead('★', 'Trợ lý điều hành', 'Nhật ký agent từng phòng trong 24 giờ qua: ai làm gì, bằng skill nào.') +
+    return moduleHead(G('star'), 'Trợ lý điều hành', 'Nhật ký agent từng phòng trong 24 giờ qua: ai làm gì, bằng skill nào.') +
       '<div class="panel"><div class="so-note">Nhắn cho Joyce trong chat, ví dụ: "thêm hợp đồng Tuấn Thủy 0899252392 gói chụp ảnh studio 15 triệu, thu 15tr, chi 4tr setup". Joyce tách thành các việc rồi giao đúng phòng: Sales ghi khách và hợp đồng, Phòng Thu ghi thu, Phòng Chi ghi chi, Đối Soát báo cáo, Nhân Sự tính hoa hồng.</div>' + feedHtml(hd) + '</div>';
   }
 
