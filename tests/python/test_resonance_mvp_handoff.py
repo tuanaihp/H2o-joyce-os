@@ -105,6 +105,7 @@ namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=pro
                  luot_dang_chay=luot_dang_chay, WEB_CHAT_PREFIX="web:", _brain_root=lambda b: b,
                  _do_turn=fake_do_turn, _resonance_after_turn=lambda *a: None,
                  # A1: phân giải agent của phiên có test riêng (test_resonance_a1_turn_agent); ở đây phiên là của AG.
+                 _so_mo_luot_chat=lambda *a, **k: ("", None), _so_chot_luot_chat=lambda *a, **k: None,   # sổ lượt chạy (G2): test này không đo sổ
                  _resonance_turn_agent=lambda *a: {"key": AG["agent_key"], "slug": RA.SLUG,
                                                    "config_version": AG["config_version"]},
                  # Kết cục engine gửi kèm turn_done (pilot lần 4): test riêng ở test_turn_engine_status.

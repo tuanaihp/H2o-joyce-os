@@ -23938,10 +23938,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     rid, tok = run_ledger.ghi_an_toan(_lam) or ("", None)
     st = "completed"
     try:
-        out = await _tg_answer_goc(text, meta=meta, progress=progress, channel=channel, bot=bot, phien_kho=phien_kho, ghi_kho=ghi_kho)
-        if isinstance(out, str):          # vỏ trả CHUỖI khi là thông báo lỗi (xem _tg_answer_engine)
+        kq = await _tg_answer_goc(text, meta=meta, progress=progress, channel=channel, bot=bot, phien_kho=phien_kho, ghi_kho=ghi_kho)
+        if isinstance(kq, str):          # vỏ trả CHUỖI khi là thông báo lỗi (xem _tg_answer_engine)
             st = "failed"
-        return out
+        return kq
     except asyncio.CancelledError:
         st = "canceled"
         raise
