@@ -10,6 +10,9 @@ import tempfile
 
 STATE = tempfile.mkdtemp(prefix="joyce-pin-")
 os.environ["JOYCE_STATE_DIR"] = STATE
+# Đường dẫn tương đối của chức năng ghim tính theo TRẦN duyệt file. Không đặt thì trần phụ thuộc máy (localhost = cả ổ đĩa, public = brain),
+# nên test cố định trần là gốc brain để kết quả giống nhau ở mọi máy và ở CI.
+os.environ["JOYCE_FILES_ROOT"] = "brain"
 from fastapi.testclient import TestClient  # noqa: E402
 import coding_store  # noqa: E402
 import main  # noqa: E402

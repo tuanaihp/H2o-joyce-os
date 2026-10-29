@@ -6623,7 +6623,7 @@ def _cwd_luot_chat(row, brain: str) -> str:
     return _brain_root(brain)
 
 
-def _khoi_coding(row) -> str:
+def _khoi_coding(row, brain_root="") -> str:
     """Khối prompt của phiên Coding (thư mục làm việc, nhánh, và mức quyền nghĩa là gì).
 
     Trả "" cho mọi phiên khác, nên nối vào prompt là vô hại ở đường chat thường. Đặt `cwd`
@@ -6634,6 +6634,9 @@ def _khoi_coding(row) -> str:
         sid = (row or {}).get("id") or ""
         if sid and str((row or {}).get("channel") or "").startswith("coding:"):
             return coding_store.khoi_prompt(sid)
+        # Chat thường có ghim thư mục làm việc (0.158.0): báo cho model biết thư mục đó, KHÔNG nói gì về mức quyền (chat thường vẫn chạy `full`).
+        if sid and brain_root:
+            return coding_store.pinned_folder_prompt(sid, brain_root)
     except Exception:
         pass
     return ""
@@ -8405,7 +8408,7 @@ def _fold_accents(s: str) -> str:
     return s.replace("đ", "d").replace("Đ", "D").lower()
 
 
-async def files_index(brain: str, q: str, limit: int, mode: str, include_dirs: bool):
+async def files_index(brain: str, q: str, limit: int, mode: str, include_dirs: bool, only_dirs: bool = False):
     """Tìm note trong GỐC BRAIN (KHÔNG phải trần duyệt - tránh quét cả ổ đĩa trên localhost).
     `mode=name` khớp TÊN file (mọi loại, không phân biệt dấu tiếng Việt), `mode=content` tìm
     trong NỘI DUNG file text, còn `mode=all` giữ hành vi cũ là tìm cả hai; bỏ file >1MB
@@ -8418,6 +8421,9 @@ async def files_index(brain: str, q: str, limit: int, mode: str, include_dirs: b
     mode = (mode or "all").strip().lower()
     if mode not in ("name", "content", "all"):
         mode = "all"
+    if only_dirs:
+        # Chỉ THƯ MỤC (ô chọn thư mục làm việc, 0.159.0): file khớp tên không được chiếm hết `limit` rồi đẩy thư mục ra ngoài danh sách.
+        include_dirs, mode = True, "name"
     root = _files_root(brain)                        # trần (để tính path trả về, khớp /files/list)
     broot = Path(_brain_root(brain)).resolve()       # phạm vi quét = gốc brain
     ql = q.lower()
@@ -8444,7 +8450,7 @@ async def files_index(brain: str, q: str, limit: int, mode: str, include_dirs: b
                         continue
                     out.append({"path": rel, "name": dn, "type": "dir", "ext": "",
                                 "snippet": "", "line": 0, "match": "name"})
-            for fn in sorted(filenames):
+            for fn in ([] if only_dirs else sorted(filenames)):
                 if len(out) >= limit:
                     return out
                 p = Path(dirpath) / fn
@@ -8488,9 +8494,9 @@ _MD_HONG_MAX_HIT = 500               # đủ để một brain rất to vẫn li
 
 @app.get("/files/search")
 async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: int = Query(50),
-                       mode: str = Query("all"), include_dirs: bool = False):
+                       mode: str = Query("all"), include_dirs: bool = False, only_dirs: bool = False):
     """Route /files/search: chỉ là vỏ HTTP, logic ở files_index (gọi được từ code nội bộ)."""
-    return await files_index(brain, q, limit, mode, include_dirs)
+    return await files_index(brain, q, limit, mode, include_dirs, only_dirs)
 
 
 def _quet_md_hong(brain: str, chi_path: set = None):
@@ -17975,7 +17981,7 @@ async def websocket_endpoint(ws: WebSocket):
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                             port=_joyce_port(), brain_root=_brain_root(brain),
-                        ) + _khoi_coding(_row0)
+                        ) + _khoi_coding(_row0, _brain_root(brain))
                 return sysprompt
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind):
@@ -18004,7 +18010,7 @@ async def websocket_endpoint(ws: WebSocket):
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_joyce_port(), brain_root=_brain_root(brain),
-                    ) + _khoi_coding(_row0)
+                    ) + _khoi_coding(_row0, _brain_root(brain))
 
                 try:
                     plan = await asyncio.to_thread(
@@ -26474,7 +26480,12 @@ conversations_routes.register(app, conversations_routes.ConversationsDeps(
 # `coding_store` đứng một mình, không cần gì từ main. Chiều phụ thuộc ngược lại thì có:
 # đường chat gọi `coding_store.cwd_cua_phien` để biết engine phải chạy ở thư mục nào.
 import routes.coding as coding_routes   # noqa: E402
-coding_routes.register(app, coding_routes.CodingDeps(brain_keys=_brain_keys))
+coding_routes.register(app, coding_routes.CodingDeps(
+    brain_keys=_brain_keys,
+    # Ghim thư mục làm việc cho chat thường (0.158.0): đường dẫn tương đối tính theo TRẦN duyệt file, vượt trần thì ValueError; và gốc brain
+    # để báo thư mục nằm trong brain. Thiếu hai cái này thì ghim bằng đường dẫn tương đối báo "Không đọc được đường dẫn".
+    resolve_path=lambda brain, rel: str(_safe_path(brain, rel)),
+    brain_root=_brain_root))
 
 
 @app.post("/telegram/test")
