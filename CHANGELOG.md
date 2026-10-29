@@ -7,6 +7,8 @@
 - **Tab Skill Learn Update thiết kế lại:** dán link repo là Joyce tự tải, tìm cả **skill lẫn plugin**, nhờ AI đọc rồi phân loại **Nên lấy / Cân nhắc / Không nên lấy**, kèm ghi chú tiếng Việt: nó làm gì, Joyce được thêm gì, vì sao, có trùng cái đang có không.
 - **Duyệt từng mục hoặc tích chọn nhiều mục để duyệt một lần.** Mỗi thẻ có bản gốc để đối chiếu. Chưa duyệt thì không có gì được cài; mục quét tĩnh thấy rủi ro cao không bao giờ được gắn nhãn "Nên lấy".
 - Plugin cài từ repo luôn ở trạng thái **tắt** cho tới khi anh tự bật ở trang Công cụ. Lịch quét hằng ngày cũng nhờ AI đọc các mục mới (tối đa 30 mục mỗi lần).
+- **Chọn được bộ não cho bước đọc repo ngay trong tab** (Claude, ChatGPT, Gemini, Z.ai...), cùng nguồn với trang Phân việc não. Chưa chọn thì dùng Z.ai miễn phí như trước.
+- **Sửa lỗi quét ra 0 mục:** nếu lần tải repo bị ngắt dở (ví dụ server khởi động lại), Joyce nay tự xóa bản hỏng và tải lại thay vì nhận nhầm.
 
 ## [1.3.46] - 2026-10-29
 ### Thêm

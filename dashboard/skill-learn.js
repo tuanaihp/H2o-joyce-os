@@ -1,7 +1,7 @@
 /* Skill Learn Update: repo -> quet tinh -> AI doc, phan loai, dich -> chu duyet -> cai. Khong co gi tu cai. */
 (function () {
   "use strict";
-  var state = null, tab = null, typeF = "all", catF = "all", query = "", panel = null, busy = false, timer = null, wasRunning = false;
+  var state = null, eng = { provs: [], custom: false, spec: {} }, tab = null, typeF = "all", catF = "all", query = "", panel = null, busy = false, timer = null, wasRunning = false;
   var sel = {};
   var CATS = ["ban-hang", "marketing", "noi-dung", "du-lieu", "ke-toan", "tu-dong-hoa", "giao-tiep", "nghien-cuu", "lap-trinh", "cuoc-song", "khac"];
   var TABS = ["take", "later", "raw", "skip", "done"];
@@ -142,7 +142,7 @@
       '<section class="sl-box sl-addbox"><div class="sl-head"><h4>' + esc(t("sl.add_title")) + '</h4><button data-act="sync-all">' + icon("rotate-cw") + esc(t("sl.scan_all")) + '</button></div>' +
       '<div class="sl-sub">' + esc(t("sl.add_sub")) + '</div><div class="sl-add"><input id="slLocation" placeholder="' + esc(t("sl.add_ph")) + '"><button class="primary" data-act="add">' +
       icon("plus") + esc(t("sl.add_btn")) + '</button></div><div class="sl-msg" id="slMsg"></div>' +
-      ((state.sources || []).length ? '<div class="sl-sources">' + state.sources.map(sourceHtml).join("") + '</div>' : '') + '</section>' + jobHtml() +
+      ((state.sources || []).length ? '<div class="sl-sources">' + state.sources.map(sourceHtml).join("") + '</div>' : '') + '</section>' + brainCard() + jobHtml() +
       '<section class="sl-box"><div class="sl-head"><h4>' + esc(t("sl.board")) + '</h4><div class="sl-tools-row">' +
       '<select data-chg="type"><option value="all">' + esc(t("sl.f.all_types")) + '</option><option value="skill"' + (typeF === "skill" ? " selected" : "") + '>' + esc(t("sl.type.skill")) +
       '</option><option value="plugin"' + (typeF === "plugin" ? " selected" : "") + '>' + esc(t("sl.type.plugin")) + '</option></select>' +
@@ -159,8 +159,6 @@
       '<div class="sl-grid2"><section class="sl-box"><h4>' + esc(t("sl.sched_title")) + '</h4><div class="sl-sub">' + esc(t("sl.sched_sub")) + '</div><div class="sl-schedule"><label class="sl-switch"><input data-chg="sched" type="checkbox"' +
       (sch.enabled ? " checked" : "") + '><span></span></label><input class="sl-time" data-chg="time" type="time" value="' + esc(sch.time || "07:30") + '">' +
       chip(sch.enabled ? t("sl.sched_next", { when: fmt(sch.next_run) }) : t("sl.sched_off")) + '</div></section>' +
-      '<section class="sl-box"><h4>' + esc(t("sl.route_title")) + '</h4><div class="sl-sub">' + esc(t("sl.route_sub")) + '</div><div class="sl-route"><div><span>' + esc(t("sl.route_scan")) +
-      '</span><strong>' + esc(t("sl.route_scan_v")) + '</strong></div><div><span>' + esc(t("sl.route_ai")) + '</span><strong>' + esc((state.routing || {}).classification || "glm-4.7-flash") + '</strong></div></div></section></div>' +
       '<section class="sl-box"><h4>' + esc(t("sl.history")) + '</h4>' + ((state.runs || []).slice(0, 5).map(function (r) {
         return '<div class="sl-run"><strong>' + esc(fmt(r.at)) + '</strong> · ' + esc(t(r.reason === "daily" ? "sl.run.daily" : "sl.run.manual")) + ' · ' +
           esc(t("sl.run.found", { found: r.found || 0, pending: r.pending || 0 })) + ((r.errors || []).length ? ' · ' + esc(t("sl.run.errors", { n: r.errors.length })) : '') + '</div>'; }).join("") ||
@@ -186,7 +184,16 @@
       try { state = await api("/skill-learn"); render(); } catch (e) { poll(); }
     }, 2500);
   }
-  async function reload() { state = await api("/skill-learn"); render(); }
+  // Bo nao dang chon cho Skill Learn: cung nguon voi trang Phan viec nao (/task-engines, /providers).
+  async function loadEngine() {
+    try {
+      var r = await Promise.all([fetch("/task-engines", { cache: "no-store" }).then(function (x) { return x.json(); }),
+        fetch("/providers", { cache: "no-store" }).then(function (x) { return x.json(); })]);
+      var task = ((r[0] || {}).tasks || []).filter(function (x) { return x.id === "skill-learn"; })[0] || {};
+      eng = { provs: (r[1] || {}).providers || [], custom: !!task.custom, spec: task.spec || {} };
+    } catch (e) { /* khung chon bo nao se tu an, phan con lai van chay */ }
+  }
+  async function reload() { await loadEngine(); state = await api("/skill-learn"); render(); }
 
   async function guarded(fn, onErr) {
     setBusy(true);
@@ -256,11 +263,37 @@
     else if (a === "bulk-reject") review(Object.keys(sel).filter(function (k) { return sel[k]; }), "reject");
     else if (a === "pick-clear") { sel = {}; render(); }
   }
+  function brainCard() {
+    var provs = eng.provs || [], cur = eng.custom ? (eng.spec.provider || "") : "";
+    var def = ((state.routing || {}).classification || "glm-4.7-flash");
+    var opts = '<option value="">' + esc(t("sl.brain_default", { model: def })) + '</option>' + provs.map(function (p) {
+      return '<option value="' + esc(p.id) + '"' + (cur === p.id ? " selected" : "") + '>' + esc(p.label) + (p.configured ? "" : " · " + esc(t("sl.brain_not_conn"))) + '</option>'; }).join("");
+    var pdef = provs.filter(function (p) { return p.id === cur; })[0] || {};
+    var list = (pdef.models || []).map(function (m) { return '<option value="' + esc(m) + '">'; }).join("");
+    return '<section class="sl-box"><h4>' + esc(t("sl.brain_title")) + '</h4><div class="sl-sub">' + esc(t("sl.brain_sub")) + '</div>' +
+      '<div class="sl-brain"><select data-chg="brain-prov">' + opts + '</select>' +
+      '<input data-chg="brain-model" list="slBrainModels" value="' + esc(cur ? (eng.spec.model || "") : "") + '" placeholder="' + esc(t("sl.brain_model_ph")) + '"' + (cur ? "" : " disabled") + '>' +
+      '<datalist id="slBrainModels">' + list + '</datalist></div>' +
+      '<div class="sl-route"><div><span>' + esc(t("sl.route_scan")) + '</span><strong>' + esc(t("sl.route_scan_v")) + '</strong></div><div><span>' + esc(t("sl.route_ai")) + '</span><strong>' +
+      esc(cur ? ((pdef.label || cur) + (eng.spec.model ? " · " + eng.spec.model : "")) : def) + '</strong></div></div></section>';
+  }
+  function saveBrain() {
+    var prov = panel.querySelector('[data-chg="brain-prov"]').value, mi = panel.querySelector('[data-chg="brain-model"]');
+    return guarded(async function () {
+      var res = await fetch("/task-engines", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: "skill-learn", provider: prov, model: prov ? (mi.value || "").trim() : "" }) });
+      if (!res.ok) throw new Error(t("sl.err_connect"));
+      await loadEngine(); render(); showMsg(t("sl.brain_saved"));
+    }, function (m) { window.alert(m); });
+  }
+
   function onChange(e) {
     var el = e.target.closest("[data-chg]");
     if (!el || !state) return;
     var k = el.dataset.chg;
-    if (k === "type") { typeF = el.value; render(); }
+    if (k === "brain-prov") { var mi = panel.querySelector('[data-chg="brain-model"]'); if (mi) mi.value = ""; saveBrain(); }
+    else if (k === "brain-model") saveBrain();
+    else if (k === "type") { typeF = el.value; render(); }
     else if (k === "cat") { catF = el.value; render(); }
     else if (k === "pick") { sel[el.dataset.id] = el.checked; render(); }
     else if (k === "pickall") { visibleIds().forEach(function (i) { sel[i] = el.checked; }); render(); }

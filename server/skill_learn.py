@@ -201,13 +201,37 @@ def _sync_source(src: dict) -> Path:
         return root
     if not shutil.which("git"):
         raise RuntimeError("Máy chạy Joyce chưa có lệnh git")
-    if not (root / ".git").is_dir():
-        if root.exists():
-            raise RuntimeError("Cache repo không hợp lệ; hãy xoá nguồn rồi thêm lại")
-        _git(["git", "clone", "--depth", "1", "--filter=blob:none", src["location"], str(root)])
+    # Chi coi la repo that khi co .git/HEAD. Thu muc .git RONG (clone bi ngat giua chung, vi du server khoi dong lai) tung
+    # lam `git -C root pull` chay len repo CHA cua Joyce va quet ra 0 muc: phai go cache hong va clone lai.
+    if root.exists() and not (root / ".git" / "HEAD").is_file():
+        _drop_cache(root)
+    if not root.exists():
+        tmp = root.with_name(root.name + ".cloning")
+        _drop_cache(tmp)
+        try:
+            _git(["git", "clone", "--depth", "1", "--filter=blob:none", src["location"], str(tmp)])
+            os.replace(tmp, root)       # doi ten nguyen khoi: bi ngat thi khong de lai ban clone dang do
+        finally:
+            _drop_cache(tmp)
     else:
         _git(["git", "-C", str(root), "pull", "--ff-only"])
     return root
+
+
+def _drop_cache(p: Path) -> None:
+    """Xoa mot thu muc trong kho cache repo cua Skill Learn. Chi xoa DUOI repos/, khong bao gio thu muc khac."""
+    base = (_base() / "repos").resolve()
+    try:
+        target = p.resolve()
+    except OSError:
+        return
+    if target == base or base not in target.parents or not target.exists():
+        return
+
+    def _retry(fn, path, exc):      # file trong .git tren Windows la read-only
+        os.chmod(path, 0o700)
+        fn(path)
+    shutil.rmtree(target, onexc=_retry)
 
 
 def _frontmatter(text: str) -> dict:
@@ -809,7 +833,7 @@ def register(app, deps: Deps):
             d["candidates"] = [x for x in d["candidates"] if x.get("source_id") != source_id]
             _write(d)
         if src.get("kind") == "github":
-            shutil.rmtree(_source_dir(src), ignore_errors=True)
+            _drop_cache(_source_dir(src))
         return {"ok": True, "state": _public(d)}
 
     @router.post("/skill-learn/sync")

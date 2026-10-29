@@ -116,6 +116,29 @@ with tempfile.TemporaryDirectory(prefix="joyce-skill-learn-p-") as td:
         shadow_blocked = True
     check("installing a plugin that shadows a system plugin is refused", shadow_blocked)
 
+# ---- cache clone bi ngat (.git rong) phai tu chua, khong duoc chay git len repo cha ----
+import shutil
+import subprocess
+
+if shutil.which("git"):
+    with tempfile.TemporaryDirectory(prefix="joyce-skill-learn-g-", ignore_cleanup_errors=True) as td:
+        up = Path(td) / "upstream"
+        (up / "skills" / "hello").mkdir(parents=True)
+        (up / "skills" / "hello" / "SKILL.md").write_text("---\nname: Hello\ndescription: Chao\n---\nBody\n", encoding="utf-8")
+        for cmd in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-C", str(up)] + cmd, check=True, capture_output=True)
+        src = {"id": "gitcache1", "kind": "github", "location": str(up)}
+        cache = skill_learn._source_dir(src)
+        (cache / ".git").mkdir(parents=True)                      # dung hien truong: clone dang do, chi con .git rong
+        got = skill_learn._sync_source(src)
+        check("broken half-clone is replaced by a real clone", (got / ".git" / "HEAD").is_file() and (got / "skills" / "hello" / "SKILL.md").is_file())
+        check("no temp clone folder is left behind", not Path(str(cache) + ".cloning").exists())
+        again = skill_learn._sync_source(src)                      # lan sau di duong pull binh thuong
+        check("a healthy cache just pulls", again == got and (got / "skills" / "hello" / "SKILL.md").is_file())
+        (Path(td) / "outside").mkdir()
+        skill_learn._drop_cache(Path(td) / "outside")
+        check("cache cleanup never deletes outside the repos cache", (Path(td) / "outside").is_dir())
+
 # ---- doc cau tra loi cua model: chi nhan dung khuon, ep gia tri la ve mac dinh ----
 good = {"id": "a1", "verdict": "take", "category": "ban-hang", "title": "Chốt đơn", "what": "Soạn tin chốt đơn — theo mẫu.",
         "gain": "Joyce soạn được tin chốt đơn.", "reason": "Chưa có.", "overlap": "", "caution": ""}

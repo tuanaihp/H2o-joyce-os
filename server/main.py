@@ -29151,6 +29151,9 @@ async def work_factory_action(request: Request, action: str = Form(""), canary_i
 
 def _skill_learn_spec(model: str) -> dict:
     """Model phân loại của Skill Learn. Id kiểu `glm-*` là gói Z.ai (miễn phí) nếu máy có khoá; không thì về model việc nền."""
+    own = (((cfgmod.read_settings().get("model") or {}).get("task_models") or {}).get("skill-learn") or {})
+    if (own.get("provider") or "").strip():     # chủ đã chọn bộ não riêng cho Skill Learn (trong tab hoặc trang Phân việc não)
+        return aux_engine.read_spec(tag="skill-learn")
     m = (model or "").strip().split(":")[0]
     if m.lower().startswith("glm"):
         sp = {"provider": "zai", "model": m}

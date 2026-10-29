@@ -7103,5 +7103,11 @@
   "sl.cat.nghien-cuu": "Research",
   "sl.cat.lap-trinh": "Coding",
   "sl.cat.cuoc-song": "Daily life",
-  "sl.cat.khac": "Other"
+  "sl.cat.khac": "Other",
+  "sl.brain_title": "Brain that reads and translates",
+  "sl.brain_sub": "Pick the brain that reads, classifies and translates the notes: Claude, ChatGPT, Gemini, Z.ai... A stronger brain writes better notes but uses turns of your plan (one request per 6 items). After choosing, press Scan all or Ask the AI to read again to use the new brain.",
+  "sl.brain_default": "Default: {model} (free Z.ai, or the background model when there is no key)",
+  "sl.brain_not_conn": "not connected",
+  "sl.brain_model_ph": "Model name, leave empty for the brain's default",
+  "sl.brain_saved": "Brain saved for Skill Learn."
 }

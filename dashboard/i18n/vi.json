@@ -7103,5 +7103,11 @@
   "sl.cat.nghien-cuu": "Nghiên cứu",
   "sl.cat.lap-trinh": "Lập trình",
   "sl.cat.cuoc-song": "Đời sống",
-  "sl.cat.khac": "Khác"
+  "sl.cat.khac": "Khác",
+  "sl.brain_title": "Bộ não đọc và dịch",
+  "sl.brain_sub": "Chọn bộ não để đọc, phân loại và dịch ghi chú: Claude, ChatGPT, Gemini, Z.ai... Bộ não mạnh cho ghi chú kỹ hơn nhưng tốn lượt trong gói của bạn (mỗi 6 mục một lượt hỏi). Chọn xong, bấm Quét tất cả hoặc Nhờ AI đọc lại để dùng bộ não mới.",
+  "sl.brain_default": "Mặc định: {model} (Z.ai miễn phí, không có khoá thì dùng model việc nền)",
+  "sl.brain_not_conn": "chưa kết nối",
+  "sl.brain_model_ph": "Tên model, để trống thì dùng mặc định của bộ não",
+  "sl.brain_saved": "Đã lưu bộ não cho Skill Learn."
 }

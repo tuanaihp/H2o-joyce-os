@@ -7,6 +7,8 @@
 - **Skill Learn Update tab redesigned:** paste a repo link and Joyce downloads it, finds **skills and plugins**, has an AI read and classify them as **Worth taking / Think about it / Not worth it**, with notes in Vietnamese: what it does, what Joyce gains, why, and whether it overlaps something already installed.
 - **Approve one by one, or tick several and approve at once.** Each card keeps the original text for cross-checking. Nothing is installed until you approve; an item the static scan flags as high risk is never labelled "Worth taking".
 - Plugins installed from a repo always start **switched off** until you turn them on from the Tools page. The daily scan also has the AI read new items (up to 30 per run).
+- **You can now pick the brain for the repo-reading step right inside the tab** (Claude, ChatGPT, Gemini, Z.ai...), sharing its source with the Task routing page. If none is picked it uses free Z.ai as before.
+- **Fixed scans that found 0 items:** if downloading a repo was cut off midway (for example a server restart), Joyce now deletes the broken copy and downloads again instead of trusting it.
 
 ## [1.3.46] - 2026-10-29
 ### Added
