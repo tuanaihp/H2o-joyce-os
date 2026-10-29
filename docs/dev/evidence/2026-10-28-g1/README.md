@@ -131,3 +131,7 @@ Lần chạy đầu của 1.3.45 (`55ee824`, log `full-suite-55ee824-1.3.45-lan1
 
 Khi đó: **không còn mục đỏ nào ngoài gate khởi động**. Vẫn còn khoảng hở độ phủ: các ca symlink file, Linux và macOS, `dashboard/humanoid/` (giữ local) chưa chạy ở máy sạch.
 
+## Kết quả cuối 1.3.46 (29/10/2026)
+
+Worktree sạch, commit `f982591`: **918/919 xanh**, exit code 1, 1860 giây. Log: `full-suite-f982591-1.3.46.txt`. Mục đỏ duy nhất vẫn là `test_khoi_dong_nhe` (gate khởi động A07.1 chưa đạt; không nâng trần). Phần mới của bản này: phân loại quyền theo từng lệnh (`test_g2_hub_hoi_quyen`), nền G3 (`test_g3_doi_soat_sandbox`).
+
