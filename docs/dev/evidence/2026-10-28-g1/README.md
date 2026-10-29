@@ -80,3 +80,34 @@ Cùng cách chạy như trên (worktree sạch, `python tests/run.py`, Windows 1
 - **`test_khoi_dong_nhe` xanh ở lần này nhưng vẫn dao động quanh trần 5,0** (đo riêng 4,22 đến 5,17 giữa các lần). Gate p95 của A07.1 vẫn CHƯA đạt; không coi một lần xanh là đã đạt.
 - Không khai suite xanh: 886/914 không phải xanh toàn bộ. Khoảng hở độ phủ (symlink file, Linux, macOS, brain thật) vẫn như mục trước.
 
+## 28 test đỏ cũ: nguyên nhân và cách sửa (29/10/2026, 1.3.44)
+
+Chạy từng test ở worktree sạch, đọc lỗi, sửa theo đúng loại nguyên nhân. Phân loại: **MÃ** là chức năng bị mất dây hoặc thiếu, đã sửa mã; **TEST** là test giữ hợp đồng cũ đã bị thay có chủ ý, đã sửa test theo hợp đồng hiện hành; **MÔI TRƯỜNG** là test phụ thuộc thứ không có ở máy sạch.
+
+| Test | Loại | Nguyên nhân thật | Sửa |
+|---|---|---|---|
+| test_go_chatgpt_web | MÃ | 3 chú thích trong main.py có gạch dài (luật CLAUDE.md) | thay bằng gạch ngang |
+| test_aux_engine, test_aux_fallback, test_full_quyen_ungated, test_reply_policy_api | TEST | từ 1.3.19 `swap()` luôn bọc engine vào chuỗi một mắt trong suốt để ghi mức dùng; mức full có chuỗi ở chế độ safe_retry | assertion nhận chuỗi một mắt chứa đúng engine đó |
+| test_groq_provider, test_deepseek_provider, test_ollama, test_ollama_local_tool_pdf | TEST | từ 1.3.18 các nhánh provider nằm trong closure `_vong_tool` và đi qua `_stream_chain`; ollama-local cần key sentinel | test dò đúng cấu trúc mới |
+| test_ollama_local_tool_pdf (RAM Apple) | MÃ | khai tay RAM trên Mac chip Apple làm mất cờ GPU dùng chung | `_ol_specs_hien_dung` giữ GPU khi chắc cùng máy và đúng Apple Silicon |
+| test_pinned_folder | MÃ | ba chỗ mất dây: khối prompt thư mục ghim ở chat thường, `resolve_path` và `brain_root` của route coding, tuỳ chọn `only_dirs` của /files/search | nối lại cả ba |
+| test_team_docs | MÃ | dấu ">" của ô chọn thư mục (`/files/list?subdirs=1`) không còn | thêm lại cờ `dirs` |
+| test_oauth_scope_clerk | MÃ | route callback OAuth không chuyển `error`/`error_description` của nhà cung cấp, và in lỗi không escape (XSS) | route nhận hai tham số, chuyển hướng khi có `retry_url`, escape thông báo |
+| test_settings_khong_treo_theo_cli | MÃ | lệnh `taskkill` trong grok_cli không cắt stdin | thêm `stdin=DEVNULL` |
+| test_scheduled_call_0203 | MÃ | cờ `call` của nhắc việc không đi qua tool joyce_schedule và khối JOYCE_VIEC | nối create, update, schema và khối |
+| test_icons | MÃ | 43 emoji trong giao diện và 2 tên icon thiếu trong bộ vendor | 14 icon thêm vào bộ vendor; nút 3D Joyce, Apex, hạt lượng tử, trình phát nhạc, trang Quản lý Shop dùng icon Lucide. Lưu ý: trang Quản lý Shop trộn icon thật (12 ký hiệu đã đổi) với ký hiệu hình học cũ chưa bị test cấm |
+| test_placeholder_ui | MÃ và TEST | placeholder "model", "theo vai" viết thường; placeholder chỉ là số "3" bị coi là lỗi | viết hoa hai chữ, test bỏ qua placeholder là số |
+| test_mobile_layout | TEST | số `?v=` của brain-view.js đổi khi sửa file | test nhận mọi số |
+| test_nhat_ky_song_ngu | MÃ | bản tiếng Anh của CHANGELOG lẫn chữ Việt (tên riêng, nhãn nút) | đổi sang không dấu hoặc dịch |
+| test_workflow_turn_ws, test_workflow_graph_phase10 | TEST | fake `execute_workflow`, `mk`, engine có chữ ký cũ, thiếu `mode`, `extra_tools`, `is_available` | cập nhật fake |
+| test_graph_watch | TEST | handshake WebSocket đi qua WebSocketGuard, host mặc định `testserver` bị từ chối | dùng `ws://localhost/...` |
+| test_learn_agent_workflow | TEST | từ 0.105.0 sửa vai chỉ được THÊM luật, không viết lại thân hay đổi vai trò | test theo hợp đồng mới |
+| test_subscription_router | TEST | câu hết lượt của nhánh Codex đi qua `_limit_frame` ở chỗ khác | regex theo mã hiện hành |
+| test_bau_troi_tri_thuc | TEST | số chỗ gửi tool_call tăng khi thêm đường fallback | bất biến thay cho số cố định |
+| test_thu_lai_tam_thoi | TEST | deepseek và zai chưa nằm trong danh sách engine giả | thêm vào |
+| test_settings_ghi_an_toan | TEST | kênh WhatsApp đã gỡ nên route không còn | ghim điều cần ghim: mở trang không làm mất cấu hình |
+| test_joyce_hands, test_joyce_humanoid | MÔI TRƯỜNG và TEST | `dashboard/humanoid/` được .gitignore giữ local (license); root Apex giả thiếu `querySelector` | bỏ qua có ghi rõ khi thiếu thư mục (đây là KHOẢNG HỞ độ phủ, không phải pass); thêm `querySelector` cho fake |
+| test_khoi_dong_nhe | khác | tỉ lệ dao động quanh trần 5,0 | chưa đổi; xem `44-khoi-dong-ket-luan.md` |
+
+Thêm một lỗi thật do gói A (không nằm trong 28): `deploy_writer.khoa()` ném `PermissionError` khi hai tiến trình cùng tạo file khóa (xem mục trên).
+
