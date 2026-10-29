@@ -2,6 +2,11 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.48] - 2026-10-29
+### Thêm
+- **Kho chờ trong Skill Learn Update:** mục nào anh duyệt nhưng chưa muốn cài thì bấm **Lưu để sau**, chọn mức **Ưu tiên cao / vừa / Tham khảo** và ghi chú ngắn. Tab Kho chờ xếp theo ưu tiên; khi cần bấm **Cài ngay**, hoặc tích chọn nhiều mục để cài một lượt.
+- Nếu repo cập nhật nội dung của mục đã lưu, mục vẫn nằm trong Kho chờ và gắn nhãn **Repo có bản mới** (không bị mất dấu như trước).
+
 ## [1.3.47] - 2026-10-29
 ### Thêm
 - **Tab Skill Learn Update thiết kế lại:** dán link repo là Joyce tự tải, tìm cả **skill lẫn plugin**, nhờ AI đọc rồi phân loại **Nên lấy / Cân nhắc / Không nên lấy**, kèm ghi chú tiếng Việt: nó làm gì, Joyce được thêm gì, vì sao, có trùng cái đang có không.

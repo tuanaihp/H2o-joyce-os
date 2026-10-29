@@ -74,6 +74,34 @@ for _ in range(100):
     time.sleep(0.1)
 
 ids = [x["id"] for x in st["candidates"]]
+
+# ---- Kho cho: luu de sau voi uu tien + ghi chu, song sot qua lan quet, noi dung repo doi thi gan nhan ----
+skill_id = next(x["id"] for x in st["candidates"] if x["type"] == "skill")
+r = c.post("/skill-learn/review", json={"candidate_id": skill_id, "action": "save", "priority": "high", "note": "Dùng cho phòng Marketing — tháng sau"})
+sv = next(x for x in r.json()["state"]["candidates"] if x["id"] == skill_id)
+check("save puts the item in the waiting store with priority and note",
+      r.status_code == 200 and sv["status"] == "saved" and sv["priority"] == "high" and sv["saved_at"] > 0 and "Marketing" in sv["note"], sv.get("status"))
+check("em dash in a note is stripped", "—" not in sv["note"])
+check("saved items leave the review queue but are counted", r.json()["state"]["stats"]["saved"] == 1 and r.json()["state"]["stats"]["pending"] == 1)
+saved_at = sv["saved_at"]
+r = c.post("/skill-learn/review", json={"candidate_id": skill_id, "action": "save", "priority": "ref"})
+sv = next(x for x in r.json()["state"]["candidates"] if x["id"] == skill_id)
+check("re-saving changes priority, keeps the note and the original save date", sv["priority"] == "ref" and "Marketing" in sv["note"] and sv["saved_at"] == saved_at)
+r = c.post("/skill-learn/review", json={"candidate_id": skill_id, "action": "save", "priority": "urgent!!"})
+check("an invalid priority is refused", r.status_code == 400)
+r = c.post("/skill-learn/sync", json={"source_ids": [sid], "analyze": False})
+sv = next(x for x in r.json()["state"]["candidates"] if x["id"] == skill_id)
+check("a rescan keeps the saved item untouched", sv["status"] == "saved" and sv["priority"] == "ref" and not sv["upstream_changed"])
+(repo / "skills" / "viet-email" / "SKILL.md").write_text("---\nname: Write email\ndescription: Draft emails in brand voice\n---\nSteps, now improved.\n", encoding="utf-8")
+r = c.post("/skill-learn/sync", json={"source_ids": [sid], "analyze": False})
+rows = [x for x in r.json()["state"]["candidates"] if x["type"] == "skill"]
+sv = rows[0]
+check("repo changed the content: still saved, flagged 'new version upstream', one card only",
+      len(rows) == 1 and sv["status"] == "saved" and sv["upstream_changed"] is True and sv["priority"] == "ref" and sv["analysis"] is None, (len(rows), sv.get("status")))
+ids = [x["id"] for x in r.json()["state"]["candidates"]]
+r = c.post("/skill-learn/review", json={"candidate_id": sv["id"], "action": "save", "priority": "mid"})
+check("saving again after reading the new version clears the flag", not next(x for x in r.json()["state"]["candidates"] if x["id"] == sv["id"])["upstream_changed"])
+
 r = c.post("/skill-learn/review-batch", json={"candidate_ids": ids + ["khong-co"], "action": "install"})
 res = {x["id"]: x for x in r.json()["results"]}
 check("batch install reports each item, bad ids do not stop the rest",

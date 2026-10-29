@@ -7109,5 +7109,22 @@
   "sl.brain_default": "Mặc định: {model} (Z.ai miễn phí, không có khoá thì dùng model việc nền)",
   "sl.brain_not_conn": "chưa kết nối",
   "sl.brain_model_ph": "Tên model, để trống thì dùng mặc định của bộ não",
-  "sl.brain_saved": "Đã lưu bộ não cho Skill Learn."
+  "sl.brain_saved": "Đã lưu bộ não cho Skill Learn.",
+  "sl.tab.saved": "Kho chờ",
+  "sl.status.saved": "Đã lưu để sau",
+  "sl.stat.saved": "Kho chờ",
+  "sl.prio.label": "Mức ưu tiên",
+  "sl.prio.high": "Ưu tiên cao",
+  "sl.prio.mid": "Ưu tiên vừa",
+  "sl.prio.ref": "Tham khảo",
+  "sl.save_later": "Lưu để sau",
+  "sl.save_note_ph": "Ghi chú ngắn, ví dụ dùng cho phòng nào hoặc khi nào cần",
+  "sl.save_do": "Lưu vào kho chờ",
+  "sl.cancel": "Hủy",
+  "sl.saved_on": "Lưu ngày {date}",
+  "sl.upstream_new": "Repo có bản mới",
+  "sl.install_now": "Cài ngay",
+  "sl.edit_note": "Sửa ghi chú",
+  "sl.saved_ok": "Đã lưu vào Kho chờ.",
+  "sl.empty_saved": "Kho chờ đang trống. Bấm Lưu để sau ở thẻ nào muốn giữ lại để cài khi cần."
 }

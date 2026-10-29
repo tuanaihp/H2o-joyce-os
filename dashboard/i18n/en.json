@@ -7109,5 +7109,22 @@
   "sl.brain_default": "Default: {model} (free Z.ai, or the background model when there is no key)",
   "sl.brain_not_conn": "not connected",
   "sl.brain_model_ph": "Model name, leave empty for the brain's default",
-  "sl.brain_saved": "Brain saved for Skill Learn."
+  "sl.brain_saved": "Brain saved for Skill Learn.",
+  "sl.tab.saved": "Waiting store",
+  "sl.status.saved": "Saved for later",
+  "sl.stat.saved": "Waiting",
+  "sl.prio.label": "Priority",
+  "sl.prio.high": "High priority",
+  "sl.prio.mid": "Medium priority",
+  "sl.prio.ref": "Reference",
+  "sl.save_later": "Save for later",
+  "sl.save_note_ph": "Short note, for example which team will use it or when it is needed",
+  "sl.save_do": "Save to waiting store",
+  "sl.cancel": "Cancel",
+  "sl.saved_on": "Saved {date}",
+  "sl.upstream_new": "Repo has a new version",
+  "sl.install_now": "Install now",
+  "sl.edit_note": "Edit note",
+  "sl.saved_ok": "Saved to the waiting store.",
+  "sl.empty_saved": "The waiting store is empty. Press Save for later on any card you want to keep and install when needed."
 }

@@ -348,6 +348,26 @@ def _plugin_excerpt(meta: dict, folder: Path) -> str:
     return (head + code)[:1800]
 
 
+PRIORITIES = ("high", "mid", "ref")
+
+
+def _carried(prev: dict, moved: dict, kind: str) -> dict:
+    """Trang thai chu da dat cho mot muc, mang sang lan quet moi.
+
+    `prev` = cung noi dung (cung sha). `moved` = ban DA LUU truoc do cua cung duong dan nhung noi dung repo da doi: van o Kho cho,
+    gan nhan 'repo co ban moi', bo phan tich cu (khong con dung noi dung nua)."""
+    if kind == "current":
+        return {"status": "current", "reviewed_at": (prev or {}).get("reviewed_at") or 0, "analysis": (prev or {}).get("analysis"),
+                "analysis_error": "", "priority": "", "note": "", "saved_at": 0, "upstream_changed": False}
+    src = prev or moved or {}
+    keep_ai = bool(prev)
+    out = {"status": src.get("status") or "pending", "reviewed_at": src.get("reviewed_at") or 0,
+           "analysis": src.get("analysis") if keep_ai else None, "analysis_error": (src.get("analysis_error") or "") if keep_ai else "",
+           "priority": src.get("priority") or "", "note": src.get("note") or "", "saved_at": src.get("saved_at") or 0,
+           "upstream_changed": bool(src.get("upstream_changed")) or (not prev and bool(moved))}
+    return out
+
+
 def _scan_plugins(repo: Path, source: dict, old_by_key: dict, limit: int) -> list[dict]:
     found: list[dict] = []
     bundled = plugins_host.BUNDLED_DIR
@@ -391,6 +411,7 @@ def _scan_plugins(repo: Path, source: dict, old_by_key: dict, limit: int) -> lis
             warnings = (warnings + ["Plugin là mã Python chạy thật trong server Joyce"])[:6]
         key = (source["id"], rel.as_posix(), digest)
         prev = old_by_key.get(key) or {}
+        moved = {} if prev else (old_by_key.get(("path", source["id"], rel.as_posix())) or {})
         cid = hashlib.sha256((source["id"] + "\0" + rel.as_posix() + "\0" + digest).encode()).hexdigest()[:24]
         found.append({
             "id": cid, "type": "plugin", "source_id": source["id"],
@@ -400,9 +421,7 @@ def _scan_plugins(repo: Path, source: dict, old_by_key: dict, limit: int) -> lis
             "min_mode": str(meta.get("min_mode") or "")[:12],
             "sha": digest, "kind": kind, "risk": level, "warnings": warnings,
             "installable": not blocked, "blocked_reason": blocked,
-            "status": "current" if kind == "current" else (prev.get("status") or "pending"),
-            "reviewed_at": prev.get("reviewed_at") or 0,
-            "analysis": prev.get("analysis"), "analysis_error": prev.get("analysis_error") or "",
+            **_carried(prev, moved, kind),
             "excerpt": _plugin_excerpt(meta, folder),
         })
     return found
@@ -413,6 +432,9 @@ def scan_repo(repo: Path, source: dict, brain_root: Path, old: list[dict] | None
 
     Phan tich cua model (analysis) duoc mang sang tu lan quet truoc khi noi dung khong doi (cung sha)."""
     old_by_key = {(x.get("source_id"), x.get("relative"), x.get("sha")): x for x in (old or [])}
+    for x in old or []:     # mục đã lưu mà repo đổi nội dung (sha khác): tìm lại theo đường dẫn để không mất dấu
+        if x.get("status") == "saved":
+            old_by_key[("path", x.get("source_id"), x.get("relative"))] = x
     found: list[dict] = []
     for md in repo.rglob("SKILL.md"):
         if len(found) >= MAX_SKILLS:
@@ -441,6 +463,7 @@ def scan_repo(repo: Path, source: dict, brain_root: Path, old: list[dict] | None
         level, warnings = _risk(text, md.parent)
         key = (source["id"], rel.as_posix(), digest)
         prev = old_by_key.get(key) or {}
+        moved = {} if prev else (old_by_key.get(("path", source["id"], rel.as_posix())) or {})
         cid = hashlib.sha256((source["id"] + "\0" + rel.as_posix() + "\0" + digest).encode()).hexdigest()[:24]
         found.append({
             "id": cid, "type": "skill", "source_id": source["id"],
@@ -448,9 +471,7 @@ def scan_repo(repo: Path, source: dict, brain_root: Path, old: list[dict] | None
             "relative": rel.as_posix(), "name": name, "slug": slug, "description": desc,
             "sha": digest, "kind": kind, "risk": level, "warnings": warnings,
             "installable": True, "blocked_reason": "",
-            "status": "current" if kind == "current" else (prev.get("status") or "pending"),
-            "reviewed_at": prev.get("reviewed_at") or 0,
-            "analysis": prev.get("analysis"), "analysis_error": prev.get("analysis_error") or "",
+            **_carried(prev, moved, kind),
             "excerpt": text[:1800],
         })
     found.extend(_scan_plugins(repo, source, old_by_key, MAX_SKILLS))
@@ -512,6 +533,7 @@ def _public(d: dict) -> dict:
             "high_risk": sum(x.get("risk") == "high" for x in pend),
             "take": sum(_verdict(x) == "take" for x in pend),
             "unanalyzed": sum(not x.get("analysis") for x in pend),
+            "saved": sum(x.get("status") == "saved" for x in rows),
             "skills": sum(x.get("type", "skill") == "skill" for x in pend),
             "plugins": sum(x.get("type") == "plugin" for x in pend),
         },
@@ -637,7 +659,7 @@ def _analyze(root: str, ids: set[str] | None, limit: int, force: bool) -> None:
         with _LOCK:
             d = _read(root)
             routing_model = (d.get("routing") or {}).get("classification") or ""
-            todo = [x for x in d["candidates"] if x.get("status") == "pending"
+            todo = [x for x in d["candidates"] if x.get("status") in ("pending", "saved")
                     and (x["id"] in ids if ids else True) and (force or not x.get("analysis"))]
             todo = todo[:limit]
         job.update(total=len(todo), done=0)
@@ -863,12 +885,23 @@ def register(app, deps: Deps):
         with _LOCK:
             return {"ok": True, "state": _public(_read(root))}
 
-    def _review_one(d: dict, cand: dict, action: str) -> None:
+    def _review_one(d: dict, cand: dict, action: str, body: dict | None = None) -> None:
+        if cand.get("status") not in ("pending", "saved"):
+            raise ValueError("Đề xuất này đã xử lý rồi")
         if action == "reject":
             cand.update({"status": "rejected", "reviewed_at": _now()})
         elif action == "install":
             _install(d, cand)
             cand.update({"status": "installed", "reviewed_at": _now()})
+        elif action == "save":
+            body = body or {}
+            prio = str(body.get("priority") or cand.get("priority") or "mid")
+            if prio not in PRIORITIES:
+                raise ValueError("Mức ưu tiên không hợp lệ")
+            note = _clean(body["note"], 200) if "note" in body else cand.get("note") or ""
+            # Luu lan dau thi dat ngay; sua uu tien/ghi chu cua muc da luu thi giu ngay luu goc va dau 'repo co ban moi' chi mat khi chu luu lai.
+            cand.update({"status": "saved", "priority": prio, "note": note, "upstream_changed": False,
+                         "saved_at": cand.get("saved_at") or _now() if cand.get("status") == "saved" else _now()})
         else:
             raise ValueError("Thao tác duyệt không hợp lệ")
 
@@ -883,7 +916,7 @@ def register(app, deps: Deps):
             if not cand:
                 return JSONResponse({"ok": False, "error": "Đề xuất không còn tồn tại"}, status_code=404)
             try:
-                _review_one(d, cand, action)
+                _review_one(d, cand, action, body)
             except Exception as e:  # noqa: BLE001
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
             _write(d)
@@ -903,7 +936,7 @@ def register(app, deps: Deps):
             try:
                 for cid in wanted:
                     cand = by_id.get(cid)
-                    if cand is None or cand.get("status") != "pending":
+                    if cand is None or cand.get("status") not in ("pending", "saved"):
                         results.append({"id": cid, "ok": False, "error": "Đề xuất không còn chờ duyệt"})
                         continue
                     try:

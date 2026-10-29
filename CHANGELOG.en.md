@@ -2,6 +2,11 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.48] - 2026-10-29
+### Added
+- **A waiting store in Skill Learn Update:** for any item you approve but do not want to install yet, press **Save for later**, pick **High / Medium priority or Reference**, and add a short note. The Waiting store tab sorts by priority; when you need one press **Install now**, or tick several to install in one go.
+- If the repo changes the content of a saved item, it stays in the waiting store with a **Repo has a new version** badge (it no longer gets lost).
+
 ## [1.3.47] - 2026-10-29
 ### Added
 - **Skill Learn Update tab redesigned:** paste a repo link and Joyce downloads it, finds **skills and plugins**, has an AI read and classify them as **Worth taking / Think about it / Not worth it**, with notes in Vietnamese: what it does, what Joyce gains, why, and whether it overlaps something already installed.
