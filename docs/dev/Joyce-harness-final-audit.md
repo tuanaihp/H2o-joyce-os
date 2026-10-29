@@ -66,6 +66,7 @@
 
 | Ngày | Nội dung |
 |---|---|
+| 2026-10-29 | Ghi chú triển khai: audit này là bản của ngày 28/10 và KHÔNG được viết lại theo tiến độ; trạng thái hiện tại ở [bàn giao](./2026-10-29-ban-giao-joyce-harness.md) |
 | 2026-10-28 | 1.3.39: ba lỗ thật đã vá, giai đoạn 0A xong, 9 trợ lý dùng chung về một bản gốc, khối Joyce Harness lên trang Sơ đồ |
 | 2026-10-28 | Ghi hai quyết định của chủ: cách xếp 0A song song 0B, trần token 500.000 đến 1.000.000 theo mức cần |
 | 2026-10-28 | Bản đầu: liệt kê bộ chuẩn, ba lỗi draft đã sửa, các điểm đã khóa, xác minh sáu nhận định trong code, gỡ bốn mâu thuẫn |

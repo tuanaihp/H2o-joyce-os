@@ -466,3 +466,8 @@ Legacy chưa opt-in giữ hành vi cũ, không gắn nhãn v1. Migration không 
 | 2026-10-28 | 1.0.0-draft | Bản đầu, chưa có schema thực và còn mâu thuẫn grant/verify/migration |
 | 2026-10-28 | 1.0.0 final | Audit lại code; sửa các mâu thuẫn, giảm chi phí điều phối, chốt contract/reference/acceptance và rollout |
 | 2026-10-28 | 1.0.0 final | Hoàn thiện các file kèm theo (schema, reference, prompts, acceptance, final audit) và test `test_joyce_harness_schema.py`; rollout thêm giai đoạn 0A theo quyết định của chủ; đặc tả không đổi quy tắc |
+
+
+## Trạng thái triển khai (ghi 29/10/2026)
+
+Bản đặc tả này là CHUẨN v1.0.0 và không đổi theo tiến độ code. Phần đã triển khai, phần chưa, mã nằm ở đâu và việc làm tiếp: xem [bàn giao Joyce Harness](./2026-10-29-ban-giao-joyce-harness.md). Tóm tắt: G1 đã gia cố, gói B và một phần G2 đã làm trong sandbox, canary chưa chứng nhận ở quy mô thật, chưa pilot. Chưa có compiler (JHA-10), chưa có grant theo thao tác và tham số cho mọi tool, chưa ghim revision cho agent dùng chung (JHA-12).
