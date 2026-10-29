@@ -329,21 +329,24 @@ updated: 2026-01-01
 ---
 prompt cũ
 """)
+    # Hợp đồng từ 0.105.0: sửa vai chỉ được THÊM luật (add_rules), không viết lại thân, không đổi tên, model hay vai trò chủ đã viết.
     rep = feature._promote_sync("brain", {"agents": [_agent(
         op="update", reason="Chủ than agent viết dài dòng, siết lại 5 câu",
-        role="vai mới", skills=[], body="Bạn là chuyên viên email.\n1. Viết tối đa 5 câu.")]},
+        role="vai mới", skills=[], add_rules=["Viết tối đa 5 câu."])]},
         cfg, CAPS, allow_write=True)
     assert rep["agents_updated"] == ["viet-email"] and rep["agents"] == [], rep
     fm, body = _fm(tmp_path / "agents" / "viet-email.md")
     assert fm["name"] == "Vai chủ tự đặt tên", "tên chủ đặt phải giữ"
     assert fm["model"] == "opus", "model chủ chọn cho agent phải giữ"
-    assert fm["role"] == "vai mới" and "tối đa 5 câu" in body
+    assert fm["role"] == "vai cũ", "vai trò chủ đã viết là của chủ: chỉ điền khi đang trống"
+    assert "prompt cũ" in body, "thân của chủ giữ nguyên"
+    assert "## Bổ sung (tự học)" in body and "tối đa 5 câu" in body
     assert fm["skills"] == ["ky-nang-cu"], "skills để trống khi sửa = không đụng, không phải gỡ hết"
     assert "## Lịch sử (tự học)" in body and "dài dòng" in body
 
 
 def test_sua_agent_hai_lan_van_giu_dau_vet_lan_truoc(tmp_path):
-    """Sửa agent = viết lại cả system prompt, nên lịch sử cũ phải được mang sang thân mới.
+    """Mỗi lần sửa thêm một dòng vào Lịch sử mà KHÔNG làm mất dòng của lần trước, và mỗi lần chỉ THÊM luật (thân của chủ không bị viết lại).
     Không thì mục Lịch sử vĩnh viễn chỉ có một dòng và chủ mất dấu vết các lần sửa trước."""
     feature = _feature(tmp_path)
     cfg = feature.read_config()
@@ -351,11 +354,12 @@ def test_sua_agent_hai_lan_van_giu_dau_vet_lan_truoc(tmp_path):
            "---\ntype: agent\nname: V\nslug: viet-email\n---\nprompt cũ")
     for i, ly_do in enumerate(["Lần sửa thứ nhất", "Lần sửa thứ hai"]):
         feature._promote_sync("brain", {"agents": [_agent(
-            op="update", reason=ly_do, body=f"Bạn là chuyên viên email. Bản {i}.")]},
+            op="update", reason=ly_do, add_rules=[f"Luật bổ sung số {i}."])]},
             cfg, CAPS, allow_write=True)
     _, body = _fm(tmp_path / "agents" / "viet-email.md")
     assert "Lần sửa thứ nhất" in body and "Lần sửa thứ hai" in body, body
-    assert "Bản 1." in body and "Bản 0." not in body, "thân mới thay hẳn thân cũ"
+    assert "Luật bổ sung số 0." in body and "Luật bổ sung số 1." in body, "luật mới nối vào, không thay luật cũ"
+    assert "prompt cũ" in body, "thân của chủ giữ nguyên"
 
 
 def test_dry_run_tach_tao_va_sua(tmp_path):
