@@ -139,7 +139,7 @@ check("server BẢO engine lập kế hoạch rồi dừng ở chế độ Plan"
 })());
 check("khối đó được nối vào prompt của lượt chat", (() => {
   const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
-  return (MAIN.match(/\+ _khoi_coding\(_row0\)/g) || []).length >= 2
+  return (MAIN.match(/\+ _khoi_coding\(_row0\b/g) || []).length >= 2      // có thể kèm gốc brain làm đối số thứ hai (khối thư mục ghim)
     && /def _khoi_coding\(/.test(MAIN);
 })());
 check("và nói cho engine biết nó đang đứng ở thư mục nào", (() => {

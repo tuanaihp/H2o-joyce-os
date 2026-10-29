@@ -111,3 +111,15 @@ Chạy từng test ở worktree sạch, đọc lỗi, sửa theo đúng loại n
 
 Thêm một lỗi thật do gói A (không nằm trong 28): `deploy_writer.khoa()` ném `PermissionError` khi hai tiến trình cùng tạo file khóa (xem mục trên).
 
+## Kết quả cuối 1.3.44 (29/10/2026)
+
+Worktree sạch, `python tests/run.py`, Windows 10, Python 3.14.6, commit `94e2375`: **913/914 trên 916 mục xanh**, exit code 1, 1911 giây. Log thô: `full-suite-94e2375-1.3.44.txt`. So với 28 mục đỏ cũ ở 1.3.41: **hết cả 28**. Còn ba mục đỏ trong lần chạy này:
+
+| Mục | Kết luận |
+|---|---|
+| `test_trang_coding.js` | LỖI DO MÃ MỚI của em: test dò chuỗi `+ _khoi_coding(_row0)` mà em đã thêm đối số thứ hai cho khối thư mục ghim. Đã sửa test (nhận đối số thứ hai) và chạy riêng: xanh. KHÔNG nằm trong lần chạy full suite này |
+| `test_resonance_a3_learning` | Xanh khi chạy lại riêng ngay sau đó; nghi chập chờn theo tải máy (cùng loại với `test_resonance_perf` từng gặp). Chưa điều tra nguyên nhân gốc |
+| `test_khoi_dong_nhe` | Dao động quanh trần 5,0 (đo riêng 4,83 đến 5,35 ba lần liền). Gate A07.1 chưa đạt, không nâng trần |
+
+Vì vậy KHÔNG khai "full suite xanh": còn hai mục chập chờn và một mục đã sửa nhưng chưa chạy lại trong full suite.
+
