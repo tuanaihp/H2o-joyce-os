@@ -26,7 +26,7 @@ def _o(ten, state, **v):
 def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: int,
              trim_chars: int, brains_total: int, brains_self_improve: int,
              agents: list, evals_brain: int, telemetry_ready: bool = False, telemetry_n: int = 0,
-             routes: dict = None) -> dict:
+             routes: dict = None, tran_token: int = 0) -> dict:
     """`agents`: frontmatter (dict) của trợ lý trong brain đang xem, gồm cả trợ lý dùng chung hiện ở đó."""
     sg = stages or {}
     pp = sg.get("proposals") or {}
@@ -82,11 +82,14 @@ def snapshot(*, stages: dict, guard_on: bool, shared_agents: int, tool_rounds: i
            c=int(rt.get("chung_nhan") or 0), p=int(rt.get("mot_phan") or 0), u=int(rt.get("chua_chung_nhan") or 0), n=int(rt.get("tong") or 0)),
         # Lượt chạy thật do host ghi (B01): chat bot, việc giao cho trợ lý, bước workflow. Xám khi 7 ngày qua chưa ghi lượt nào.
         _o("runs", "ok" if int(lc.get("logical") or 0) else "off", n=int(lc.get("logical") or 0), v=int(lc.get("verified_pass") or 0),
-           u=int(lc.get("chua_kiem") or 0), i=int(lc.get("gian_doan") or 0)),
+           u=int(lc.get("chua_kiem") or 0), i=int(lc.get("gian_doan") or 0),
+           t=int(lc.get("token_vao") or 0) + int(lc.get("token_ra") or 0), k=int(lc.get("lan_chua_do_token") or 0)),
         # Nguồn bằng chứng để kiểm chứng canary. XÁM khi chưa có (gói B): khi đó file dùng chung không được tự áp.
         _o("telemetry", "ok" if telemetry_ready else "off", ready=1 if telemetry_ready else 0, n=int(telemetry_n)),
         # Đã chốt (28/10/2026) nhưng CHƯA ép trong code: vòng cải tiến chưa đếm token theo lượt.
-        _o("budget", "off", n=TOKEN_CAP, m=TOKEN_CAP_MAX),
+        # Token đã được ĐO THẬT theo từng lượt (đèn "Lượt chạy thật"). Đèn này xanh chỉ khi chủ ĐÃ ĐẶT trần (settings.tasks.tran_token_luot); chưa đặt thì
+        # đo mà không chặn, nên vẫn xám.
+        _o("budget", "ok" if tran_token else "off", n=TOKEN_CAP, m=TOKEN_CAP_MAX, c=int(tran_token or 0)),
     ]
     tiers = [{"id": "A", "items": a}, {"id": "B", "items": b}, {"id": "C", "items": c}]
     tong = sum(len(t["items"]) for t in tiers)

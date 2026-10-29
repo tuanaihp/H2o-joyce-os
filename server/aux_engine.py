@@ -623,6 +623,18 @@ class _FallbackChain:
                                 ev.get("cost") or ev.get("cost_usd") or ev.get("total_cost_usd") or 0)
                         except Exception:
                             pass
+                        # Đo token THẬT cho lượt chạy này (sổ lượt chạy) và chặn khi vượt trần chủ đặt (settings.tasks.tran_token_luot, mặc định
+                        # không chặn). Vượt trần thì DỪNG CẢ CHUỖI: nhảy sang mắt kế tiếp là tốn thêm token chứ không đỡ.
+                        try:
+                            import run_context
+                            import run_ledger
+                            _rc = run_context.hien_tai()
+                            _tong, _vuot = run_ledger.ghi_usage(_rc.run_id if _rc else "", ev)
+                        except Exception:
+                            _tong, _vuot = 0, False
+                        if _vuot:
+                            yield {"type": "error", "content": f"Lượt này đã dùng {_tong:,} token, vượt trần {run_ledger.tran_token_luot():,} token chủ đặt nên dừng."}
+                            return
                     if t == "final":
                         got_final = True
                 if got_final:

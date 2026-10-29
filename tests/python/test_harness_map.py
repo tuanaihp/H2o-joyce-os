@@ -37,8 +37,11 @@ s = harness_map.snapshot(**base)
 check("ba tầng A, B, C", [t["id"] for t in s["tiers"]] == ["A", "B", "C"])
 check("đếm tổng và số xanh khớp các đèn", s["total"] == 20 and s["ok"] == sum(
     1 for t in s["tiers"] for x in t["items"] if x["state"] == "ok"))
-check("trần token đã chốt nhưng chưa ép: đèn xám, không tô xanh", _st(s, "budget")["state"] == "off"
-      and _st(s, "budget")["v"] == {"n": 500000, "m": 1000000})
+check("chưa đặt trần token (đo mà không chặn): đèn xám, không tô xanh", _st(s, "budget")["state"] == "off"
+      and _st(s, "budget")["v"] == {"n": 500000, "m": 1000000, "c": 0})
+check("chủ ĐÃ đặt trần token: đèn xanh và hiện trần đang đặt",
+      _st(harness_map.snapshot(**dict(base, tran_token=500000)), "budget")["state"] == "ok"
+      and _st(harness_map.snapshot(**dict(base, tran_token=500000)), "budget")["v"]["c"] == 500000)
 check("joyce-guard tắt thì đèn đỏ", _st(harness_map.snapshot(**dict(base, guard_on=False)), "guard")["state"] == "bad")
 check("brain chưa có bộ ca thử: đèn xám", _st(s, "evals")["state"] == "off")
 ag = [{"skills": ["a"], "allowed_effects": ["read"]}, {"skills": []}]

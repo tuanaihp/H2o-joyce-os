@@ -2557,6 +2557,18 @@ async def _stream_chain(specs, make_stream):
                 if t in ("text", "tool_call", "final", "usage"):
                     emitted = True
                 yield ev
+                if t == "usage":
+                    # Đo token THẬT của lượt chạy hiện tại (nếu có ngữ cảnh) và dừng khi vượt trần chủ đặt (settings.tasks.tran_token_luot).
+                    try:
+                        import run_context
+                        import run_ledger
+                        _rc = run_context.hien_tai()
+                        _tong, _vuot = run_ledger.ghi_usage(_rc.run_id if _rc else "", ev)
+                    except Exception:
+                        _tong, _vuot = 0, False
+                    if _vuot:
+                        yield {"type": "error", "content": f"Lượt này đã dùng {_tong:,} token, vượt trần {run_ledger.tran_token_luot():,} token chủ đặt nên dừng."}
+                        return
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
         if err is None:
@@ -14913,7 +14925,8 @@ def _harness_snapshot(deps, brain: str, stages: dict) -> dict:
         stages=stages, guard_on=guard_on, shared_agents=len(system_agents.entries()),
         tool_rounds=engine._max_tool_rounds(), trim_chars=engine.TOOL_CU_NGAN_SACH,
         brains_total=len(names), brains_self_improve=bat, agents=metas, evals_brain=evals_n,
-        telemetry_ready=factory_mod.telemetry_quan_sat_duoc() > 0, telemetry_n=factory_mod.telemetry_quan_sat_duoc(), routes=__import__("route_cert").tom_tat())
+        telemetry_ready=factory_mod.telemetry_quan_sat_duoc() > 0, telemetry_n=factory_mod.telemetry_quan_sat_duoc(), routes=__import__("route_cert").tom_tat(),
+        tran_token=__import__("run_ledger").tran_token_luot())
 
 
 # Nối hook sau-khi-xong của kanban vào factory (CI babysit + watcher + gợi ý lặp).

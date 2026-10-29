@@ -62,6 +62,12 @@ def _db() -> sqlite3.Connection:
                 effective_config_hash TEXT NOT NULL DEFAULT '', grant_hash TEXT NOT NULL DEFAULT '',
                 eval_revision TEXT NOT NULL DEFAULT '', deps_revisions TEXT NOT NULL DEFAULT '{}',
                 trung_lap INTEGER NOT NULL DEFAULT 0)""")
+            # Đo token THẬT (1.3.43, chủ chốt 29/10): cộng dồn từ sự kiện `usage` của chính lượt này. `usage_events` = số sự kiện đã nhận; 0 nghĩa là
+            # CHƯA ĐO được (engine không báo), KHÔNG phải 0 token. Bảng tạo trước đó không có cột này nên thêm khi thiếu.
+            cot = {r[1] for r in c.execute("PRAGMA table_info(agent_runs)")}
+            for ten, kieu in (("tokens_in", "INTEGER"), ("tokens_out", "INTEGER"), ("tokens_cost", "REAL"), ("usage_events", "INTEGER")):
+                if ten not in cot:
+                    c.execute(f"ALTER TABLE agent_runs ADD COLUMN {ten} {kieu} NOT NULL DEFAULT 0")
             c.execute("CREATE INDEX IF NOT EXISTS ix_runs_agent ON agent_runs(brain_id, agent_id, started_at DESC)")
             c.execute("CREATE INDEX IF NOT EXISTS ix_runs_logic ON agent_runs(logical_execution_id)")
             c.execute("CREATE INDEX IF NOT EXISTS ix_runs_rev ON agent_runs(agent_id, agent_revision)")
@@ -173,6 +179,56 @@ def don_mo_coi(truoc: float, *, now: Optional[float] = None) -> int:
             (float(now if now is not None else time.time()), float(truoc))).rowcount
 
 
+def cong_token(run_id: str, tokens_in, tokens_out, cost=0) -> int:
+    """Cộng token của MỘT sự kiện usage vào lượt `run_id`; trả TỔNG token đã đo của lượt sau khi cộng (0 nếu không có lượt đó). Số lạ
+    (âm, không phải số) bị coi là 0 chứ không làm hỏng lượt. Chỉ đo, không chặn gì."""
+    def _so(v):
+        try:
+            return max(0, int(float(v or 0)))
+        except (TypeError, ValueError):
+            return 0
+    ti, to = _so(tokens_in), _so(tokens_out)
+    try:
+        cs = max(0.0, float(cost or 0))
+    except (TypeError, ValueError):
+        cs = 0.0
+    with _LOCK:
+        c = _db()
+        c.execute("UPDATE agent_runs SET tokens_in=tokens_in+?, tokens_out=tokens_out+?, tokens_cost=tokens_cost+?, usage_events=usage_events+1 "
+                  "WHERE run_id=?", (ti, to, cs, run_id))
+        r = c.execute("SELECT tokens_in+tokens_out AS t FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+    return int(r["t"]) if r else 0
+
+
+TRAN_TOKEN_TOI_DA = 1_000_000      # chủ chốt: không tự tăng quá 1 triệu; cấu hình lớn hơn bị kẹp xuống đây
+
+
+def tran_token_luot() -> int:
+    """Trần token mỗi lượt từ settings.tasks.tran_token_luot. 0 hoặc không đặt = KHÔNG chặn (mặc định). Kẹp ở TRAN_TOKEN_TOI_DA."""
+    try:
+        cfg = config.read_settings()
+        v = int(float(((cfg.get("tasks") or {}).get("tran_token_luot")) or 0))
+    except Exception:  # noqa: BLE001 - đọc cấu hình hỏng thì không chặn (đo vẫn chạy)
+        return 0
+    return max(0, min(v, TRAN_TOKEN_TOI_DA))
+
+
+def ghi_usage(run_id: str, ev: dict) -> tuple:
+    """Điểm nối cho các đường phát sự kiện `usage`: cộng token vào lượt rồi cho biết có VƯỢT TRẦN không. Trả (tong_token, vuot_tran).
+    Không có run_id (route chạy không ngữ cảnh) thì (0, False): không đo, không chặn. Không bao giờ ném lỗi."""
+    if not run_id or not isinstance(ev, dict):
+        return 0, False
+    try:
+        tong = cong_token(run_id, ev.get("input") or ev.get("input_tokens") or 0, ev.get("output") or ev.get("output_tokens") or 0,
+                          ev.get("cost") or ev.get("cost_usd") or ev.get("total_cost_usd") or 0)
+        tran = tran_token_luot()
+        return tong, bool(tran and tong > tran)
+    except Exception as e:  # noqa: BLE001
+        import sys
+        print(f"[run_ledger] usage: {type(e).__name__}: {e}", file=sys.stderr)
+        return 0, False
+
+
 def don_cu(truoc: float) -> int:
     """Xoá lượt ĐÃ KẾT THÚC bắt đầu trước `truoc` (giữ sổ không phình mãi). Lượt đang chạy không xoá. Trả số dòng đã xoá."""
     with _LOCK:
@@ -213,7 +269,13 @@ def thong_ke(*, brain_id: str = "", agent_id: str = "", agent_revision: str = ""
     cuoi: dict = {}
     for r in sorted(runs, key=lambda x: x["started_at"]):
         cuoi[r["logical_execution_id"]] = r
-    out = {"lan_chay": len(runs), "logical": len(cuoi), "thu_lai": len(runs) - len(cuoi), "verified_pass": 0, "verified_fail": 0,
+    # Token: cộng trên MỌI lần chạy (retry cũng tốn token thật). `chua_do` = số lần chạy đã xong mà không nhận sự kiện usage nào: các lượt đó
+    # KHÔNG được tính là 0 token.
+    tok_vao = sum(int(r.get("tokens_in") or 0) for r in runs)
+    tok_ra = sum(int(r.get("tokens_out") or 0) for r in runs)
+    chua_do = sum(1 for r in runs if r["status"] != "running" and not int(r.get("usage_events") or 0))
+    out = {"token_vao": tok_vao, "token_ra": tok_ra, "lan_chua_do_token": chua_do,
+           "lan_chay": len(runs), "logical": len(cuoi), "thu_lai": len(runs) - len(cuoi), "verified_pass": 0, "verified_fail": 0,
            "chua_kiem": 0, "dang_chay": 0, "doi_duyet": 0, "gian_doan": 0, "loi_he_thong": 0, "trung_lap": sum(r["trung_lap"] for r in runs)}
     for r in cuoi.values():
         s, v = r["status"], r["verification_status"]
