@@ -71,8 +71,10 @@ check("background work with a key is available", _ok is True)
 check("agents can run on deepseek", "deepseek" in main.AGENT_PROVIDERS)
 
 check("dashboard knows the key field", '"deepseek": "deepseek_api_key"' in CONSOLE_JS)
-check("dashboard does not show the 'no tools' banner for deepseek",
-      '"groq", "deepseek", "ollama"' in CONSOLE_JS)
+import re  # noqa: E402
+_mcp_line = re.search(r"const MCP_PROVIDERS = \[[^\]]*\]", CONSOLE_JS)
+check("dashboard does not show the 'no tools' banner for deepseek (it is in MCP_PROVIDERS)",
+      bool(_mcp_line) and '"deepseek"' in _mcp_line.group(0))
 check("image input allowed (fallback drops images for text-only models)",
       vision_input.supported("deepseek"))
 check("Resonance can set goals on deepseek", resonance.engine_support("deepseek")["goal"] is True)
@@ -91,12 +93,12 @@ check("_set_main_model writes engine + main", _cfg["model"]["engine"] == "deepse
 # The owner chat path, the bot path and the tool-less path must all name DeepSeek explicitly.
 # `_api_stream_mcp`'s last branch is Ollama and `_api_stream_goc`'s is Anthropic: a missing
 # branch sends a DeepSeek key and model name to the wrong company.
-_DISPATCH = 'if prov == "deepseek":\n'
+# Since 1.3.18 the branches live in the tool-loop closure (`if p == "deepseek": return engine.deepseek_chat_with_mcp(...)`).
+_BRANCH = re.compile(r'== "deepseek":\s*\n\s*return engine\.deepseek_chat_with_mcp\(')
 for _fn in (main._api_stream_mcp, main._bot_stream_co_tool):
     _src = inspect.getsource(_fn)
-    _at = _src.find(_DISPATCH)
     check(f"{_fn.__name__} has its own deepseek branch calling deepseek_chat_with_mcp",
-          _at >= 0 and _src[_at:_at + 200].find("engine.deepseek_chat_with_mcp(") > 0)
+          bool(_BRANCH.search(_src)))
 check("_api_stream_mcp discovers hub tools for deepseek",
       "deepseek" in main._API_TOOL_PROVIDERS
       and "if prov in _API_TOOL_PROVIDERS:" in inspect.getsource(main._api_stream_mcp))

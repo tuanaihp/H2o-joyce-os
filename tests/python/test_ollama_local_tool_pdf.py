@@ -49,7 +49,8 @@ def check(name, cond, detail=""):
 src = (SERVER / "main.py").read_text(encoding="utf-8")
 i = src.index("async def _api_stream_mcp(")
 than = src[i:src.index("\nasync def ", i + 10) if "\nasync def " in src[i + 10:] else len(src)]
-nhanh = set(re.findall(r'prov == "([a-z-]+)":\s*\n\s*return engine\.\w+_chat_with_mcp', than))
+# Từ 1.3.18 các nhánh nằm trong closure `_vong_tool(p, k, m)`: `if p == "x": return engine.x_chat_with_mcp(...)`.
+nhanh = set(re.findall(r'p == "([a-z-]+)":\s*\n\s*return engine\.\w+_chat_with_mcp', than))
 check("tìm thấy các nhánh có tool của _api_stream_mcp", {"ollama-local", "openrouter", "deepseek"} <= nhanh, nhanh)
 check("mọi provider có nhánh tool đều được nạp tool (CANARY chống sót như ollama-local)",
       nhanh <= set(main._API_TOOL_PROVIDERS), nhanh - set(main._API_TOOL_PROVIDERS))
@@ -72,7 +73,8 @@ main.engine.ollama_local_chat_with_mcp = _ollama_local
 main._hub_enabled = lambda: True
 try:
     async def _chay():
-        out = main._api_stream_mcp("ollama-local", "", "qwen3.5:9b", [{"role": "user", "content": "đọc file a.md"}])
+        # Provider endpoint (ollama-local) cần một key SENTINEL do caller quyết (xem `_spec_keys`): key rỗng nghĩa là "chưa cấu hình", chuỗi rỗng.
+        out = main._api_stream_mcp("ollama-local", "http://127.0.0.1:11434", "qwen3.5:9b", [{"role": "user", "content": "đọc file a.md"}])
         if asyncio.iscoroutine(out):
             out = await out
         return [ev async for ev in out]
@@ -164,8 +166,23 @@ try:
 finally:
     ollama_local._chay = goc_chay
 
-check("khai tay RAM trên Mac chip Apple không làm mất GPU dùng chung",
-      'if tu_doc.get("gpu_name") == ollama_local.APPLE_GPU:' in src and 'd["has_gpu"], d["gpu_name"] = True' in src)
+# Kiểm bằng HÀNH VI (không dò chữ trong mã): khai tay RAM trên Mac chip Apple vẫn giữ GPU dùng chung.
+_g = (main._ol_specs_luu, ollama_local.same_host, ollama_local.la_apple_silicon)
+try:
+    main._ol_specs_luu = lambda: {"source": "manual", "ram_gb": 16.0, "has_gpu": False, "vram_gb": 0.0}
+    ollama_local.same_host = lambda ep: True
+    ollama_local.la_apple_silicon = lambda: True
+    _apple = main._ol_specs_hien_dung("http://127.0.0.1:11434")
+    check("khai tay RAM trên Mac chip Apple không làm mất GPU dùng chung (giữ RAM đã khai, bật has_gpu)",
+          _apple["has_gpu"] is True and _apple["gpu_name"] == ollama_local.APPLE_GPU and _apple["ram_gb"] == 16.0, _apple)
+    ollama_local.la_apple_silicon = lambda: False
+    _khac = main._ol_specs_hien_dung("http://127.0.0.1:11434")
+    check("máy KHÔNG phải chip Apple: giữ đúng điều người dùng khai, không tự thêm GPU", _khac["has_gpu"] is False and "gpu_name" not in _khac, _khac)
+    ollama_local.la_apple_silicon = lambda: True
+    ollama_local.same_host = lambda ep: False
+    check("địa chỉ Ollama ở xa: không đoán chip, giữ đúng điều người dùng khai", main._ol_specs_hien_dung("http://10.0.0.5:11434")["has_gpu"] is False)
+finally:
+    main._ol_specs_luu, ollama_local.same_host, ollama_local.la_apple_silicon = _g
 
 print()
 if _fails:

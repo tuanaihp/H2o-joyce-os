@@ -154,8 +154,10 @@ _gen.aclose() if hasattr(_gen, "aclose") else None
 # Và lượt chat thật phải đi qua lớp thử-lại, không gọi thẳng generator gốc: nhà cung cấp trả
 # 429 một nhịp mà bỏ cuộc ngay là chuyện đã xảy ra thật với bot chuyên trách.
 _boc = main._api_stream("groq", "k", "m", [{"role": "user", "content": "x"}], "off")
-check("_api_stream bọc lớp thử lại khi gãy tạm thời",
-      _boc.__qualname__.startswith("thu_lai_khi_tam_thoi"))
+import inspect  # noqa: E402
+# Từ 1.3.18 chat đi qua chuỗi `_stream_chain` (đổi key khi hết quota, rồi tới provider dự phòng); lớp thử lại vẫn nằm BÊN TRONG, bọc từng mắt.
+check("_api_stream đi qua chuỗi và từng mắt vẫn bọc lớp thử lại khi gãy tạm thời",
+      _boc.__qualname__.startswith("_stream_chain") and "engine.thu_lai_khi_tam_thoi(" in inspect.getsource(main._api_stream))
 _boc.aclose() if hasattr(_boc, "aclose") else None
 
 

@@ -21005,6 +21005,10 @@ def _ol_specs_hien_dung(endpoint: str) -> dict:
     """
     d = _ol_specs_luu()
     if d.get("source") == "manual" and (d.get("ram_gb") or 0) > 0:
+        # Mac chip Apple: bộ nhớ CPU và GPU là MỘT. Người dùng khai tay RAM không có nghĩa là máy hết GPU; không giữ cờ này thì gợi ý model
+        # tụt xuống mức "chỉ CPU". Chỉ áp khi CHẮC CHẮN cùng máy (ollama_local.same_host) và máy đúng là Apple Silicon.
+        if ollama_local.same_host(endpoint) and ollama_local.la_apple_silicon() and not d.get("has_gpu"):
+            d = {**d, "has_gpu": True, "gpu_name": ollama_local.APPLE_GPU}
         return d
     if ollama_local.same_host(endpoint):
         return ollama_local.detect_specs()
