@@ -464,6 +464,9 @@ def _brain_with_workflow(tmp_path, monkeypatch, settings):
         def __init__(self, *a, **k):
             self.model = None
 
+        def is_available(self):
+            return True       # từ 1.3.19 mọi engine nền được bọc trong _FallbackChain, nó hỏi `is_available` của mắt
+
         async def query(self, prompt):
             calls.append(prompt)
             yield {"type": "final", "content": f"KQ({len(calls)})"}
@@ -575,7 +578,7 @@ def test_failure_after_events_does_not_run_the_workflow_twice(tmp_path, monkeypa
         {"allocation_basis_points": 10_000, "allowed_slugs": ["demo"]})
     main, brain, calls = _brain_with_workflow(tmp_path, monkeypatch, on)
 
-    async def half_then_boom(brain_, slug, input_="", tools=None, session_id=""):
+    async def half_then_boom(brain_, slug, input_="", tools=None, session_id="", mode=None, **kw):
         yield {"type": "start", "workflow": "Demo", "steps": 2}
         yield {"type": "step_done", "node": "s0", "output": "KQ(1)"}
         raise RuntimeError("đứt giữa chừng")
@@ -627,6 +630,9 @@ def test_graph_path_events_carry_the_step_index_studio_needs(tmp_path, monkeypat
     class StreamingEngine:
         def __init__(self, *a, **k):
             self.model = None
+
+        def is_available(self):
+            return True
 
         async def query(self, prompt):
             yield {"type": "text", "content": "từng"}
@@ -689,7 +695,7 @@ def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
     """
     from tasks import TasksDeps, TasksFeature
 
-    async def paused_workflow(brain_root, slug, intent, tools, source="other"):
+    async def paused_workflow(brain_root, slug, intent, tools, source="other", **kw):
         # `source` thêm ở Task 2 (Cộng sự): tasks.py giờ gọi kèm source="kanban" để ghi
         # đúng nguồn vào lịch sử; hàm giả này phải nhận kwarg đó dù không dùng tới.
         yield {"type": "start", "workflow": "demo", "steps": 2}
@@ -719,7 +725,7 @@ def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
 def test_kanban_surfaces_an_agent_escalation_too(tmp_path):
     from tasks import TasksDeps, TasksFeature
 
-    async def escalating(brain_root, slug, intent, tools, source="other"):
+    async def escalating(brain_root, slug, intent, tools, source="other", **kw):
         yield {"type": "escalation", "reason": "repeated_failure_signature"}
 
     feature = TasksFeature(TasksDeps(
