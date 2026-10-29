@@ -29,7 +29,8 @@ check("_hidden_in_roots: ngoài root - False (không đoán bừa)",
 
 # --- endpoint /ws/graph với sự kiện file thật ---
 main.cfgmod.gate_active = lambda: False   # test không đụng auth thật
-client = TestClient(main.app)
+# Handshake WebSocket đi qua web_security.WebSocketGuard (luật Origin/Host); host mặc định `testserver` của TestClient bị từ chối, nên dùng localhost như người dùng thật.
+client = TestClient(main.app, base_url="http://localhost")
 
 def _write(relpath, content):
     p = os.path.join(root, relpath)
@@ -63,7 +64,7 @@ def _recv_json(ws, timeout=10):
 _write("cu.md", "note cũ, chưa có link")
 time.sleep(0.2)
 
-with client.websocket_connect(f"/ws/graph?path={root}") as ws:
+with client.websocket_connect(f"ws://localhost/ws/graph?path={root}") as ws:
     time.sleep(1.0)   # chờ watcher gắn xong vào thư mục (awatch khởi động nền)
 
     _write("moi.md", "note mới trỏ [[cu]]")
