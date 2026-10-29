@@ -4,14 +4,15 @@
   var state = null, eng = { provs: [], custom: false, spec: {} }, tab = null, typeF = "all", catF = "all", query = "", panel = null, busy = false, timer = null, wasRunning = false;
   var sel = {};
   var CATS = ["ban-hang", "marketing", "noi-dung", "du-lieu", "ke-toan", "tu-dong-hoa", "giao-tiep", "nghien-cuu", "lap-trinh", "cuoc-song", "khac"];
-  var TABS = ["take", "later", "raw", "skip", "saved", "done"];
+  var TABS = ["take", "later", "raw", "skip", "saved", "installed", "rejected"];
+  var trialOpen = "", trialDraft = "";
   var PRIOS = ["high", "mid", "ref"];
   var PRIO_KEY = { high: "sl.prio.high", mid: "sl.prio.mid", ref: "sl.prio.ref" };
   var draft = null;
   // Khoa i18n viet day du (khong noi chuoi) de test quet duoc moi khoa dang dung.
   var STATUS_KEY = { pending: "sl.status.pending", installed: "sl.status.installed", rejected: "sl.status.rejected", current: "sl.status.current", saved: "sl.status.saved" };
   var VERDICT_KEY = { take: "sl.verdict.take", later: "sl.verdict.later", skip: "sl.verdict.skip" };
-  var TAB_KEY = { take: "sl.tab.take", later: "sl.tab.later", raw: "sl.tab.raw", skip: "sl.tab.skip", saved: "sl.tab.saved", done: "sl.tab.done" };
+  var TAB_KEY = { take: "sl.tab.take", later: "sl.tab.later", raw: "sl.tab.raw", skip: "sl.tab.skip", saved: "sl.tab.saved", installed: "sl.tab.installed", rejected: "sl.tab.rejected" };
   var CAT_KEY = { "ban-hang": "sl.cat.ban-hang", "marketing": "sl.cat.marketing", "noi-dung": "sl.cat.noi-dung", "du-lieu": "sl.cat.du-lieu", "ke-toan": "sl.cat.ke-toan",
     "tu-dong-hoa": "sl.cat.tu-dong-hoa", "giao-tiep": "sl.cat.giao-tiep", "nghien-cuu": "sl.cat.nghien-cuu", "lap-trinh": "sl.cat.lap-trinh", "cuoc-song": "sl.cat.cuoc-song", "khac": "sl.cat.khac" };
   var brain = function () { return window.currentBrainPath ? window.currentBrainPath() : "brain"; };
@@ -35,7 +36,8 @@
   function an(c) { return c.analysis || null; }
   function label(c) { return (an(c) && an(c).title) || c.name; }
   function bucket(c) {
-    if (c.status === "installed" || c.status === "rejected") return "done";
+    if (c.status === "installed" || c.status === "current") return "installed";
+    if (c.status === "rejected") return "rejected";
     if (c.status === "saved") return "saved";
     if (c.status !== "pending") return "";
     var v = an(c) ? an(c).verdict : "";
@@ -52,13 +54,13 @@
     return !query || haystack(c).indexOf(query.toLowerCase()) >= 0;
   }
   function counts(rows) {
-    var n = { take: 0, later: 0, raw: 0, skip: 0, saved: 0, done: 0 };
+    var n = { take: 0, later: 0, raw: 0, skip: 0, saved: 0, installed: 0, rejected: 0 };
     rows.forEach(function (c) { var b = bucket(c); if (b) n[b]++; });
     return n;
   }
   function pendingIds(rows) { return rows.filter(function (c) { return (c.status === "pending" || c.status === "saved") && c.installable !== false; }).map(function (c) { return c.id; }); }
 
-  function chip(text, cls) { return '<span class="sl-chip' + (cls ? " " + cls : "") + '">' + esc(text) + '</span>'; }
+  function chip(text, cls, title) { return '<span class="sl-chip' + (cls ? " " + cls : "") + '"' + (title ? ' title="' + esc(title) + '"' : "") + '>' + esc(text) + '</span>'; }
   function riskText(k) { return t(k === "high" ? "sl.risk.high" : k === "medium" ? "sl.risk.medium" : "sl.risk.low"); }
   function kindText(k) { return t(k === "update" ? "sl.kind.update" : k === "current" ? "sl.kind.current" : "sl.kind.new"); }
 
@@ -77,6 +79,34 @@
       return '<div class="' + r[2] + '"><dt>' + esc(t(r[0])) + '</dt><dd>' + esc(r[1]) + '</dd></div>';
     }).join("") + '</dl><div class="sl-ai-by">' + esc(t("sl.ai_by", { model: a.model || "AI" })) +
       ' <button class="sl-link" data-act="analyze" data-id="' + esc(c.id) + '" data-force="1">' + esc(t("sl.redo")) + '</button></div>';
+  }
+
+  var CHK_KEY = { files: "sl.chk.files", match: "sl.chk.match", mirror: "sl.chk.mirror", desc: "sl.chk.desc", off: "sl.chk.off", syntax: "sl.chk.syntax", register: "sl.chk.register" };
+  var CHK_BAD = { files: "sl.chk.files_bad", match: "sl.chk.match_bad", mirror: "sl.chk.mirror_bad", desc: "sl.chk.desc_bad", off: "sl.chk.off_bad", syntax: "sl.chk.syntax_bad", register: "sl.chk.register_bad" };
+  function installedHtml(c) {
+    var inst = c.install, isPlugin = c.type === "plugin", pageName = t(isPlugin ? "sl.page.plugins" : "sl.page.skills"), box;
+    if (inst) {
+      box = '<div class="sl-evid ' + (inst.ok ? "ok" : "bad") + '"><div class="sl-evid-h">' + esc(t(inst.ok ? "sl.evid.ok" : "sl.evid.bad")) + '</div>' +
+        '<div class="sl-evid-where">' + esc(t("sl.evid.where", { where: inst.where, page: pageName })) + ' · ' + esc(fmt(inst.at)) + '</div><ul class="sl-checks">' +
+        (inst.checks || []).map(function (k) {
+          var key = k.ok ? (k.key === "listed" ? (isPlugin ? "sl.chk.listed_plugin" : "sl.chk.listed_skill") : CHK_KEY[k.key])
+            : (k.key === "listed" ? (isPlugin ? "sl.chk.listed_plugin_bad" : "sl.chk.listed_skill_bad") : CHK_BAD[k.key]);
+          return '<li class="' + (k.ok ? "ok" : k.warn ? "warn" : "bad") + '">' + esc(t(key || "sl.chk.files")) + (!k.ok && k.detail ? ' <i>' + esc(k.detail) + '</i>' : '') + '</li>';
+        }).join("") + '</ul></div>';
+    } else box = '<div class="sl-evid"><div class="sl-evid-h">' + esc(t("sl.evid.none")) + '</div></div>';
+    var btns = '<div class="sl-actions"><button data-act="verify" data-id="' + esc(c.id) + '">' + icon("rotate-cw") + esc(t("sl.verify")) + '</button>' +
+      (isPlugin ? '' : '<button data-act="trial-open" data-id="' + esc(c.id) + '">' + icon("sparkles") + esc(t("sl.trial_btn")) + '</button>') +
+      '<button data-act="goto" data-page="' + (isPlugin ? "plugins" : "skills") + '">' + esc(t("sl.goto", { page: pageName })) + '</button></div>' +
+      (isPlugin ? '<div class="sl-sub">' + esc(t("sl.trial_plugin_hint")) + '</div>' : '');
+    var trial = "";
+    if (!isPlugin && (trialOpen === c.id || c.trial)) {
+      var tr = c.trial;
+      trial = '<div class="sl-trial"><div class="sl-evid-h">' + esc(t("sl.trial_title")) + '</div>' +
+        (trialOpen === c.id ? '<div class="sl-sub">' + esc(t("sl.trial_help")) + '</div><input class="sl-note-in" data-draft="trial" maxlength="600" value="' + esc(trialDraft) +
+          '" placeholder="' + esc(t("sl.trial_req_ph")) + '"><div class="sl-actions"><button class="primary" data-act="trial-run" data-id="' + esc(c.id) + '">' + esc(t("sl.trial_run")) + '</button></div>' : '') +
+        (tr ? '<div class="sl-trial-meta">' + esc(t("sl.trial_result", { model: tr.model || "AI", when: fmt(tr.at) })) + ' · ' + esc(tr.request) + '</div><pre class="sl-trial-out">' + esc(tr.answer) + '</pre>' : '') + '</div>';
+    }
+    return box + btns + trial;
   }
 
   function saveFormHtml(c) {
@@ -107,6 +137,10 @@
         (c.installable === false ? "" : '<button class="primary" data-act="install" data-id="' + esc(c.id) + '">' + icon("circle-check") + esc(t("sl.install_now")) + '</button>') +
         '<button data-act="save-open" data-id="' + esc(c.id) + '">' + esc(t("sl.edit_note")) + '</button>' +
         '<button data-act="reject" data-id="' + esc(c.id) + '">' + esc(t("sl.skip_it")) + '</button></div>';
+    } else if (c.status === "installed" || c.status === "current") {
+      acts = installedHtml(c);
+    } else if (c.status === "rejected") {
+      acts = '<div class="sl-actions">' + chip(t("sl.status.rejected")) + '<button data-act="restore" data-id="' + esc(c.id) + '">' + esc(t("sl.restore")) + '</button></div>';
     } else {
       acts = '<div class="sl-actions">' + chip(t(STATUS_KEY[c.status] || "sl.status.pending")) + '</div>';
     }
@@ -117,10 +151,10 @@
     var check = (pending || saved) && c.installable !== false ? '<label class="sl-pick"><input type="checkbox" data-chg="pick" data-id="' + esc(c.id) + '"' + (sel[c.id] ? " checked" : "") + '></label>' : "";
     return '<article class="sl-card' + (v ? " v-" + esc(v) : "") + (sel[c.id] ? " picked" : "") + '"><div class="sl-card-head">' + check +
       '<div class="sl-card-titles"><div class="sl-card-title">' + esc(label(c)) + '</div><div class="sl-card-orig">' + esc(c.name) + ' · ' + esc(c.relative) + '</div></div>' +
-      '<div class="sl-badges">' + (v ? chip(t(VERDICT_KEY[v]), "sl-v-" + v) : "") + chip(t(isPlugin ? "sl.type.plugin" : "sl.type.skill"), "sl-type-" + (isPlugin ? "plugin" : "skill")) + '</div></div>' +
+      '<div class="sl-badges">' + (v ? chip(t(VERDICT_KEY[v]), "sl-v-" + v) : "") + chip(t(isPlugin ? "sl.type.plugin" : "sl.type.skill"), "sl-type-" + (isPlugin ? "plugin" : "skill"), t(isPlugin ? "sl.type.plugin_help" : "sl.type.skill_help")) + '</div></div>' +
       keepBox + notesHtml(c) + tools +
       '<div class="sl-meta">' + (a && a.category ? chip(t(CAT_KEY[a.category] || "sl.cat.khac")) : "") + chip(riskText(c.risk), "sl-risk-" + esc(c.risk)) +
-      chip(kindText(c.kind)) + chip(c.source_name) + '</div>' + warns + plug + blocked + acts +
+      chip(kindText(c.kind)) + chip(c.source_name) + ((pending || saved) ? chip(t(isPlugin ? "sl.dest.plugin" : "sl.dest.skill", { slug: c.slug }), "sl-dest") : "") + '</div>' + warns + plug + blocked + acts +
       '<details><summary>' + esc(t("sl.original")) + '</summary><div class="sl-orig-desc">' + esc(c.description || "") + '</div><pre>' + esc(c.excerpt || "") + '</pre></details></article>';
   }
 
@@ -165,7 +199,7 @@
       '<section class="sl-hero"><div><h3>Skill Learn Update</h3><p>' + esc(t("sl.hero")) + '</p></div><div class="sl-stats">' +
       stat(st.sources, "sl.stat.sources") + stat(st.take, "sl.stat.take") + stat(st.pending, "sl.stat.pending") + stat(st.saved, "sl.stat.saved") + stat(st.high_risk, "sl.stat.risk") + '</div></section>' +
       '<section class="sl-box sl-addbox"><div class="sl-head"><h4>' + esc(t("sl.add_title")) + '</h4><button data-act="sync-all">' + icon("rotate-cw") + esc(t("sl.scan_all")) + '</button></div>' +
-      '<div class="sl-sub">' + esc(t("sl.add_sub")) + '</div><div class="sl-add"><input id="slLocation" placeholder="' + esc(t("sl.add_ph")) + '"><button class="primary" data-act="add">' +
+      '<div class="sl-sub">' + esc(t("sl.add_sub")) + '</div><div class="sl-scope">' + esc(t("sl.scope_note")) + '</div><div class="sl-add"><input id="slLocation" placeholder="' + esc(t("sl.add_ph")) + '"><button class="primary" data-act="add">' +
       icon("plus") + esc(t("sl.add_btn")) + '</button></div><div class="sl-msg" id="slMsg"></div>' +
       ((state.sources || []).length ? '<div class="sl-sources">' + state.sources.map(sourceHtml).join("") + '</div>' : '') + '</section>' + brainCard() + jobHtml() +
       '<section class="sl-box"><div class="sl-head"><h4>' + esc(t("sl.board")) + '</h4><div class="sl-tools-row">' +
@@ -176,7 +210,7 @@
       '<input id="slSearch" class="sl-search" type="search" placeholder="' + esc(t("sl.search")) + '" value="' + esc(query) + '"></div></div>' +
       '<div class="sl-tabs">' + TABS.map(function (k) { return '<button data-act="tab" data-v="' + k + '" class="' + (tab === k ? "on" : "") + '">' + esc(t(TAB_KEY[k])) +
         ' <b>' + n[k] + '</b></button>'; }).join("") + '</div>' +
-      (tab !== "done" && canPick.length ? '<div class="sl-selbar"><label><input type="checkbox" data-chg="pickall"' + (canPick.every(function (i) { return sel[i]; }) ? " checked" : "") + '> ' +
+      (canPick.length ? '<div class="sl-selbar"><label><input type="checkbox" data-chg="pickall"' + (canPick.every(function (i) { return sel[i]; }) ? " checked" : "") + '> ' +
         esc(t("sl.pick_all", { n: canPick.length })) + '</label>' + (tab === "raw" && state.can_analyze ? '<button data-act="analyze-all">' + icon("sparkles") + esc(t("sl.ask_all")) + '</button>' : '') + '</div>' : '') +
       '<div class="sl-cards">' + (list.map(cardHtml).join("") || '<div class="sl-empty">' + esc(t(!all.length ? "sl.empty_none" : tab === "saved" ? "sl.empty_saved" : "sl.empty_tab")) + '</div>') + '</div></section>' +
       (picked.length ? '<div class="sl-bulk"><strong>' + esc(t("sl.picked_n", { n: picked.length })) + '</strong><button class="primary" data-act="bulk-install">' + icon("circle-check") +
@@ -282,6 +316,18 @@
     } else if (a === "tab") { tab = b.dataset.v; render(); }
     else if (a === "save-open") { var cc = find(id); draft = { id: id, prio: (cc && cc.priority) || "mid", note: (cc && cc.note) || "" }; render(); }
     else if (a === "save-cancel") { draft = null; render(); }
+    else if (a === "restore") review([id], "restore");
+    else if (a === "goto") { try { window.Alpine.store("nav").go(b.dataset.page); } catch (err) { /* khong co dieu huong thi thoi */ } }
+    else if (a === "verify") {
+      guarded(async function () { state = (await post("/skill-learn/verify", { candidate_id: id })).state; render(); showMsg(t("sl.verified")); });
+    } else if (a === "trial-open") { var tc = find(id); trialOpen = trialOpen === id ? "" : id; trialDraft = (tc && tc.trial && tc.trial.request) || t("sl.trial_default"); render(); }
+    else if (a === "trial-run") {
+      guarded(async function () {
+        showMsg(t("sl.trial_running"));
+        var r = await post("/skill-learn/trial", { candidate_id: id, request: trialDraft });
+        state = r.state; trialOpen = ""; render();
+      });
+    }
     else if (a === "save-do") { if (draft) { var d0 = draft; draft = null; saveItem(d0.id, d0.prio, d0.note); } }
     else if (a === "install") review([id], "install");
     else if (a === "reject") review([id], "reject");
@@ -343,6 +389,7 @@
   function onInput(e) {
     if (e.target.id === "slSearch") { query = e.target.value.trim(); render(); }
     else if (e.target.dataset && e.target.dataset.draft === "note" && draft) draft.note = e.target.value;
+    else if (e.target.dataset && e.target.dataset.draft === "trial") trialDraft = e.target.value;
   }
   function onKey(e) {
     if (e.target.id === "slLocation" && e.key === "Enter") { var b = panel.querySelector('[data-act="add"]'); if (b) b.click(); }
@@ -356,7 +403,7 @@
     panel = document.createElement("div");
     panel.className = "sl-root";
     host.appendChild(panel);
-    state = null; tab = null; wasRunning = false; draft = null;
+    state = null; tab = null; wasRunning = false; draft = null; trialOpen = ""; trialDraft = "";
     panel.onclick = onClick; panel.onchange = onChange; panel.oninput = onInput; panel.onkeydown = onKey;
     panel.innerHTML = '<div class="empty">' + esc(t("sl.loading")) + '</div>';
     try { await reload(); } catch (e) { panel.innerHTML = '<div class="sl-empty">' + esc(t("sl.err_load", { err: e.message })) + '</div>'; }

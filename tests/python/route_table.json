@@ -7166,6 +7166,26 @@
  {
   "order": 721,
   "type": "APIRoute",
+  "path": "/skill-learn/verify",
+  "name": "verify",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 722,
+  "type": "APIRoute",
+  "path": "/skill-learn/trial",
+  "name": "trial",
+  "methods": [
+   "POST"
+  ],
+  "trong": 714
+ },
+ {
+  "order": 723,
+  "type": "APIRoute",
   "path": "/skill-learn/review-batch",
   "name": "review_batch",
   "methods": [
@@ -7174,7 +7194,7 @@
   "trong": 714
  },
  {
-  "order": 722,
+  "order": 724,
   "type": "APIRoute",
   "path": "/skill-learn/schedule",
   "name": "schedule",
@@ -7184,7 +7204,7 @@
   "trong": 714
  },
  {
-  "order": 723,
+  "order": 725,
   "type": "APIRoute",
   "path": "/work/factory/grade",
   "name": "work_factory_grade",

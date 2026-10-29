@@ -2,6 +2,12 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.49] - 2026-10-29
+### Added
+- **Skill Learn now splits "Installed" and "Skipped" into separate tabs** (a Restore button puts a skipped item back in the queue). Each card shows what kind it is and where it goes: **skills go to the Skills page, plugins go to the Tools page (switched off)**; MCP is not part of this tab.
+- **Real evidence after installing:** Joyce checks the files are in place, the content matches the repo, Joyce lists the skill/plugin, and plugin code has no syntax error. A failed check is **not counted as installed** and the copied files are cleaned up. A **Check again** button is always there.
+- **A Try it button for skills:** the AI reads the skill and follows it for a sample request in a sandbox (no tools); the real answer is saved on the card. For plugins, switch them on from the Tools page and call them, since they are real running code.
+
 ## [1.3.48] - 2026-10-29
 ### Added
 - **A waiting store in Skill Learn Update:** for any item you approve but do not want to install yet, press **Save for later**, pick **High / Medium priority or Reference**, and add a short note. The Waiting store tab sorts by priority; when you need one press **Install now**, or tick several to install in one go.

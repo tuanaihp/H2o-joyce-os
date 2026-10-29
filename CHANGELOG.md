@@ -2,6 +2,12 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.49] - 2026-10-29
+### Thêm
+- **Skill Learn tách tab "Đã cài" và "Đã bỏ qua"** (có nút Khôi phục mục đã bỏ qua vào hàng chờ). Thẻ hiện rõ mục thuộc loại nào và sẽ vào đâu: **skill vào trang Kỹ năng, plugin vào trang Công cụ (ở trạng thái tắt)**; MCP không nằm trong tab này.
+- **Cài xong có bằng chứng thật:** Joyce tự kiểm tra file đã nằm đúng chỗ, nội dung khớp repo, Joyce thấy skill/plugin trong danh sách, mã plugin không lỗi cú pháp. Kiểm tra không đạt thì **không tính là đã cài** và dọn file vừa chép. Có nút **Kiểm tra lại** bất cứ lúc nào.
+- **Nút Chạy thử cho skill:** AI đọc skill rồi làm theo một yêu cầu mẫu trong hộp cát (không có công cụ), kết quả thật lưu ngay trên thẻ. Plugin thì bật ở trang Công cụ rồi gọi thử vì là mã chạy thật.
+
 ## [1.3.48] - 2026-10-29
 ### Thêm
 - **Kho chờ trong Skill Learn Update:** mục nào anh duyệt nhưng chưa muốn cài thì bấm **Lưu để sau**, chọn mức **Ưu tiên cao / vừa / Tham khảo** và ghi chú ngắn. Tab Kho chờ xếp theo ưu tiên; khi cần bấm **Cài ngay**, hoặc tích chọn nhiều mục để cài một lượt.
