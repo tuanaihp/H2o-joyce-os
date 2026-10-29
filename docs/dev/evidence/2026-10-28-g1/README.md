@@ -123,3 +123,11 @@ Worktree sạch, `python tests/run.py`, Windows 10, Python 3.14.6, commit `94e23
 
 Vì vậy KHÔNG khai "full suite xanh": còn hai mục chập chờn và một mục đã sửa nhưng chưa chạy lại trong full suite.
 
+## Kết quả cuối 1.3.45 (29/10/2026)
+
+Worktree sạch, commit `d034446`: **918/919 xanh**, exit code 1, 1941 giây. Log: `full-suite-d034446-1.3.45.txt`. Mục đỏ duy nhất: `test_khoi_dong_nhe` (gate khởi động A07.1, dao động quanh trần 5,0, chưa đạt, không nâng trần).
+
+Lần chạy đầu của 1.3.45 (`55ee824`, log `full-suite-55ee824-1.3.45-lan1-co-5-do.txt`) có 5 mục đỏ mới do chính mã chat vào sổ lượt chạy: bốn test cắt `run_turn` ra chạy riêng thiếu hàm sổ (thêm hàm giả), một test dò chuỗi `if isinstance(out, str):` bị lệch vì lớp bọc `_tg_answer` có cùng chuỗi (đổi tên biến). Đã sửa, chạy lại: hết.
+
+Khi đó: **không còn mục đỏ nào ngoài gate khởi động**. Vẫn còn khoảng hở độ phủ: các ca symlink file, Linux và macOS, `dashboard/humanoid/` (giữ local) chưa chạy ở máy sạch.
+
