@@ -7005,7 +7005,7 @@
   "sl.stat.risk": "High risk",
   "sl.add_title": "Add a repo for Joyce to learn from",
   "sl.add_sub": "Paste a GitHub link (Joyce downloads it into its own cache) or a folder path on this machine (read in place). Finding skills and plugins costs no tokens; the AI reading and translating step uses a cheap classification model.",
-  "sl.add_ph": "https://github.com/owner/repo or E:\\folder\\repo",
+  "sl.add_ph": "Example: https://github.com/owner/repo or E:\\folder\\repo",
   "sl.add_btn": "Add and analyze",
   "sl.scan_all": "Scan all",
   "sl.resync": "Resync this source",

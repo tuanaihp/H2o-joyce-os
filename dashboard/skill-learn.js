@@ -5,6 +5,12 @@
   var sel = {};
   var CATS = ["ban-hang", "marketing", "noi-dung", "du-lieu", "ke-toan", "tu-dong-hoa", "giao-tiep", "nghien-cuu", "lap-trinh", "cuoc-song", "khac"];
   var TABS = ["take", "later", "raw", "skip", "done"];
+  // Khoa i18n viet day du (khong noi chuoi) de test quet duoc moi khoa dang dung.
+  var STATUS_KEY = { pending: "sl.status.pending", installed: "sl.status.installed", rejected: "sl.status.rejected", current: "sl.status.current" };
+  var VERDICT_KEY = { take: "sl.verdict.take", later: "sl.verdict.later", skip: "sl.verdict.skip" };
+  var TAB_KEY = { take: "sl.tab.take", later: "sl.tab.later", raw: "sl.tab.raw", skip: "sl.tab.skip", done: "sl.tab.done" };
+  var CAT_KEY = { "ban-hang": "sl.cat.ban-hang", "marketing": "sl.cat.marketing", "noi-dung": "sl.cat.noi-dung", "du-lieu": "sl.cat.du-lieu", "ke-toan": "sl.cat.ke-toan",
+    "tu-dong-hoa": "sl.cat.tu-dong-hoa", "giao-tiep": "sl.cat.giao-tiep", "nghien-cuu": "sl.cat.nghien-cuu", "lap-trinh": "sl.cat.lap-trinh", "cuoc-song": "sl.cat.cuoc-song", "khac": "sl.cat.khac" };
   var brain = function () { return window.currentBrainPath ? window.currentBrainPath() : "brain"; };
   var t = function (k, v) { return window.t ? window.t(k, v) : k; };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -82,14 +88,14 @@
         icon("circle-check") + esc(t(c.kind === "update" ? "sl.approve_update" : "sl.approve")) + '</button>') +
         '<button data-act="reject" data-id="' + esc(c.id) + '">' + esc(t("sl.skip_it")) + '</button></div>';
     } else {
-      acts = '<div class="sl-actions">' + chip(t("sl.status." + c.status)) + '</div>';
+      acts = '<div class="sl-actions">' + chip(t(STATUS_KEY[c.status] || "sl.status.pending")) + '</div>';
     }
     var check = pending && c.installable !== false ? '<label class="sl-pick"><input type="checkbox" data-chg="pick" data-id="' + esc(c.id) + '"' + (sel[c.id] ? " checked" : "") + '></label>' : "";
     return '<article class="sl-card' + (v ? " v-" + esc(v) : "") + (sel[c.id] ? " picked" : "") + '"><div class="sl-card-head">' + check +
       '<div class="sl-card-titles"><div class="sl-card-title">' + esc(label(c)) + '</div><div class="sl-card-orig">' + esc(c.name) + ' · ' + esc(c.relative) + '</div></div>' +
-      '<div class="sl-badges">' + (v ? chip(t("sl.verdict." + v), "sl-v-" + v) : "") + chip(t(isPlugin ? "sl.type.plugin" : "sl.type.skill"), "sl-type-" + (isPlugin ? "plugin" : "skill")) + '</div></div>' +
+      '<div class="sl-badges">' + (v ? chip(t(VERDICT_KEY[v]), "sl-v-" + v) : "") + chip(t(isPlugin ? "sl.type.plugin" : "sl.type.skill"), "sl-type-" + (isPlugin ? "plugin" : "skill")) + '</div></div>' +
       notesHtml(c) + tools +
-      '<div class="sl-meta">' + (a && a.category ? chip(t("sl.cat." + a.category)) : "") + chip(riskText(c.risk), "sl-risk-" + esc(c.risk)) +
+      '<div class="sl-meta">' + (a && a.category ? chip(t(CAT_KEY[a.category] || "sl.cat.khac")) : "") + chip(riskText(c.risk), "sl-risk-" + esc(c.risk)) +
       chip(kindText(c.kind)) + chip(c.source_name) + '</div>' + warns + plug + blocked + acts +
       '<details><summary>' + esc(t("sl.original")) + '</summary><div class="sl-orig-desc">' + esc(c.description || "") + '</div><pre>' + esc(c.excerpt || "") + '</pre></details></article>';
   }
@@ -141,9 +147,9 @@
       '<select data-chg="type"><option value="all">' + esc(t("sl.f.all_types")) + '</option><option value="skill"' + (typeF === "skill" ? " selected" : "") + '>' + esc(t("sl.type.skill")) +
       '</option><option value="plugin"' + (typeF === "plugin" ? " selected" : "") + '>' + esc(t("sl.type.plugin")) + '</option></select>' +
       '<select data-chg="cat"><option value="all">' + esc(t("sl.f.all_cats")) + '</option>' + cats.map(function (k) {
-        return '<option value="' + k + '"' + (catF === k ? " selected" : "") + '>' + esc(t("sl.cat." + k)) + '</option>'; }).join("") + '</select>' +
+        return '<option value="' + k + '"' + (catF === k ? " selected" : "") + '>' + esc(t(CAT_KEY[k])) + '</option>'; }).join("") + '</select>' +
       '<input id="slSearch" class="sl-search" type="search" placeholder="' + esc(t("sl.search")) + '" value="' + esc(query) + '"></div></div>' +
-      '<div class="sl-tabs">' + TABS.map(function (k) { return '<button data-act="tab" data-v="' + k + '" class="' + (tab === k ? "on" : "") + '">' + esc(t("sl.tab." + k)) +
+      '<div class="sl-tabs">' + TABS.map(function (k) { return '<button data-act="tab" data-v="' + k + '" class="' + (tab === k ? "on" : "") + '">' + esc(t(TAB_KEY[k])) +
         ' <b>' + n[k] + '</b></button>'; }).join("") + '</div>' +
       (tab !== "done" && canPick.length ? '<div class="sl-selbar"><label><input type="checkbox" data-chg="pickall"' + (canPick.every(function (i) { return sel[i]; }) ? " checked" : "") + '> ' +
         esc(t("sl.pick_all", { n: canPick.length })) + '</label>' + (tab === "raw" && state.can_analyze ? '<button data-act="analyze-all">' + icon("sparkles") + esc(t("sl.ask_all")) + '</button>' : '') + '</div>' : '') +

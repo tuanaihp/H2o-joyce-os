@@ -29,6 +29,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 import config as cfgmod
+import fastyaml
 import plugins_host
 import system_sync
 
@@ -216,7 +217,7 @@ def _frontmatter(text: str) -> dict:
     if not m:
         return {}
     try:
-        d = yaml.safe_load(m.group(1)) or {}
+        d = fastyaml.safe_load(m.group(1)) or {}
         return d if isinstance(d, dict) else {}
     except yaml.YAMLError:
         return {}
@@ -272,12 +273,12 @@ def _skipped(rel: Path) -> bool:
 def _manifest(text: str) -> dict:
     """plugin.yaml: YAML thuong, co file ket thuc bang dong '---'. Loi thi coi nhu manifest rong."""
     try:
-        d = yaml.safe_load(text)
+        d = fastyaml.safe_load(text)
         return d if isinstance(d, dict) else {}
     except yaml.YAMLError:
         pass
     try:
-        for doc in yaml.safe_load_all(text):
+        for doc in yaml.load_all(text, Loader=yaml.SafeLoader):
             return doc if isinstance(doc, dict) else {}
     except yaml.YAMLError:
         pass

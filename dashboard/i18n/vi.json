@@ -7005,7 +7005,7 @@
   "sl.stat.risk": "Rủi ro cao",
   "sl.add_title": "Thêm repo để Joyce học",
   "sl.add_sub": "Dán link GitHub (Joyce tải về kho riêng) hoặc đường dẫn thư mục trên máy (đọc trực tiếp). Quét tìm skill và plugin không tốn token; bước AI đọc và dịch dùng model phân loại rẻ.",
-  "sl.add_ph": "https://github.com/owner/repo hoặc E:\\thu-muc\\repo",
+  "sl.add_ph": "Ví dụ: https://github.com/owner/repo hoặc E:\\thu-muc\\repo",
   "sl.add_btn": "Thêm và phân tích",
   "sl.scan_all": "Quét tất cả",
   "sl.resync": "Đồng bộ lại nguồn này",
