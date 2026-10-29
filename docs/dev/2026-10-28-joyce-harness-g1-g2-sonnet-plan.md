@@ -1,5 +1,7 @@
 # Joyce Harness: kế hoạch giao Sonnet 5.5 khép G1 và nối G2
 
+> **Bản bàn giao gom trạng thái từng hạng mục (29/10/2026): [2026-10-29-ban-giao-joyce-harness.md](./2026-10-29-ban-giao-joyce-harness.md). Các ô checklist bên dưới chưa được tick; tin bảng ở bản bàn giao.**
+>
 > **Trạng thái (28/10/2026): chủ đã duyệt GÓI A, riêng D4 chọn phương án nhẹ hơn (xem mục 2.4). Gói B CHƯA được duyệt. Gói A (A00..A07) đã làm xong trên nhánh `claude/crm-v2-final-1-3-35`, không merge main; riêng gate A07.1 CHƯA đạt (xem mục 8).**
 >
 > Ngày: 28/10/2026. Audit code tại Joyce OS `1.3.41`, commit `8a981e6`; cập nhật báo cáo test theo commit tài liệu `6b22a33` và thông tin chủ bổ sung. Nhánh `claude/crm-v2-final-1-3-35`. Working tree sạch trước lượt viết plan đầu tiên; các thay đổi tài liệu của lượt đó được giữ khi cập nhật.
