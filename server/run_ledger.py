@@ -65,7 +65,7 @@ def _db() -> sqlite3.Connection:
             # Đo token THẬT (1.3.43, chủ chốt 29/10): cộng dồn từ sự kiện `usage` của chính lượt này. `usage_events` = số sự kiện đã nhận; 0 nghĩa là
             # CHƯA ĐO được (engine không báo), KHÔNG phải 0 token. Bảng tạo trước đó không có cột này nên thêm khi thiếu.
             cot = {r[1] for r in c.execute("PRAGMA table_info(agent_runs)")}
-            for ten, kieu in (("tokens_in", "INTEGER"), ("tokens_out", "INTEGER"), ("tokens_cost", "REAL"), ("usage_events", "INTEGER")):
+            for ten, kieu in (("tokens_in", "INTEGER"), ("tokens_out", "INTEGER"), ("tokens_cost", "REAL"), ("usage_events", "INTEGER"), ("quyen_bi_chan", "INTEGER")):
                 if ten not in cot:
                     c.execute(f"ALTER TABLE agent_runs ADD COLUMN {ten} {kieu} NOT NULL DEFAULT 0")
             c.execute("CREATE INDEX IF NOT EXISTS ix_runs_agent ON agent_runs(brain_id, agent_id, started_at DESC)")
@@ -200,6 +200,20 @@ def cong_token(run_id: str, tokens_in, tokens_out, cost=0) -> int:
     return int(r["t"]) if r else 0
 
 
+def ghi_chan_quyen(run_id: str, tool: str, effect: str) -> None:
+    """Ghi MỘT lần agent định gọi tool ngoài quyền đã khai (host chặn). Dấu hiệu cần xem của pilot: agent cố làm điều nó không được phép.
+    Chỉ đếm; không lưu tham số của lời gọi. Không bao giờ ném lỗi."""
+    if not run_id:
+        return
+    try:
+        with _LOCK:
+            _db().execute("UPDATE agent_runs SET quyen_bi_chan=quyen_bi_chan+1 WHERE run_id=?", (run_id,))
+        import sys
+        print(f"[run_ledger] chặn quyền: lượt {run_id[:8]} gọi {str(tool)[:40]} (effect {effect})", file=sys.stderr)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 TRAN_TOKEN_TOI_DA = 1_000_000      # chủ chốt: không tự tăng quá 1 triệu; cấu hình lớn hơn bị kẹp xuống đây
 
 
@@ -275,6 +289,7 @@ def thong_ke(*, brain_id: str = "", agent_id: str = "", agent_revision: str = ""
     tok_ra = sum(int(r.get("tokens_out") or 0) for r in runs)
     chua_do = sum(1 for r in runs if r["status"] != "running" and not int(r.get("usage_events") or 0))
     out = {"token_vao": tok_vao, "token_ra": tok_ra, "lan_chua_do_token": chua_do,
+           "lan_bi_chan_quyen": sum(int(r.get("quyen_bi_chan") or 0) for r in runs),
            "lan_chay": len(runs), "logical": len(cuoi), "thu_lai": len(runs) - len(cuoi), "verified_pass": 0, "verified_fail": 0,
            "chua_kiem": 0, "dang_chay": 0, "doi_duyet": 0, "gian_doan": 0, "loi_he_thong": 0, "trung_lap": sum(r["trung_lap"] for r in runs)}
     for r in cuoi.values():

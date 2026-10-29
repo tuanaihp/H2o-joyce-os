@@ -10,6 +10,7 @@ Mode đến từ header X-Joyce-Mode (Claude/Codex) hoặc tham số (engine API
 """
 import asyncio
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -1117,6 +1118,53 @@ def _store_mtime():
     return tong
 
 
+def hub_effect(entry: dict) -> str:
+    """Effect (theo contract.schema.json: read, internal_write, external_write, destructive...) của MỘT tool trong route của hub.
+
+    Hub chỉ phân loại thô read, write, danger (MCP) hay mức quyền (plugin): ánh xạ THẬN TRỌNG sang phía nặng hơn khi không chắc. Tool MCP
+    `write` tác động ra hệ thống ngoài nên là external_write; `danger` là destructive; tool lõi của Joyce `write` ghi vào brain nên là internal_write.
+    Effect không nhận ra thì external_write (agent đã khai quyền mà gặp tool lạ bị chặn, đúng tinh thần "không biết thì không cho")."""
+    eff = str((entry or {}).get("effect") or "")
+    nguon = str((entry or {}).get("source_type") or "")
+    if eff in ("none", "read"):
+        return "read"
+    if nguon == "builtin":
+        return "internal_write" if eff == "write" else "external_write"
+    if eff == "danger":
+        return "destructive"
+    if nguon == "plugin":
+        mode = str((entry or {}).get("required_mode") or "")
+        return "read" if mode == "readonly" else ("internal_write" if mode == "safe" else "external_write")
+    return "external_write"
+
+
+def _boc_quyen(fn: str, entry: dict) -> None:
+    """Thay entry["call"] bằng bản hỏi quyền chung trước khi chạy. Idempotent: bọc rồi thì không bọc lại (route cache giữ nguyên entry)."""
+    base = entry.get("call")
+    if not base or getattr(base, "_joyce_quyen", False):
+        return
+    effect = hub_effect(entry)
+
+    async def call(*a, **k):
+        import run_context
+        ctx = run_context.hien_tai()
+        ok, _ly = run_context.cho_phep(effect, ctx)
+        if not ok:
+            try:
+                import run_ledger
+                run_ledger.ghi_chan_quyen(ctx.run_id if ctx else "", fn, effect)
+            except Exception:  # noqa: BLE001
+                pass
+            return (f"ERROR: agent này đã khai quyền (allowed_effects) và không có `{effect}` nên không được gọi tool `{fn}`. "
+                    "Báo chủ nếu cần cấp thêm quyền.")
+        kq = base(*a, **k)
+        if inspect.isawaitable(kq):
+            kq = await kq
+        return kq
+    call._joyce_quyen = True
+    entry["call"] = call
+
+
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
                        force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
                        coding_ctx_cua_phien=None, for_bot=False):
@@ -1230,6 +1278,11 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
                     route[fn]["call"] = plugins_host.wrap_with_hooks(fn, base, mode, vault_root)
     except Exception as e:
         print(f"[hub] plugin host lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    # QUYẾT ĐỊNH QUYỀN CHUNG cho MỌI tool (G2): bọc lời gọi để hỏi `run_context.cho_phep(effect)` lúc GỌI (không lúc liệt kê, vì danh sách
+    # được cache dùng chung giữa các lượt). Agent chưa khai `allowed_effects` hoặc route không có ngữ cảnh: chạy như cũ.
+    for fn in list(route):
+        _boc_quyen(fn, route[fn])
 
     # Owner-only tools leave a bot's list BEFORE the lazy tier, or `joyce_run_tool` would still dispatch them.
     if for_bot:
