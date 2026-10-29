@@ -278,7 +278,7 @@
       '<div class="form-grid"><label style="grid-column:1/-1">Họ tên *<input class="field" id="nTen" value="' + esc(n ? n.ten : '') + '"></label><label>Chức vụ<input class="field" id="nCv" value="' + esc(n ? n.chuc_vu : '') + '"></label>' +
       '<label>Vai<select class="field" id="nVai">' + Object.keys(VAI).map(k => '<option value="' + k + '"' + (n && n.vai === k ? ' selected' : '') + '>' + VAI[k] + '</option>').join('') + '</select></label>' +
       '<label>Phòng ban<input class="field" id="nPb" value="' + esc(n ? n.phong_ban : '') + '"></label><label>Điện thoại<input class="field" id="nSdt" value="' + esc(n ? n.sdt : '') + '"></label>' +
-      '<label>Lương cơ bản (đồng)<input class="field" id="nLuong" type="number" min="0" value="' + (n ? n.luong_cb : 0) + '"></label><label>Tỉ lệ hoa hồng riêng (%)<input class="field" id="nTy" type="number" min="0" max="100" step="0.5" placeholder="theo vai" value="' + (n && n.ty_le != null ? n.ty_le : '') + '"></label>' +
+      '<label>Lương cơ bản (đồng)<input class="field" id="nLuong" type="number" min="0" value="' + (n ? n.luong_cb : 0) + '"></label><label>Tỉ lệ hoa hồng riêng (%)<input class="field" id="nTy" type="number" min="0" max="100" step="0.5" placeholder="Theo vai" value="' + (n && n.ty_le != null ? n.ty_le : '') + '"></label>' +
       '<label style="grid-column:1/-1"><input id="nNghi" type="checkbox"' + (n && n.nghi ? ' checked' : '') + '> Đã nghỉ việc</label></div>',
       async () => { await post('/shop/so/nhan-su', { data: { id: n ? n.id : 0, ten: val('nTen'), chuc_vu: val('nCv'), vai: val('nVai'), phong_ban: val('nPb'), sdt: val('nSdt'), luong_cb: val('nLuong'), ty_le: val('nTy'), nghi: document.getElementById('nNghi').checked } }); toast('Đã lưu nhân sự'); });
   };

@@ -80,6 +80,8 @@ def quet():
                     continue
                 tinh.append(s)
                 dau = s.lstrip()[:1]
+                if dau.isdigit():
+                    continue      # placeholder chỉ là một con số (vd số ngày mặc định "3"): không phải chữ, không có chuyện viết hoa
                 if not dau.isupper():
                     loi.append((path.name, _dong_cua(text, m.start()), "chữ đầu chưa viết hoa", s))
                 elif VIET_TAT.search(s):

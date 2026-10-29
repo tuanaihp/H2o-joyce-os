@@ -6332,7 +6332,7 @@
   "rt.default_opt": "- Theo model việc nền -",
   "rt.not_conn": "chưa nối",
   "rt.rec_badge": "gợi ý free",
-  "rt.model_ph": "model (trống = mặc định)",
+  "rt.model_ph": "Model (trống = mặc định)",
   "rt.custom": "riêng",
   "rt.inherit": "theo chung",
   "rt.saved": "đã lưu",

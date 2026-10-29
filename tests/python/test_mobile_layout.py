@@ -50,7 +50,9 @@ check("desktop không bị đổi kích thước graph gốc", ".hud-center {\n 
 check("renderer 3D đã được gỡ", not (ROOT / "dashboard" / "graph3d.js").exists())
 check("dashboard không còn nạp hoặc dựng graph 3D",
       "graph3d" not in INDEX.lower() and "forcegraph3d" not in APP.lower() and "three.min.js" not in APP.lower())
-check("có nút mắt điều khiển overlay brain", 'id="brainOverlayToggle"' in INDEX and 'brain-view.js?v=1' in INDEX)
+import re as _re  # noqa: E402
+# Số ?v= của script đổi mỗi lần sửa file (cache-bust), nên chỉ đòi có `?v=<số>` chứ không đóng đinh một số.
+check("có nút mắt điều khiển overlay brain", 'id="brainOverlayToggle"' in INDEX and bool(_re.search(r'brain-view\.js\?v=\d+', INDEX)))
 check("nút mắt ẩn đúng nhãn và thanh năng lực", ".hud-center.brain-overlays-hidden .concept-labels" in STYLE and ".hud-center.brain-overlays-hidden .brain-stats" in STYLE)
 check("trạng thái nút mắt được nhớ", "localStorage.setItem(STORAGE_KEY" in BRAIN_VIEW)
 

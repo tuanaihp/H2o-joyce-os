@@ -6332,7 +6332,7 @@
   "rt.default_opt": "- Background model -",
   "rt.not_conn": "not connected",
   "rt.rec_badge": "free pick",
-  "rt.model_ph": "model (empty = default)",
+  "rt.model_ph": "Model (empty = default)",
   "rt.custom": "custom",
   "rt.inherit": "inherited",
   "rt.saved": "saved",
