@@ -855,12 +855,20 @@
   function renderStudioPage(el, id) {
     el.innerHTML = `<div class="stab-panel" id="panel-${id}"></div>`;
     const fn = window.JoyceStudio && window.JoyceStudio[id];
-    const tabs = id === "skills" ? [{ nhan: TEN_CUA_BAN.skills, chon: true, bam: () => {
-      if (fn) fn();
-    } }] : null;
+    const tabs = id === "skills" ? [
+      { nhan: window.t("slib.tab.library"), chon: true, bam: () => {
+        const panel = document.getElementById("panel-skills");
+        if (window.JoyceSkillLibrary && window.JoyceSkillLibrary.open) window.JoyceSkillLibrary.open(panel);
+      } },
+      { nhan: window.t("slib.tab.current"), chon: false, bam: () => { if (fn) fn(); } }
+    ] : null;
     const tab = hangTabKho(id, tabs);
     if (tab) el.insertBefore(tab, el.firstChild);
-    if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); } }
+    if (id === "skills" && window.JoyceSkillLibrary && window.JoyceSkillLibrary.open) {
+      try { window.JoyceSkillLibrary.open(document.getElementById("panel-skills")); }
+      catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); }
+    }
+    else if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "studio.js" }));
   }
 

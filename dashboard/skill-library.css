@@ -1,0 +1,30 @@
+.slib{display:flex;flex-direction:column;gap:16px;max-width:1180px}
+.slib-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.slib-head h2,.slib-first h2{margin:0 0 6px;color:var(--text);font-size:21px}
+.slib-head p,.slib-first p,.slib-unmatched p{margin:0;color:var(--text2);line-height:1.55}
+.slib button{min-height:38px;padding:0 14px;border:1px solid var(--accent-line);border-radius:9px;background:var(--accent-wash);color:var(--accent-ink);font:inherit;cursor:pointer}
+.slib button:hover{background:var(--accent-wash-2)}
+.slib-safe{padding:10px 12px;border:1px solid var(--ok-line);border-radius:10px;background:var(--ok-wash);color:var(--ok-ink);font-size:13px}
+.slib-meta{color:var(--text3);font-size:12.5px}
+.slib-stats{display:grid;grid-template-columns:repeat(6,minmax(100px,1fr));gap:9px}
+.slib-stat{padding:12px;border:1px solid var(--hairline);border-radius:11px;background:var(--panel-bg);text-align:center}
+.slib-stat strong{display:block;color:var(--text);font-size:20px}.slib-stat span{color:var(--text3);font-size:11.5px}
+.slib-unmatched{padding:15px;border:1px solid var(--warn-line);border-radius:12px;background:var(--warn-wash)}
+.slib-unmatched h3{margin:0 0 5px;color:var(--warn-ink);font-size:15px}.slib-unmatched p{font-size:13px}
+.slib-unmatched-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.slib-unmatched-grid>div{display:flex;flex-direction:column;gap:4px;padding:9px;border-radius:8px;background:var(--panel-bg)}
+.slib-unmatched-grid span{color:var(--text3);font-size:12px}
+.slib-filters{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(140px,1fr));gap:8px}
+.slib-filters input,.slib-filters select{min-width:0;height:40px;padding:0 10px;border:1px solid var(--hairline);border-radius:9px;background:var(--field-bg);color:var(--text);font:inherit;font-size:13px}
+.slib-list-head{display:flex;justify-content:space-between;gap:12px;color:var(--text2)}.slib-list-head span{color:var(--text3);font-size:13px}
+.slib-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.slib-card{padding:14px;border:1px solid var(--hairline);border-radius:12px;background:var(--panel-bg);min-width:0}
+.slib-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slib-card h4{margin:0 0 4px;color:var(--text);font-size:15px}.slib-card code{color:var(--text3);font-size:11.5px}
+.slib-card p{margin:10px 0;color:var(--text2);font-size:13px;line-height:1.5}.slib-badges,.slib-facts{display:flex;flex-wrap:wrap;gap:5px}
+.slib-chip,.slib-mark{padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--text2);font-size:10.5px}.slib-chip.warn{background:var(--warn-wash);color:var(--warn-ink)}.slib-chip.ok{background:var(--ok-wash);color:var(--ok-ink)}
+.slib-facts{margin:10px 0;color:var(--text3);font-size:11.5px}.slib-facts span+span:before{content:"·";margin-right:5px}
+.slib-muted,.slib-reason{margin-top:7px;color:var(--text3);font-size:11.5px;line-height:1.45}.slib-alert{margin-top:8px;color:var(--warn-ink);font-size:12px}.slib-reason{padding-top:8px;border-top:1px solid var(--hairline)}
+.slib-card details{margin-top:9px}.slib-card summary{cursor:pointer;color:var(--accent-ink);font-size:12px}.slib-variants{margin:9px 0 0;padding-left:22px}.slib-variants li{margin:8px 0;color:var(--text2);font-size:11.5px;overflow-wrap:anywhere}.slib-mark{margin-left:5px}
+.slib-empty,.slib-error,.slib-first{padding:24px;border:1px solid var(--hairline);border-radius:12px;background:var(--panel-bg);color:var(--text2)}.slib-error{color:var(--danger-ink)}.slib-first button{margin-top:14px}
+@media(max-width:900px){.slib-stats{grid-template-columns:repeat(3,1fr)}.slib-list{grid-template-columns:1fr}.slib-unmatched-grid{grid-template-columns:1fr 1fr}.slib-filters{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.slib-head{flex-direction:column}.slib-stats{grid-template-columns:repeat(2,1fr)}.slib-unmatched-grid,.slib-filters{grid-template-columns:1fr}.slib-card-head{flex-direction:column}}
