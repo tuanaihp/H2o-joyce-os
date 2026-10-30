@@ -29,7 +29,7 @@ cổng duyệt trước khi tạo kho hoặc thay đổi bất kỳ brain nào.
   - Kiểm: TestClient dùng state tạm, route table cập nhật và route staff bị chặn.
 - [x] T1.3 - Thêm màn báo cáo chỉ đọc trong tab Thư viện.
   - Kiểm: test JS, i18n Việt và Anh, giao diện tối và sáng.
-- [ ] T1.4 - Chạy kiểm kê thật, phát hành bước 1 rồi dừng ở cổng duyệt.
+- [x] T1.4 - Chạy kiểm kê thật, phát hành bước 1 rồi dừng ở cổng duyệt.
   - Kiểm: báo số brain, file, slug, bản lệch, bản mới nhất và brain không khớp quy tắc.
 - [ ] T2 - Dựng kho, đồng bộ, màn Phân bổ và dry-run; chỉ migrate thật `Marketing - Makeup`.
   - Kiểm: sao lưu, so sánh agent trước sau, `_verify`, router và rollback.
