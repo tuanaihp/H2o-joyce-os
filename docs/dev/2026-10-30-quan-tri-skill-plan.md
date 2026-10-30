@@ -17,17 +17,17 @@ cổng duyệt trước khi tạo kho hoặc thay đổi bất kỳ brain nào.
 
 ## Các task
 
-- [ ] T0.1 - Truyền trang đích và slug từ thẻ đã cài trong Skill Learn.
+- [x] T0.1 - Truyền trang đích và slug từ thẻ đã cài trong Skill Learn.
   - Kiểm: test JS xác nhận nút ghi đúng slug và điều hướng qua Alpine nav.
-- [ ] T0.2 - Trang Kỹ năng và Plugin nhận mục chờ, cuộn tới và làm nổi bật đúng thẻ.
+- [x] T0.2 - Trang Kỹ năng và Plugin nhận mục chờ, cuộn tới và làm nổi bật đúng thẻ.
   - Kiểm: test JS chạy mã thật với DOM giả cho cả skill và plugin.
-- [ ] T0.3 - Chạy test liên quan, test i18n, kiểm tra giao diện hai theme, phát hành 1.3.50.
+- [x] T0.3 - Chạy test liên quan, test i18n, kiểm tra giao diện hai theme, phát hành 1.3.50.
   - Kiểm: test xanh, `main` fast-forward, origin cập nhật, `/health` trả 200 với PID mới.
-- [ ] T1.1 - Viết bộ kiểm kê chỉ đọc `server/skill_library_audit.py`.
+- [x] T1.1 - Viết bộ kiểm kê chỉ đọc `server/skill_library_audit.py`.
   - Kiểm: test với cây brain tạm có bản phổ biến, bản khác nội dung, mtime và brain lạ.
-- [ ] T1.2 - Xuất báo cáo JSON và route quản trị chỉ đọc.
+- [x] T1.2 - Xuất báo cáo JSON và route quản trị chỉ đọc.
   - Kiểm: TestClient dùng state tạm, route table cập nhật và route staff bị chặn.
-- [ ] T1.3 - Thêm màn báo cáo chỉ đọc trong tab Thư viện.
+- [x] T1.3 - Thêm màn báo cáo chỉ đọc trong tab Thư viện.
   - Kiểm: test JS, i18n Việt và Anh, giao diện tối và sáng.
 - [ ] T1.4 - Chạy kiểm kê thật, phát hành bước 1 rồi dừng ở cổng duyệt.
   - Kiểm: báo số brain, file, slug, bản lệch, bản mới nhất và brain không khớp quy tắc.
