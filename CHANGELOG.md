@@ -2,6 +2,16 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.52] - 2026-10-31
+### Thêm
+- **Theo dõi trang web không tốn token** (port Javis 0.239.0). Trang Việc định kỳ có thêm tab **Theo dõi trang**: Joyce tải trang theo lịch và so chữ, **không gọi AI**, chỉ báo khi có chuyện mới - trang thay đổi, xuất hiện một cụm chữ bạn chờ, hoặc có giá dưới ngưỡng (hiểu 1.250.000đ, 1,5 triệu, 1tr2, 250k, $20). Thời gian kiểu "3 phút trước" tự nhảy không tính là đổi; lỗi thì giãn dần lần thử, lỗi 5 lần liền tự dừng và báo một lần. Bật thêm "tóm tắt bằng AI" thì mỗi lần có thay đổi model nền tóm tắt ý nghĩa một lần. Dùng được từ chat bằng tool `joyce_watch` - nói "canh giúp anh trang này, giá xuống dưới 900k thì báo" là Joyce tự tạo.
+- **Cookies - Kho đăng nhập** (port Javis 0.251.0). Trang mới ở nhóm Kết nối: đăng nhập trên trình duyệt của anh, xuất cookie bằng Cookie-Editor rồi dán vào (hoặc tải file JSON/cookies.txt). Joyce dùng lại phiên đó để đọc trang cần đăng nhập (kênh người bán, trang affiliate, trang quản trị) qua tool `joyce_login`, và mục theo dõi trang canh được cả trang cần đăng nhập. Cookie **mã hoá trên máy chủ**, AI chỉ thấy nội dung trang và tên đăng nhập, không bao giờ thấy giá trị cookie; phiên hết hạn thì Joyce nói rõ để anh cập nhật, không thử lại vô ích.
+- **Anthropic Compatible** (port Javis 0.254.0). Trang Models có thẻ mới: dán Base URL + API key (và tên model nếu cổng không báo danh sách) là dùng được các bên bán lại Claude và cổng "anthropic" của DeepSeek, Kimi, MiniMax. Joyce gửi thử một tin rất ngắn trước khi lưu, sai key hay sai địa chỉ là báo ngay. Đủ công cụ như mọi bộ não khác: MCP, đọc ghi brain, skill, việc nền.
+- **Giọng ElevenLabs đọc tiếng Việt chuẩn** (port Javis 0.255.0). Model mặc định chuyển sang **Flash v2.5** (model cũ Multilingual v2 không có tiếng Việt nên đọc lơ lớ; câu tiếng Việt lưu cũ tự chuyển model đúng lúc đọc). Ô chọn giọng hiện **giọng theo tên trong tài khoản ElevenLabs** (kể cả giọng nhân bản) thay vì bắt dán Voice ID. Ghi chú giọng nói gửi qua Telegram/Zalo cũng đọc bằng ElevenLabs khi anh chọn nó; ElevenLabs lỗi thì tự đọc bằng giọng Edge, không mất ghi chú.
+
+### Sửa
+- Bảng route đã chụp lại (thêm 8 route của bốn tính năng trên).
+
 ## [1.3.51] - 2026-10-30
 ### Thêm
 - **Thư viện skill, bước 1: kiểm kê chỉ đọc.** Joyce quét toàn bộ brain, gom các bản chép về từng skill gốc, chỉ ra bản nào lệch nội dung, bản nào mới nhất, skill nào nên thuộc nhóm việc nào và phòng ban nào chưa xếp được. Chỉ đọc, không đụng vào brains.

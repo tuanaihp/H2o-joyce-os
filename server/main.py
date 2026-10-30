@@ -2087,6 +2087,12 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "openai-compat", "label": "OpenAI Compatible",       "kind": "api", "key_field": "openai_compat_key",
      "free_tier": "routes",
      "catalog_key": "openai-compat", "default_models": []},
+    # 1.3.52 (port Javis 0.254.0): cổng nói tiếng Anthropic Messages API (bên bán lại Claude, các
+    # endpoint "anthropic" của DeepSeek/Kimi/MiniMax...). Cùng code Messages như 'anthropic-api',
+    # gửi tới `model.anthropic_compat_base`. Nhiều cổng dạng này không có /v1/models nên danh sách
+    # model gồm tên chủ gõ lúc kết nối + những gì /v1/models trả được.
+    {"id": "anthropic-compat", "label": "Anthropic Compatible", "kind": "api", "key_field": "anthropic_compat_key",
+     "catalog_key": "anthropic-compat", "default_models": []},
 ]
 
 # free_tier trên PROVIDER_DEFS: "tier" = nhà có gói free thật (Groq/Gemini free tier),
@@ -2179,6 +2185,8 @@ def _providers_view(cfg):
             configured = bool((m.get("ollama_local_endpoint") or "").strip())
         elif p["id"] == "openai-compat":
             configured = bool((m.get("openai_compat_base") or "").strip())
+        elif p["id"] == "anthropic-compat":
+            configured = bool((m.get("anthropic_compat_base") or "").strip())
         elif p["key_field"] is None:
             configured = True
         else:
@@ -2306,6 +2314,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "ollama"
     elif provider == "openai-compat":
         m["engine"] = "openai-compat"
+    elif provider == "anthropic-compat":
+        m["engine"] = "anthropic-compat"
     else:  # anthropic-cli
         m["engine"] = "cli"; m["claude_model"] = model
 
@@ -2472,6 +2482,10 @@ def _provider_key(mcfg, d):
         if not (mcfg.get("openai_compat_base") or "").strip():
             return ""
         return (mcfg.get("openai_compat_key") or "").strip() or "none"
+    if d.get("id") == "anthropic-compat":
+        if not (mcfg.get("anthropic_compat_base") or "").strip():
+            return ""
+        return (mcfg.get("anthropic_compat_key") or "").strip() or "none"
     return mcfg.get(d["key_field"], "") if d.get("key_field") else ""
 
 
@@ -2627,7 +2641,7 @@ AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli
                    # Model chạy máy nhà cũng giao được việc nền cho agent. Bỏ nó ra khỏi đây
                    # là tính năng nửa vời: cài model về rồi mà chỉ chat tay được, không giao
                    # cho agent hay workflow nào chạy.
-                   "ollama-local", "openai-compat")
+                   "ollama-local", "openai-compat", "anthropic-compat")
 
 
 def _agent_model_provider(model: str, provider: str = "") -> str:
@@ -3138,6 +3152,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.ollama_local_stream(key, model, messages, reasoning)
     if prov == "openai-compat":
         return engine.openai_compat_stream(key, model, messages, reasoning)
+    if prov == "anthropic-compat":
+        return engine.anthropic_compat_stream(key, model, messages, reasoning)
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -3169,7 +3185,7 @@ def _hub_enabled():
 # `*_chat_with_mcp` trong `_vong_tool` PHẢI có tên ở đây: thiếu là danh sách tool rỗng,
 # nhánh có tool không bao giờ chạy và model chỉ chat chay.
 _API_TOOL_PROVIDERS = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "zai", "ollama",
-                       "ollama-local", "openai-compat")
+                       "ollama-local", "openai-compat", "anthropic-compat")
 
 
 async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None,
@@ -3233,6 +3249,8 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 return engine.zai_chat_with_mcp(k, m, messages, reasoning, tools, route)
             if p == "openai-compat":
                 return engine.openai_compat_chat_with_mcp(k, m, messages, reasoning, tools, route)
+            if p == "anthropic-compat":
+                return engine.anthropic_compat_chat_with_mcp(k, m, messages, reasoning, tools, route)
             if p == "ollama-local":
                 return engine.ollama_local_chat_with_mcp(k, m, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(k, m, messages, reasoning, tools, route)
@@ -4063,6 +4081,7 @@ def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
             "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
             "groq": "Groq", "deepseek": "DeepSeek", "zai": "Z.ai", "ollama": "Ollama", "openai-compat": "OpenAI Compatible",
+            "anthropic-compat": "Anthropic Compatible",
             # Ba engine CLI gói thuê bao - id nội bộ đổi ra tên người dùng nhìn thấy trên
             # trang Models, khớp ENGINE_LABEL của dashboard.
             "anthropic-cli": "Claude Code", "grok-cli": "Grok Build",
@@ -5708,6 +5727,14 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 m["openai_compat_key"] = ""
             m["openai_compat_base"] = new_base
             _PROV_MODELS_CACHE.pop("openai-compat", None)
+        if "anthropic_compat_base" in patch:
+            new_base = engine.normalize_anthropic_compat_base(str(patch["anthropic_compat_base"] or ""))
+            if new_base != (m.get("anthropic_compat_base") or "") and not (
+                    patch.get("anthropic_compat_key") and
+                    not str(patch["anthropic_compat_key"]).startswith("••••")):
+                m["anthropic_compat_key"] = ""   # key đã lưu thuộc về cổng cũ, không mang sang cổng mới
+            m["anthropic_compat_base"] = new_base
+            _PROV_MODELS_CACHE.pop("anthropic-compat", None)
         # Ngắt kết nối 1 provider (xoá key). Nếu nó đang là MAIN → quay về Claude Code CLI để chat không gãy.
         if patch.get("clear_key"):
             d = _provider_def(patch["clear_key"])
@@ -5716,6 +5743,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 if patch["clear_key"] == "openai-compat":
                     m["openai_compat_base"] = ""
                     _PROV_MODELS_CACHE.pop("openai-compat", None)
+                if patch["clear_key"] == "anthropic-compat":
+                    m["anthropic_compat_base"] = ""
+                    m["anthropic_compat_models"] = []
+                    _PROV_MODELS_CACHE.pop("anthropic-compat", None)
                 if _effective_main(cfg).get("provider") == patch["clear_key"]:
                     _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
         # Gói Claude Code xác thực bằng gì: phiên subscription sẵn có, hay API key riêng.
@@ -5838,10 +5869,15 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         v = cfg.setdefault("voice", {})
         if patch.get("tts_provider") in ("edge", "openai", "elevenlabs", "clone"):
             v["tts_provider"] = patch["tts_provider"]
-        for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice", "elevenlabs_model",
+        for k in ("openai_tts_voice", "openai_tts_model", "elevenlabs_voice",
                   "clone_voice"):
             if patch.get(k):
                 v[k] = str(patch[k]).strip()
+        import tts_eleven   # 1.3.52: chỉ nhận model có trong danh sách của module
+        if str(patch.get("elevenlabs_model") or "").strip() in tts_eleven.MODELS:
+            v["elevenlabs_model"] = str(patch["elevenlabs_model"]).strip()
+        if "edge_voice" in patch and voice_note.valid_edge_voice(patch.get("edge_voice")):
+            v["edge_voice"] = str(patch["edge_voice"]).strip()
         # Chỉ ghi khi có key mới THẬT: client lỡ gửi lại giá trị che "••••abcd" (lấy từ GET
         # /settings rồi POST nguyên object về) mà lưu thì đè mất key thật.
         if patch.get("elevenlabs_key") and not patch["elevenlabs_key"].strip().startswith("••••"):
@@ -6180,6 +6216,8 @@ async def _fetch_provider_models(provider, m):
             r.raise_for_status()
             data = r.json().get("data") or []
         return sorted(x.get("id") for x in data if isinstance(x, dict) and x.get("id")) or None
+    if provider == "anthropic-compat":
+        return await _anthropic_compat_models(m)
     if provider == "ollama":
         key = m.get("ollama_key")
         if not key:
@@ -6267,7 +6305,7 @@ def _remember_catalog(cfg, d, ids):
         return
     # Chặn phình settings.json (OpenRouter vài trăm model). Endpoint tự khai thì giữ đủ: cắt ở 50
     # là thẻ báo "50 model" sai sự thật với proxy có nhiều hơn.
-    keep = list(ids if key == "openai-compat" else ids[:50])
+    keep = list(ids if key in ("openai-compat", "anthropic-compat") else ids[:50])
     cat = cfg.setdefault("model", {}).setdefault("catalog", {})
     if cat.get(key) == keep:
         return
@@ -6312,9 +6350,44 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
             return "Chưa đặt Base URL cho OpenAI Compatible."
         return ("Không đọc được danh sách model từ {base}/models. Kiểm tra Base URL (tính tới /v1) "
                 "và key, hoặc gõ tên model bằng tay.")
+    if provider == "anthropic-compat":
+        if not (m.get("anthropic_compat_base") or "").strip():
+            return "Chưa đặt Base URL cho Anthropic Compatible."
+        return ("Cổng này không trả danh sách model. Vào trang Models, thẻ Anthropic Compatible, "
+                "gõ tên model bên bán đưa rồi bấm Kết nối.")
     if d.get("key_field") and not m.get(d["key_field"]):
         return "Chưa có API key cho nhà cung cấp này."
     return ""
+
+
+def _anthropic_compat_typed(m) -> list:
+    """Tên model chủ gõ tay cho cổng Anthropic-compatible (1.3.52)."""
+    return [str(x).strip() for x in (m.get("anthropic_compat_models") or []) if str(x).strip()]
+
+
+async def _anthropic_compat_models(m, base=None, key=None):
+    """Model của cổng Anthropic-compatible: tên chủ gõ TRƯỚC, rồi tới những gì {base}/v1/models
+    liệt. Nhiều cổng không có /v1/models (endpoint "anthropic" của DeepSeek/Kimi, bên bán lại...),
+    nên danh sách hụt không phải lỗi khi có tên gõ sẵn. Chỉ trả None khi chẳng có gì."""
+    import httpx
+    typed = _anthropic_compat_typed(m)
+    base = base if base is not None else engine.anthropic_compat_base()
+    if not base:
+        return None
+    key = key if key is not None else ((m.get("anthropic_compat_key") or "").strip() or "none")
+    live = []
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(base + "/v1/models", headers=engine.anthropic_headers(key, compat=True))
+        if r.status_code == 200:
+            data = r.json().get("data") or []
+            live = [x.get("id") for x in data if isinstance(x, dict) and x.get("id")]
+        elif not typed:
+            r.raise_for_status()
+    except Exception:
+        if not typed:
+            raise
+    return _gop_giu_thu_tu(typed, live) or None
 
 
 async def provider_models_index(provider: str, refresh: bool = False) -> dict:
@@ -13385,6 +13458,58 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
 
 
 # ============================================================
+# 1.3.52 (port Javis 0.239.0/0.251.0): THEO DÕI TRANG WEB + KHO ĐĂNG NHẬP.
+# web_watch: mỗi lượt canh chỉ tải trang và so chữ, không gọi model - báo khi trang đổi,
+# xuất hiện cụm chữ, hoặc có giá dưới ngưỡng. login_vault: cookie phiên đăng nhập của chủ,
+# mã hoá, để mở trang cần đăng nhập và cho web_watch mượn khi canh.
+# ============================================================
+import web_watch
+
+
+async def _watch_send(chat_id, text, viec=None, web="", brain="", dedup=""):
+    # Việc chủ tự đặt để nghe tin: như nhắc hẹn, vào đúng khung chat đã giao và hòm thư.
+    return await _notify_owner(chat_id, text, kind="report", source="watch",
+                               viec=viec, web=web, brain=brain, dedup=dedup)
+
+
+async def _watch_summarize(prompt: str) -> str:
+    """Tóm tắt một thay đổi: model nền, CHỈ CHỮ, thư mục rỗng, không MCP (nội dung trang là dữ liệu lạ)."""
+    if os.environ.get("JOYCE_NO_REAL_JUDGE_ENGINE") == "1":
+        raise RuntimeError("JOYCE_NO_REAL_JUDGE_ENGINE")
+    cli = _reply_policy_sandbox_engine("Bạn tóm tắt ngắn một thay đổi trên trang web cho chủ shop. Chỉ trả lời "
+                                       "bằng chữ, 1-3 câu.", "web-watch-summary", cwd_name="web_watch_cwd")
+    base = cli
+    cli = aux_engine.strip_tools(_aux_swap(cli, mode="suggest", tag="web-watch-summary"), base)
+    if not cli.is_available():
+        raise RuntimeError("background engine not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    return final
+
+
+watch_feature = web_watch.register(app, web_watch.WebWatchDeps(
+    state_dir=lambda: cfgmod.STATE_DIR,
+    brain_root=lambda b: str(Path(_brain_root(b)).resolve()),
+    send=_watch_send,
+    summarize=_watch_summarize,
+    channels=_kenh_con_thieu,
+))
+
+# Kho đăng nhập (login_vault.py): route cần phiên dashboard thật, token API không đọc/thêm được.
+import login_vault  # noqa: E402
+
+login_vault.register(app, login_vault.LoginVaultDeps(
+    state_dir=lambda: cfgmod.STATE_DIR,
+    has_session=lambda r: cfgmod.valid_session(r.cookies.get("joyce_session", "")),
+    fetch=web_watch.fetch,
+))
+
+
+# ============================================================
 # 1.4.0 (port Javis 0.198.0): WEBHOOK - hệ thống bên ngoài gọi Joyce làm việc. Một link
 # bí mật POST vào /hooks/<id> -> chạy quy trình hoặc việc đã chọn, báo kết quả như nhắc hẹn.
 # ============================================================
@@ -15014,6 +15139,10 @@ async def _start_scheduler():
         tasks_feature.start()
     except Exception as e:
         print(f"[kanban start] {e}", file=_sys.stderr)
+    try:
+        watch_feature.start()      # 1.3.52: vòng canh trang web (web_watch.py), không gọi model
+    except Exception as e:
+        print(f"[web watch start] {e}", file=_sys.stderr)
     try:
         connect_health.on_engine_down = _loop_notify   # đèn báo não → Telegram, chỉ 1 lần mỗi đợt chết
         connect_health.start()   # vòng check sức khoẻ kết nối + probe đèn báo não
@@ -16907,19 +17036,8 @@ async def _tts_openai(text: str, rate: str, cfg: dict) -> bytes:
 
 
 async def _tts_elevenlabs(text: str, cfg: dict) -> bytes:
-    import httpx
-    v = cfg.get("voice", {}) or {}
-    key = v.get("elevenlabs_key", "")
-    if not key:
-        raise RuntimeError("Chưa có ElevenLabs API key.")
-    voice_id = v.get("elevenlabs_voice") or "21m00Tcm4TlvDq8ikWAM"
-    payload = {"text": text, "model_id": v.get("elevenlabs_model") or "eleven_multilingual_v2"}
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(url, headers={"xi-api-key": key, "accept": "audio/mpeg"},
-                              json=payload, params={"output_format": "mp3_44100_128"})
-        r.raise_for_status()
-        return r.content
+    import tts_eleven   # 1.3.52: model nói được tiếng Việt (Flash v2.5), dùng chung ghi chú giọng nói
+    return await tts_eleven.synth(text, cfg)
 
 
 @app.get("/tts")
@@ -17189,10 +17307,19 @@ async def voice_options(brains: int = 1):
         "tts": {"provider": v.get("tts_provider") or "edge",
                 "openai_voice": v.get("openai_tts_voice") or "alloy",
                 "openai_key_set": bool(m.get("openai_api_key")),
+                "edge_voice": v.get("edge_voice") or "",
                 "elevenlabs_voice": v.get("elevenlabs_voice") or "",
+                "elevenlabs_model": v.get("elevenlabs_model") or "",
+                "elevenlabs_models": _eleven_models(),
                 "elevenlabs_key_set": bool(str(v.get("elevenlabs_key") or "").strip()),
                 "clone_voice": v.get("clone_voice") or ""},
     }
+
+
+def _eleven_models() -> list:
+    """Các model ElevenLabs trang Cài đặt được chọn, kèm cờ đọc được tiếng Việt không (1.3.52)."""
+    import tts_eleven
+    return [{"id": k, "vi": ok} for k, ok in tts_eleven.MODELS.items()]
 
 
 def _ngon_ngu_cuoc_goi(meta) -> str:
@@ -17644,6 +17771,21 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             await ws.close()
         except Exception:
             pass
+
+
+@app.get("/voice/elevenlabs/voices")
+async def voice_elevenlabs_voices():
+    """Giọng trong tài khoản ElevenLabs, theo TÊN, cho ô chọn giọng (1.3.52, port Javis 0.255.0):
+    khỏi phải dán Voice ID tay. Dùng key đã lưu; key không bao giờ rời máy chủ."""
+    import tts_eleven
+    res = await tts_eleven.list_voices(tts_eleven.settings(cfgmod.read_settings())["key"])
+    if res.get("ok"):
+        return res
+    return {"ok": False, "reason": res.get("reason"), "error": localefmt.chu(
+        {"no_key": "Chưa có API key ElevenLabs.", "bad_key": "ElevenLabs từ chối API key này."}.get(
+            res.get("reason"), "Không tải được danh sách giọng ElevenLabs."),
+        {"no_key": "No ElevenLabs API key yet.", "bad_key": "ElevenLabs refused this API key."}.get(
+            res.get("reason"), "Could not load the ElevenLabs voices."))}
 
 
 @app.get("/tts/voices")
@@ -21212,6 +21354,75 @@ async def openai_compat_connect(request: Request):
     cfgmod.write_settings(cfg)
     _PROV_MODELS_CACHE["openai-compat"] = {"ids": ids, "ts": time.time()}
     return {"ok": True, "models": len(ids)}
+
+
+@app.post("/provider/anthropic-compat/connect")
+async def anthropic_compat_connect(request: Request):
+    """Lưu Base URL + key + tên model của cổng Anthropic-compatible SAU KHI kiểm (1.3.52,
+    port Javis 0.254.0). Cùng luật với OpenAI Compatible: URL do người dùng gõ, lưu bừa là thẻ
+    báo "Đã kết nối" với key sai. Khác chỗ kiểm: nhiều cổng dạng này không có /v1/models, nên
+    khi danh sách trống Joyce gửi MỘT tin /v1/messages rất ngắn (max_tokens 1) bằng model đầu
+    tiên chủ gõ. 429/529 coi là đạt: key và model đã được nhận, cổng chỉ đang bận."""
+    import httpx
+    data = await request.json()
+    raw = str(data.get("base") or "").strip()
+    base = engine.normalize_anthropic_compat_base(raw)
+    if not base.lower().startswith(("http://", "https://")):
+        return {"ok": False, "error": "Base URL phải bắt đầu bằng http:// hoặc https://"}
+    typed_in = data.get("models")
+    if isinstance(typed_in, str):
+        typed_in = re.split(r"[,\n]+", typed_in)
+    typed = _gop_giu_thu_tu([str(x).strip() for x in (typed_in or []) if str(x).strip()])
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    # Key để trống chỉ được dùng lại key đang lưu KHI VẪN là cổng cũ: tái dùng cho URL khác
+    # là gửi bí mật sang host lạ trong lượt kiểm bên dưới.
+    old_base = engine.normalize_anthropic_compat_base(m.get("anthropic_compat_base") or "")
+    key = str(data.get("key") or "").strip()
+    if not key and base == old_base:
+        key = m.get("anthropic_compat_key") or ""
+    if not key:
+        return {"ok": False, "error": "Cần API key bên bán đưa cho bạn."}
+    headers = engine.anthropic_headers(key, compat=True)
+    live = []
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(base + "/v1/models", headers=headers)
+        if r.status_code in (401, 403):
+            return {"ok": False, "error": f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì."}
+        if r.status_code == 200:
+            live = [x.get("id") for x in (r.json().get("data") or []) if isinstance(x, dict) and x.get("id")]
+    except Exception:
+        live = []   # không có danh sách là chuyện thường; lượt kiểm tin bên dưới quyết
+    if not live:
+        if not typed:
+            return {"ok": False, "need_models": True,
+                    "suggest": list(_provider_def("anthropic-api")["default_models"]),
+                    "error": ("Cổng này không tự báo danh sách model. Chọn hoặc gõ model bên bán cho dùng "
+                              "ở ô vừa hiện ra, rồi bấm Kết nối lại.")}
+        url = base + "/v1/messages"
+        payload = {"model": typed[0], "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(45, connect=15)) as c:
+                r = await c.post(url, headers=headers, json=payload)
+        except Exception as e:
+            return {"ok": False, "error": f"Không gọi được {url} ({type(e).__name__}). Kiểm tra lại Base URL."}
+        if r.status_code in (401, 403):
+            return {"ok": False, "error": f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì."}
+        if r.status_code == 404:
+            return {"ok": False, "error": f"Không thấy {url} (HTTP 404). Kiểm tra Base URL bên bán đưa, "
+                                          "thường có dạng https://ten-mien.com hoặc https://ten-mien.com/anthropic."}
+        # 429/529: key và model đã được nhận, cổng chỉ bận - coi là đạt.
+        if r.status_code not in (200, 429, 529):
+            return {"ok": False, "error": f"Cổng trả HTTP {r.status_code} khi thử model {typed[0]}: {r.text[:160]}"}
+    ids = _gop_giu_thu_tu(typed, live)
+    m["anthropic_compat_base"] = base
+    m["anthropic_compat_key"] = key
+    m["anthropic_compat_models"] = typed
+    m.setdefault("catalog", {})["anthropic-compat"] = ids
+    cfgmod.write_settings(cfg)
+    _PROV_MODELS_CACHE["anthropic-compat"] = {"ids": ids, "ts": time.time()}
+    return {"ok": True, "models": len(ids), "listed": bool(live)}
 
 
 @app.get("/ollama-local/specs")

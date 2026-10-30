@@ -21,7 +21,7 @@ PAGES = (
     "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
     "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files", "terminal", "coding", "projects",
     "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
-    "staff", "usage", "pet", "share",
+    "staff", "usage", "pet", "share", "logins",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết

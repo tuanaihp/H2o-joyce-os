@@ -81,6 +81,8 @@
     // "share-2" chu khong phai "link": nhan nhom "Ket noi" ngay trong cung mot rail da dung
     // ic("link"), nen de "link" o day la hai muc canh nhau deo y het nhau.
     share: "share-2",
+    // 1.3.52 (port Javis 0.251.0): Kho đăng nhập (Cookies), icon bánh quy.
+    logins: "cookie",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -129,7 +131,7 @@
     "command", "today", "departments", "calendar", "reports", "chungcat",
     "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files",
     "terminal", "coding", "projects", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
-    "tools", "packs", "logs", "account", "staff", "usage", "pet", "share",
+    "tools", "packs", "logs", "account", "staff", "usage", "pet", "share", "logins",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // Tab con của Cẩm nang trên rail (mỗi module vận hành = một mục con): bấm sub là
@@ -190,7 +192,7 @@
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "quanlyshop", "conversations", "crm", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "sodo", "webhooks"] },
-    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools"] },
+    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools", "logins"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
@@ -284,7 +286,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "quanlyshop", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "quanlyshop", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share", "logins"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -727,6 +729,12 @@
     if (id === "packs") {
       if (window.JoycePacks) return window.JoycePacks.render(el);
       el.innerHTML = placeholder("packs", window.t("cs.mod_not_ready", { ten: "packs.js" }));
+      return;
+    }
+    if (id === "logins") {
+      // 1.3.52 (port Javis 0.251.0): trang Cookies (Kho đăng nhập) nằm trong login-vault.js, uỷ quyền như trang Gói.
+      if (window.JoyceLoginVault) return window.JoyceLoginVault.mount(el);
+      el.innerHTML = placeholder("logins", window.t("cs.mod_not_ready", { ten: "login-vault.js" }));
       return;
     }
     if (id === "channels") return renderChannels(el);
@@ -3678,6 +3686,7 @@
       <div class="ach-tabs si-tabs" role="tablist" aria-label="${esc(t("page.selfimprove.label"))}">
         <button type="button" role="tab" data-si-tab="jobs" aria-selected="true">${ic("repeat")}<span>${esc(window.t("cs.si_tab_jobs"))}</span><span class="si-tab-n" id="siNJobs"></span></button>
         <button type="button" role="tab" data-si-tab="health" aria-selected="false">${ic("shield")}<span>${esc(window.t("cs.si_tab_health"))}</span><span class="si-tab-n warn" id="siNHealth" hidden></span></button>
+        <button type="button" role="tab" data-si-tab="watch" aria-selected="false">${ic("eye")}<span>${esc(window.t("cs.si_tab_watch"))}</span></button>
         <button type="button" role="tab" data-si-tab="log" aria-selected="false">${ic("scroll-text")}<span>${esc(window.t("cs.si_tab_log"))}</span></button>
       </div>
       <section data-si-pane="jobs" role="tabpanel">
@@ -3694,6 +3703,7 @@
         <div id="lpGroups">${esc(window.t("common.loading"))}</div>
       </section>
       <section data-si-pane="health" role="tabpanel" hidden><div id="hpSection"></div></section>
+      <section data-si-pane="watch" role="tabpanel" hidden><div id="wwSection"></div></section>
       <section data-si-pane="log" role="tabpanel" hidden>
         <div class="si-log" style="margin-top:0"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:14px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
       </section>
@@ -4255,13 +4265,15 @@
     // Health (0.199.0): incidents Joyce Core is handling and the read-only scan, see dashboard/health-panel.js.
     const opened = {};
     function openTab(name) {
-      if (!["jobs", "health", "log"].includes(name)) name = "jobs";
+      if (!["jobs", "health", "watch", "log"].includes(name)) name = "jobs";
       lsSet(LS_TAB, name);
       el.querySelectorAll("[data-si-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.siTab === name)));
       el.querySelectorAll("[data-si-pane]").forEach(p => { p.hidden = p.dataset.siPane !== name; });
       if (opened[name]) return;
       opened[name] = true;
       if (name === "health" && window.JoyceHealthPanel) window.JoyceHealthPanel.mount(el.querySelector("#hpSection"));
+      // 1.3.52 (port Javis 0.239.0): theo dõi trang web không tốn token, xem dashboard/web-watch.js.
+      if (name === "watch" && window.JoyceWebWatch) window.JoyceWebWatch.mount(el.querySelector("#wwSection"), fbrain);
       if (name === "log") loadLog();
     }
     el.querySelectorAll("[data-si-tab]").forEach(b => b.onclick = () => openTab(b.dataset.siTab));

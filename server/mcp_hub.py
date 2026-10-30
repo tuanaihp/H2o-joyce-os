@@ -101,7 +101,11 @@ def allow_patterns():
 # `joyce_run_tool`. `discover_all(for_bot=True)` drops them before the lazy tier; bot paths pass that flag (API
 # engines directly, Claude Code through the X-Joyce-Bot header written by `claude_config_path(bot=True)`).
 # `joyce_team` (0.173.0) creates, edits and deletes team chats and writes assistant files: owner-only for the same reason.
-OWNER_ONLY_TOOLS = frozenset({"joyce_reply_policy", "joyce_reply_policy_tune", "joyce_team", "joyce_memory"})
+# 1.3.52 (port Javis 0.239.0/0.251.0): `joyce_watch` đặt lịch canh trang và nhắn chủ - không phải việc khách
+# nhắn bot được quyết; `joyce_login` mở trang bằng PHIÊN ĐĂNG NHẬP của chủ - khách tuyệt đối không được duyệt web
+# với danh tính chủ.
+OWNER_ONLY_TOOLS = frozenset({"joyce_reply_policy", "joyce_reply_policy_tune", "joyce_team", "joyce_memory",
+                              "joyce_watch", "joyce_login"})
 
 
 # ============================================================

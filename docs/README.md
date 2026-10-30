@@ -40,6 +40,8 @@ Thanh điều hướng của dashboard gom **21 trang** thành **7 nhóm**: Hôm
 ### Kết nối & kênh (nhóm Kết nối)
 - [09 - Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - kho dịch vụ ngoài đa tài khoản, phân quyền, báo cáo số thật.
 - [10 - Models & engine](10-models-va-engine.md) - đổi bộ não giữa Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic, Groq, Ollama mà không mất chức năng; mức suy nghĩ, model việc nền.
+- [31 - Theo dõi trang web](31-theo-doi-trang.md) - canh một trang theo lịch không tốn token: trang đổi, cụm chữ xuất hiện, giá dưới ngưỡng.
+- [32 - Cookies (Kho đăng nhập)](32-kho-dang-nhap.md) - cất phiên đăng nhập của bạn để Joyce đọc được trang cần đăng nhập và canh theo lịch.
 - [11 - Kênh Telegram](11-telegram.md) - hỏi Joyce qua điện thoại, gửi và nhận file.
 - [26 - Kênh Zalo Bot](26-kenh-zalo-bot.md) - hỏi Joyce trên Zalo bằng API chính thức, ghép nối bằng một cú bấm.
 - [12 - Zalo Agent MCP](12-zalo.md) - đăng nhập QR, đọc/tìm lịch sử và gửi tin qua MCP chuẩn.
