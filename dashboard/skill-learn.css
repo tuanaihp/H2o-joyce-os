@@ -132,3 +132,12 @@
 #panel-skills .sl-trial-out{max-height:340px}
 @media(max-width:900px){#panel-skills .sl-grid2{grid-template-columns:1fr}#panel-skills .sl-hero{flex-direction:column}#panel-skills .sl-stats{width:100%}}
 @media(max-width:620px){#panel-skills .sl-brain{grid-template-columns:1fr}#panel-skills .sl-add{flex-direction:column}#panel-skills .sl-source{grid-template-columns:1fr}#panel-skills .sl-source-actions{justify-content:flex-end}#panel-skills .sl-stats{grid-template-columns:repeat(2,1fr)}#panel-skills .sl-notes>div{grid-template-columns:1fr;gap:2px}#panel-skills .sl-search{width:100%}}
+.sl-target-flash {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  animation: sl-target-flash 3.5s ease-out;
+}
+@keyframes sl-target-flash {
+  0%, 35% { box-shadow: 0 0 0 7px var(--accent-wash); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}

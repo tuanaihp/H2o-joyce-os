@@ -3156,6 +3156,7 @@
       const chips = (p.tools || []).map(t => chip(t, "wrench")).join("") + (p.hooks || []).map(h => chip(h, "webhook")).join("");
       const div = document.createElement("div");
       div.className = "wf-card" + (p.loaded ? "" : " off");
+      div.dataset.slug = p.slug;
       div.innerHTML = `
         <div class="wf-top">
           <div class="wf-name">${ic("puzzle")} ${esc(p.name)} <span class="dim" style="font-size:12px">${esc(p.slug)}</span> ${srcBadge(p.source)}</div>
@@ -3243,6 +3244,7 @@
       const tab = hangTabKho("plugins");
       if (tab) el.appendChild(tab);
       el.appendChild(wrap);
+      if (window.JoyceSkillLearnTarget) window.JoyceSkillLearnTarget.reveal("plugins", wrap);
     }
     load();
   }

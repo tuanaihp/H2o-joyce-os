@@ -9,6 +9,36 @@
   var PRIOS = ["high", "mid", "ref"];
   var PRIO_KEY = { high: "sl.prio.high", mid: "sl.prio.mid", ref: "sl.prio.ref" };
   var draft = null;
+  var TARGET_KEY = "__joyceSkillLearnTarget";
+  function targetSet(page, slug) {
+    window[TARGET_KEY] = { page: String(page || ""), slug: String(slug || "") };
+  }
+  function targetPeek(page) {
+    var x = window[TARGET_KEY];
+    return x && x.page === page && x.slug ? x : null;
+  }
+  function targetReveal(page, root) {
+    var x = targetPeek(page), card = null;
+    if (!x || !root || !root.querySelectorAll) return false;
+    Array.prototype.some.call(root.querySelectorAll("[data-slug]"), function (el) {
+      if (el.dataset && el.dataset.slug === x.slug) { card = el; return true; }
+      return false;
+    });
+    if (!card) return false;
+    var details = card.closest ? card.closest("details") : null;
+    if (details) details.open = true;
+    delete window[TARGET_KEY];
+    var show = function () {
+      if (card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.remove("sl-target-flash");
+      void card.offsetWidth;
+      card.classList.add("sl-target-flash");
+      setTimeout(function () { card.classList.remove("sl-target-flash"); }, 3600);
+    };
+    if (window.requestAnimationFrame) window.requestAnimationFrame(show); else show();
+    return true;
+  }
+  window.JoyceSkillLearnTarget = { set: targetSet, peek: targetPeek, reveal: targetReveal };
   // Khoa i18n viet day du (khong noi chuoi) de test quet duoc moi khoa dang dung.
   var STATUS_KEY = { pending: "sl.status.pending", installed: "sl.status.installed", rejected: "sl.status.rejected", current: "sl.status.current", saved: "sl.status.saved" };
   var VERDICT_KEY = { take: "sl.verdict.take", later: "sl.verdict.later", skip: "sl.verdict.skip" };
@@ -96,7 +126,7 @@
     } else box = '<div class="sl-evid"><div class="sl-evid-h">' + esc(t("sl.evid.none")) + '</div></div>';
     var btns = '<div class="sl-actions"><button data-act="verify" data-id="' + esc(c.id) + '">' + icon("rotate-cw") + esc(t("sl.verify")) + '</button>' +
       (isPlugin ? '' : '<button data-act="trial-open" data-id="' + esc(c.id) + '">' + icon("sparkles") + esc(t("sl.trial_btn")) + '</button>') +
-      '<button data-act="goto" data-page="' + (isPlugin ? "plugins" : "skills") + '">' + esc(t("sl.goto", { page: pageName })) + '</button></div>' +
+      '<button data-act="goto" data-page="' + (isPlugin ? "plugins" : "skills") + '" data-slug="' + esc(c.slug) + '">' + esc(t("sl.goto", { page: pageName })) + '</button></div>' +
       (isPlugin ? '<div class="sl-sub">' + esc(t("sl.trial_plugin_hint")) + '</div>' : '');
     var trial = "";
     if (!isPlugin && (trialOpen === c.id || c.trial)) {
@@ -317,7 +347,10 @@
     else if (a === "save-open") { var cc = find(id); draft = { id: id, prio: (cc && cc.priority) || "mid", note: (cc && cc.note) || "" }; render(); }
     else if (a === "save-cancel") { draft = null; render(); }
     else if (a === "restore") review([id], "restore");
-    else if (a === "goto") { try { window.Alpine.store("nav").go(b.dataset.page); } catch (err) { /* khong co dieu huong thi thoi */ } }
+    else if (a === "goto") {
+      targetSet(b.dataset.page, b.dataset.slug);
+      try { window.Alpine.store("nav").go(b.dataset.page); } catch (err) { /* khong co dieu huong thi thoi */ }
+    }
     else if (a === "verify") {
       guarded(async function () { state = (await post("/skill-learn/verify", { candidate_id: id })).state; render(); showMsg(t("sl.verified")); });
     } else if (a === "trial-open") { var tc = find(id); trialOpen = trialOpen === id ? "" : id; trialDraft = (tc && tc.trial && tc.trial.request) || t("sl.trial_default"); render(); }

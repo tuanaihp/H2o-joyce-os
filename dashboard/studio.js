@@ -1173,7 +1173,14 @@
     _sel.skill.clear();   // nạp lại là làm mới lựa chọn (danh sách có thể đã đổi)
     _skState.bodies = Object.create(null);
     napDanhSach(d);
+    const mucCanMo = window.JoyceSkillLearnTarget && window.JoyceSkillLearnTarget.peek("skills");
+    if (mucCanMo && _skState.skills.some(s => s.slug === mucCanMo.slug)) {
+      _skState.cat = "ALL"; _skState.q = ""; _skState.status = "all";
+      const viTri = _skFiltered().findIndex(s => s.slug === mucCanMo.slug);
+      _skState.page = viTri < 0 ? 0 : Math.floor(viTri / SK_MOI_TRANG);
+    }
     renderSkillUI();
+    if (mucCanMo) window.JoyceSkillLearnTarget.reveal("skills", panel);
   }
 
   function napDanhSach(d) {
