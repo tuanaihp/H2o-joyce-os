@@ -7205,6 +7205,34 @@
  },
  {
   "order": 725,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 726,
+  "type": "APIRoute",
+  "path": "/skill-library/audit",
+  "name": "get_audit",
+  "methods": [
+   "GET"
+  ],
+  "trong": 725
+ },
+ {
+  "order": 727,
+  "type": "APIRoute",
+  "path": "/skill-library/audit/run",
+  "name": "run_audit",
+  "methods": [
+   "POST"
+  ],
+  "trong": 725
+ },
+ {
+  "order": 728,
   "type": "APIRoute",
   "path": "/work/factory/grade",
   "name": "work_factory_grade",

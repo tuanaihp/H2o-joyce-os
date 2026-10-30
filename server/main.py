@@ -104,6 +104,7 @@ import oauth_mcp
 import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định) - update theo phiên bản app
 import skill_router   # nguồn chân lý khám phá skill (canonical <brain>/skills) dùng chung mọi engine
 import skill_learn    # repo sources -> static scan -> owner review/install
+import skill_library_audit   # kiem ke thu vien skill (chi doc)
 import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng qua joyce_use_skill (tín hiệu DƯƠNG một chiều)
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import share_store    # link CHIA SẺ CÔNG KHAI của một file trong brain (/s/<token>)
@@ -21711,7 +21712,7 @@ def _staff_chan(request) -> str:
 # Nhân viên KHÔNG được ghi vào các mặt quản trị này (GET vẫn cho đọc để trang
 # hiển thị hoạt động). Danh sách này là v1 - khi thêm endpoint admin mới, cân
 # nhắc xếp nó vào đây.
-_STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins", "/skill-learn",
+_STAFF_DENY = ("/h2o-staff", "/auth/", "/settings", "/tokens", "/plugins", "/skill-learn", "/skill-library",
                "/mcp", "/packs", "/channels", "/providers", "/models",
                "/ollama-local", "/update", "/brand", "/domain", "/chatbots",
                "/secrets", "/brains", "/brain/", "/reminders", "/loops", "/h2o-projects",
@@ -29185,6 +29186,7 @@ async def _skill_learn_ask(prompt: str, routing_model: str = "") -> tuple:
 
 # Kho học skill từ repo. Đăng ký muộn để không làm xáo trộn thứ tự route cũ.
 skill_learn.register(app, skill_learn.Deps(brain_root=lambda b: _brain_root(b), ask=_skill_learn_ask))
+skill_library_audit.register(app, lambda: BRAINS_DIR)
 
 
 if __name__ == "__main__":
