@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.51] - 2026-10-30
+### Thêm
+- **Thư viện skill, bước 1: kiểm kê chỉ đọc.** Joyce quét toàn bộ brain, gom các bản chép về từng skill gốc, chỉ ra bản nào lệch nội dung, bản nào mới nhất, skill nào nên thuộc nhóm việc nào và phòng ban nào chưa xếp được. Chỉ đọc, không đụng vào brains.
+
 ## [1.3.50] - 2026-10-30
 ### Sửa
 - **Nút Mở trang Kỹ năng trong Skill Learn nay mở đúng mục vừa cài:** Joyce chuyển tới trang phù hợp, cuộn tới đúng skill hoặc plugin và làm nổi bật thẻ đó để anh nhận ra ngay.

@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.51] - 2026-10-30
+### Added
+- **Skill library, step 1: a read-only audit.** Joyce scans every brain, groups the copies back into one skill each, shows which copies differ in content, which is newest, which work group each skill should belong to, and which departments could not be placed. Read-only, it never touches brains.
+
 ## [1.3.50] - 2026-10-30
 ### Fixed
 - **Open Skills page in Skill Learn now opens the item that was just installed:** Joyce goes to the right page, scrolls to the exact skill or plugin, and highlights its card so it is immediately visible.
