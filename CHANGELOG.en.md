@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.50] - 2026-10-30
+### Fixed
+- **Open Skills page in Skill Learn now opens the item that was just installed:** Joyce goes to the right page, scrolls to the exact skill or plugin, and highlights its card so it is immediately visible.
+
 ## [1.3.49] - 2026-10-29
 ### Added
 - **Skill Learn now splits "Installed" and "Skipped" into separate tabs** (a Restore button puts a skipped item back in the queue). Each card shows what kind it is and where it goes: **skills go to the Skills page, plugins go to the Tools page (switched off)**; MCP is not part of this tab.

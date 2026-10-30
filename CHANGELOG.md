@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.50] - 2026-10-30
+### Sửa
+- **Nút Mở trang Kỹ năng trong Skill Learn nay mở đúng mục vừa cài:** Joyce chuyển tới trang phù hợp, cuộn tới đúng skill hoặc plugin và làm nổi bật thẻ đó để anh nhận ra ngay.
+
 ## [1.3.49] - 2026-10-29
 ### Thêm
 - **Skill Learn tách tab "Đã cài" và "Đã bỏ qua"** (có nút Khôi phục mục đã bỏ qua vào hàng chờ). Thẻ hiện rõ mục thuộc loại nào và sẽ vào đâu: **skill vào trang Kỹ năng, plugin vào trang Công cụ (ở trạng thái tắt)**; MCP không nằm trong tab này.
