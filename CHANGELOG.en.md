@@ -4,7 +4,10 @@
 
 ## [1.3.54] - 2026-10-31
 ### Added
-- (porting in progress: Chatbot v5 from Javis - entry to be written on completion)
+- **The Conversations page, v5** (ported from Javis 0.371-0.401): four tabs in one place - **Inbox**, **Bots**, **Channels**, **Stats**. Every chat gets a coloured edge saying **who is handling it**: yellow means it needs you (a customer waits, someone called the A.I. without permission yet, or the A.I. wrote a draft awaiting approval), violet is the A.I. answering, blue is you, grey is logged only.
+- **A.I. drafts, you approve**: switch a chat to draft mode and the A.I.'s reply waits inside the chat for you to send, edit or drop; ask for an "A.I. reply" with an instruction ("quote 20 cases, deliver Thursday") and it drafts exactly that. Turn the A.I. on or off for a single chat right on the row or the Channels tab; mark a nick "No bot needed" so its chats stop counting as work.
+- **Channels tab**: accounts in a channel tree, swap the bot on duty right on the card (the nick's chats follow), bulk actions. **Stats tab**: this period against the last - A.I. vs your hand replies, how long customers waited (median), A.I. answers while you rest (9pm-7am), the busiest hours, new chats; pick one nick, pick a date range on a calendar.
+- **Stronger inbox filters**: by who is handling it, customer tags, when the last message was sent, who sent it, pinned; the Info panel in a chat keeps your note about the customer, their contact and Zalo labels; a "..." menu on every row (mark read, pin, hide, copy).
 
 ## [1.3.53] - 2026-10-31
 ### Added

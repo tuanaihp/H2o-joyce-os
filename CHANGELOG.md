@@ -4,7 +4,10 @@
 
 ## [1.3.54] - 2026-10-31
 ### Thêm
-- (đang port: Chatbot v5 từ Javis - nội dung sẽ viết khi hoàn thành)
+- **Trang Hội thoại bản v5** (port Javis 0.371-0.401): bốn tab một chỗ - **Hộp thư**, **Bot**, **Kênh**, **Thống kê**. Mỗi cuộc chat có màu viền cho biết **ai đang phụ trách**: vàng là cần bạn (khách chờ, có ai gọi AI mà chưa cho phép, hoặc AI vừa soạn nháp chờ duyệt), tím là AI đang trả lời, xanh là bạn đang tiếp quản, xám là chỉ ghi lại.
+- **AI soạn, bạn duyệt**: bật chế độ nháp cho một cuộc chat là câu trả lời của AI nằm chờ bên trong để bạn gửi, sửa rồi mới gửi hoặc bỏ; nhờ "AI trả lời" kèm lệnh ("báo giá 20 hộ, giao thứ Năm") là AI soạn đúng ý. Bật/tắt AI riêng từng cuộc chat ngay tại hàng tin hoặc tab Kênh; nick nào không cần bot thì đánh dấu "Không cần AI" để khỏi đếm là việc.
+- **Tab Kênh**: thẻ tài khoản theo cây kênh, chọn bot trực thay được ngay tại thẻ (chat của nick đó theo bot mới), đánh dấu hàng loạt. **Tab Thống kê**: kỳ này so với kỳ trước - AI trả lời bao nhiêu, bạn trả lời tay bao nhiêu, khách chờ bao lâu (trung vị), AI trả lời lúc bạn nghỉ (21h-7h), giờ khách nhắn nhiều nhất, chat mới; chọn theo nick, chọn khoảng ngày kiểu lịch.
+- **Bộ lọc mạnh cho Hộp thư**: lọc theo "Ai phụ trách", tag khách, ngày gửi tin cuối, ai là người nhắn cuối, ghim; khung Thông tin trong cuộc chat ghi chú của bạn về khách, xem liên hệ, nhãn Zalo; menu "..." từng hàng (đã đọc lại, ghim, ẩn, sao chép).
 
 ## [1.3.53] - 2026-10-31
 ### Thêm
