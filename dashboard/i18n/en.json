@@ -7947,5 +7947,18 @@
   "ib.wq_owner": "You handle",
   "ib.wq_owner_d": "You took over, the AI stays quiet",
   "ib.wq_you": "Needs you",
-  "ib.wq_you_d": "Customers waiting for your reply or approval"
+  "ib.wq_you_d": "Customers waiting for your reply or approval",
+  "settings.pet_gx": "Department planets",
+  "pet.shape.gx_ke_toan": "Accounting",
+  "pet.shape.gx_nhan_su": "HR",
+  "pet.shape.gx_marketing": "Marketing",
+  "pet.shape.gx_ban_hang": "Sales",
+  "pet.shape.gx_san_xuat": "Production",
+  "pet.shape.gx_nghien_cuu": "Research",
+  "pet.shape.gx_cskh": "Customer care",
+  "pet.shape.gx_ve_sinh": "Facilities",
+  "pet.shape.gx_xu_ly_truyen_thong": "Media ops",
+  "pet.shape.gx_van_thu_va_quy_trinh": "Admin & process",
+  "pet.shape.gx_thuyh2o": "ThuyH2O",
+  "pet.shape.gx__earth": "Earth"
 }

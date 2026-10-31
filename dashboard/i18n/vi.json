@@ -7947,5 +7947,18 @@
   "ib.wq_owner": "Bạn lo",
   "ib.wq_owner_d": "Bạn đã nhận tự trả lời, A.I. im",
   "ib.wq_you": "Cần bạn",
-  "ib.wq_you_d": "Khách đang chờ bạn trả lời hoặc duyệt"
+  "ib.wq_you_d": "Khách đang chờ bạn trả lời hoặc duyệt",
+  "settings.pet_gx": "Hành tinh phòng ban",
+  "pet.shape.gx_ke_toan": "Kế toán",
+  "pet.shape.gx_nhan_su": "Nhân sự",
+  "pet.shape.gx_marketing": "Marketing",
+  "pet.shape.gx_ban_hang": "Bán hàng",
+  "pet.shape.gx_san_xuat": "Sản xuất",
+  "pet.shape.gx_nghien_cuu": "Nghiên cứu",
+  "pet.shape.gx_cskh": "Chăm sóc khách",
+  "pet.shape.gx_ve_sinh": "Vệ sinh",
+  "pet.shape.gx_xu_ly_truyen_thong": "Xử lý truyền thông",
+  "pet.shape.gx_van_thu_va_quy_trinh": "Văn thư & quy trình",
+  "pet.shape.gx_thuyh2o": "ThuyH2O",
+  "pet.shape.gx__earth": "Trái Đất"
 }

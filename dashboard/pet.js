@@ -43,6 +43,100 @@
     drop:     { key: "pet.shape.drop",     d: "M160 64 C199 104 226 145 226 184 C226 225 197 252 160 252 C123 252 94 225 94 184 C94 145 121 104 160 64 Z" },
   };
 
+  // ---- HÀNH TINH PHÒNG BAN (1.3.55) ----
+  // Linh vật hoá thành tinh cầu của từng phòng ban, ĐỒNG BỘ với các tinh cầu trong Lõi nước
+  // (trang Đồ thị): bảng phong cách và màu của từng ban lấy TỪ brain-planet.js
+  // (window.JoycePlanet.BAN, bản sao của GX_STYLE/GX_KHOI_MAU), KHÔNG chép lại ở đây - Lõi
+  // nước đổi phong cách một ban thì linh vật của ban đó đổi theo lần nạp sau, hai chỗ không
+  // bao giờ lệch nhau. Thiếu module đó (nạp lỗi, môi trường test không có DOM) thì họ hành
+  // tinh đơn giản vắng mặt, như chưa từng có.
+  //
+  // Thân hành tinh là CÙNG một hình tròn, cái phân biệt là ĐẶC TRƯNG bề mặt - đúng như tinh
+  // cầu trong Lõi nước: Kế toán có vành, Nhân sự có mây, Bán hàng nứt nẻ dung nham... Mỗi đặc
+  // trưng gồm hai lớp: `back` vẽ TRƯỚC thân (vành Saturn, ăng-ten - thứ đâm RA NGOÀI), và
+  // `in` vẽ SAU thân nhưng BỊ CẮT theo đúng hình thân (mây, sóng, tinh thể - thứ nằm TRÊN mặt
+  // cầu). Màu nét lấy biến --pet-ring của pet (đi theo bảng màu người dùng chọn), mùi hắc
+  // inception trắng mờ thì trắng trên mọi tông đều đọc ra, vì thân có màu cố định chứ không
+  // theo theme.
+  var FEAT_GX = {
+    ring: {
+      back: '<ellipse cx="160" cy="160" rx="113" ry="30" transform="rotate(-18 160 160)" fill="none" stroke="var(--pet-ring)" stroke-width="8" opacity=".7"/>',
+    },
+    clouds: {
+      in: '<ellipse cx="130" cy="134" rx="34" ry="10" fill="#fff" opacity=".30"/>' +
+          '<ellipse cx="186" cy="162" rx="44" ry="12" fill="#fff" opacity=".24"/>' +
+          '<ellipse cx="142" cy="192" rx="30" ry="9" fill="#fff" opacity=".18"/>',
+    },
+    storm: {
+      in: '<path d="M118 142 C160 118 206 146 184 182 C168 208 128 200 126 174 C124 154 148 146 162 158" fill="none" stroke="var(--pet-ring)" stroke-width="7" stroke-linecap="round" opacity=".8"/>',
+    },
+    cracks: {
+      in: '<path d="M148 94 L136 150 L156 172 L140 226" fill="none" stroke="var(--pet-ring)" stroke-width="6" stroke-linecap="round" opacity=".8"/>' +
+          '<path d="M188 116 L176 158 L194 190" fill="none" stroke="var(--pet-ring)" stroke-width="5" stroke-linecap="round" opacity=".55"/>',
+    },
+    volcano: {
+      in: '<path d="M126 196 L152 148 L178 196 Z" fill="rgba(0,0,0,.22)"/>' +
+          '<path d="M152 148 L148 128 M166 160 L172 140" fill="none" stroke="var(--pet-ring)" stroke-width="5" stroke-linecap="round" opacity=".8"/>',
+    },
+    crystal: {
+      in: '<path d="M160 78 L174 104 L160 122 L146 104 Z" fill="var(--pet-ring)" opacity=".8"/>' +
+          '<path d="M120 132 L130 150 L118 164 L108 148 Z" fill="var(--pet-ring)" opacity=".5"/>' +
+          '<path d="M196 148 L206 166 L196 182 L186 166 Z" fill="var(--pet-ring)" opacity=".4"/>',
+    },
+    waves: {
+      in: '<path d="M92 156 Q126 142 160 156 T228 156" fill="none" stroke="var(--pet-ring)" stroke-width="6" stroke-linecap="round" opacity=".7"/>' +
+          '<path d="M92 190 Q126 176 160 190 T228 190" fill="none" stroke="var(--pet-ring)" stroke-width="6" stroke-linecap="round" opacity=".45"/>',
+    },
+    ice: {
+      in: '<path d="M112 104 Q160 92 208 104 Q160 128 112 104 Z" fill="#fff" opacity=".5"/>' +
+          '<path d="M136 170 L160 182 L184 170" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".4"/>',
+    },
+    antenna: {
+      back: '<path d="M160 84 L160 46" stroke="var(--pet-ring)" stroke-width="7" stroke-linecap="round"/>' +
+            '<circle cx="160" cy="40" r="9" fill="var(--pet-ring)"/>' +
+            '<path d="M138 52 A26 26 0 0 1 160 24 M182 52 A26 26 0 0 0 160 24" fill="none" stroke="var(--pet-ring)" stroke-width="4" stroke-linecap="round" opacity=".6"/>',
+    },
+    paper: {
+      in: '<path d="M108 132 H212 M108 156 H212 M108 180 H212 M108 204 H196" stroke="rgba(0,0,0,.20)" stroke-width="6" stroke-linecap="round"/>',
+    },
+    glitter: {
+      in: '<circle cx="128" cy="128" r="5" fill="#fff" opacity=".8"/><circle cx="192" cy="150" r="4" fill="#fff" opacity=".6"/>' +
+          '<circle cx="148" cy="196" r="5" fill="#fff" opacity=".5"/><circle cx="186" cy="206" r="3.5" fill="#fff" opacity=".7"/>' +
+          '<path d="M162 108 L166 118 L176 122 L166 126 L162 136 L158 126 L148 122 L158 118 Z" fill="#fff" opacity=".75"/>',
+    },
+  };
+
+  // Bảng shape hành tinh dựng MỘT LẦN từ dữ liệu Lõi nước rồi nhớ lại. Khoá shape đặt tiền tố
+  // "gx-" (galaxy) để không bao giờ va chạm với khoá hình thường, cũ hay mới. `mau` là MÃ HEX
+  // chứ không phải rgb(): mọi đường màu của pet đi qua hex() (toneCua bản custom, ô tự chọn),
+  // dạng khác sẽ lặng lẽ rơi về bảng màu mặc định.
+  var _GXC = null;
+  function gxShapes() {
+    if (_GXC) return _GXC;
+    _GXC = {};
+    var b = (typeof window !== "undefined") && window.JoycePlanet && window.JoycePlanet.BAN;
+    if (!b || !b.styles) return _GXC;
+    Object.keys(b.styles).forEach(function (ban) {
+      var f = FEAT_GX[b.styles[ban].feat] || FEAT_GX.clouds;
+      var c = (b.colors[ban] || [150, 170, 255]).map(function (x) {
+        return ("0" + kep(Math.round(x), 0, 255).toString(16)).slice(-2);
+      });
+      _GXC["gx-" + ban] = {
+        // Khoá i18n dùng gạch dưới (quy ước của từ điển với id gạch ngang: "ke-toan" ->
+        // "gx_ke_toan"), còn khoá shape giữ nguyên tên ban sau tiền tố.
+        key: "pet.shape.gx_" + ban.replace(/-/g, "_"),
+        d: SHAPES.circle.d,
+        mau: "#" + c.join(""),
+        back: f.back || "",
+        in: f.in || "",
+      };
+    });
+    return _GXC;
+  }
+  // Tra shape theo khoá, tra được cả hình thường lẫn hành tinh. Mọi chỗ quyết định "khoá này
+  // có phải hình thật không" phải qua đây, không tra thẳng SHAPES nữa.
+  function shapeCua(k) { return SHAPES[k] || gxShapes()[k] || null; }
+
   // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
   // (joyceTheme), nên pet không bao giờ chói lên giữa nền tối.
   //
@@ -261,6 +355,7 @@
 
   var el = null, svg = null, nutBody = null, menu = null;
   var pRing = null, pFace = null, gEyes = null, gRig = null;
+  var gFBack = null, gFIn = null, pClip = null;   // hai lớp đặc trưng + hình cắt của hành tinh
   var cfg = Object.assign({}, MAC_DINH);
   var state = "idle", mood = "neutral", dangChop = false;
   var raf = 0, truoc = 0, gocRing = 0, tocDo = STATES.idle.ring, tocDoDich = STATES.idle.ring;
@@ -420,7 +515,7 @@
   }
   function chuanHoa(o) {
     var c = Object.assign({}, MAC_DINH, o || {});
-    if (!SHAPES[c.shape]) c.shape = MAC_DINH.shape;
+    if (!shapeCua(c.shape)) c.shape = MAC_DINH.shape;
     c.color = hex(c.color) || MAC_DINH.color;
     c.eyeColor = hex(c.eyeColor) || MAC_DINH.eyeColor;
     if (!PALETTES[c.palette] && c.palette !== "custom") c.palette = MAC_DINH.palette;
@@ -446,9 +541,12 @@
     el.innerHTML =
       '<button type="button" class="pet-body" aria-label="Joyce">' +
         '<svg viewBox="0 0 320 320" aria-hidden="true">' +
+          '<defs><clipPath id="petBodyClip"><path></path></clipPath></defs>' +
           '<g class="pet-rig">' +
             '<path class="pet-ring" pathLength="360"></path>' +
+            '<g class="pet-feat-back"></g>' +
             '<path class="pet-face"></path>' +
+            '<g class="pet-feat-in" clip-path="url(#petBodyClip)"></g>' +
             '<g class="pet-eyes"></g>' +
           '</g>' +
         '</svg>' +
@@ -462,6 +560,9 @@
     pRing = el.querySelector(".pet-ring");
     pFace = el.querySelector(".pet-face");
     gEyes = el.querySelector(".pet-eyes");
+    gFBack = el.querySelector(".pet-feat-back");
+    gFIn = el.querySelector(".pet-feat-in");
+    pClip = el.querySelector("#petBodyClip path");
     noiTuongTac();
   }
 
@@ -500,9 +601,12 @@
   // ---- Diện mạo ----
   function apDung() {
     if (!el) return;
-    var d = SHAPES[cfg.shape].d;
-    pFace.setAttribute("d", d);
-    pRing.setAttribute("d", d);
+    var sp = shapeCua(cfg.shape) || SHAPES.circle;
+    pFace.setAttribute("d", sp.d);
+    pRing.setAttribute("d", sp.d);
+    if (pClip) pClip.setAttribute("d", sp.d);
+    if (gFBack) gFBack.innerHTML = sp.back || "";
+    if (gFIn) gFIn.innerHTML = sp.in || "";
     var tone = toneCua(cfg.palette, cfg.color);
     el.style.setProperty("--pet-face", tone[0]);
     el.style.setProperty("--pet-ring", tone[1]);
@@ -1005,9 +1109,11 @@
   //   mat   - khoá MÀU MẮT ("den" / "trang" / "custom"), đi cùng `mauMat` là mã của ô tự chọn.
   //           Bỏ trống (avatar trợ lý cũ chưa chọn màu mắt) thì suy tự động từ độ chói thân.
   //   coMat - HỆ SỐ cỡ mắt (hay tên nấc cũ). Bỏ trống thì cỡ thường.
+  var _GX_ID = 0;
   function chanDung(shape, palette, opts) {
     var o = opts || {};
-    var d = (SHAPES[shape] || SHAPES.circle).d;
+    var sp = shapeCua(shape) || SHAPES.circle;
+    var d = sp.d;
     var tone = toneCua(palette, o.mau);
     var mat = mauMatCua(o.mat, o.mauMat) || mauMatTuDong(tone[0]);
     var lx = o.liecX === undefined ? LIEC_X : Number(o.liecX);
@@ -1019,6 +1125,9 @@
       ? '<path d="' + d + '" fill="none" stroke="' + tone[1] + '" stroke-width="5" ' +
         'stroke-linecap="round" transform="translate(160 160) scale(1.14) translate(-160 -160)"/>'
       : "";
+    // Đặc trưng đâm ra ngoài (vành Saturn, ăng-ten) đứng TRƯỚC thân để phần giao bị thân
+    // che, đúng lớp của con pet sống (xem apDung).
+    var featBack = sp.back || "";
     // Khung NỚI RA khi có vành, giữ nguyên khi không: hình tam giác phóng 1,14 lần cộng nửa
     // nét vẽ chạm tới 274, tràn khỏi khung cũ (58..262). Nới cho mọi chân dung thì avatar trợ
     // lý và dấu ấn đang dùng tự nhiên bé lại, đổi diện mạo một chỗ không ai yêu cầu.
@@ -1032,8 +1141,20 @@
     var k = heSo(o.coMat);
     var cach = 15 * (1 + (k - 1) * 0.47);
     var rx = 7.2 * k, ry = 17.5 * k;
+    // Lớp đặc trưng TRÊN mặt cầu (mây, sóng, tinh thể...): vẽ sau thân nhưng cắt theo đúng
+    // hình thân bằng clipPath, y hệt con pet sống. Id clipPath phải ĐỘC NHẤT mỗi lần vẽ:
+    // một trang có thể có nhiều chân dung (ô chọn hình, dấu ấn, avatar trợ lý), id trùng là
+    // cái sau đè cái trước và chân dung đầu mất đặc trưng.
+    var featIn = "";
+    if (sp.in) {
+      var cid = "petGxClip" + (++_GX_ID);
+      featIn = '<defs><clipPath id="' + cid + '"><path d="' + d + '"/></clipPath></defs>' +
+        '<g clip-path="url(#' + cid + ')">' + sp.in + '</g>';
+    }
     return '<svg viewBox="' + (o.vanh ? "42 42 236 236" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
+      featBack +
       '<path d="' + d + '" fill="' + tone[0] + '"/>' +
+      featIn +
       '<ellipse cx="' + (ex - cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/>' +
       '<ellipse cx="' + (ex + cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/></svg>';
   }
@@ -1078,6 +1199,17 @@
         chanDung(k, v.palette, Object.assign({ vanh: !!o.vanh }, anhCua(v))) + '<span>' + esc(t(SHAPES[k].key)) + '</span></button>';
     }).join("");
   }
+  // Hàng HÀNH TINH PHÒNG BAN: chân dung vẽ với MÀU CỦA BAN (không theo màu người dùng đang
+  // chọn) để ô chọn đọc như bản đồ Lõi nước - mỗi ban một màu quen thuộc. Chọn một ô thì con
+  // pet nhận luôn màu đó (xem editorBind), muốn đổi thì thanh màu bên dưới vẫn hoạt động.
+  function gxHtml(v, o) {
+    var gxs = gxShapes();
+    return Object.keys(gxs).map(function (k) {
+      return '<button type="button" class="pet-pick" data-pet-shape="' + esc(k) + '" aria-pressed="' + (k === v.shape) + '" title="' + esc(t(gxs[k].key)) + '">' +
+        chanDung(k, "custom", Object.assign({ vanh: !!o.vanh }, anhCua(v), { mau: gxs[k].mau })) +
+        '<span>' + esc(t(gxs[k].key)) + '</span></button>';
+    }).join("");
+  }
   // Ô MÀU TỰ CHỌN: một chấm tròn bọc <input type="color"> trong suốt phủ kín, bấm vào là bảng
   // chọn màu của hệ điều hành mở ra. Chưa chọn thì chấm là vòng cầu vồng (CSS), đã chọn thì
   // mang đúng màu đó. Kèm ô gõ MÃ MÀU ngay dưới, vì bảng chọn màu trên điện thoại không phải
@@ -1105,6 +1237,11 @@
     };
     var h = dau(t("settings.pet_shape", "Hình dáng")) +
       '<div class="pet-picker" role="group" data-pet-part="shapes">' + hinhHtml(v, o) + '</div>';
+    var gxs = gxShapes();
+    if (Object.keys(gxs).length) {
+      h += dau(t("settings.pet_gx", "Hành tinh phòng ban")) +
+        '<div class="pet-picker" role="group" data-pet-part="gx-shapes">' + gxHtml(v, o) + '</div>';
+    }
     if (o.size) {
       h += dau(t("settings.pet_size", "Kích cỡ"), "size", nhanCo(v.size)) +
         truot("data-pet-size", CO_MIN, CO_MAX, 2, v.size, t("pet.size.nho", "Nhỏ"), t("pet.size.rat_lon", "Rất lớn"), t("settings.pet_size", "Kích cỡ"));
@@ -1134,6 +1271,8 @@
     var q = function (s) { return host.querySelector(s); };
     var hinh = q('[data-pet-part="shapes"]');
     if (hinh) hinh.innerHTML = hinhHtml(v, o);
+    var gx = q('[data-pet-part="gx-shapes"]');
+    if (gx) gx.innerHTML = gxHtml(v, o);
     var nhan = { size: nhanCo(v.size), palette: nhanMau(v), eye: nhanMat(v), eyeSize: nhanCoMat(v.eyeSize) };
     Object.keys(nhan).forEach(function (k) { var e = q('[data-pet-tag="' + k + '"]'); if (e) e.textContent = nhan[k]; });
     host.querySelectorAll("[data-pet-palette]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.petPalette === v.palette)); });
@@ -1189,7 +1328,15 @@
     host.addEventListener("click", function (e) {
       var b = e.target.closest("[data-pet-shape], [data-pet-palette], [data-pet-eye]");
       if (!b || !host.contains(b)) return;
-      if (b.dataset.petShape) doi({ shape: b.dataset.petShape });
+      if (b.dataset.petShape) {
+        var p = { shape: b.dataset.petShape };
+        // Chọn HÀNH TINH thì nhận luôn màu của phòng ban: đây là ý nghĩa của hàng chọn này -
+        // linh vật đi cùng màu quen thuộc của ban trong Lõi nước. Người dùng vẫn đổi được
+        // sau bằng bảng màu bên dưới; chọn hình thường thì màu giữ nguyên.
+        var gx = gxShapes()[p.shape];
+        if (gx && gx.mau) { p.palette = "custom"; p.color = gx.mau; }
+        doi(p);
+      }
       else if (b.dataset.petPalette) doi({ palette: b.dataset.petPalette });
       else if (b.dataset.petEye) doi({ eye: b.dataset.petEye });
     });
@@ -1251,6 +1398,9 @@
     setEnabled: setEnabled,
     get: function () { return Object.assign({}, cfg); },
     shapes: function () { return SHAPES; },
+    // Hành tinh phòng ban (đã dựng từ window.JoycePlanet.BAN) và chỗ tra shape duy nhất.
+    gxShapes: gxShapes,
+    shapeCua: shapeCua,
     sizes: function () { return SIZES; },
     palettes: function () { return PALETTES; },
     // `mau` chỉ dùng cho bảng màu "custom". Tên lạ trả null, như trước.

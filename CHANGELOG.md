@@ -4,7 +4,8 @@
 
 ## [1.3.55] - 2026-10-31
 ### Thêm
-- (đang làm: linh vật hành tinh theo phòng ban + biểu cảm - nội dung sẽ viết khi hoàn thành)
+- **Linh vật hoá thành hành tinh phòng ban.** Cài đặt → Linh vật có thêm nhóm **Hành tinh phòng ban**: mười hai tinh cầu mang đúng phong cách của Lõi nước - Kế toán có vành, Nhân sự mây bồng bềnh, CSKH gợn sóng, Nghiên cứu mọc tinh thể, Bán hàng nứt nẻ dung nham, ThuyH2O lấp lánh hồng... Bấm ban nào là linh vật nhận luôn màu quen thuộc của ban đó, vẫn đổi được sau bằng bảng màu. Hai bên dùng chung một bảng: Lõi nước đổi phong cách ban nào thì linh vật của ban đó theo ở lần mở sau.
+- **Biểu cảm vẫn đi theo trạng thái thật và rõ hơn trên lớp hình mới**: có người hỏi là mắt tò mò, gật nhẹ theo từng chữ bắt được; khi Joyce đang tìm hay gọi công cụ là mắt suy tư đảo qua lại; trả lời xong là mắt cười và nhảy một cái. Vành quỹ đạo vẫn quay đúng nhịp của từng trạng thái, kể cả khi đang hoá hành tinh.
 
 ## [1.3.54] - 2026-10-31
 ### Thêm

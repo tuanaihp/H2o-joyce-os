@@ -871,6 +871,34 @@
   // ---------------------------------------------------------------------------
   // RENDERER (BrainRenderer)
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // THIÊN HÀ PHÒNG BAN (docs/dev/2026-10-thien-ha-phong-ban.md, chủ duyệt 2026-10-08).
+  // Lùi xa qua mốc zoom 0,42 là sang tầng Thiên hà: 44 tinh cầu phòng ban gom thành cụm theo khối,
+  // nằm trên hai cánh tay của dải ngân hà (H2O Studio một phía, ThuyH2O phía kia), brain chung
+  // của thương hiệu là ngôi sao lớn đầu cánh, Trái Đất (Brain Default) ở gần lõi. Toạ độ tính theo
+  // "đơn vị thiên hà" rồi nhân base x zoom: zoom 1 thì các cụm nằm ngoài khung, lùi xa thì hiện.
+  // Tinh cầu ở xa là ẢNH 2D dựng sẵn (mỗi khung dựng tối đa 2 ảnh); WebGL chỉ vẽ tinh cầu đang mở.
+  // ---------------------------------------------------------------------------
+  var GX_STYLE = {
+    "ke-toan": { pal: "gold", feat: "ring" }, "nhan-su": { pal: "emerald", feat: "clouds" },
+    "marketing": { pal: "sunset", feat: "storm" }, "ban-hang": { pal: "lava", feat: "cracks" },
+    "san-xuat": { pal: "lava", feat: "volcano" }, "nghien-cuu": { pal: "amethyst", feat: "crystal" },
+    "cskh": { pal: "ocean", feat: "waves" }, "ve-sinh": { pal: "ice", feat: "ice" },
+    "xu-ly-truyen-thong": { pal: "abyss", feat: "antenna" }, "van-thu-va-quy-trinh": { pal: "paper", feat: "paper" },
+    "thuyh2o": { pal: "pink", feat: "glitter" }, "_earth": { pal: "ocean", feat: "clouds" },
+  };
+  // Bảng màu thêm cho tinh cầu phòng ban (định dạng như PALETTES): hồng ThuyH2O, giấy xám Văn Thư.
+  var GX_PAL = {
+    pink: { deep: [0.14, 0.03, 0.1], sea: [0.86, 0.36, 0.7], rim: [1, 0.72, 0.9], mint: [1, 0.55, 0.85] },
+    paper: { deep: [0.08, 0.08, 0.1], sea: [0.55, 0.57, 0.62], rim: [0.9, 0.92, 0.95], mint: [0.8, 0.84, 0.9] },
+  };
+  function gxPal(id) { return GX_PAL[id] || PALETTES[id] || PALETTES.ocean; }
+  var GX_KHOI_MAU = { "ke-toan": [255, 205, 90], "nhan-su": [90, 230, 150], "marketing": [255, 140, 80],
+    "ban-hang": [255, 100, 60], "san-xuat": [230, 90, 50], "nghien-cuu": [180, 120, 255], "cskh": [70, 160, 255],
+    "ve-sinh": [200, 235, 255], "xu-ly-truyen-thong": [120, 140, 230], "van-thu-va-quy-trinh": [190, 195, 205],
+    "thuyh2o": [255, 120, 200] };
+
+
   function create(opts) {
     opts = opts || {};
     var R = {};                     // đối tượng trả về
@@ -2064,32 +2092,6 @@
       c.restore();
     }
 
-    // ---------------------------------------------------------------------------
-    // THIÊN HÀ PHÒNG BAN (docs/dev/2026-10-thien-ha-phong-ban.md, chủ duyệt 2026-10-08).
-    // Lùi xa qua mốc zoom 0,42 là sang tầng Thiên hà: 44 tinh cầu phòng ban gom thành cụm theo khối,
-    // nằm trên hai cánh tay của dải ngân hà (H2O Studio một phía, ThuyH2O phía kia), brain chung
-    // của thương hiệu là ngôi sao lớn đầu cánh, Trái Đất (Brain Default) ở gần lõi. Toạ độ tính theo
-    // "đơn vị thiên hà" rồi nhân base x zoom: zoom 1 thì các cụm nằm ngoài khung, lùi xa thì hiện.
-    // Tinh cầu ở xa là ẢNH 2D dựng sẵn (mỗi khung dựng tối đa 2 ảnh); WebGL chỉ vẽ tinh cầu đang mở.
-    // ---------------------------------------------------------------------------
-    var GX_STYLE = {
-      "ke-toan": { pal: "gold", feat: "ring" }, "nhan-su": { pal: "emerald", feat: "clouds" },
-      "marketing": { pal: "sunset", feat: "storm" }, "ban-hang": { pal: "lava", feat: "cracks" },
-      "san-xuat": { pal: "lava", feat: "volcano" }, "nghien-cuu": { pal: "amethyst", feat: "crystal" },
-      "cskh": { pal: "ocean", feat: "waves" }, "ve-sinh": { pal: "ice", feat: "ice" },
-      "xu-ly-truyen-thong": { pal: "abyss", feat: "antenna" }, "van-thu-va-quy-trinh": { pal: "paper", feat: "paper" },
-      "thuyh2o": { pal: "pink", feat: "glitter" }, "_earth": { pal: "ocean", feat: "clouds" },
-    };
-    // Bảng màu thêm cho tinh cầu phòng ban (định dạng như PALETTES): hồng ThuyH2O, giấy xám Văn Thư.
-    var GX_PAL = {
-      pink: { deep: [0.14, 0.03, 0.1], sea: [0.86, 0.36, 0.7], rim: [1, 0.72, 0.9], mint: [1, 0.55, 0.85] },
-      paper: { deep: [0.08, 0.08, 0.1], sea: [0.55, 0.57, 0.62], rim: [0.9, 0.92, 0.95], mint: [0.8, 0.84, 0.9] },
-    };
-    function gxPal(id) { return GX_PAL[id] || PALETTES[id] || PALETTES.ocean; }
-    var GX_KHOI_MAU = { "ke-toan": [255, 205, 90], "nhan-su": [90, 230, 150], "marketing": [255, 140, 80],
-      "ban-hang": [255, 100, 60], "san-xuat": [230, 90, 50], "nghien-cuu": [180, 120, 255], "cskh": [70, 160, 255],
-      "ve-sinh": [200, 235, 255], "xu-ly-truyen-thong": [120, 140, 230], "van-thu-va-quy-trinh": [190, 195, 205],
-      "thuyh2o": [255, 120, 200] };
     var gal = { d: null, nodes: [], clusters: [], arms: [], cur: null, sprites: {}, hover: null, hits: null,
                 hitsMax: 0, fly: null, palOverride: null, panX: 0, panY: 0 };
     function strHash(s) {
@@ -5065,6 +5067,10 @@
     setHdMode: function (on) { if (this._inst) this._inst.setHdMode(on); },
     FLAG: FLAG,
     enabled: flagOn,
+    // Hành tinh phòng ban cho chỗ khác dùng CHUNG với Lõi nước (tab Linh vật vẽ linh vật
+    // theo ban): bản sao của bảng phong cách và màu khối, sửa bên nhận không đụng bảng gốc,
+    // Lõi nước đổi thì bản sao lần nạp sau đi theo.
+    BAN: { styles: JSON.parse(JSON.stringify(GX_STYLE)), colors: JSON.parse(JSON.stringify(GX_KHOI_MAU)) },
     setEnabled: function (on) {
       setFlag(on);
       try { window.dispatchEvent(new Event("joyce:planet-flag")); } catch (e) {}

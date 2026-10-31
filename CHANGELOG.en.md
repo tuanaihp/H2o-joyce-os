@@ -4,7 +4,8 @@
 
 ## [1.3.55] - 2026-10-31
 ### Added
-- (in progress: planet mascots per department + expressions - entry to be written on completion)
+- **The pet becomes a department planet.** Settings → Pet gains a **Department planets** group: twelve little worlds in the same style as the water-core map - Accounting wears a ring, HR drifts with clouds, Customer care ripples, Research grows crystals, Sales is cracked lava, ThuyH2O glitters pink... Picking one paints the pet in that department's familiar colour, still changeable afterwards from the palette. Both sides share one table: when the water-core restyles a department, the pet follows on the next load.
+- **Expressions keep following the real state and read clearly on the new shape**: when someone asks, the eyes turn curious and nod along with each caught word; while Joyce searches or calls a tool, the eyes wander in thought; when the answer is done, the eyes smile and hop once. The orbit ring still spins at each state's own pace, planet or not.
 
 ## [1.3.54] - 2026-10-31
 ### Added

@@ -21,7 +21,9 @@ const SKY = fs.readFileSync(path.join(__dirname, "..", "..", "server", "knowledg
 const fails = [];
 const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
 function fn(name) {
-  const s = PLANET.indexOf("\n    function " + name + "(");
+  // Thụt lề LINH HOẪT (1.3.55): GX_PAL/gxPal/GX_KHOI_MAU hoist lên cấp IIFE để pet.js đọc
+  // chung (window.JoycePlanet.BAN), nên giờ hàm nằm ở cả 2 lề. Bắt bằng \s+ thay vì đếm cứng.
+  const s = PLANET.search(new RegExp("\\n +function " + name + "\\("));
   if (s < 0) { check("có hàm " + name, false); return ""; }
   let i = PLANET.indexOf("{", s), d = 0;
   for (; i < PLANET.length; i++) { if (PLANET[i] === "{") d++; else if (PLANET[i] === "}" && --d === 0) break; }
