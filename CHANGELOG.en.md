@@ -2,6 +2,18 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.53] - 2026-10-31
+### Added
+- **The Tasks page** (ported from Javis 0.422-0.426; first item in the Work group). One place for everything: the **Joyce does** tab merges Kanban jobs, reminders, loops, page watches and incidents - grouped into Today, Upcoming, Overdue, Repeating, Errored, Done, Log, and per assistant. The **Mine** tab holds your own tasks: Today, Upcoming, Overdue, No date, Repeating, Done, organised into **projects** (create, rename, recolor, pin).
+- **Reminders you control like a person**: press ▶ to run now without waiting for the slot, press ■ while running to stop it at once (no retry, nothing posted), pause/resume with a switch, skip the next run of a repeating job. Delete, cancel and pause can be undone for a few seconds. From chat, "open job POSCake 2288" opens that job's detail on the dashboard.
+- **Habits with Duolingo-style streaks**: turn a repeating task into a habit to get a day streak - miss one day it freezes, do the next one to unfreeze, miss two in a row and the streak resets; only scheduled days count. The detail view has a month calendar, day count, Freezes and Longest; Joyce reminds at most once a day until it is done. Saying "I finished my reading" checks it off.
+- **Appointments**: pick the "Appointment" kind when adding a task to record start time, duration and place; states move from Upcoming to Ongoing to Past, overlapping times are flagged, and a reminder can go off 5/15/30/60 minutes before.
+- **Tell Joyce your tasks by voice on every brain**: the `joyce_mytask` tool - "add to my tasks: team meeting 9am Monday" or "note that I finished my reading" lands on the Mine tab of the brain you are talking to.
+- The old **Kanban** and **Recurring work** pages stay untouched (they carry Joyce-only tabs: Health, Page watch, Skill audit) - the Tasks page is the new combined page placed in front.
+
+### Fixed
+- The route table snapshot was re-taken: +14 routes (10 for /my-tasks, 4 reminder controls /reminders/pause·skip·run-now·stop).
+
 ## [1.3.52] - 2026-10-31
 ### Added
 - **Token-free web page watch** (ported from Javis 0.239.0). The Recurring work page gains a **Page watch** tab: Joyce fetches a page on a schedule and compares text, **without calling AI**, and only reports when something actually happened - the page changed, a phrase you are waiting for appeared, or a price dropped below a threshold (reads 1,250,000 VND, 1.5 million, 250k, $20). Relative times like "3 minutes ago" never count as a change; failures back off, and after 5 in a row the watch pauses and says so once. Turning on AI summaries makes the background model add a one-paragraph take on each change. Also usable from chat via the `joyce_watch` tool.

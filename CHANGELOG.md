@@ -2,6 +2,18 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.53] - 2026-10-31
+### Thêm
+- **Trang Nhiệm vụ** (port Javis 0.422-0.426, nhóm Việc đứng đầu tiên). Một chỗ cho mọi việc: tab **Javis làm** gộp việc Kanban, lời nhắc, vòng lặp, theo dõi trang, sự cố - chia theo Hôm nay, Sắp tới, Quá hạn, Lặp lại, Chạy lỗi, Đã xong, Nhật ký và theo từng trợ lý. Tab **Của tôi** ghi việc của chính anh: Hôm nay, Sắp tới, Quá hạn, Chưa có lịch, Lặp lại, Đã xong, chia theo **dự án** (tạo, đổi tên, đổi màu, ghim).
+- **Điều khiển lời nhắc như người thật**: bấm ▶ chạy ngay không đợi giờ, đang chạy bấm ■ dừng ngay (không thử lại, không đăng gì), tạm dừng/mở lại bằng công tắc, bỏ qua lần kế của việc lặp. Xoá, huỷ, tạm dừng đều có hoàn tác trong vài giây. Từ chat nhờ "mở việc POSCake 2288" là dashboard mở đúng chi tiết việc đó.
+- **Thói quen giữ chuỗi kiểu Duolingo**: việc lặp bật "Tính là thói quen" là có chuỗi ngày - bỏ 1 buổi thì đóng băng, làm buổi sau là gỡ băng, bỏ 2 buổi liền mất chuỗi; chỉ ngày có lịch mới tính. Chi tiết có lịch tháng, số ngày, Đóng băng, Dài nhất; Javis tự nhắc mỗi ngày tối đa một lần khi chưa xong. Nói "đọc sách xong rồi" là tự tích.
+- **Lịch hẹn**: chọn Kiểu "Lịch hẹn" khi thêm việc để ghi giờ bắt đầu, thời lượng, địa điểm; tự đổi trạng thái Sắp tới/Đang diễn ra/Đã diễn ra, báo khi hai hẹn trùng giờ, nhắc trước 5/15/30/60 phút.
+- **Nhờ Joyce ghi việc bằng lời** trên mọi bộ não: tool `joyce_mytask` - "thêm vào việc của tôi: họp team 9 giờ thứ Hai" hay "ghi vào việc của tôi" là vào đúng tab Của tôi của brain đang nói.
+- Hai trang cũ **Kanban** và **Việc định kỳ vẫn ở nguyên** (chúng mang tab Sức khoẻ, Theo dõi trang, Kiểm kê skill riêng của Joyce) - Nhiệm vụ là trang gộp mới đứng trước.
+
+### Sửa
+- Bảng route chụp lại: +14 route (10 của /my-tasks, 4 điều khiển lời nhắc /reminders/pause·skip·run-now·stop).
+
 ## [1.3.52] - 2026-10-31
 ### Thêm
 - **Theo dõi trang web không tốn token** (port Javis 0.239.0). Trang Việc định kỳ có thêm tab **Theo dõi trang**: Joyce tải trang theo lịch và so chữ, **không gọi AI**, chỉ báo khi có chuyện mới - trang thay đổi, xuất hiện một cụm chữ bạn chờ, hoặc có giá dưới ngưỡng (hiểu 1.250.000đ, 1,5 triệu, 1tr2, 250k, $20). Thời gian kiểu "3 phút trước" tự nhảy không tính là đổi; lỗi thì giãn dần lần thử, lỗi 5 lần liền tự dừng và báo một lần. Bật thêm "tóm tắt bằng AI" thì mỗi lần có thay đổi model nền tóm tắt ý nghĩa một lần. Dùng được từ chat bằng tool `joyce_watch` - nói "canh giúp anh trang này, giá xuống dưới 900k thì báo" là Joyce tự tạo.

@@ -16,7 +16,8 @@ const en = JSON.parse(read("dashboard/i18n/en.json"));
 let fails = 0;
 function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok) fails++; }
 
-check("webhooks in the Work group", /ids: \["kanban", "selfimprove", (?:"[a-z]+", )*"webhooks"\]/.test(cons));
+// 1.3.53: trang Nhiem vu dung DAU nhom Viec (cong them, khong thay the nhu Javis).
+check("webhooks in the Work group", /ids: \[("tasks", )?"kanban", "selfimprove", (?:"[a-z]+", )*"webhooks"\]/.test(cons));
 check("webhooks page has an icon, meta and a renderer",
   /webhooks: "webhook"/.test(cons) && /if \(id === "webhooks"\) return renderWebhooks\(el\);/.test(cons)
   && /"selfimprove", (?:"[a-z]+", )*"webhooks", "chatbots"/.test(cons));

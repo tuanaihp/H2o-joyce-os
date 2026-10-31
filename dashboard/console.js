@@ -130,8 +130,8 @@
   const RAIL_ITEMS = [
     "command", "today", "departments", "calendar", "reports", "chungcat",
     "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files",
-    "terminal", "coding", "projects", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
-    "tools", "packs", "logs", "account", "staff", "usage", "pet", "share", "logins",
+    "terminal", "coding", "projects", "tasks", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins",
+    "tools", "packs", "logs", "account", "staff", "usage", "logins", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // Tab con của Cẩm nang trên rail (mỗi module vận hành = một mục con): bấm sub là
@@ -191,7 +191,7 @@
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["camnang", "kinhdoanh", "nghiencuu", "lotrinh", "workspace", "teams", "quanlyshop", "conversations", "crm", "skills", "plugins"] },
-    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove", "sodo", "webhooks"] },
+    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["tasks", "kanban", "selfimprove", "sodo", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models", "routing", "tools", "logins"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "staff", "account"], foot: true },
   ];
@@ -286,7 +286,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "webhooks", "chatbots", "quanlyshop", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "pet", "share", "logins"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams", "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "files", "terminal", "coding", "projects", "selfimprove", "tasks", "webhooks", "chatbots", "quanlyshop", "conversations", "crm", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account", "staff", "usage", "logins", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -730,6 +730,15 @@
       if (window.JoycePacks) return window.JoycePacks.render(el);
       el.innerHTML = placeholder("packs", window.t("cs.mod_not_ready", { ten: "packs.js" }));
       return;
+    }
+    if (id === "tasks") {
+      // 1.3.53 (port Javis 0.422.0): trang Nhiem vu nam trong tasks.js, uy quyen nhu trang Goi.
+      if (!window.JoyceTasks) {
+        el.innerHTML = placeholder("tasks", window.t("cs.mod_not_ready", { ten: "tasks.js" }));
+        return;
+      }
+      _pageLeave = () => { try { window.JoyceTasks.unmount(); } catch (e) {} };
+      return window.JoyceTasks.mount(el);
     }
     if (id === "logins") {
       // 1.3.52 (port Javis 0.251.0): trang Cookies (Kho đăng nhập) nằm trong login-vault.js, uỷ quyền như trang Gói.

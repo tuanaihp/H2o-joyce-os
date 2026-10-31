@@ -20,8 +20,8 @@ import unicodedata
 PAGES = (
     "command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
     "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files", "terminal", "coding", "projects",
-    "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
-    "staff", "usage", "pet", "share", "logins",
+    "tasks", "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
+    "staff", "usage", "logins", "pet", "share",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
@@ -39,7 +39,9 @@ ALIASES = {
     "lo trinh": "lotrinh", "lo trinh hoc viec": "lotrinh", "dao tao": "lotrinh", "bai hoc": "lotrinh",
     "kinh doanh": "kinhdoanh", "business": "kinhdoanh", "xuong content": "kinhdoanh",
     "xuong noi dung": "kinhdoanh", "content factory": "kinhdoanh",
-    "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban", "task": "kanban", "tasks": "kanban",
+    # 1.3.53: trang Nhiem vu (port Javis 0.422.0) - "nhiem vu", "task", "thoi quen", "lap lai" tro vao no.
+    "nhiem vu": "tasks", "task": "tasks", "tasks": "tasks", "thoi quen": "tasks", "lap lai": "tasks",
+    "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban",
     "tep": "files", "tep tin": "files", "file": "files", "thu muc": "files", "brain": "files",
     "cai dat": "settings", "setting": "settings", "thiet lap": "settings",
     "mo hinh": "models", "model": "models", "bo nao": "models", "engine": "models",

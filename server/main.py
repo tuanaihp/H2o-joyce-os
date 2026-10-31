@@ -13439,6 +13439,16 @@ async def _send_voice_file(chat_id, path, brain) -> tuple:
     return await _TG_BOT.send_file(path, chat=cid)
 
 
+import my_tasks as my_tasks_mod
+# 1.3.53 (port Javis 0.423.0): viec CUA CHU cho trang Nhiem vu, tab Cua toi - mot kho JSON
+# moi brain (Joyce/my-tasks.json), kem du an va thoi quen giu chuoi.
+my_tasks_feature = my_tasks_mod.register(app, my_tasks_mod.MyTasksDeps(
+    brain_root=_brain_root, atomic_write_text=_atomic_write_text,
+    # Nhac thoi quen di ra nhu bao cao nhac hen: hom thu, Telegram, push.
+    scheduler_brains=loop_feature.scheduler_brains,
+    notify=lambda chat_id, text, brain="", dedup="": _notify_owner(
+        chat_id, text, kind="report", source="habit", brain=brain, dedup=dedup),
+    tz=reminders_mod.VN_TZ))
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
@@ -13739,7 +13749,7 @@ async def viec_all():
             loops = []
         try:
             rems = []
-            for v in reminders_feature.pending_views(path):
+            for v in reminders_feature.live_views(path):
                 v["brain_name"], v["brain_path"] = name, path
                 rems.append(v)
         except Exception:
@@ -15180,6 +15190,7 @@ async def _start_scheduler():
                 # 3b) Nhắc hẹn từ chat: tới giờ → bắn Telegram (mode task: chạy engine rồi báo)
                 try:
                     await reminders_feature.tick()
+                    await my_tasks_feature.tick()   # nhac thoi quen (1.3.53)
                     # 0.202.0: giữ ấm prompt-cache (mặc định tắt, xem cache_keepwarm.py).
                     asyncio.create_task(_KEEPWARM.tick())
                 except Exception as rte:

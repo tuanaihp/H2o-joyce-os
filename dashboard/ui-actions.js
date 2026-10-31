@@ -3,7 +3,7 @@
    Server bắn frame {"type":"ui_action","id","action","target","session_id"} qua /ws khi model
    gọi tool joyce_ui. File này: kiểm lại target (không tin server tuyệt đối vì đây là bên thực
    hiện), chạy bằng đúng những hàm dashboard đã có (JoyceNav.go, JoyceOpenVaultPath,
-   JoyceKanbanShow), rồi gửi {"action":"ui_result","id","ok","detail"} về để tool trả lời model
+   JoyceTasks.show), rồi gửi {"action":"ui_result","id","ok","detail"} về để tool trả lời model
    ngay trong lượt.
 
    Tab đang xem phiên KHÁC với session_id trong frame thì trả `skipped=true` (server bỏ qua,
@@ -15,7 +15,7 @@
 
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin joyce-ui.
   var PAGES = ["command", "today", "departments", "calendar", "reports", "chungcat", "home", "chat", "settings", "workspace", "teams",
-               "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files", "terminal", "coding", "projects",
+               "camnang", "kinhdoanh", "nghiencuu", "lotrinh", "skills", "chatbots", "quanlyshop", "conversations", "crm", "files", "terminal", "coding", "projects", "tasks",
                "selfimprove", "sodo", "webhooks", "learn", "kanban", "models", "routing", "channels", "mcp", "plugins", "tools", "packs", "logs", "account",
                "staff", "usage", "logins", "pet", "share"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
@@ -118,12 +118,15 @@
       return { ok: false, detail: tw("ui.err_opener_not_ready") };
     }
     if (v.action === "open_task") {
-      if (window.JoyceNav && typeof window.JoyceNav.go === "function") window.JoyceNav.go("kanban");
-      // renderKanban là async: đợi nó gắn JoyceKanbanShow (tối đa ~3 giây).
+      if (window.JoyceNav && typeof window.JoyceNav.go === "function") window.JoyceNav.go("tasks");
+      // 1.3.53 (port Javis 0.426.0): việc Kanban sống trên trang Nhiệm vụ (tasks.js, nạp muộn).
+      // Đợi tối đa ~3 giây cho trang tải xong dữ liệu rồi nhờ nó mở đúng việc đó.
       for (var i = 0; i < 30; i++) {
-        if (typeof window.JoyceKanbanShow === "function") {
-          try { await window.JoyceKanbanShow(v.target); } catch (e) {}
-          return { ok: true, detail: "" };
+        var nv = window.JoyceTasks;
+        if (nv && typeof nv.ready === "function" && nv.ready()) {
+          var shown = false;
+          try { shown = await nv.show(v.target); } catch (e) {}
+          return shown ? { ok: true, detail: "" } : { ok: false, detail: tw("ui.err_task_missing") };
         }
         await sleep(100);
       }

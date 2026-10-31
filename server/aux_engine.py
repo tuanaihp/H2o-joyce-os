@@ -781,7 +781,8 @@ def la_viec_nen_theo_lich(tag) -> bool:
     t = str(tag or "").strip()
     if t.endswith("-main"):
         t = t[:-len("-main")]
-    return t in _TAG_VIEC_NEN_THEO_LICH or t.startswith("dispatch:")
+    return (t in _TAG_VIEC_NEN_THEO_LICH or t.startswith("dispatch:")
+            or t.startswith("reminder:"))   # 1.3.53: nhac hen mang tag "reminder:<id>"
 
 
 def _hub_bat_buoc_hong(text) -> bool:

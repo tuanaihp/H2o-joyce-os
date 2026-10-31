@@ -76,7 +76,8 @@
       "ellipsis-vertical",
       "thumbs-up",
       "at-sign",
-      "ellipsis"
+      "ellipsis",
+      "square"
     ],
     "dieu-huong": [
       "chevron-down",
@@ -178,7 +179,18 @@
       "palette",
       "type",
       "pin",
-      "cookie"
+      "cookie",
+      "arrow-right-left",
+      "circle-alert",
+      "clock-alert",
+      "flame",
+      "key-round",
+      "loader-circle",
+      "map-pin",
+      "redo",
+      "snowflake",
+      "sunrise",
+      "trophy"
     ],
     "viec-mau": [
       "phone",
