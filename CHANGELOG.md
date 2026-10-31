@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.54] - 2026-10-31
+### Thêm
+- (đang port: Chatbot v5 từ Javis - nội dung sẽ viết khi hoàn thành)
+
 ## [1.3.53] - 2026-10-31
 ### Thêm
 - **Trang Nhiệm vụ** (port Javis 0.422-0.426, nhóm Việc đứng đầu tiên). Một chỗ cho mọi việc: tab **Javis làm** gộp việc Kanban, lời nhắc, vòng lặp, theo dõi trang, sự cố - chia theo Hôm nay, Sắp tới, Quá hạn, Lặp lại, Chạy lỗi, Đã xong, Nhật ký và theo từng trợ lý. Tab **Của tôi** ghi việc của chính anh: Hôm nay, Sắp tới, Quá hạn, Chưa có lịch, Lặp lại, Đã xong, chia theo **dự án** (tạo, đổi tên, đổi màu, ghim).

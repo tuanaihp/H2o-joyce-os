@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.54] - 2026-10-31
+### Added
+- (porting in progress: Chatbot v5 from Javis - entry to be written on completion)
+
 ## [1.3.53] - 2026-10-31
 ### Added
 - **The Tasks page** (ported from Javis 0.422-0.426; first item in the Work group). One place for everything: the **Joyce does** tab merges Kanban jobs, reminders, loops, page watches and incidents - grouped into Today, Upcoming, Overdue, Repeating, Errored, Done, Log, and per assistant. The **Mine** tab holds your own tasks: Today, Upcoming, Overdue, No date, Repeating, Done, organised into **projects** (create, rename, recolor, pin).
