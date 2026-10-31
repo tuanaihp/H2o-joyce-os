@@ -94,11 +94,32 @@
     return !!(el && el.classList && el.classList.contains("msg-user"));
   }
 
+  // Enter trong khung soạn chat, dùng chung cho chat chính, Chat nhóm và ô trả lời khách của trang Chatbot.
+  //  - IME (bộ gõ tiếng Việt) có thể bắn keydown Enter trước compositionend; gửi và xoá ô lúc đó sẽ khiến chữ đang
+  //    soạn bị chép vào ô đã xoá. Một số trình duyệt báo isComposing không đáng tin, nên nơi gọi còn tự theo dõi
+  //    compositionstart/compositionend và truyền cờ đó vào.
+  //  - Màn cảm ứng (con trỏ CHÍNH là ngón tay) giữ Enter = xuống dòng như mọi app nhắn tin: bàn phím ảo không có
+  //    Shift+Enter, gửi ngay trên Enter là không thể soạn tin nhiều dòng. Đo bằng pointer: coarse chứ không phải
+  //    chiều rộng màn hình, nên laptop cảm ứng có chuột vẫn gửi bằng Enter.
+  //  - Máy tính: Enter gửi, Shift+Enter xuống dòng.
+  // `win` chỉ để test.
+  function touchMain(win) {
+    win = win || (typeof window !== "undefined" ? window : null);
+    try { return !!(win && win.matchMedia && win.matchMedia("(pointer: coarse)").matches); } catch (e) { return false; }
+  }
+  function enterSends(e, composing, win) {
+    if (!e || composing || e.isComposing || e.keyCode === 229) return false;
+    if (e.key !== "Enter" || e.shiftKey) return false;
+    return !touchMain(win);
+  }
+
   var API = {
     fmtTime: fmtTime,
     fmtTimeFull: fmtTimeFull,
     actsHtml: actsHtml,
     isUserMsg: isUserMsg,
+    touchMain: touchMain,
+    enterSends: enterSends,
   };
 
   if (typeof window !== "undefined") window.JoyceActs = API;

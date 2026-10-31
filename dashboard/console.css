@@ -2627,39 +2627,91 @@ button.staff-chip:hover { border-color: var(--acc); }
    Hai cột trên màn rộng (danh sách | lịch sử tin), một cột trên điện thoại (bấm một hội thoại
    là mở lịch sử, có nút quay lại). Chữ chính 16px trên màn nhỏ theo chuẩn đọc của chủ repo. */
 .ht-wrap { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
-.ht-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.ht-loc { display: flex; flex-wrap: wrap; gap: 6px; }
-.ht-loc-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 13.5px; cursor: pointer; }
-.ht-loc-chip:hover { color: var(--text); border-color: var(--accent); }
-.ht-loc-chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
 .ht-search { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3);
   color: var(--text); font-size: 16px; min-width: 0; flex: 1 1 200px; }
-/* Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm. Đang lọc thì dropdown sáng màu nhấn để nhìn là biết. */
-.ht-f { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3); color: var(--text);
-  font-size: 14px; min-width: 0; max-width: 100%; }
-.ht-f.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
-.ht-f[hidden], .ht-fclear[hidden] { display: none; }
-.ht-fsum { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text3);
-  min-height: 20px; padding: 0 4px; }
-.ht-fclear { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
-  text-decoration: underline; }
-.ht-item-tags { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
-.ht-bot-tag, .ht-need { flex: none; max-width: 100%; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
-  font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-bot-tag.c0 { background: var(--accent2-wash); color: var(--accent2-ink); }
-.ht-bot-tag.c1 { background: var(--info-wash); color: var(--info-ink); }
-.ht-bot-tag.c2 { background: var(--ok-wash); color: var(--green); }
-.ht-bot-tag.c3 { background: var(--accent-wash); color: var(--accent-ink); }
-.ht-need { background: var(--warn-wash); color: var(--warn-ink); }
+/* 0.216.0: kết quả hỏi Zalo khi ô tìm là một số điện thoại. */
+.ht-sdt { margin: 0 4px 6px; padding: 8px 10px; border-radius: 9px; background: var(--accent-wash); color: var(--text);
+  font-size: 16px; line-height: 1.45; display: flex; flex-direction: column; gap: 4px; }
+.ht-sdt[hidden] { display: none; }
+.ht-sdt svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--accent); }
+/* 2026-10-25 (owner: "thêm tag khách hàng", Pancake-style chips): the owner's tags, one colour each from a fixed palette
+   (conversations.TAG_COLORS). Tint, ink and border are mixed from one hue so a chip reads in light and dark themes. */
+.ht-tag { --tc: #8b8f98; display: inline-block; vertical-align: middle; min-width: 0; max-width: 140px; padding: 0 8px;
+  border-radius: 999px; font-size: 16px; line-height: 1.45; font-weight: 600; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; background: color-mix(in srgb, var(--tc) 16%, transparent);
+  color: color-mix(in srgb, var(--tc) 72%, var(--text)); border: 1px solid color-mix(in srgb, var(--tc) 42%, transparent); }
+.ht-tag[data-c="red"], .ht-sw[data-c="red"] { --tc: #e5484d; }
+.ht-tag[data-c="orange"], .ht-sw[data-c="orange"] { --tc: #f76b15; }
+.ht-tag[data-c="yellow"], .ht-sw[data-c="yellow"] { --tc: #d6a400; }
+.ht-tag[data-c="green"], .ht-sw[data-c="green"] { --tc: #30a46c; }
+.ht-tag[data-c="teal"], .ht-sw[data-c="teal"] { --tc: #12a594; }
+.ht-tag[data-c="blue"], .ht-sw[data-c="blue"] { --tc: #3e7bfa; }
+.ht-tag[data-c="purple"], .ht-sw[data-c="purple"] { --tc: #8e4ec6; }
+.ht-tag[data-c="pink"], .ht-sw[data-c="pink"] { --tc: #d6409f; }
+.ht-item-utags { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; margin-top: 2px; }
+.ht-item-utags .ht-tag { flex: 0 1 auto; }
+.ht-tag-more { flex: none; font-size: 16px; line-height: 1.45; padding: 0 7px; border-radius: 999px; color: var(--text2);
+  background: var(--surface-2); border: 1px solid var(--border); }
+.ht-has-contact { flex: none; display: inline-flex; color: var(--green); }
+.ht-has-contact svg { width: 14px; height: 14px; }
+.ht-item-ava { display: none; }
+/* A chat's tags, the Tag button and its picker (in the Info panel since Chatbot v5). */
+.ht-tagrow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline); font-size: 16px; }
+.ht-tagrow:empty { display: none; }
+.ht-tag-on { display: inline-flex; align-items: center; gap: 2px; max-width: 240px; padding-right: 2px; }
+.ht-tag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ht-tag-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; opacity: .7; padding: 0; }
+.ht-tag-x:hover { opacity: 1; background: color-mix(in srgb, var(--tc) 22%, transparent); }
+.ht-tag-x svg { width: 14px; height: 14px; }
+.ht-tag-add { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px dashed var(--border); background: none; color: var(--text2); font-size: 16px; }
+.ht-tag-add:hover, .ht-tag-add.on { color: var(--accent); border-color: var(--accent); }
+.ht-tag-add svg { width: 15px; height: 15px; }
+.ht-tagpop { position: absolute; top: calc(100% + 4px); left: 12px; z-index: 30; width: min(380px, calc(100% - 24px));
+  max-height: min(70vh, 480px); overflow-y: auto; padding: 10px 12px; border-radius: 12px; background: var(--bg2);
+  border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); display: flex; flex-direction: column;
+  gap: 8px; font-size: 16px; }
+.ht-tagpop-h { display: flex; align-items: center; gap: 6px; }
+.ht-tagpop-h b { color: var(--text); }
+.ht-tag-close { margin-left: auto; display: inline-flex; border: 0; background: none; color: var(--text3); cursor: pointer;
+  padding: 4px; border-radius: 6px; }
+.ht-tag-close:hover { color: var(--text); background: var(--surface-2); }
+.ht-tagpop .info-body { font-size: 16px; }
+.ht-tagpop-list { display: flex; flex-direction: column; gap: 2px; }
+.ht-tagpop-row { display: flex; align-items: center; gap: 4px; }
+.ht-tag-pick { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 5px 6px; border: 0;
+  border-radius: 8px; background: none; cursor: pointer; text-align: left; }
+.ht-tag-pick:hover { background: var(--surface-2); }
+.ht-tag-pick .ht-tag { max-width: 100%; }
+.ht-tag-check { flex: none; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 5px; color: var(--accent); }
+.ht-tag-pick.on .ht-tag-check { border-color: var(--accent); background: var(--accent-wash); }
+.ht-tag-check svg { width: 14px; height: 14px; }
+.ht-tag-edit { flex: none; display: inline-flex; border: 0; background: none; color: var(--text3); cursor: pointer;
+  padding: 6px; border-radius: 6px; }
+.ht-tag-edit:hover { color: var(--text); background: var(--surface-2); }
+.ht-tag-edit svg { width: 15px; height: 15px; }
+.ht-tagpop-edit, .ht-tagpop-new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px;
+  border-radius: 10px; background: var(--surface-1); border: 1px solid var(--hairline); }
+.ht-tagpop-new { border-style: dashed; }
+.ht-tagpop-edit input, .ht-tagpop-new input { flex: 1 1 100%; min-width: 0; padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 16px; }
+.ht-tagpop-eacts { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.ht-tagpop-eacts .s-btn, .ht-tagpop-eacts .s-btn-ghost, .ht-tag-create { font-size: 16px; }
+.ht-tag-del { margin-left: auto; color: var(--red, #e5484d); }
+.ht-tagpop-none { color: var(--text3); font-size: 16px; }
+.ht-tagpop-err { display: flex; align-items: flex-start; gap: 6px; color: var(--red, #e5484d); font-size: 16px; }
+.ht-sws { display: inline-flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
+.ht-sw { --tc: #8b8f98; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; padding: 0; background: var(--tc);
+  border: 2px solid var(--bg2); box-shadow: 0 0 0 1px var(--border); }
+.ht-sw.on { box-shadow: 0 0 0 2px var(--text); }
 @media (max-width: 640px) {
-  /* Điện thoại: ô tìm và dropdown Bot mỗi cái một hàng, Tình trạng và Loại chia đôi hàng thứ ba (cỡ chữ 16px nên
-     ba ô một hàng bị cắt mất chữ). */
-  .ht-f { flex: 1 1 42%; font-size: 16px; }
-  .ht-search, .ht-f-bot, .ht-f-channel { flex-basis: 100%; }
+  .ht-search { flex: 1 1 auto; }
 }
 /* Từ 0.65.10 vùng làm việc lấp đầy phần còn lại của khung (trước là calc(100vh - 300px), thấp hơn thật khoảng 90px nên cả trang phải cuộn
-   và khung tin bị đẩy xuống). Cột trái = dòng đếm + danh sách; danh sách và khung tin tự cuộn bên trong. */
+   và khung tin bị đẩy xuống). Cột trái = đầu danh sách + danh sách; danh sách và khung tin tự cuộn bên trong. */
 .ht-body { display: flex; gap: 12px; flex: 1 1 auto; min-height: 260px; }
 .ht-listcol { width: 320px; flex: none; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .ht-list { flex: 1 1 auto; min-height: 0; width: 100%; overflow: auto; display: flex; flex-direction: column; gap: 4px;
@@ -2675,21 +2727,83 @@ button.staff-chip:hover { border-color: var(--acc); }
   border-radius: 10px; border: 1px solid transparent; background: none; color: var(--text2); cursor: pointer; }
 .ht-item:hover { background: var(--surface-2); color: var(--text); }
 .ht-item.on { border-color: var(--accent); background: var(--accent-wash); color: var(--text); }
-.ht-item-ic { flex: none; opacity: .8; margin-top: 2px; }
 .ht-item-text { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
 .ht-item-top { display: flex; align-items: baseline; gap: 6px; }
 .ht-item-top strong { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; }
 .ht-item.unread .ht-item-top strong { color: var(--text); }
 .ht-item-time { flex: none; font-size: 11.5px; color: var(--text3); }
+/* Nút ghim của hòm thư (0.223.0). Since the row menu (2026-10-25) only a PINNED row draws it (click to unpin); pinning
+   an unpinned chat is in the "..." menu, so unpinned rows stay clean. */
+.ht-pin { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+  margin: -4px 0; border-radius: 6px; color: var(--text3); cursor: pointer; }
+.ht-pin svg { width: 14px; height: 14px; }
+.ht-pin:hover { background: var(--surface-2); color: var(--text); }
+.ht-pin.on { color: var(--accent); }
+.ht-item.ghim { box-shadow: inset 3px 0 0 var(--accent); }
+/* Row menu "..." (owner, 2026-10-25, like Zalo's). Touch screens and phones: always shown, after the time. A mouse on a
+   wide screen: it takes the time's place while the row is hovered or focused, or while its menu is open. */
+.ht-item-top { position: relative; }
+.ht-rmore { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 26px;
+  margin: -5px -5px -5px 0; border-radius: 7px; color: var(--text2); cursor: pointer; }
+.ht-rmore svg { width: 18px; height: 18px; }
+.ht-rmore:hover, .ht-item.menu-on .ht-rmore { background: var(--surface-2); color: var(--text); }
+.ht-rmore:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) and (min-width: 641px) {
+  .ht-rmore { position: absolute; right: -2px; top: 50%; margin: 0; transform: translateY(-50%); opacity: 0;
+    background: var(--surface-1); border: 1px solid var(--border); }
+  .ht-item:hover .ht-rmore, .ht-item:focus-within .ht-rmore, .ht-item.menu-on .ht-rmore { opacity: 1; }
+  .ht-item:hover .ht-item-time, .ht-item:focus-within .ht-item-time, .ht-item.menu-on .ht-item-time { visibility: hidden; }
+}
+.ht-item.menu-on { background: var(--surface-2); color: var(--text); }
+.ht-item.hid { opacity: .75; }
+.ht-hid-mark { flex: none; display: inline-flex; color: var(--text3); }
+.ht-hid-mark svg { width: 14px; height: 14px; }
+/* The menu itself: one element on <body> (position: fixed), so the list's scrolling never clips it. */
+.ht-rmenu { position: fixed; z-index: 3150; width: 300px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px);
+  overflow-y: auto; padding: 6px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22); display: flex; flex-direction: column; gap: 1px; font-size: 16px; outline: none; }
+.ht-rm-it { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 7px 10px; border: 0;
+  border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.ht-rm-it:hover, .ht-rm-it:focus-visible { background: var(--surface-2); outline: none; }
+.ht-rm-ic { flex: none; display: inline-flex; color: var(--text2); }
+.ht-rm-ic svg, .ht-rm-end svg { width: 18px; height: 18px; }
+.ht-rm-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ht-rm-t > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-rm-t small { font-size: 16px; line-height: 1.3; color: var(--text3); overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.ht-rm-end { flex: none; display: inline-flex; color: var(--text3); }
+.ht-rm-it.on .ht-rm-end, .ht-rm-it.on .ht-rm-ic { color: var(--accent); }
+.ht-rm-it.done { color: var(--green); }
+.ht-rm-it.done .ht-rm-ic { color: var(--green); }
+.ht-rm-tag .ht-tag { max-width: 100%; }
+.ht-rm-sep { height: 1px; margin: 4px 6px; background: var(--hairline); flex: none; }
+.ht-rm-h { padding: 2px 10px 2px; font-size: 16px; font-weight: 600; color: var(--text3); }
+.ht-rm-none { padding: 6px 10px; font-size: 16px; color: var(--text3); }
+.ht-rm-err { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; font-size: 16px; color: var(--red, #e5484d); }
+.ht-rm-err svg { width: 16px; height: 16px; flex: none; margin-top: 3px; }
+.ht-rm-copy { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; font-size: 16px; color: var(--text2); }
+.ht-rm-copyval { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--accent); background: var(--bg3);
+  color: var(--text); font-size: 16px; }
+/* Phones: the same menu as a bottom sheet with large rows, over a dimmed page. */
+.ht-rsheet-bg { position: fixed; inset: 0; z-index: 3140; background: var(--scrim, rgba(0, 0, 0, .45)); }
+.ht-rmenu.ht-rsheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 80vh;
+  border-radius: 16px 16px 0 0; border-bottom: 0; padding: 4px 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.ht-rsheet .ht-rm-it { min-height: 52px; padding: 10px 12px; }
+.ht-rsheet .ht-rm-ic svg, .ht-rsheet .ht-rm-end svg { width: 20px; height: 20px; }
+.ht-rsheet-h { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 12px 8px; font-size: 16px;
+  color: var(--text); }
+.ht-rsheet-h b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-rsheet-grip { width: 40px; height: 4px; border-radius: 999px; background: var(--border); }
 .ht-item-sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .ht-item-sub small { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--text3); overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; }
 .ht-item.unread .ht-item-sub small { color: var(--text2); font-weight: 600; }
 .ht-badge { flex: none; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent);
   color: var(--on-accent); font-size: 11px; font-weight: 700; text-align: center; line-height: 18px; }
-.ht-mode { flex: none; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: var(--warn-wash);
-  color: var(--warn-ink); font-weight: 600; }
+/* Tổng số tin của cuộc (0.148.0): viên xám trung tính, tách hẳn số đỏ (cam) của tin chưa đọc. */
+.ht-count { flex: none; font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ht-thread { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--border);
   border-radius: 12px; background: var(--surface-1); overflow: hidden; }
 .ht-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--hairline); }
@@ -2697,39 +2811,10 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ht-head-text strong { font-size: 15px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ht-head-text small { font-size: 12.5px; color: var(--text3); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .ht-back { display: none; padding: 6px 9px; }
-/* Công tắc hai nấc Tự động / Tôi trả lời (0.65.4). */
-.ht-seg { flex: none; display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px;
-  background: var(--bg3); }
-.ht-seg-b { border: 0; background: none; color: var(--text2); padding: 5px 11px; border-radius: 999px; font-size: 13px;
-  cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.ht-seg-b:hover { color: var(--text); }
-.ht-seg-b.on { background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
-.ht-seg-b.on[data-m="human"] { background: var(--warn-wash); color: var(--warn-ink); }
-/* Điện thoại: công tắc xuống hàng riêng, rộng hết chiều ngang (dễ chạm một tay) thay vì chèn tiêu đề còn vài chục điểm ảnh. */
+/* Phones: a long name may push the Info button to its own line. */
 @media (max-width: 640px) {
   .ht-head { flex-wrap: wrap; }
-  .ht-seg { order: 3; flex: 1 1 100%; }
-  .ht-seg-b { flex: 1 1 50%; justify-content: center; padding: 8px 11px; font-size: 14px; }
 }
-/* Dòng trạng thái: ai đang trực cuộc chat. Đứng riêng một dòng, không chung hàng với nút nào. */
-.ht-status { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--hairline);
-  font-size: 12.5px; color: var(--text3); }
-.ht-status.ai { color: var(--green); }
-.ht-status.human { color: var(--warn-ink); background: var(--warn-wash); }
-.ht-status.off { color: var(--warn-ink); background: var(--warn-wash); }
-/* Hai nút hành động (0.65.5): cùng cao, chia đôi bề ngang, không bao giờ rớt dòng. Nút chưa dùng được vẫn hiện, viền đứt. */
-.ht-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 12px 0; }
-.ht-act { height: 34px; padding: 0 8px; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 6px;
-  border-radius: 9px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; }
-.ht-act span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-act:hover { border-color: var(--accent); }
-.ht-act.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-.ht-act.off, .ht-act.pri.off { background: var(--bg3); border: 1px dashed var(--border); color: var(--text3); font-weight: 400; }
-.ht-act.busy { cursor: progress; }
-.ht-act:disabled { cursor: progress; }
-.ht-acts-note { display: flex; align-items: flex-start; gap: 6px; padding: 6px 12px 0; font-size: 12.5px; color: var(--text2); }
-.ht-acts-note.err { color: var(--red, #e5484d); }
-.ht-acts ~ .ht-compose { border-top: 0; }
 .ht-silent { align-self: flex-start; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px;
   color: var(--text3); }
 .ht-silent-why { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
@@ -2750,6 +2835,9 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ht-msg.hethong .ht-bubble { background: none; border-style: dashed; color: var(--text3); font-size: 12.5px; }
 .ht-bubble p { margin: 0 0 .5em; } .ht-bubble p:last-child { margin: 0; }
 .ht-loai { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text3); margin-right: 6px; }
+.ht-react-row { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text3); line-height: 1.4; }
+.ht-react-emoji { font-size: 20px; line-height: 1; }
+.ht-react.off .ht-react-emoji { opacity: .45; }
 .ht-msg-loi { font-size: 11.5px; color: var(--warn-ink); margin: 3px 4px 0; display: inline-flex; gap: 4px; align-items: center; }
 .ht-foot { padding: 8px 12px; border-top: 1px solid var(--hairline); font-size: 12.5px; color: var(--text3); }
 .ht-empty { text-align: center; color: var(--text3); padding: 40px 16px; display: flex; flex-direction: column;
@@ -2781,6 +2869,23 @@ button.staff-chip:hover { border-color: var(--acc); }
 .ht-warn { color: var(--warn-ink); }
 .ht-switch { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); cursor: pointer; }
 .ht-form-acts { display: flex; justify-content: flex-end; margin-top: 14px; }
+/* Drag the list column (2026-10-25), wide screens only: width from --ht-list-w (col-resize.js), handle in the 12px gap
+   right of the list; snapped into a strip (.ht-mini) the rows show only an initial, with a dot for unread. */
+@media (min-width: 901px) {
+  .ht-listcol { width: var(--ht-list-w, 320px); position: relative; }
+  .ht-listcol > .col-resize { display: block; position: absolute; top: 0; bottom: 0; right: -10px; width: 8px; z-index: 6;
+    cursor: col-resize; touch-action: none; }
+  .ht-mini .ht-sdt, .ht-mini .ht-item-text, .ht-mini .ht-more { display: none; }
+  .ht-mini .ht-list { padding: 6px 4px; align-items: center; }
+  .ht-mini .ht-item { justify-content: center; padding: 6px 0; width: 52px; }
+  .ht-mini .ht-item-ava { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px;
+    height: 40px; border-radius: 50%; background: var(--accent-wash); color: var(--accent-ink); font-size: 18px; font-weight: 700; }
+  .ht-mini .ht-item.on .ht-item-ava { box-shadow: 0 0 0 2px var(--accent); }
+  .ht-item-ava-dot { position: absolute; top: 0; right: 0; width: 11px; height: 11px; border-radius: 50%; background: var(--accent);
+    border: 2px solid var(--surface-1); }
+}
+.ws-mini-tip-ava > .ht-item-ava { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--accent-wash); color: var(--accent-ink); font-weight: 700; }
 @media (max-width: 900px) {
   .ht-body { height: auto; min-height: 0; flex: 1 1 auto; }
   .ht-listcol { width: 100%; }
@@ -2791,7 +2896,7 @@ button.staff-chip:hover { border-color: var(--acc); }
   .ht-wrap.thread-on .ht-thread { display: flex; min-height: 70vh; }
   .ht-back { display: inline-flex; }
   .ht-item-top strong, .ht-bubble, .ht-src-text strong { font-size: 16px; }
-  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch { font-size: 14px; }
+  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch, .ht-count { font-size: 14px; }
   .ht-msg { max-width: 88%; }
 }
 
@@ -2872,7 +2977,6 @@ button.staff-chip:hover { border-color: var(--acc); }
 /* Ô trả lời khách (0.61.0): chỉ hiện khi kênh gửi được từ Joyce. */
 .ht-compose { border-top: 1px solid var(--hairline); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
 .ht-compose-note { font-size: 12.5px; color: var(--text3); display: flex; gap: 5px; align-items: center; }
-.ht-compose-row { display: flex; gap: 8px; align-items: flex-end; }
 .ht-compose textarea { flex: 1 1 auto; min-width: 0; resize: vertical; padding: 8px 10px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 14px; font-family: inherit; line-height: 1.45; }
 .ht-compose textarea:focus { border-color: var(--info-line); outline: none; }

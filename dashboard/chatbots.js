@@ -1395,6 +1395,20 @@
     doiNap(function () { moForm(null, { account_id: aid }); });
   });
 
+  // Chatbot v5 (2026-10-28): "Mở cài đặt của bot X" từ khung Thông tin của một cuộc chat. Bot của cuộc chat có thể thuộc
+  // brain khác brain đang mở (trang này chỉ nạp bot của brain đang mở); khi đó nói rõ thay vì mở vào hư không.
+  document.addEventListener("joyce:chatbot-open", function (e) {
+    var id = (e.detail || {}).bot_id;
+    if (!id) return;
+    var lan = 0;
+    (function thu() {
+      var b = _bots.filter(function (x) { return x.id === id; })[0];
+      if (b && _kenhDS.length) return moForm(b);
+      if (lan++ > 20) return b ? moForm(b) : alert(window.t("ib.bot_other_brain"));
+      setTimeout(thu, 150);
+    })();
+  });
+
   // (0.62.2 đã bỏ tay bắt "joyce:chatbot-edit" ở đây. Tab Kênh từng bấm Xoá là nhảy sang đây
   // mở form Sửa của con bot đang giữ tài khoản, nhưng trang này chỉ nạp bot của BRAIN ĐANG MỞ
   // còn tài khoản kênh thì toàn cục - nên với con bot ở brain khác, đường đó luôn kết thúc
