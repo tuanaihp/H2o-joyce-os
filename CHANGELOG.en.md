@@ -5,7 +5,7 @@
 ## [1.3.55] - 2026-10-31
 ### Added
 - **The pet becomes a department planet.** Settings → Pet now has a single picker: **Department planets** (the old shapes row - circle, square, star... - is gone; anyone already using an old shape keeps it): twelve little worlds in the same style as the water-core map - Accounting wears a ring, HR drifts with clouds, Customer care ripples, Research grows crystals, Sales is cracked lava, ThuyH2O glitters pink... Picking one paints the pet in that department's familiar colour, still changeable afterwards from the palette. Both sides share one table: when the water-core restyles a department, the pet follows on the next load.
-- **Expressions keep following the real state and read clearly on the new shape**: when someone asks, the eyes turn curious and nod along with each caught word; while Joyce searches or calls a tool, the eyes wander in thought; when the answer is done, the eyes smile and hop once. The orbit ring still spins at each state's own pace, planet or not.
+- **The planet is a 3D sphere with moods** (owner's idea): drop shadow and highlight give every shape real volume; on a failed turn the surface turns rough like terrain and glows hot red; while dozing or paused it shifts to cold, desaturated blue; when Joyce is thinking hard, a glow runs around the orbit ring. **Expressions keep following the real state**: curious eyes with a nod for each caught word when someone asks, a smile and a hop when the answer is done.
 
 ## [1.3.54] - 2026-10-31
 ### Added
