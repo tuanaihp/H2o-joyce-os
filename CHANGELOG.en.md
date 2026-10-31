@@ -2,6 +2,10 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.55] - 2026-10-31
+### Added
+- (in progress: planet mascots per department + expressions - entry to be written on completion)
+
 ## [1.3.54] - 2026-10-31
 ### Added
 - **The Conversations page, v5** (ported from Javis 0.371-0.401): four tabs in one place - **Inbox**, **Bots**, **Channels**, **Stats**. Every chat gets a coloured edge saying **who is handling it**: yellow means it needs you (a customer waits, someone called the A.I. without permission yet, or the A.I. wrote a draft awaiting approval), violet is the A.I. answering, blue is you, grey is logged only.

@@ -2,6 +2,10 @@
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*
 
+## [1.3.55] - 2026-10-31
+### Thêm
+- (đang làm: linh vật hành tinh theo phòng ban + biểu cảm - nội dung sẽ viết khi hoàn thành)
+
 ## [1.3.54] - 2026-10-31
 ### Thêm
 - **Trang Hội thoại bản v5** (port Javis 0.371-0.401): bốn tab một chỗ - **Hộp thư**, **Bot**, **Kênh**, **Thống kê**. Mỗi cuộc chat có màu viền cho biết **ai đang phụ trách**: vàng là cần bạn (khách chờ, có ai gọi AI mà chưa cho phép, hoặc AI vừa soạn nháp chờ duyệt), tím là AI đang trả lời, xanh là bạn đang tiếp quản, xám là chỉ ghi lại.
