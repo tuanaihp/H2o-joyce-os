@@ -53,7 +53,9 @@ _SLUG_CAM = re.compile(r"[/\\\x00-\x1f\x7f]")           # tách đường dẫn 
 # khuôn cho cả hai, vì bản ghi bot chỉ có một trường `groups` và kênh nào cũng đổ vào đó.
 # Từ 0.71.0 thêm id kênh/người Slack (C0ABC123, G..., D..., U...: chữ HOA và số). Số WhatsApp
 # là chữ số nên đã khớp nhánh đầu.
-_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|[0-9a-fA-F]{8,40}|[CGDUW][A-Z0-9]{6,20})$")
+# Id nhóm Zalo Bot mang tiền tố "zgr-" (vd "zgr-72749471121efb40a20f", 0.379.0). Thiếu nó thì
+# "Cho phép nhóm này" báo OK nhưng id bị lặng lẽ bỏ đi.
+_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|(?:zgr-)?[0-9a-fA-F]{8,40}|[CGDUW][A-Z0-9]{6,20})$")
 
 # Kênh nhắn tin của bot. Trường này có từ 0.20.0 nhưng ghim cứng "telegram"; 0.26.5 cho nó
 # thành lựa chọn thật; 0.61.0 đọc từ SỔ ĐĂNG KÝ KÊNH (`channels`) thay vì chép ở đây: kênh nào
@@ -589,6 +591,8 @@ def _public(b: dict) -> dict:
     elif out["audience"] not in AUDIENCE:
         out["audience"] = AUDIENCE_HEP_NHAT
     out["people"] = _clean_groups(out.get("people"))
+    # Các cuộc chat chủ ĐÃ TẮT bot ở đó (Chatbot v5), dù phạm vi bot cho phép trả lời ở đó.
+    out["blocked"] = _clean_groups(out.get("blocked"))
     # Giờ trực (0.130.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
     # Per-chat exceptions (0.172.0). Missing key = old record = none; a broken value also reads as none (narrowest).
@@ -597,6 +601,51 @@ def _public(b: dict) -> dict:
     import chatbot_reply_policy
     out["reply_policy"] = chatbot_reply_policy.normalize_config(out.get("reply_policy"))
     return out
+
+
+def _in_list(ids, chat_id) -> bool:
+    cid = str(chat_id or "").strip()
+    return bool(cid) and cid in {str(x).strip() for x in (ids or [])}
+
+
+def chat_allowed(bot: dict, chat_type: str, chat_id: str, account_id: str = "") -> bool:
+    """Bot có được trả lời trong cuộc chat này không (Chatbot v5)? Cùng luật mà lượt chạy áp trước khi xét nhắc tên và
+    giờ trực (`chatbot_runtime._ly_do_im_co_ban`): cuộc chat bị chặn thì không bao giờ; chat riêng khi phạm vi không phải
+    "chon", người đó được chọn, hoặc chủ ĐÃ NÂNG cuộc chat này bằng ngoại lệ riêng trên tài khoản kênh đó (`account_id`,
+    id thô); nhóm khi phạm vi là "all" hoặc nhóm được chọn."""
+    if not bot or _in_list(bot.get("blocked"), chat_id):
+        return False
+    aud = bot.get("audience") if bot.get("audience") in AUDIENCE else (AUDIENCE_DEFAULT if "audience" not in bot
+                                                                          else AUDIENCE_HEP_NHAT)
+    if str(chat_type or "private") != "group":
+        if aud != "chon" or _in_list(bot.get("people"), chat_id):
+            return True
+        if account_id:
+            cfg = ap_ngoai_le(bot, {"chat_type": "private", "chat_id": str(chat_id), "account_id": str(account_id)})
+            return ngoai_le_nang(cfg)
+        return False
+    return aud == "all" or _in_list(bot.get("groups"), chat_id)
+
+
+def allow_patch(bot: dict, chat_type: str, chat_id: str, on: bool) -> dict:
+    """Bản vá bật (`on`) hoặc tắt bot trong MỘT cuộc chat, giữ nguyên phạm vi: cuộc chat mà phạm vi đã phủ thì chỉ đưa ra
+    khỏi `blocked`; cuộc chat phạm vi chưa phủ thì vào `groups` / `people`. Tắt thì đưa cuộc chat ra khỏi các danh sách đó
+    và, nếu phạm vi vẫn phủ nó, vào `blocked`."""
+    cid = str(chat_id or "").strip()
+    grp = str(chat_type or "private") == "group"
+    key = "groups" if grp else "people"
+    blocked = [x for x in (bot.get("blocked") or []) if str(x) != cid]
+    listed = [str(x) for x in (bot.get(key) or [])]
+    aud = bot.get("audience") or AUDIENCE_DEFAULT
+    covered = (aud == "all") if grp else (aud != "chon")
+    if on:
+        if not covered and cid not in listed:
+            listed.append(cid)
+        return {"blocked": blocked, key: listed}
+    listed = [x for x in listed if x != cid]
+    if covered:
+        blocked.append(cid)
+    return {"blocked": blocked, key: listed}
 
 
 # ============================================================
@@ -877,7 +926,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
-              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban")
+              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "blocked")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -942,6 +991,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["groups"] = _clean_groups(v)
                 elif k == "people":
                     b["people"] = _clean_groups(v)
+                elif k == "blocked":
+                    b["blocked"] = _clean_groups(v)
                 elif k == "audience":
                     # Giá trị lạ thì GIỮ giá trị cũ (cùng luật với muc_quyen): rơi về mặc định là mở
                     # rộng hay thu hẹp im lặng, và chủ không biết bot đang nói chuyện với ai.

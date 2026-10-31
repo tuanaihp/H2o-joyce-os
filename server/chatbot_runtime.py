@@ -659,6 +659,9 @@ def _ly_do_im_co_ban(bot_cfg: dict, meta: dict) -> str:
     đúng và phải im tuyệt đối.
     """
     loai = str((meta or {}).get("chat_type") or "private")
+    # Chủ đã tắt bot ở riêng cuộc chat này (Chatbot v5, `blocked`): im, và không có gì để duyệt.
+    if chatbot_store._in_list((bot_cfg or {}).get("blocked"), (meta or {}).get("chat_id")):
+        return "chat_tat"
     aud = _audience_cua(bot_cfg)
     if loai == "private":
         # "Bot trả lời ai" (0.64.85): chỉ `chon` mới lọc người. `nhom` (mặc định, hành vi cũ) và `all`
@@ -1056,10 +1059,10 @@ def _make_precheck_fn(bot_id: str):
         if (meta or {}).get("member_join"):
             # A join in a group the bot may not speak in: silent, and not a "call" for the approval queue.
             return {}
-        if ly_do == "ngoai_gio_truc":
-            # Outside active hours: silent, nothing sent. A message the bot WOULD have answered still goes to the
-            # inbox so whoever is on duty reads it in the morning; group chatter in "Tự đánh giá" mode does not,
-            # since by day it would not have reached the inbox either.
+        if ly_do in ("ngoai_gio_truc", "chat_tat"):
+            # Ngoài giờ trực, hoặc chủ đã tắt bot ở cuộc chat này (Chatbot v5): im, không gửi gì. Tin mà bot VẪN
+            # sẽ trả lời thì vẫn vào Hộp thư để người trực buổi sáng đọc; còn tán gẫu nhóm ở chế độ "Tự đánh giá"
+            # thì không, vì ban ngày nó cũng chẳng tới Hộp thư.
             m = meta or {}
             goi_bot = ((m.get("chat_type") or "private") == "private" or m.get("mentioned")
                        or m.get("reply_to_bot") or cfg.get("reply_when") == "always")
@@ -1789,6 +1792,14 @@ def _make_answer_fn(bot_id: str):
             # cần biết, người đang hỏi thì không cần.
             "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link"), cfg.get("_anh_loi")) if x),
         })
+        # "AI soạn, chủ duyệt" (Chatbot v5): câu trả lời nằm lại cuộc chat chờ chủ gửi, sửa hoặc bỏ.
+        # Không gì tới khách và không ghi thành tin của bot; cuộc chat chuyển vàng (Cần bạn).
+        if not loi_ky_thuat and dap.strip() and conversations.che_do(kenh_luot, aid_luot, chat_id) == "draft":
+            _rp_retract(rp_dec, "owner_review")
+            cid_draft = conversations.conversation_id_of(kenh_luot, aid_luot, chat_id)
+            if cid_draft:
+                conversations.save_draft(cid_draft, dap, conversations.last_customer_message_id(cid_draft))
+            return {"text": "", "files": [], "im_lang": True, "draft": True}
         # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
         ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))
         if goi_nguoi:
@@ -1836,7 +1847,12 @@ def manual_meta(conv: dict, last: dict) -> dict:
     return meta
 
 
-async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
+# Lời dặn của chủ cho "AI trả lời" (Chatbot v5). Chỉ model đọc; không bao giờ tới Hộp thư hay khách.
+_INSTRUCTION_NOTE = ("(Ghi chú riêng của chủ, khách KHÔNG thấy: hãy viết câu trả lời gửi khách theo đúng ý sau: \"{lenh}\". "
+                     "Viết thành câu trả lời hoàn chỉnh, đúng giọng và cách xưng hô của bạn với khách, không nhắc tới ghi chú này.)")
+
+
+async def manual_answer(conv: dict, msgs: list, draft: bool = False, instruction: str = "") -> dict:
     """Chủ bấm "Trả lời giúp tin này" (`draft=False`) hoặc "Gợi ý câu trả lời" (`draft=True`) ở Hộp thư: chạy đúng Agent của bot
     trên tin khách CUỐI của cuộc chat. KHÔNG gửi gì (người gọi gửi), và không đi qua cổng "có nên nói", bộ phán xử hay hạn mức tự nói,
     vì đây là lời nhờ của chính chủ.
@@ -1846,7 +1862,11 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
     sạch; nháp bỏ đi thì bot không "nhớ" mình từng nói câu đó với khách.
 
     Trả `{"ok", "text", "silent", "meta", "code", "error"}`; `silent` = Agent chọn không trả lời tin này.
+
+    `instruction` (Chatbot v5, "AI trả lời"): lệnh chủ gõ ("báo giá 20 hộ, giao thứ Năm"). Nó đi kèm như một ghi chú chỉ model
+    đọc; có nó thì bot soạn cả khi chưa có tin khách nào đang chờ.
     """
+    lenh = " ".join(str(instruction or "").split())[:500]
     bot_id = str(conv.get("bot_id") or "")
     cfg = chatbot_store.get_bot(bot_id)
     if not cfg:
@@ -1856,9 +1876,11 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
     # Tin ảnh thì chỉ phần chú thích là lời của khách; ảnh trơn (đường dẫn hoặc chữ giữ chỗ) không có gì để trả lời.
     chu_khach = (conversations.chu_thich_anh(last.get("text")) if (last or {}).get("message_type") == "image"
                  else str((last or {}).get("text") or "").strip())
-    if not last or not chu_khach:
+    if (not last or not chu_khach) and not lenh:
         return {"ok": False, "code": "no_message", "error": localefmt.chu("Chưa có tin khách để trả lời",
                                                                           "No customer message to reply to yet")}
+    if not last:
+        last = {}
     conv_id = conv.get("id")
     if conv_id in _MANUAL_BUSY:
         return {"ok": False, "code": "busy", "error": localefmt.chu("Bot đang soạn cho cuộc chat này, chờ một chút",
@@ -1877,7 +1899,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
         except Exception as e:      # noqa: BLE001 - không đọc được phiên thì nháp không có ngữ cảnh kho, vẫn chạy
             print(f"[chatbot {bot_id}] đọc phiên cho bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
     try:
-        text = chu_khach
+        text = chu_khach or lenh
         tl = await _tra_tai_lieu(bot_id, cfg, text)
         _aid, kenh = _tai_khoan_cua(cfg, meta)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
@@ -1886,7 +1908,10 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
         text_engine = text
         if kenh == "zalo_personal" and meta["chat_type"] == "group" and meta["user_name"]:
             text_engine = f"[{meta['user_name']}] {text}"      # cả nhóm chung một mạch: model phải biết ai đang nói
-        text_engine, cfg["_anh"] = await anh_cho_bot(text_engine, meta, cfg)
+        text_engine, cfg["_anh"] = await anh_cho_bot(text_engine, meta, cfg) if chu_khach else (text_engine, [])
+        if lenh:
+            note = _INSTRUCTION_NOTE.format(lenh=lenh.replace('"', "'"))
+            text_engine = note + ("\n" + text_engine if chu_khach else "")
         kw = {"channel": kenh, "bot": cfg}
         if draft:
             kw.update(phien_kho=sid, ghi_kho=False)
@@ -2110,6 +2135,7 @@ def _try_reason(code: str) -> str:
                           "In groups the bot only replies when named or tagged, and this message does not."),
         "nhom_chua_bat": ("Nhóm này chưa được cho phép.", "This group is not allowed yet."),
         "nguoi_chua_chon": ("Người này chưa được chọn.", "This person is not selected yet."),
+        "chat_tat": ("Bạn đã tắt A.I. ở cuộc chat này.", "You switched the AI off in this chat."),
         "ngoai_gio_truc": ("Đang ngoài giờ trực của bot. Tin thật lúc này không được trả lời, chỉ vào Hộp thư.",
                            "Outside the bot's active hours. A real message now gets no reply and only goes to the inbox."),
         "khong_giong_cau_hoi": ("Tin này không giống một câu hỏi hay lời nhờ giúp, nên bot không tự chen vào.",
