@@ -736,6 +736,8 @@ class RemindersFeature:
 
     async def _fire(self, brain: str, rem: dict) -> None:
         mode = rem.get("mode", "notify")
+        # Chỉ nhánh "task" mới gán lại (chủ bấm DỪNG giữa chừng); các mode khác luôn là False.
+        stopped = False
         text = rem.get("text", "")
         head = rem.get("label") or text
         body, err = "", ""
