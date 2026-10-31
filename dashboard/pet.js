@@ -361,6 +361,7 @@
   var el = null, svg = null, nutBody = null, menu = null;
   var pRing = null, pFace = null, gEyes = null, gRig = null;
   var gFBack = null, gFIn = null, pClip = null;   // hai lớp đặc trưng + hình cắt của hành tinh
+  var pShade = null, pShine = null, pTint = null; // khối cầu 3D: bóng, sáng, và lớp nhuộm cảm xúc
   var cfg = Object.assign({}, MAC_DINH);
   var state = "idle", mood = "neutral", dangChop = false;
   var raf = 0, truoc = 0, gocRing = 0, tocDo = STATES.idle.ring, tocDoDich = STATES.idle.ring;
@@ -536,6 +537,36 @@
   }
 
   // ---- Dựng DOM ----
+  // CSS CẢM XÚC CỦA HÀNH TINH (1.3.55, ý chủ dự án): nhồi vào pet.js tự inject thay vì nằm
+  // trong style.css, để toàn bộ diện mạo cảm xúc của pet ở đúng MỘT file. Màu ở đây là MÀU
+  // CẢM XÚC cố ý (đỏ nóng, xanh lạnh) chứ không phải màu theme: nó vẽ LÊN thân màu cố định
+  // của pet, không bao giờ làm nền hay chữ.
+  var CSS_CAM_XUC =
+    "#joycePet .pet-shade, #joycePet .pet-shine { pointer-events: none; }" +
+    "#joycePet .pet-tint { opacity: 0; pointer-events: none; transition: opacity .45s ease, fill .45s ease; }" +
+    /* LẠNH LÙNG: ngủ gật, tạm dừng, đang kết nối lại - phủ xanh lạnh, bão hoà rụng xuống */
+    "#joycePet[data-ngu] .pet-tint, #joycePet[data-state='paused'] .pet-tint," +
+    "#joycePet[data-state='reconnecting'] .pet-tint { opacity: .34; fill: #4d8dff; mix-blend-mode: multiply; }" +
+    "#joycePet[data-ngu] .pet-face, #joycePet[data-state='paused'] .pet-face," +
+    "#joycePet[data-state='reconnecting'] .pet-face { filter: saturate(.5) brightness(.92); }" +
+    /* NÓNG GIẬN: lượt lỗi - bề mặt gồ ghề như địa hình, thân nóng đỏ rực */
+    "#joycePet[data-state='error'] .pet-tint { opacity: .42; fill: #ff3b1f; mix-blend-mode: hard-light; }" +
+    "#joycePet[data-state='error'] .pet-face { filter: url(#petRough) saturate(1.25); }" +
+    "#joycePet[data-state='error'] svg { filter: drop-shadow(0 0 12px rgba(255, 70, 25, .55)); }" +
+    /* CỐ SUY NGHĨ: vầng sáng chạy quanh vành (vành đã tự xoay, chỉ thêm quầng) */
+    "@media (prefers-reduced-motion: no-preference) {" +
+    "#joycePet[data-state='thinking'] .pet-ring { filter: drop-shadow(0 0 5px var(--pet-ring)) drop-shadow(0 0 13px var(--pet-ring)); }" +
+    "#joycePet[data-state='thinking'] .pet-shine { animation: petNghiPulse 2.2s ease-in-out infinite; }" +
+    "} @keyframes petNghiPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }";
+
+  function boSungCSS() {
+    if (!document.head || document.getElementById("petMoodCss")) return;
+    var s = document.createElement("style");
+    s.id = "petMoodCss";
+    s.textContent = CSS_CAM_XUC;
+    document.head.appendChild(s);
+  }
+
   function dung() {
     if (el) return;
     el = document.createElement("div");
@@ -546,18 +577,42 @@
     el.innerHTML =
       '<button type="button" class="pet-body" aria-label="Joyce">' +
         '<svg viewBox="0 0 320 320" aria-hidden="true">' +
-          '<defs><clipPath id="petBodyClip"><path></path></clipPath></defs>' +
+          '<defs>' +
+            '<clipPath id="petBodyClip"><path></path></clipPath>' +
+            // Khối cầu 3D (1.3.55): highlight trắng lệch trên-trái + bóng tối lệch dưới-phải,
+            // toạ độ objectBoundingBox nên dùng được cho MỌI hình và MỌI màu thân.
+            '<radialGradient id="petShine" cx="34%" cy="30%" r="62%">' +
+              '<stop offset="0" stop-color="#fff" stop-opacity=".38"/>' +
+              '<stop offset=".55" stop-color="#fff" stop-opacity=".10"/>' +
+              '<stop offset="1" stop-color="#fff" stop-opacity="0"/>' +
+            '</radialGradient>' +
+            '<radialGradient id="petShade" cx="72%" cy="82%" r="80%">' +
+              '<stop offset="0" stop-color="#000" stop-opacity=".30"/>' +
+              '<stop offset=".6" stop-color="#000" stop-opacity=".10"/>' +
+              '<stop offset="1" stop-color="#000" stop-opacity="0"/>' +
+            '</radialGradient>' +
+            // Bề mặt GỒ GHỀ khi nóng giận: nhiễu fractal rồi dịch chuyển làm mép và mặt gợn
+            // như địa hình. Con số đặt tay theo ảnh chụp ở 72px, đừng phóng đại.
+            '<filter id="petRough" x="-8%" y="-8%" width="116%" height="116%">' +
+              '<feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves="2" seed="7" result="n"/>' +
+              '<feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G"/>' +
+            '</filter>' +
+          '</defs>' +
           '<g class="pet-rig">' +
             '<path class="pet-ring" pathLength="360"></path>' +
             '<g class="pet-feat-back"></g>' +
             '<path class="pet-face"></path>' +
             '<g class="pet-feat-in" clip-path="url(#petBodyClip)"></g>' +
+            '<path class="pet-shade" fill="url(#petShade)"></path>' +
+            '<path class="pet-shine" fill="url(#petShine)"></path>' +
+            '<path class="pet-tint"></path>' +
             '<g class="pet-eyes"></g>' +
           '</g>' +
         '</svg>' +
       '</button>' +
       '<div class="pet-menu" hidden></div>';
     document.body.appendChild(el);
+    boSungCSS();
     svg = el.querySelector("svg");
     nutBody = el.querySelector(".pet-body");
     menu = el.querySelector(".pet-menu");
@@ -568,6 +623,9 @@
     gFBack = el.querySelector(".pet-feat-back");
     gFIn = el.querySelector(".pet-feat-in");
     pClip = el.querySelector("#petBodyClip path");
+    pShade = el.querySelector(".pet-shade");
+    pShine = el.querySelector(".pet-shine");
+    pTint = el.querySelector(".pet-tint");
     noiTuongTac();
   }
 
@@ -610,6 +668,9 @@
     pFace.setAttribute("d", sp.d);
     pRing.setAttribute("d", sp.d);
     if (pClip) pClip.setAttribute("d", sp.d);
+    if (pShade) pShade.setAttribute("d", sp.d);
+    if (pShine) pShine.setAttribute("d", sp.d);
+    if (pTint) pTint.setAttribute("d", sp.d);
     if (gFBack) gFBack.innerHTML = sp.back || "";
     if (gFIn) gFIn.innerHTML = sp.in || "";
     var tone = toneCua(cfg.palette, cfg.color);

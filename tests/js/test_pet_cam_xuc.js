@@ -40,7 +40,7 @@ const win = {
 };
 const doc = {
   readyState: "complete", addEventListener() {}, querySelectorAll: () => [], querySelector: () => nut(),
-  getElementById: () => null, body: nut(), activeElement: null,
+  getElementById: () => null, head: nut(), body: nut(), activeElement: null,
   createElement: () => {
     const e = nut();
     // Giữ đúng MỘT đối tượng cho từng phần con, như DOM thật, để soi lại được sau này.

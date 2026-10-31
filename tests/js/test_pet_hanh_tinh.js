@@ -85,7 +85,7 @@ const win = {
 };
 const doc = {
   readyState: "complete", addEventListener() {}, querySelectorAll: () => [], querySelector: () => nut(),
-  getElementById: () => null, body: nut(), activeElement: null,
+  getElementById: () => null, head: nut(), body: nut(), activeElement: null,
   createElement: () => {
     const e = nut();
     const con = {};
@@ -156,7 +156,7 @@ check("chân dung hình thường KHÔNG dính clipPath thừa",
 // làm mất biểu cảm.
 const doc2 = {
   readyState: "complete", addEventListener() {}, querySelectorAll: () => [], querySelector: () => nut(),
-  getElementById: () => null, body: nut(), activeElement: null,
+  getElementById: () => null, head: nut(), body: nut(), activeElement: null,
   createElement: () => { const e = nut(); const con = {}; e.querySelector = (sel) => (con[sel] = con[sel] || nut()); return e; },
 };
 new Function("window", "document", "localStorage", "fetch", "requestAnimationFrame", "cancelAnimationFrame",
@@ -172,6 +172,27 @@ check("bảng STATES vẫn ánh xạ nghe->curious, nghĩ->thinking, nói->happy
   /speaking:\s*\{\s*eye:\s*"happy"/.test(petSrc));
 check("phản ứng theo trạng thái còn nguyên: nghe gật, xong nhảy",
   /react\("nghe"\)/.test(petSrc) || /ten === "nghe"/.test(petSrc));
+
+// ---- 7. Hiệu ứng cảm xúc 3D của hành tinh (1.3.55, ý chủ dự án) ----
+// CSS cảm xúc do pet.js TỰ INJECT (không nằm trong style.css, khỏi va chạm với phiên khác):
+// lỗi là gồ ghề + nóng đỏ; ngủ/tạm dừng/kết nối lại là xanh lạnh; nghĩ là vầng sáng chạy quanh.
+const cssPet = petSrc.slice(petSrc.indexOf("var CSS_CAM_XUC"), petSrc.indexOf("function boSungCSS"));
+check("CSS cảm xúc nằm trong pet.js, tự inject với id petMoodCss",
+  /document\.getElementById\("petMoodCss"\)/.test(petSrc) && cssPet.length > 400);
+check("LỖI: bề mặt gồ ghề bởi filter petRough + thân đỏ rực",
+  /data-state='error'\] \.pet-face \{ filter: url\(#petRough\)/.test(cssPet) &&
+  /feTurbulence[^>]*fractalNoise/.test(petSrc) && /feDisplacementMap/.test(petSrc) &&
+  /data-state='error'\] svg \{ filter: drop-shadow\(0 0 12px rgba\(255, 70, 25/.test(cssPet));
+check("LẠNH: ngủ gật, tạm dừng, kết nối lại phủ xanh lạnh giảm bão hoà",
+  /data-ngu\] \.pet-tint/.test(cssPet) && /data-state='paused'\] \.pet-tint/.test(cssPet) &&
+  /data-state='reconnecting'\] \.pet-tint/.test(cssPet) &&
+  /#4d8dff; mix-blend-mode: multiply/.test(cssPet) && /saturate\(\.5\)/.test(cssPet));
+check("NGHĨ: vầng sáng chạy quanh vành, tôn trọng reduced-motion",
+  /data-state='thinking'\] \.pet-ring \{ filter: drop-shadow/.test(cssPet) &&
+  /prefers-reduced-motion: no-preference/.test(cssPet) && /petNghiPulse/.test(cssPet));
+check("khối cầu 3D có bóng và sáng, cùng hình thân",
+  /pet-shade" fill="url\(#petShade\)/.test(petSrc) && /pet-shine" fill="url\(#petShine\)/.test(petSrc) &&
+  /radialGradient id="petShine"/.test(petSrc) && /radialGradient id="petShade"/.test(petSrc));
 
 if (fails.length) { console.log(`\nFAILED ${fails.length}: ${fails.join(" | ")}`); process.exit(1); }
 console.log("\nOK - test_pet_hanh_tinh: all pass");
