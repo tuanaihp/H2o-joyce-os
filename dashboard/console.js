@@ -83,6 +83,8 @@
     share: "share-2",
     // 1.3.52 (port Javis 0.251.0): Kho đăng nhập (Cookies), icon bánh quy.
     logins: "cookie",
+    // 1.3.53: trang Nhiem vu - thieu ra "undefined" tren thanh ben.
+    tasks: "list-checks",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
