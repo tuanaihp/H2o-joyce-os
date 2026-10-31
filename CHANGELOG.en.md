@@ -2,6 +2,16 @@
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
 
+## [1.3.52] - 2026-10-31
+### Added
+- **Token-free web page watch** (ported from Javis 0.239.0). The Recurring work page gains a **Page watch** tab: Joyce fetches a page on a schedule and compares text, **without calling AI**, and only reports when something actually happened - the page changed, a phrase you are waiting for appeared, or a price dropped below a threshold (reads 1,250,000 VND, 1.5 million, 250k, $20). Relative times like "3 minutes ago" never count as a change; failures back off, and after 5 in a row the watch pauses and says so once. Turning on AI summaries makes the background model add a one-paragraph take on each change. Also usable from chat via the `joyce_watch` tool.
+- **Cookies - the login vault** (ported from Javis 0.251.0). A new page in the Connections group: sign in on your own browser, export the cookies with Cookie-Editor and paste them (or upload a JSON/cookies.txt file). Joyce reuses that session to read pages behind a sign-in (seller portals, affiliate dashboards, admin panels) through the `joyce_login` tool, and page watches can watch sign-in-protected pages. Cookies are **encrypted on the server**, the AI only ever sees page text and the sign-in's name; when a session expires Joyce says so plainly instead of retrying blindly.
+- **Anthropic Compatible** (ported from Javis 0.254.0). The Models page gains a new card: paste a Base URL + API key (and model names when the gateway lists none) to use Claude resellers and the "anthropic" endpoints of DeepSeek, Kimi, MiniMax. Joyce sends one tiny probe before saving, so a wrong key or URL is reported immediately. Full toolkit like every other brain: MCP, vault files, skills, background work.
+- **ElevenLabs now speaks Vietnamese properly** (ported from Javis 0.255.0). The default model moves to **Flash v2.5** (the old Multilingual v2 has no Vietnamese); a saved v2 model is swapped automatically when the text is Vietnamese. The voice picker lists **the voices in your ElevenLabs account by name** (cloned ones included) instead of a raw Voice ID. Voice notes sent to Telegram/Zalo also use ElevenLabs when chosen, falling back to Edge if it fails.
+
+### Fixed
+- The route table snapshot was re-taken (8 new routes from the four features above).
+
 ## [1.3.51] - 2026-10-30
 ### Added
 - **Skill library, step 1: a read-only audit.** Joyce scans every brain, groups the copies back into one skill each, shows which copies differ in content, which is newest, which work group each skill should belong to, and which departments could not be placed. Read-only, it never touches brains.

@@ -47,6 +47,8 @@ KEY_FIELD = {
     # Vẫn hỗ trợ vòng quay cho trường hợp nhiều endpoint sau proxy có xác thực.
     "ollama-local": "ollama_local_key",
     "openai-compat": "openai_compat_key",
+    # 1.3.52: cong Anthropic-compatible - nhu openai-compat, Base URL moi la thu quyet dinh.
+    "anthropic-compat": "anthropic_compat_key",
 }
 
 # Provider hiện trên card Vòng quay key của trang Phân việc não. Endpoint-tự-khai

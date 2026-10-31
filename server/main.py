@@ -2518,7 +2518,7 @@ def _spec_keys(prov: str, key: str, model: str, mcfg: dict = None) -> list:
     """Bung một (provider, model) ra [(prov, key_i, model)] theo vòng quay key. Provider
     endpoint (ollama-local/openai-compat) có 'key' sentinel do caller quyết - giữ nguyên
     key đó, chỉ provider key-thật mới đi vòng."""
-    if prov in ("ollama-local", "openai-compat"):
+    if prov in ("ollama-local", "openai-compat", "anthropic-compat"):
         d = _provider_def(prov) or {}
         k = key or (_provider_key(mcfg or {}, d) if mcfg is not None else "")
         # Key endpoint đã bị cờ chết (auth-invalid) thì bỏ hẳn provider khỏi chuỗi:
@@ -19325,7 +19325,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
                 if (not used_fast_path and kind == "api" and api_key and
-                        prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "zai")):
+                        prov in ("openrouter", "openai", "anthropic-api", "anthropic-compat", "gemini", "groq", "deepseek", "zai")):
                     try:
                         asyncio.create_task(fast_mode.normal(compaction.maybe_compact(
                             store, conv_sid, prov, api_key, api_model, _api_stream)))
