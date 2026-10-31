@@ -50,6 +50,15 @@ check("Lõi nước có tiêu đề nhóm chọn cho trang Linh vật",
 check("brain-planet.js xuất BAN ra window.JoycePlanet", /BAN:\s*\{\s*styles:/.test(planetSrc));
 check("pet.js KHÔNG chép bảng hành tinh, chỉ đọc qua JoycePlanet.BAN",
   !/"ke-toan"\s*:\s*\{\s*pal:/.test(petSrc) && /window\.JoycePlanet && window\.JoycePlanet\.BAN/.test(petSrc));
+// 1.3.55: bỏ hàng chọn HÌNH DÁNG cũ ở trang Linh vật - hành tinh là toàn bộ lựa chọn. Bộ
+// chỉnh dùng chung với avatar trợ lý nên phải là CỜ, không phải xoá: avatar vẫn chọn hình.
+check("nhóm Hình dáng chỉ ẩn khi có cờ gx_only",
+  /if\s*\(!o\.gx_only\)\s*\{[\s\S]*?data-pet-part="shapes"/.test(petSrc));
+const consoleSrc = read("dashboard/console.js");
+check("trang Linh vật truyền gx_only và Đặt lại về Trái Đất",
+  /OPTS_ED\s*=\s*\{\s*size:\s*true,\s*vanh:\s*true,\s*gx_only:\s*true/.test(consoleSrc) &&
+  /shape:\s*"gx-_earth"/.test(consoleSrc));
+check("mặc định của linh vật là Trái Đất", /shape:\s*"gx-_earth"/.test(petSrc));
 
 // ---- 2. Nạp thật pet.js với dữ liệu BAN giả ----
 function nut() {
@@ -67,7 +76,9 @@ const win = {
   innerWidth: 1280, innerHeight: 800, joyceTheme: { isLight: () => true, on() {} },
   JoycePlanet: {
     BAN: {
-      styles: { "ke-toan": { pal: "gold", feat: "ring" }, "cskh": { pal: "ocean", feat: "waves" } },
+      // "thu" cố ý KHÔNG có màu khối: kiểm đường nhận màu dự phòng.
+      styles: { "ke-toan": { pal: "gold", feat: "ring" }, "cskh": { pal: "ocean", feat: "waves" },
+                "thu": { pal: "ocean", feat: "clouds" } },
       colors: { "ke-toan": [255, 205, 90], "cskh": [70, 160, 255] },
     },
   },
@@ -92,7 +103,7 @@ const P = win.JoycePet;
 
 // ---- 3. Dựng shape hành tinh từ BAN ----
 const gxs = P.gxShapes();
-check("dựng đúng hai hành tinh từ BAN giả", Object.keys(gxs).sort().join(",") === "gx-cskh,gx-ke-toan",
+check("dựng đúng ba hành tinh từ BAN giả", Object.keys(gxs).sort().join(",") === "gx-cskh,gx-ke-toan,gx-thu",
   Object.keys(gxs).join(","));
 check("khoá shape mang tiền tố gx-", Object.keys(gxs).every(k => /^gx-/.test(k)));
 check("màu hành tinh là MÃ HEX đọc được từ GX_KHOI_MAU",
@@ -107,13 +118,7 @@ check("thân hành tinh là cùng một hình tròn với shape circle",
 check("tra shape qua một cửa duy nhất", P.shapeCua("gx-ke-toan") === gxs["gx-ke-toan"] &&
   P.shapeCua("star") === P.shapes().star && P.shapeCua("khong_co") === null);
 check("ban không có màu khối thì nhận màu dự phòng đọc được",
-  (() => {
-    win.JoycePlanet.BAN.colors = {};
-    const lai = P.gxShapes();
-    return /^#[0-9a-f]{6}$/.test(lai["gx-ke-toan"].mau);
-  })(), "phải là hex 6 số");
-win.JoycePlanet.BAN.colors = { "ke-toan": [255, 205, 90], "cskh": [70, 160, 255] };
-// Xoá cache để lần sau dựng lại từ dữ liệu vừa gán (hàm nhớ _GXC theo thiết kế).
+  /^#[0-9a-f]{6}$/.test(gxs["gx-thu"].mau), gxs["gx-thu"].mau);
 
 // ---- 4. Con pet sống đeo hình hành tinh ----
 P.setCfg({ shape: "gx-ke-toan", palette: "custom", color: gxs["gx-ke-toan"].mau });

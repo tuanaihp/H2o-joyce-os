@@ -77,6 +77,14 @@ check("bóc được hàm renderPetCard khỏi console.js", !!than && than.lengt
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const t = (k) => (typeof vi[k] === "string" ? vi[k] : "!!THIEU:" + k + "!!");
 const win = napPet();
+// Trang Linh vật 1.3.55 CHỈ còn nhóm hành tinh phòng ban (đã bỏ hàng hình dáng cũ), nên bộ
+// chỉnh đọc bảng hành tinh từ window.JoycePlanet.BAN - cho dữ liệu giả như Lõi nước chạy thật.
+win.JoycePlanet = {
+  BAN: {
+    styles: { "ke-toan": { pal: "gold", feat: "ring" }, "cskh": { pal: "ocean", feat: "waves" } },
+    colors: { "ke-toan": [255, 205, 90], "cskh": [70, 160, 255] },
+  },
+};
 // Bộ chỉnh diện mạo nằm trong pet.js (0.64.39) và dịch qua window.t: cho nó dùng CÙNG từ
 // điển giả, để nhãn thiếu trong pet.js cũng lộ ra như nhãn thiếu trong console.js.
 win.t = t;
@@ -98,14 +106,16 @@ check("VẼ ĐƯỢC, không ném lỗi giữa chừng", noRender === null,
 const html = host.innerHTML;
 check("trang KHÔNG rỗng (đúng cái ảnh báo lỗi 18/09)", html.length > 1000, html.length + " ký tự");
 
-// ---- Đủ năm hàng chọn ----
+// ---- Đủ các hàng chọn (1.3.55: bỏ hàng HÌNH DÁNG cũ, chỉ còn hành tinh phòng ban) ----
 for (const [ten, dau] of [
-  ["hình dáng", "data-pet-shape="], ["thanh trượt cỡ", 'type="range" class="pet-range" data-pet-size '],
+  ["hành tinh phòng ban", 'data-pet-part="gx-shapes"'], ["ô chọn hành tinh", "data-pet-shape="],
+  ["thanh trượt cỡ", 'type="range" class="pet-range" data-pet-size '],
   ["màu thân", "data-pet-palette="], ["màu thân tự chọn", 'type="color" data-pet-color '],
   ["ô gõ mã màu thân", "data-pet-color-hex"], ["màu mắt", "data-pet-eye="],
   ["màu mắt tự chọn", 'type="color" data-pet-eye-color '], ["ô gõ mã màu mắt", "data-pet-eye-color-hex"],
   ["thanh trượt cỡ mắt", 'type="range" class="pet-range" data-pet-eye-size '],
 ]) check("có hàng chọn " + ten, html.includes(dau));
+check("hàng HÌNH DÁNG cũ đã khỏi trang Linh vật", !html.includes(esc(t("settings.pet_shape"))));
 
 // ---- Mọi màu đều ra ô, và mọi nhãn đều dịch được ----
 const soO = (dau) => (html.match(new RegExp(dau.replace(/[-[\]{}()*+?.\\^$|]/g, "\\$&"), "g")) || []).length;

@@ -23,10 +23,10 @@ const svg = read("dashboard/logo.svg");
 const dSao = (/star:\s+\{ key: "pet\.shape\.star",\s+d: "([^"]+)"/.exec(pet) || [])[1] || "";
 const cam = /cam:\s+\{ key: "pet\.color\.cam",\s+sun: \["(#\w{6})", "(#\w{6})"/.exec(pet) || [];
 
-check("linh vật mặc định là NGÔI SAO", /var MAC_DINH = \{[^}]*shape: "star"/.test(pet));
+check("linh vật mặc định là TRÁI ĐẤT (1.3.55: hành tinh là toàn bộ lựa chọn của linh vật)", /var MAC_DINH = \{[^}]*shape: "gx-_earth"/.test(pet));
 check("linh vật mặc định màu CAM", /var MAC_DINH = \{[^}]*palette: "cam"/.test(pet));
-check("nút Đặt lại trả về đúng ngôi sao cam",
-  /P\.setCfg\(\{ shape: "star", palette: "cam",/.test(read("dashboard/console.js")));
+check("nút Đặt lại trả về đúng Trái Đất cam (1.3.55)",
+  /P\.setCfg\(\{ shape: "gx-_earth", palette: "cam",/.test(read("dashboard/console.js")));
 check("logo.svg vẽ ĐÚNG đường ngôi sao của linh vật", dSao.length > 50 && svg.split(dSao).length - 1 === 2,
   "số lần xuất hiện: " + (svg.split(dSao).length - 1));
 // So sánh không phân biệt hoa thường: bảng màu viết #06B6D4, logo viết #06b6d4 (cùng một màu).

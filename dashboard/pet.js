@@ -113,9 +113,12 @@
   var _GXC = null;
   function gxShapes() {
     if (_GXC) return _GXC;
-    _GXC = {};
     var b = (typeof window !== "undefined") && window.JoycePlanet && window.JoycePlanet.BAN;
-    if (!b || !b.styles) return _GXC;
+    // Chưa thấy dữ liệu Lõi nước thì trả rỗng nhưng KHÔNG nhớ: pet tự mount lúc nạp trang và
+    // brain-planet.js có thể chưa chạy tới (thứ tự script, cache), mà nhớ kết quả rỗng là cả
+    // phiên này mất luôn nhóm hành tinh. Chỉ nhớ khi đã dựng thật.
+    if (!b || !b.styles) return {};
+    _GXC = {};
     Object.keys(b.styles).forEach(function (ban) {
       var f = FEAT_GX[b.styles[ban].feat] || FEAT_GX.clouds;
       var c = (b.colors[ban] || [150, 170, 255]).map(function (x) {
@@ -236,7 +239,9 @@
   // `color` / `eyeColor` là mã màu của ô TỰ CHỌN. Chúng nằm sẵn trong cấu hình kể cả khi đang
   // dùng màu có sẵn, để bấm lại ô tự chọn là ra đúng màu lần trước chứ không về một màu lạ.
   // Mặc định là LINH VẬT CHÍNH THỨC: ngôi sao màu cam, trùng logo (chủ dự án chốt 24/09, 0.64.47).
-  var MAC_DINH = { enabled: true, shape: "star", palette: "cam", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#06b6d4", eyeColor: "#0e7490" };
+  // Mặc định là TRÁI ĐẤT (Brain chung) từ 1.3.55: hành tinh phòng ban là toàn bộ lựa chọn của
+  // linh vật nên mặc định cũng đi theo. Ai đang dùng hình cũ thì giữ nguyên hình cũ.
+  var MAC_DINH = { enabled: true, shape: "gx-_earth", palette: "cam", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#06b6d4", eyeColor: "#0e7490" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
@@ -1235,8 +1240,14 @@
         '<input type="range" class="pet-range" ' + attr + ' min="' + min + '" max="' + max + '" step="' + step + '" value="' + gt + '" aria-label="' + esc(nhan) + '">' +
         '<span>' + esc(nhanCuoi) + '</span></div>';
     };
-    var h = dau(t("settings.pet_shape", "Hình dáng")) +
-      '<div class="pet-picker" role="group" data-pet-part="shapes">' + hinhHtml(v, o) + '</div>';
+    // Nhóm HÌNH DÁNG chỉ còn cho avatar trợ lý (agent-avatar.js gọi không có cờ). Trang Linh
+    // vật truyền gx_only: hành tinh phòng ban là toàn bộ lựa chọn của linh vật; hình cũ vẫn
+    // vẽ được (ai đang dùng thì giữ nguyên, chuanHoa không đụng), chỉ không còn chỗ chọn.
+    var h = "";
+    if (!o.gx_only) {
+      h += dau(t("settings.pet_shape", "Hình dáng")) +
+        '<div class="pet-picker" role="group" data-pet-part="shapes">' + hinhHtml(v, o) + '</div>';
+    }
     var gxs = gxShapes();
     if (Object.keys(gxs).length) {
       h += dau(t("settings.pet_gx", "Hành tinh phòng ban")) +
