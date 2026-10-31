@@ -362,6 +362,7 @@
   var pRing = null, pFace = null, gEyes = null, gRig = null;
   var gFBack = null, gFIn = null, pClip = null;   // hai lớp đặc trưng + hình cắt của hành tinh
   var pShade = null, pShine = null, pTint = null; // khối cầu 3D: bóng, sáng, và lớp nhuộm cảm xúc
+  var pRim = null;                                 // viền sáng nghiêng (rim light)
   var cfg = Object.assign({}, MAC_DINH);
   var state = "idle", mood = "neutral", dangChop = false;
   var raf = 0, truoc = 0, gocRing = 0, tocDo = STATES.idle.ring, tocDoDich = STATES.idle.ring;
@@ -557,7 +558,10 @@
     "@media (prefers-reduced-motion: no-preference) {" +
     "#joycePet[data-state='thinking'] .pet-ring { filter: drop-shadow(0 0 5px var(--pet-ring)) drop-shadow(0 0 13px var(--pet-ring)); }" +
     "#joycePet[data-state='thinking'] .pet-shine { animation: petNghiPulse 2.2s ease-in-out infinite; }" +
-    "} @keyframes petNghiPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }";
+    /* Hành tinh SỐNG: bề mặt trôi chậm ngang, 9 giây một lượt qua lại */
+    "#joycePet .pet-feat-drift { animation: petTroi 9s ease-in-out infinite alternate; }" +
+    "} @keyframes petNghiPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }" +
+    "@keyframes petTroi { from { transform: translateX(-6px); } to { transform: translateX(6px); } }";
 
   function boSungCSS() {
     if (!document.head || document.getElementById("petMoodCss")) return;
@@ -580,17 +584,23 @@
           '<defs>' +
             '<clipPath id="petBodyClip"><path></path></clipPath>' +
             // Khối cầu 3D (1.3.55): highlight trắng lệch trên-trái + bóng tối lệch dưới-phải,
-            // toạ độ objectBoundingBox nên dùng được cho MỌI hình và MỌI màu thân.
+            // toạ độ objectBoundingBox nên dùng được cho MỌI hình và MỌI màu thân. Đậm vừa đủ
+            // để nhìn là ra khối cầu ở cỡ 72px (chủ dự án phản hồi bản nhạt "không thấy 3D").
             '<radialGradient id="petShine" cx="34%" cy="30%" r="62%">' +
-              '<stop offset="0" stop-color="#fff" stop-opacity=".38"/>' +
-              '<stop offset=".55" stop-color="#fff" stop-opacity=".10"/>' +
+              '<stop offset="0" stop-color="#fff" stop-opacity=".55"/>' +
+              '<stop offset=".5" stop-color="#fff" stop-opacity=".18"/>' +
               '<stop offset="1" stop-color="#fff" stop-opacity="0"/>' +
             '</radialGradient>' +
-            '<radialGradient id="petShade" cx="72%" cy="82%" r="80%">' +
-              '<stop offset="0" stop-color="#000" stop-opacity=".30"/>' +
-              '<stop offset=".6" stop-color="#000" stop-opacity=".10"/>' +
+            '<radialGradient id="petShade" cx="74%" cy="84%" r="85%">' +
+              '<stop offset="0" stop-color="#000" stop-opacity=".45"/>' +
+              '<stop offset=".55" stop-color="#000" stop-opacity=".16"/>' +
               '<stop offset="1" stop-color="#000" stop-opacity="0"/>' +
             '</radialGradient>' +
+            // RIM LIGHT: vệt sáng viền nghiêng từ trên-trái, đúng chất ánh sáng chiếu hành tinh.
+            '<linearGradient id="petRimGrad" x1="0" y1="0" x2="1" y2="1">' +
+              '<stop offset="0" stop-color="#fff" stop-opacity=".5"/>' +
+              '<stop offset=".45" stop-color="#fff" stop-opacity="0"/>' +
+            '</linearGradient>' +
             // Bề mặt GỒ GHỀ khi nóng giận: nhiễu fractal rồi dịch chuyển làm mép và mặt gợn
             // như địa hình. Con số đặt tay theo ảnh chụp ở 72px, đừng phóng đại.
             '<filter id="petRough" x="-8%" y="-8%" width="116%" height="116%">' +
@@ -605,6 +615,7 @@
             '<g class="pet-feat-in" clip-path="url(#petBodyClip)"></g>' +
             '<path class="pet-shade" fill="url(#petShade)"></path>' +
             '<path class="pet-shine" fill="url(#petShine)"></path>' +
+            '<path class="pet-rim"></path>' +
             '<path class="pet-tint"></path>' +
             '<g class="pet-eyes"></g>' +
           '</g>' +
@@ -626,6 +637,7 @@
     pShade = el.querySelector(".pet-shade");
     pShine = el.querySelector(".pet-shine");
     pTint = el.querySelector(".pet-tint");
+    pRim = el.querySelector(".pet-rim");
     noiTuongTac();
   }
 
@@ -671,8 +683,17 @@
     if (pShade) pShade.setAttribute("d", sp.d);
     if (pShine) pShine.setAttribute("d", sp.d);
     if (pTint) pTint.setAttribute("d", sp.d);
+    if (pRim) {
+      pRim.setAttribute("d", sp.d);
+      pRim.setAttribute("fill", "none");
+      pRim.setAttribute("stroke", "url(#petRimGrad)");
+      pRim.setAttribute("stroke-width", "5");
+      pRim.setAttribute("clip-path", "url(#petBodyClip)");
+    }
     if (gFBack) gFBack.innerHTML = sp.back || "";
-    if (gFIn) gFIn.innerHTML = sp.in || "";
+    // Đặc trưng bề mặt bọc trong nhóm TRÔI: mây/sóng/tinh thể lượn chậm ngang mặt cầu như một
+    // hành tinh đang tự quay (clip vẫn đứng ở .pet-feat-in nên đặc trưng không tràn ra ngoài).
+    if (gFIn) gFIn.innerHTML = sp.in ? '<g class="pet-feat-drift">' + sp.in + '</g>' : "";
     var tone = toneCua(cfg.palette, cfg.color);
     el.style.setProperty("--pet-face", tone[0]);
     el.style.setProperty("--pet-ring", tone[1]);
